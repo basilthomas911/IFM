@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 try
@@ -34,6 +35,7 @@ try
         await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
         app.EnableServerManagerStandardInputShutdown(args, logger);

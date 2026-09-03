@@ -79,10 +79,12 @@ internal sealed class EventProjectorOutboxDispatcher(
         {
             try
             {
+                // Dispatch is driven by the in-process staging signal. The timeout is only a safety net for
+                // missed signals, retry timestamps becoming due, and rows staged by another process.
+                await _signal.WaitAsync(_options.OutboxPollingInterval, cancellationToken).ConfigureAwait(false);
                 while (await DispatchBatchAsync(cancellationToken).ConfigureAwait(false) == _options.OutboxBatchSize)
                 {
                 }
-                await _signal.WaitAsync(_options.OutboxPollingInterval, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

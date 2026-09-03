@@ -341,6 +341,7 @@ fn process_record(
     trade_replay_pending: &mut bool,
     mut startup_records: Option<&mut Vec<MarketRecord64>>,
 ) -> Result<(), LiveFailure> {
+    feed.record_transport_message();
     if let Some(error) = source.get::<ErrorMsg>() {
         return Err(failure(
             classify_gateway_error(error.code().unwrap_or(ErrorCode::Unset)),
@@ -349,7 +350,11 @@ fn process_record(
     }
     if let Some(system) = source.get::<SystemMsg>() {
         match system.code().unwrap_or(SystemCode::Unset) {
-            SystemCode::SubscriptionAck => *acknowledgements = acknowledgements.saturating_add(1),
+            SystemCode::SubscriptionAck => {
+                *acknowledgements = acknowledgements.saturating_add(1);
+                feed.record_subscription_acknowledgement();
+            }
+            SystemCode::Heartbeat => feed.record_heartbeat(),
             SystemCode::ReplayCompleted => {
                 match classify_replay_schema(system.msg().unwrap_or_default()) {
                     Some(Schema::Statistics) if *statistics_replay_pending => {

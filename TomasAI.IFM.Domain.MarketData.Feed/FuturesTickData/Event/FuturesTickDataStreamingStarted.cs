@@ -33,10 +33,10 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataApi.StartAsync(
-                e.ValueDate,
-                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
-                    LogSourceType.FuturesTickDataEvent, errorCode, errorMsg));
+            var runtime = p.MarketDataApi.GetRuntimeStatus();
+            if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
+                throw new InvalidOperationException(
+                    "The Databento watchdog must start and qualify the value-date runtime before a futures route is attached.");
             var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
             _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
                 e.Contract.ContractId,

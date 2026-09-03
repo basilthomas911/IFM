@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging;
@@ -7,7 +6,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -200,6 +198,34 @@ public class MarketDataFeedQueryApi(IQueryServiceApi querySvc) : IMarketDataFeed
             MarketDataFeedQueryUriPath.GetRuntimeStatus,
             qryParam,
             GetMarketDataFeedRuntimeStatusQuery.ErrorId);
+    }
+
+    public async Task<ServiceResult<DatabentoReadinessReadModel>> GetDatabentoReadinessAsync()
+    {
+        var qryParam = new GetDatabentoReadinessParameter();
+        return await _querySvc.ExecuteQueryAsync<DatabentoReadinessReadModel>(
+            MarketDataFeedQueryUriPath.GetDatabentoReadiness,
+            qryParam,
+            GetDatabentoReadinessQuery.ErrorId);
+    }
+
+    public async Task<ServiceResult<DatabentoContractAssignmentReadModel[]>> GetDatabentoCurrentContractsAsync()
+    {
+        var qryParam = new GetDatabentoCurrentContractsParameter();
+        return await _querySvc.ExecuteQueryAsync<DatabentoContractAssignmentReadModel[]>(
+            MarketDataFeedQueryUriPath.GetDatabentoCurrentContracts,
+            qryParam,
+            GetDatabentoCurrentContractsQuery.ErrorId);
+    }
+
+    public async Task<ServiceResult<DatabentoWatchdogObservationReadModel[]>> GetDatabentoWatchdogHistoryAsync(
+        DateOnly? valueDate = null, string? majorStatus = null, int pageSize = 100)
+    {
+        var qryParam = new GetDatabentoWatchdogHistoryParameter(valueDate, majorStatus, pageSize);
+        return await _querySvc.ExecuteQueryAsync<DatabentoWatchdogObservationReadModel[]>(
+            MarketDataFeedQueryUriPath.GetDatabentoWatchdogHistory,
+            qryParam,
+            GetDatabentoWatchdogHistoryQuery.ErrorId);
     }
 
 }

@@ -16,38 +16,45 @@ public sealed class ApplicationQueryActor(IQueryActorContext<ApplicationQueryAct
         context as IApplicationQueryContext
         ?? throw new ArgumentException("ApplicationQueryActor requires its typed context.", nameof(context));
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetApplicationStartupStatusQuery.Verb] = static message =>
                 message.AsQuery<GetApplicationStartupStatusQuery, ApplicationStartupStatus>()!
         };
 
+    static readonly IReadOnlyDictionary<Type, Func<
+        IQueryActorContext<ApplicationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<
+            IQueryActorContext<ApplicationQueryActor>, IQuery, CancellationToken, ValueTask>>
+        {
+            [typeof(GetApplicationStartupStatusQuery)] = static (context, query, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var statusQuery = (GetApplicationStartupStatusQuery)query;
+                return context.ReplyAsync(
+                    statusQuery.Subject.ThreadId,
+                    GetApplicationStartupStatusQuery.Verb,
+                    new ServiceOk<ApplicationStartupStatus>(Require(context).StatusStore.Current));
+            }
+        };
+
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
     protected override IQuery ParseMessage(
         IQueryActorContext<ApplicationQueryActor> context,
-        IActorMessage message) => ParseMappedQuery(context, message, ParseMap);
+        IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IQueryActorContext<ApplicationQueryActor> context,
         IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override async ValueTask ReceiveAsync(
+    protected override ValueTask ReceiveAsync(
         IQueryActorContext<ApplicationQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (query is not GetApplicationStartupStatusQuery statusQuery)
-            throw new InvalidOperationException($"Unsupported Application query {query.GetType().Name}.");
-        await context.ReplyAsync(
-            statusQuery.Subject.ThreadId,
-            GetApplicationStartupStatusQuery.Verb,
-            new ServiceOk<ApplicationStartupStatus>(Require(context).StatusStore.Current))
-            .ConfigureAwait(false);
-    }
-
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap([typeof(GetApplicationStartupStatusQuery)]);
+        => ResolveMappedQueryHandler(query, _receiveMap)(context, query, cancellationToken);
 
     protected override ValueTask OnExceptionAsync(
         IQueryActorContext<ApplicationQueryActor> context,
@@ -55,5 +62,5 @@ public sealed class ApplicationQueryActor(IQueryActorContext<ApplicationQueryAct
         IQuery query,
         string verb,
         Exception exception) =>
-        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, ExceptionMap);
+        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

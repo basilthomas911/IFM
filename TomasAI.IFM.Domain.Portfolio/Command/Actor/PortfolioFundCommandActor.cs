@@ -8,11 +8,25 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
+using AddFundMandateVersionCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.AddFundMandateVersionPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using AssignTradeTemplateCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.AssignTradeTemplatePayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using CancelFundOrderCompositionCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.CancelFundOrderCompositionPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using ChangeFundOperatingStateCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.ChangeFundStatePayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using CreateFundMandateCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.CreateFundMandatePayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using CreateManualFundOrderCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.CreateManualFundOrderPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using ExpireFundOrderCompositionCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.ExpireFundOrderCompositionPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using MarkFundOrderComposingCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.MarkComposingPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using RecordFundOrderComposedCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.RecordComposedPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using RecordFundOrderRiskOutcomeCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.RecordRiskOutcomePayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+using ReserveFundOrderCompositionCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.ReserveCompositionPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
 
 namespace TomasAI.IFM.Domain.Portfolio.Command.Actor;
 
@@ -36,28 +50,192 @@ public sealed class PortfolioFundCommandActor(
 
     protected override ValueTask OnShutdown(ICommandActorContext<PortfolioFundCommandActor> context) => _projector.StopAsync();
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap = new Dictionary<string, Func<IActorMessage, ICommand>>
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
-        ["CreateFundMandate"] = x => x.AsCommand<PortfolioCommand<CreateFundMandatePayload, PortfolioFundId>>()!,
-        ["AddFundMandateVersion"] = x => x.AsCommand<PortfolioCommand<AddFundMandateVersionPayload, PortfolioFundId>>()!,
-        ["ChangeFundOperatingState"] = x => x.AsCommand<PortfolioCommand<ChangeFundStatePayload, PortfolioFundId>>()!,
-        ["AssignTradeTemplate"] = x => x.AsCommand<PortfolioCommand<AssignTradeTemplatePayload, PortfolioFundId>>()!,
-        ["ReserveFundOrderComposition"] = x => x.AsCommand<PortfolioCommand<ReserveCompositionPayload, PortfolioFundId>>()!,
-        ["CreateManualFundOrder"] = x => x.AsCommand<PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId>>()!,
-        ["MarkFundOrderComposing"] = x => x.AsCommand<PortfolioCommand<MarkComposingPayload, PortfolioFundId>>()!,
-        ["RecordFundOrderComposed"] = x => x.AsCommand<PortfolioCommand<RecordComposedPayload, PortfolioFundId>>()!,
-        ["RecordFundOrderRiskOutcome"] = x => x.AsCommand<PortfolioCommand<RecordRiskOutcomePayload, PortfolioFundId>>()!,
-        ["CancelFundOrderComposition"] = x => x.AsCommand<PortfolioCommand<StopCompositionPayload, PortfolioFundId>>()!,
-        ["ExpireFundOrderComposition"] = x => x.AsCommand<PortfolioCommand<StopCompositionPayload, PortfolioFundId>>()!,
+        [PortfolioCommandVerbs.CreateFundMandate] = static message => message.AsCommand<CreateFundMandateCommand>()!,
+        [PortfolioCommandVerbs.AddFundMandateVersion] = static message => message.AsCommand<AddFundMandateVersionCommand>()!,
+        [PortfolioCommandVerbs.ChangeFundOperatingState] = static message => message.AsCommand<ChangeFundOperatingStateCommand>()!,
+        [PortfolioCommandVerbs.AssignTradeTemplate] = static message => message.AsCommand<AssignTradeTemplateCommand>()!,
+        [PortfolioCommandVerbs.ReserveFundOrderComposition] = static message => message.AsCommand<ReserveFundOrderCompositionCommand>()!,
+        [PortfolioCommandVerbs.CreateManualFundOrder] = static message => message.AsCommand<CreateManualFundOrderCommand>()!,
+        [PortfolioCommandVerbs.MarkFundOrderComposing] = static message => message.AsCommand<MarkFundOrderComposingCommand>()!,
+        [PortfolioCommandVerbs.RecordFundOrderComposed] = static message => message.AsCommand<RecordFundOrderComposedCommand>()!,
+        [PortfolioCommandVerbs.RecordFundOrderRiskOutcome] = static message => message.AsCommand<RecordFundOrderRiskOutcomeCommand>()!,
+        [PortfolioCommandVerbs.CancelFundOrderComposition] = static message => message.AsCommand<CancelFundOrderCompositionCommand>()!,
+        [PortfolioCommandVerbs.ExpireFundOrderComposition] = static message => message.AsCommand<ExpireFundOrderCompositionCommand>()!,
     };
 
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(CreateFundMandateCommand)] = command =>
+            {
+                var typed = (CreateFundMandateCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateCreate(errors, typed);
+                return errors;
+            },
+            [typeof(AddFundMandateVersionCommand)] = command =>
+            {
+                var typed = (AddFundMandateVersionCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateVersion(errors, typed);
+                return errors;
+            },
+            [typeof(ChangeFundOperatingStateCommand)] = command =>
+            {
+                var typed = (ChangeFundOperatingStateCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateStateChange(errors, typed);
+                return errors;
+            },
+            [typeof(AssignTradeTemplateCommand)] = command =>
+            {
+                var typed = (AssignTradeTemplateCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateAssignment(errors, typed);
+                return errors;
+            },
+            [typeof(ReserveFundOrderCompositionCommand)] = command =>
+            {
+                var typed = (ReserveFundOrderCompositionCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateReservation(errors, typed);
+                return errors;
+            },
+            [typeof(CreateManualFundOrderCommand)] = command =>
+            {
+                var typed = (CreateManualFundOrderCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateManualOrder(errors, typed);
+                return errors;
+            },
+            [typeof(MarkFundOrderComposingCommand)] = command =>
+            {
+                var typed = (MarkFundOrderComposingCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateMarkComposing(errors, typed);
+                return errors;
+            },
+            [typeof(RecordFundOrderComposedCommand)] = command =>
+            {
+                var typed = (RecordFundOrderComposedCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateCompositionResult(errors, typed);
+                return errors;
+            },
+            [typeof(RecordFundOrderRiskOutcomeCommand)] = command =>
+            {
+                var typed = (RecordFundOrderRiskOutcomeCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateRiskResult(errors, typed);
+                return errors;
+            },
+            [typeof(CancelFundOrderCompositionCommand)] = command =>
+            {
+                var typed = (CancelFundOrderCompositionCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateCancel(errors, typed);
+                return errors;
+            },
+            [typeof(ExpireFundOrderCompositionCommand)] = command =>
+            {
+                var typed = (ExpireFundOrderCompositionCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateExpire(errors, typed);
+                return errors;
+            },
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<PortfolioFundCommandActor, ICommand, PortfolioFundActorState,
+        DateTime, string, CancellationToken, ValueTask<PortfolioFundDomainEvent?>>> _receiveMap =
+        new Dictionary<Type, Func<PortfolioFundCommandActor, ICommand, PortfolioFundActorState,
+            DateTime, string, CancellationToken, ValueTask<PortfolioFundDomainEvent?>>>
+        {
+            [typeof(CreateFundMandateCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(((FundMandateCreated)state.Aggregate.Create(
+                    command.CommandId, ((CreateFundMandateCommand)command).Payload.Mandate, now, principal)) with
+                    { IdempotencyKey = ((CreateFundMandateCommand)command).Payload.IdempotencyKey }),
+            [typeof(AddFundMandateVersionCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
+                actor.AddVersionAsync(state, (AddFundMandateVersionCommand)command, now, principal, cancellationToken),
+            [typeof(ChangeFundOperatingStateCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
+                actor.ChangeStateAsync(state, (ChangeFundOperatingStateCommand)command, now, principal, cancellationToken),
+            [typeof(AssignTradeTemplateCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.AssignTradeTemplate(
+                    command.CommandId, ((AssignTradeTemplateCommand)command).Payload.ExpectedVersion,
+                    ((AssignTradeTemplateCommand)command).Payload.Assignment, now, principal)),
+            [typeof(ReserveFundOrderCompositionCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
+                actor.ReserveAsync(state.Aggregate, (ReserveFundOrderCompositionCommand)command, now, principal, cancellationToken),
+            [typeof(CreateManualFundOrderCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
+                actor.CreateManualAsync(state.Aggregate, (CreateManualFundOrderCommand)command, now, principal, cancellationToken),
+            [typeof(MarkFundOrderComposingCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.MarkCompositionComposing(
+                    command.CommandId, state.Aggregate.Revision, ((MarkFundOrderComposingCommand)command).Payload.OrderId.OrderId,
+                    ((MarkFundOrderComposingCommand)command).Payload.ExpectedVersion, now, principal)),
+            [typeof(RecordFundOrderComposedCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.RecordCompositionResult(
+                    command.CommandId, state.Aggregate.Revision, ((RecordFundOrderComposedCommand)command).Payload.OrderId.OrderId,
+                    ((RecordFundOrderComposedCommand)command).Payload.ExpectedVersion,
+                    ((RecordFundOrderComposedCommand)command).Payload.Result, now, principal)),
+            [typeof(RecordFundOrderRiskOutcomeCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.RecordRiskResult(
+                    command.CommandId, state.Aggregate.Revision, ((RecordFundOrderRiskOutcomeCommand)command).Payload.OrderId.OrderId,
+                    ((RecordFundOrderRiskOutcomeCommand)command).Payload.ExpectedVersion,
+                    ((RecordFundOrderRiskOutcomeCommand)command).Payload.Result, now, principal)),
+            [typeof(CancelFundOrderCompositionCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.CancelComposition(
+                    command.CommandId, state.Aggregate.Revision, ((CancelFundOrderCompositionCommand)command).Payload.OrderId.OrderId,
+                    ((CancelFundOrderCompositionCommand)command).Payload.ExpectedVersion,
+                    ((CancelFundOrderCompositionCommand)command).Payload.Reason, now, principal)),
+            [typeof(ExpireFundOrderCompositionCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.ExpireComposition(
+                    command.CommandId, state.Aggregate.Revision, ((ExpireFundOrderCompositionCommand)command).Payload.OrderId.OrderId,
+                    ((ExpireFundOrderCompositionCommand)command).Payload.ExpectedVersion,
+                    ((ExpireFundOrderCompositionCommand)command).Payload.Reason, now, principal)),
+        };
+
     protected override ICommand ParseMessage(ICommandActorContext<PortfolioFundCommandActor> context, IActorMessage message) =>
-        ParseMappedCommand(context, message, ParseMap);
+        ParseMappedCommand(context, message, _parseMap);
 
     protected override ValueTask OnValidateAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        if (command.CommandId == Guid.Empty || ParseId(command).Validate().Count != 0)
-            throw new ArgumentException("A valid PortfolioFund command identity is required.");
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(threadId);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -81,13 +259,13 @@ public sealed class PortfolioFundCommandActor(
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
-            if (command is PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> create && committed is FundMandateCreated prior &&
+            if (command is CreateFundMandateCommand create && committed is FundMandateCreated prior &&
                 !string.Equals(PortfolioCanonicalHash.Compute(create.Payload.Mandate.DefensiveCopy()), PortfolioCanonicalHash.Compute(prior.Mandate.DefensiveCopy()), StringComparison.Ordinal))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
             await _projector.DomainEventsProjectionAsync(new DomainEventCollection([committed])).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
-        if (command is PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> requestedCreate)
+        if (command is CreateFundMandateCommand requestedCreate)
         {
             var priorCreate = await _events.FindFundCreateByIdempotencyKeyAsync(state.IdValue, requestedCreate.Payload.IdempotencyKey, cancellationToken).ConfigureAwait(false);
             if (priorCreate is not null)
@@ -95,21 +273,8 @@ public sealed class PortfolioFundCommandActor(
         }
         var now = DateTime.UtcNow;
         var aggregate = state.Aggregate;
-        PortfolioFundDomainEvent? domainEvent = command switch
-        {
-            PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> x => ((FundMandateCreated)aggregate.Create(x.CommandId, x.Payload.Mandate, now, principal)) with { IdempotencyKey = x.Payload.IdempotencyKey },
-            PortfolioCommand<AddFundMandateVersionPayload, PortfolioFundId> x => aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Mandate, await ActivationAsync(state.IdValue, aggregate, cancellationToken), now, principal),
-            PortfolioCommand<ChangeFundStatePayload, PortfolioFundId> x => aggregate.ChangeState(x.CommandId, x.Payload.ExpectedVersion, x.Payload.State, x.Payload.Reason, await ActivationAsync(state.IdValue, aggregate, cancellationToken), now, principal),
-            PortfolioCommand<AssignTradeTemplatePayload, PortfolioFundId> x => aggregate.AssignTradeTemplate(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Assignment, now, principal),
-            PortfolioCommand<MarkComposingPayload, PortfolioFundId> x => aggregate.MarkCompositionComposing(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, now, principal),
-            PortfolioCommand<RecordComposedPayload, PortfolioFundId> x => aggregate.RecordCompositionResult(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Result, now, principal),
-            PortfolioCommand<RecordRiskOutcomePayload, PortfolioFundId> x => aggregate.RecordRiskResult(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Result, now, principal),
-            PortfolioCommand<StopCompositionPayload, PortfolioFundId> x when command.Subject.Verb == "CancelFundOrderComposition" => aggregate.CancelComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, principal),
-            PortfolioCommand<StopCompositionPayload, PortfolioFundId> x => aggregate.ExpireComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, principal),
-            PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> x => await ReserveAsync(aggregate, x, now, principal, cancellationToken),
-            PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> x => await CreateManualAsync(aggregate, x, now, principal, cancellationToken),
-            _ => throw new InvalidOperationException($"Unsupported PortfolioFund command {command.GetType().Name}."),
-        };
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
+        var domainEvent = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
         if (domainEvent is not null)
         {
             await _events.AppendFundAsync(
@@ -126,8 +291,27 @@ public sealed class PortfolioFundCommandActor(
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
+    async ValueTask<PortfolioFundDomainEvent?> AddVersionAsync(
+        PortfolioFundActorState state,
+        AddFundMandateVersionCommand command,
+        DateTime now,
+        string principal,
+        CancellationToken cancellationToken) =>
+        state.Aggregate.AddVersion(command.CommandId, command.Payload.ExpectedVersion, command.Payload.Mandate,
+            await ActivationAsync(state.IdValue, state.Aggregate, cancellationToken).ConfigureAwait(false), now, principal);
+
+    async ValueTask<PortfolioFundDomainEvent?> ChangeStateAsync(
+        PortfolioFundActorState state,
+        ChangeFundOperatingStateCommand command,
+        DateTime now,
+        string principal,
+        CancellationToken cancellationToken) =>
+        state.Aggregate.ChangeState(command.CommandId, command.Payload.ExpectedVersion, command.Payload.State,
+            command.Payload.Reason,
+            await ActivationAsync(state.IdValue, state.Aggregate, cancellationToken).ConfigureAwait(false), now, principal);
+
     async ValueTask<PortfolioFundDomainEvent?> CreateManualAsync(PortfolioFundAggregate aggregate,
-        PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> command, DateTime now, string principal, CancellationToken cancellationToken)
+        CreateManualFundOrderCommand command, DateTime now, string principal, CancellationToken cancellationToken)
     {
         if (aggregate.TryComposition(command.Payload.Request.IdempotencyKey, out var prior))
         {
@@ -145,7 +329,7 @@ public sealed class PortfolioFundCommandActor(
     }
 
     async ValueTask<PortfolioFundDomainEvent?> ReserveAsync(PortfolioFundAggregate aggregate,
-        PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> command, DateTime now, string principal, CancellationToken cancellationToken)
+        ReserveFundOrderCompositionCommand command, DateTime now, string principal, CancellationToken cancellationToken)
     {
         if (aggregate.TryComposition(command.Payload.Request.IdempotencyKey, out var prior))
         {
@@ -181,10 +365,12 @@ public sealed class PortfolioFundCommandActor(
 
     static PortfolioOperation Operation(string verb) => verb switch
     {
-        "AssignTradeTemplate" => PortfolioOperation.AssignTemplate,
-        "ReserveFundOrderComposition" or "MarkFundOrderComposing" or "ExpireFundOrderComposition" => PortfolioOperation.ReserveComposition,
-        "RecordFundOrderComposed" => PortfolioOperation.RecordCompositionResult,
-        "RecordFundOrderRiskOutcome" => PortfolioOperation.RecordRiskResult,
+        PortfolioCommandVerbs.AssignTradeTemplate => PortfolioOperation.AssignTemplate,
+        PortfolioCommandVerbs.ReserveFundOrderComposition or
+            PortfolioCommandVerbs.MarkFundOrderComposing or
+            PortfolioCommandVerbs.ExpireFundOrderComposition => PortfolioOperation.ReserveComposition,
+        PortfolioCommandVerbs.RecordFundOrderComposed => PortfolioOperation.RecordCompositionResult,
+        PortfolioCommandVerbs.RecordFundOrderRiskOutcome => PortfolioOperation.RecordRiskResult,
         _ => PortfolioOperation.AdministerFund,
     };
 
@@ -203,6 +389,242 @@ public sealed class PortfolioFundCommandActor(
         return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var fundId) && portfolioId > 0 && fundId > 0
             ? new PortfolioFundId(portfolioId, fundId)
             : throw new ArgumentException("PortfolioFund command subject identity is invalid.");
+    }
+
+    static void ValidateIdentity<TPayload>(
+        List<ValidationError> errors,
+        PortfolioCommand<TPayload, PortfolioFundId> command)
+    {
+        if (command.EntityId is null)
+        {
+            if (command.Payload is null)
+                errors.Add(new($"{command.CommandName}.Payload is null"));
+            return;
+        }
+        AddErrors(errors, command.EntityId.Validate(), command.CommandName);
+        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+            errors.Add(new($"{command.CommandName}.EntityId does not match Subject.EntityId"));
+        if (command.Payload is null)
+            errors.Add(new($"{command.CommandName}.Payload is null"));
+    }
+
+    static void ValidateCreate(List<ValidationError> errors, CreateFundMandateCommand command)
+    {
+        if (command.Payload is null) return;
+        if (command.Payload.IdempotencyKey == Guid.Empty)
+            errors.Add(new($"{command.CommandName}.Payload.IdempotencyKey is empty"));
+        ValidateMandate(errors, command, command.Payload.Mandate);
+    }
+
+    static void ValidateVersion(List<ValidationError> errors, AddFundMandateVersionCommand command)
+    {
+        if (command.Payload is null) return;
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        ValidateMandate(errors, command, command.Payload.Mandate);
+    }
+
+    static void ValidateStateChange(List<ValidationError> errors, ChangeFundOperatingStateCommand command)
+    {
+        if (command.Payload is null) return;
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        if (command.Payload.State == FundOperatingState.Unknown)
+            errors.Add(new($"{command.CommandName}.Payload.State is required"));
+        ValidateReason(errors, command.Payload.Reason, command.CommandName);
+    }
+
+    static void ValidateAssignment(List<ValidationError> errors, AssignTradeTemplateCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        if (command.Payload.Assignment is null)
+        {
+            errors.Add(new($"{command.CommandName}.Payload.Assignment is null"));
+            return;
+        }
+        if (command.Payload.Assignment.UnderlyingUniverse is null)
+            errors.Add(new($"{command.CommandName}.Payload.Assignment.UnderlyingUniverse is null"));
+        else
+            AddErrors(errors, command.Payload.Assignment.Validate(), command.CommandName);
+        if (command.Payload.Assignment.PortfolioId != command.EntityId.PortfolioId ||
+            command.Payload.Assignment.FundId != command.EntityId.FundId)
+            errors.Add(new($"{command.CommandName}.Payload.Assignment identity does not match EntityId"));
+    }
+
+    static void ValidateReservation(List<ValidationError> errors, ReserveFundOrderCompositionCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        var request = command.Payload.Request;
+        var snapshot = command.Payload.Snapshot;
+        if (request is null)
+        {
+            errors.Add(new($"{command.CommandName}.Payload.Request is null"));
+            return;
+        }
+        if (snapshot is null)
+        {
+            errors.Add(new($"{command.CommandName}.Payload.Snapshot is null"));
+            return;
+        }
+        if (request.PortfolioId != command.EntityId.PortfolioId || request.FundId != command.EntityId.FundId)
+            errors.Add(new($"{command.CommandName}.Payload.Request identity does not match EntityId"));
+        if (request.WorkflowId == Guid.Empty || request.WorkflowRevision <= 0 ||
+            request.TradeSelectionInvocationId == Guid.Empty || request.TradeSelectionResultId == Guid.Empty)
+            errors.Add(new($"{command.CommandName}.Payload.Request workflow identity is invalid"));
+        if (request.PortfolioVersion <= 0 || request.FundMandateVersion <= 0 ||
+            request.TradeTemplateId == Guid.Empty || request.TradeTemplateVersion <= 0 ||
+            request.OrderCompositionProfileId == Guid.Empty || request.OrderCompositionProfileVersion <= 0)
+            errors.Add(new($"{command.CommandName}.Payload.Request versioned identities are invalid"));
+        if (request.IdempotencyKey == Guid.Empty || string.IsNullOrWhiteSpace(request.TradeSelectionResultSha256) ||
+            string.IsNullOrWhiteSpace(request.PortfolioFundStrategySnapshotSha256))
+            errors.Add(new($"{command.CommandName}.Payload.Request hashes and idempotency key are required"));
+        if (string.IsNullOrWhiteSpace(request.UnderlyingRoot) || string.IsNullOrWhiteSpace(request.DecisionHorizon) ||
+            request.TradeInstructions is null || request.TradeInstructions.Length == 0 ||
+            request.TradeInstructions.Any(static instruction => instruction is null))
+            errors.Add(new($"{command.CommandName}.Payload.Request trade instructions are required"));
+        ValidateUtcWindow(errors, request.RequestedAtUtc, request.ExpiresAtUtc, command.CommandName);
+        if (snapshot.Portfolio is null || snapshot.Fund is null || snapshot.Allocation is null ||
+            snapshot.RiskEnvelope is null || snapshot.FinancialPolicy is null || snapshot.Assignments is null ||
+            snapshot.Assignments.Any(static assignment => assignment is null))
+            errors.Add(new($"{command.CommandName}.Payload.Snapshot contains null values"));
+        else if (snapshot.WorkflowId != request.WorkflowId || snapshot.WorkflowRevision != request.WorkflowRevision ||
+                 snapshot.Portfolio.PortfolioId != request.PortfolioId || snapshot.Fund.PortfolioId != request.PortfolioId ||
+                 snapshot.Fund.FundId != request.FundId)
+            errors.Add(new($"{command.CommandName}.Payload.Snapshot does not match Request"));
+        if (snapshot.ResolvedAtUtc.Kind != DateTimeKind.Utc || snapshot.ValidUntilUtc.Kind != DateTimeKind.Utc ||
+            snapshot.ValidUntilUtc <= snapshot.ResolvedAtUtc || string.IsNullOrWhiteSpace(snapshot.PayloadSha256))
+            errors.Add(new($"{command.CommandName}.Payload.Snapshot validity is invalid"));
+    }
+
+    static void ValidateManualOrder(List<ValidationError> errors, CreateManualFundOrderCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        var request = command.Payload.Request;
+        if (request is null)
+        {
+            errors.Add(new($"{command.CommandName}.Payload.Request is null"));
+            return;
+        }
+        if (request.PortfolioId != command.EntityId.PortfolioId || request.FundId != command.EntityId.FundId)
+            errors.Add(new($"{command.CommandName}.Payload.Request identity does not match EntityId"));
+        if (request.PortfolioVersion <= 0 || request.FundMandateVersion <= 0 || request.IdempotencyKey == Guid.Empty)
+            errors.Add(new($"{command.CommandName}.Payload.Request version and idempotency values are invalid"));
+        if (string.IsNullOrWhiteSpace(request.UnderlyingRoot))
+            errors.Add(new($"{command.CommandName}.Payload.Request.UnderlyingRoot is required"));
+        ValidateUtcWindow(errors, request.RequestedAtUtc, request.ExpiresAtUtc, command.CommandName);
+    }
+
+    static void ValidateMarkComposing(List<ValidationError> errors, MarkFundOrderComposingCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        ValidateOrderId(errors, command.Payload.OrderId, command.EntityId, command.CommandName);
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        if (command.Payload.InvocationId == Guid.Empty)
+            errors.Add(new($"{command.CommandName}.Payload.InvocationId is empty"));
+    }
+
+    static void ValidateCompositionResult(List<ValidationError> errors, RecordFundOrderComposedCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        ValidateOrderId(errors, command.Payload.OrderId, command.EntityId, command.CommandName);
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        var result = command.Payload.Result;
+        if (result is null || result.ResultId == Guid.Empty || result.InvocationId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(result.ResultSha256))
+            errors.Add(new($"{command.CommandName}.Payload.Result identity is invalid"));
+        else
+            ValidateUtcWindow(errors, result.EvaluatedAtUtc, result.ExpiresAtUtc, command.CommandName);
+    }
+
+    static void ValidateRiskResult(List<ValidationError> errors, RecordFundOrderRiskOutcomeCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        ValidateOrderId(errors, command.Payload.OrderId, command.EntityId, command.CommandName);
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        var result = command.Payload.Result;
+        if (result is null || result.ResultId == Guid.Empty || result.EnvelopeId == Guid.Empty ||
+            result.EnvelopeVersion <= 0 || result.Decision == RiskDecision.Unknown ||
+            string.IsNullOrWhiteSpace(result.ResultSha256) || string.IsNullOrWhiteSpace(result.CandidateSha256))
+            errors.Add(new($"{command.CommandName}.Payload.Result identity is invalid"));
+        else
+            ValidateUtcWindow(errors, result.EvaluatedAtUtc, result.ExpiresAtUtc, command.CommandName);
+    }
+
+    static void ValidateCancel(List<ValidationError> errors, CancelFundOrderCompositionCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        ValidateOrderId(errors, command.Payload.OrderId, command.EntityId, command.CommandName);
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        ValidateReason(errors, command.Payload.Reason, command.CommandName);
+    }
+
+    static void ValidateExpire(List<ValidationError> errors, ExpireFundOrderCompositionCommand command)
+    {
+        if (command.Payload is null || command.EntityId is null) return;
+        ValidateOrderId(errors, command.Payload.OrderId, command.EntityId, command.CommandName);
+        ValidateExpectedVersion(errors, command.Payload.ExpectedVersion, command.CommandName);
+        ValidateReason(errors, command.Payload.Reason, command.CommandName);
+    }
+
+    static void ValidateMandate<TPayload>(
+        List<ValidationError> errors,
+        PortfolioCommand<TPayload, PortfolioFundId> command,
+        FundMandateReadModel? mandate)
+    {
+        if (mandate is null)
+        {
+            errors.Add(new($"{command.CommandName}.Payload.Mandate is null"));
+            return;
+        }
+        if (mandate.UnderlyingUniverse is null || mandate.EligibleAssetTypes is null ||
+            mandate.PermittedDirections is null || mandate.PermittedConditions is null ||
+            mandate.PermittedTradeFamilies is null)
+            errors.Add(new($"{command.CommandName}.Payload.Mandate contains null collections"));
+        else
+            AddErrors(errors, mandate.Validate(), command.CommandName);
+        if (command.EntityId is null)
+            return;
+        if (mandate.PortfolioId != command.EntityId.PortfolioId || mandate.FundId != command.EntityId.FundId)
+            errors.Add(new($"{command.CommandName}.Payload.Mandate identity does not match EntityId"));
+    }
+
+    static void ValidateOrderId(
+        List<ValidationError> errors,
+        PortfolioFundOrderId? orderId,
+        PortfolioFundId entityId,
+        string commandName)
+    {
+        if (orderId is null)
+        {
+            errors.Add(new($"{commandName}.Payload.OrderId is null"));
+            return;
+        }
+        AddErrors(errors, orderId.Validate(), commandName);
+        if (orderId.PortfolioId != entityId.PortfolioId || orderId.FundId != entityId.FundId)
+            errors.Add(new($"{commandName}.Payload.OrderId parent identity does not match EntityId"));
+    }
+
+    static void ValidateExpectedVersion(List<ValidationError> errors, long expectedVersion, string commandName)
+    {
+        if (expectedVersion < 0)
+            errors.Add(new($"{commandName}.Payload.ExpectedVersion cannot be negative"));
+    }
+
+    static void ValidateReason(List<ValidationError> errors, string? reason, string commandName)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            errors.Add(new($"{commandName}.Payload.Reason is required"));
+    }
+
+    static void ValidateUtcWindow(List<ValidationError> errors, DateTime start, DateTime end, string commandName)
+    {
+        if (start.Kind != DateTimeKind.Utc || end.Kind != DateTimeKind.Utc || end <= start)
+            errors.Add(new($"{commandName}.Payload time window must contain ordered UTC values"));
+    }
+
+    static void AddErrors(List<ValidationError> errors, IEnumerable<string> messages, string commandName)
+    {
+        foreach (var message in messages)
+            errors.Add(new($"{commandName}.{message}"));
     }
 
     sealed class PortfolioFundActorState(PortfolioFundId id, PortfolioFundAggregate aggregate) : IActorState<PortfolioFundActorState>

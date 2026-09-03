@@ -29,6 +29,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private readonly IDatabentoLastPriceReaderProvider? _lastPriceReaders;
     private readonly ITickLiveRouter? _liveRouter;
     private readonly ITickerStreamRouteController? _streamRoutes;
+    private readonly Action<string>? _terminalFaultHandler;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly Dictionary<InstrumentKey, TickerState> _states = [];
     private FrozenDictionary<string, TickerState> _statesByContractId =
@@ -62,7 +63,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         TimeProvider? timeProvider = null,
         IDatabentoLastPriceWriter? lastPrices = null,
         ITickLiveRouter? liveRouter = null,
-        ITickerStreamRouteController? streamRoutes = null)
+        ITickerStreamRouteController? streamRoutes = null,
+        Action<string>? terminalFaultHandler = null)
     {
         _feed = feed ?? throw new ArgumentNullException(nameof(feed));
         _mappings = mappings ?? throw new ArgumentNullException(nameof(mappings));
@@ -76,6 +78,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         _lastPriceReaders = lastPrices as IDatabentoLastPriceReaderProvider;
         _liveRouter = liveRouter;
         _streamRoutes = streamRoutes;
+        _terminalFaultHandler = terminalFaultHandler;
     }
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
@@ -478,32 +481,43 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private async Task ProcessAsync(ManualResetEventSlim? startupReady = null)
     {
         startupReady?.Set();
-        while (true)
+        try
         {
-            if (!_reader!.TryRead(_options.ReaderPollTimeout, out var leased))
+            while (true)
             {
-                if (_reader.IsCompleted) break;
-                continue;
-            }
-
-            using (leased)
-            {
-                var state = _states[leased.Instrument];
-                for (var index = 0; index < leased.Batch.Count; index++)
+                if (!_reader!.TryRead(_options.ReaderPollTimeout, out var leased))
                 {
-                    var record = leased.Batch.Records[index];
-                    try
+                    if (_reader.IsCompleted) break;
+                    continue;
+                }
+
+                using (leased)
+                {
+                    var state = _states[leased.Instrument];
+                    for (var index = 0; index < leased.Batch.Count; index++)
                     {
-                        await ProcessRecordAsync(state, record).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // A transient publication or malformed observation must not terminate the
-                        // dataset worker. Pending quote/trade state remains owned by this ticker and
-                        // is retried by the next observation or the bounded shutdown flush.
-                        Interlocked.Increment(ref _processingFailures);
+                        var record = leased.Batch.Records[index];
+                        try
+                        {
+                            await ProcessRecordAsync(state, record).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            // A transient publication or malformed observation must not terminate the
+                            // dataset worker. Pending quote/trade state remains owned by this ticker and
+                            // is retried by the next observation or the bounded shutdown flush.
+                            Interlocked.Increment(ref _processingFailures);
+                        }
                     }
                 }
+            }
+        }
+        finally
+        {
+            if (Volatile.Read(ref _stopping) == 0)
+            {
+                try { _terminalFaultHandler?.Invoke("Aggregation reader completed unexpectedly."); }
+                catch { /* Terminal notification must never fault the reader task. */ }
             }
         }
     }

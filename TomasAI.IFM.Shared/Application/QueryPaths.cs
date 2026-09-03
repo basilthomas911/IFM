@@ -79,6 +79,9 @@ public class MarketDataFeedQueryUriPath
     public const string GetFuturesEodMovingAverages = "/api/marketdata/feed/futures/eod/movingaverages";
     public const string GetStreamingRequestId = "/api/marketdata/feed/streaming/requestid";
     public const string GetRuntimeStatus = "/api/marketdata/feed/runtime/status";
+    public const string GetDatabentoReadiness = "/api/marketdata/feed/databento/readiness";
+    public const string GetDatabentoCurrentContracts = "/api/marketdata/feed/databento/contracts/current";
+    public const string GetDatabentoWatchdogHistory = "/api/marketdata/feed/databento/watchdog/history";
 }
 
 public class FuturesBarDataQueryUriPath

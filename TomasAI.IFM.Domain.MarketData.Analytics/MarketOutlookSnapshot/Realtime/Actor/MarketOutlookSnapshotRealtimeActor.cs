@@ -84,9 +84,10 @@ public class MarketOutlookSnapshotRealtimeActor(
     protected override ValueTask ReceiveAsync(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         IEvent @event)
-        => _receiveMap.TryGetValue(@event.GetType(), out var receive)
-            ? receive(@event, context)
-            : ValueTask.CompletedTask;
+    {
+        var receive = ResolveMappedEventHandler(@event, _receiveMap);
+        return receive(@event, context);
+    }
 
     static void SubmitComponent(
         MarketOutlookComponentChangedRealtimeEvent source,

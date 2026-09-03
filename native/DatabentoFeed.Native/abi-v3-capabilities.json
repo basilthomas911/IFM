@@ -33,7 +33,8 @@
     "dbf_historical_result_get_payload",
     "dbf_historical_result_get_next_batch",
     "dbf_historical_result_get_error",
-    "dbf_historical_result_destroy"
+    "dbf_historical_result_destroy",
+    "dbf_get_watchdog_snapshot_v1"
   ],
   "structureSizes": {
     "FeedConfigV1": 128,
@@ -44,6 +45,8 @@
     "WaitResultV1": 32,
     "BatchResultV1": 32,
     "StatsV1": 128,
+    "WatchdogSnapshotV1": 64,
+    "WatchdogFeedStatusV1": 320,
     "ContractQueryV1": 64,
     "ContractDetailV1": 192,
     "LatestPriceRequestV1": 88,

@@ -13,8 +13,8 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
 {
     public const string ActorName = GetMarketConditionQuery.Actor;
     readonly IMarketConditionQueryContext _context = Typed(context);
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap =
-        new(StringComparer.Ordinal)
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetMarketConditionQuery.Verb] = x => x.AsQuery<GetMarketConditionQuery,
                 MarketConditionReadModel>()!,
@@ -25,8 +25,9 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
             [GetMarketConditionDecisionReferenceQuery.Verb] = x =>
                 x.AsQuery<GetMarketConditionDecisionReferenceQuery, MarketConditionDecisionReferenceDto[]>()!
         };
-    static readonly Dictionary<Type, Func<MarketConditionQueryActor, IQueryActorContext<MarketConditionQueryActor>,
-        IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<MarketConditionQueryActor, IQueryActorContext<MarketConditionQueryActor>,
+        IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<MarketConditionQueryActor, IQueryActorContext<MarketConditionQueryActor>,
+        IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetMarketConditionQuery)] = static async (actor, c, query, token) =>
         {

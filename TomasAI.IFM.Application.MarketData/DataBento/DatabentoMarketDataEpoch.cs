@@ -12,6 +12,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -22,19 +23,22 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
     private readonly DatabentoMarketDataRuntimeOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ITickLiveEventPublisher _livePublisher;
+    private readonly DatabentoTerminalFaultSignal? _terminalFaultSignal;
 
     public DatabentoMarketDataEpochFactory(
         IDatabentoFeedFactory feeds,
         ITickAggregationEventPublisher publisher,
         DatabentoMarketDataRuntimeOptions options,
         TimeProvider? timeProvider = null,
-        ITickLiveEventPublisher? livePublisher = null)
+        ITickLiveEventPublisher? livePublisher = null,
+        DatabentoTerminalFaultSignal? terminalFaultSignal = null)
     {
         _feeds = feeds ?? throw new ArgumentNullException(nameof(feeds));
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _livePublisher = livePublisher ?? new NullTickLiveEventPublisher();
+        _terminalFaultSignal = terminalFaultSignal;
     }
 
     public IDatabentoMarketDataEpoch Create(DateOnly valueDate)
@@ -45,7 +49,8 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         var snapshot = _options with { Contracts = contracts };
         return
         new DatabentoMarketDataEpoch(
-            valueDate, _feeds, _publisher, snapshot, _timeProvider, _livePublisher);
+            valueDate, _feeds, _publisher, snapshot, _timeProvider, _livePublisher,
+            _terminalFaultSignal is null ? null : detail => _terminalFaultSignal.Notify(detail));
     }
 }
 
@@ -59,6 +64,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     private readonly DatabentoOptionRouteRegistry _optionRoutes;
     private readonly ITickLiveRouter _liveRouter;
     private readonly ITickerStreamRouteController _streamRoutes;
+    private readonly Action<string>? _terminalFaultHandler;
     private readonly List<DatabentoOperationRunner> _operations = [];
     private DatabentoMarketDataCatalog? _catalog;
     private DatabentoLastPriceStore? _lastPrices;
@@ -75,7 +81,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         ITickAggregationEventPublisher publisher,
         DatabentoMarketDataRuntimeOptions options,
         TimeProvider timeProvider,
-        ITickLiveEventPublisher livePublisher)
+        ITickLiveEventPublisher livePublisher,
+        Action<string>? terminalFaultHandler = null)
     {
         if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
         ValueDate = valueDate;
@@ -86,6 +93,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _optionRoutes = new DatabentoOptionRouteRegistry(options.MaximumConcurrentOptionChains);
         _liveRouter = new TickLiveRouter(livePublisher);
         _streamRoutes = new DatabentoTickerStreamRouteController(_liveRouter, _optionRoutes);
+        _terminalFaultHandler = terminalFaultHandler;
     }
 
     public DateOnly ValueDate { get; }
@@ -275,7 +283,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                             _timeProvider,
                             _lastPrices,
                             _liveRouter,
-                            _streamRoutes);
+                            _streamRoutes,
+                            detail => _terminalFaultHandler?.Invoke($"{dataset}: {detail}"));
                         await aggregation.StartAsync().ConfigureAwait(false);
                     }
                     catch

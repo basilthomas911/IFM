@@ -39,7 +39,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     protected override IQuery ParseMessage(IQueryActorContext<MarketDataQueryActor> context, IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetLastRateOfReturnQuery.Verb] = message =>
             message.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>()!,
@@ -74,8 +74,8 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         await receive(this, MarketDataContext, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type,
-        Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type,
+        Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetLastRateOfReturnQuery)] = static (actor, context, query, cancellationToken) =>
             actor.ReceiveAsync(context, (GetLastRateOfReturnQuery)query, cancellationToken),

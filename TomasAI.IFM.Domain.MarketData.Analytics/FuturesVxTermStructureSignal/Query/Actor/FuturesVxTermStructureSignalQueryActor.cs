@@ -19,7 +19,7 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
         IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetLatestFuturesVxTermStructureSignalQuery.Verb] = message =>
             message.AsQuery<GetLatestFuturesVxTermStructureSignalQuery,
@@ -38,8 +38,9 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
         await receive(context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
-        IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
+        IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
+        IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetLatestFuturesVxTermStructureSignalQuery)] = static async (context, query, cancellationToken) =>
         {

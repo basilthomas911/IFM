@@ -20,7 +20,7 @@ public sealed unsafe class NativeApi : IDisposable
         "dbf_historical_batch_download_file", "dbf_historical_range_open",
         "dbf_historical_file_open", "dbf_historical_result_get_payload",
         "dbf_historical_result_get_next_batch", "dbf_historical_result_get_error",
-        "dbf_historical_result_destroy"
+        "dbf_historical_result_destroy", "dbf_get_watchdog_snapshot_v1"
     ];
 
     private nint _library;
@@ -63,6 +63,7 @@ public sealed unsafe class NativeApi : IDisposable
         HistoricalGetNextBatch = Load<HistoricalNextBatchFn>(CanonicalExports[30]);
         HistoricalGetError = Load<HistoricalTextFn>(CanonicalExports[31]);
         HistoricalDestroy = Load<DestroyFn>(CanonicalExports[32]);
+        GetWatchdogSnapshot = Load<GetWatchdogSnapshotFn>(CanonicalExports[33]);
     }
 
     private T Load<T>(string name) where T : Delegate =>
@@ -102,6 +103,7 @@ public sealed unsafe class NativeApi : IDisposable
     public HistoricalNextBatchFn HistoricalGetNextBatch { get; }
     public HistoricalTextFn HistoricalGetError { get; }
     public DestroyFn HistoricalDestroy { get; }
+    public GetWatchdogSnapshotFn GetWatchdogSnapshot { get; }
 
     public void Dispose()
     {
@@ -121,6 +123,7 @@ public sealed unsafe class NativeApi : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int ReadBatchFn(nint feed, MarketRecord64* destination, uint capacity, BatchResultV1* result);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int FreeReadBufferFn(nint feed, MarketRecord64* buffer);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int GetStatsFn(nint feed, StatsV1* stats);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int GetWatchdogSnapshotFn(WatchdogSnapshotV1* snapshot, WatchdogFeedStatusV1* entries, uint capacity);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int GetLastErrorFn(nint feed, byte* buffer, uint capacity, uint* requiredBytes);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int DestroyFn(nint handle);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int ContractQueryFn(ContractQueryV1* query, Utf8SliceV1* symbols, byte* blob, uint bytes, nint* result);

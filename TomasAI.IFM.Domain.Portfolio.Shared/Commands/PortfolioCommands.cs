@@ -15,6 +15,35 @@ public static class PortfolioCommandSubjects
     public const string PolicyActor = "PortfolioFinancialPolicyCommand";
 }
 
+/// <summary>Stable serialized verbs accepted by the Portfolio command actors.</summary>
+public static class PortfolioCommandVerbs
+{
+    public const string CreatePortfolio = "CreatePortfolio";
+    public const string AddPortfolioVersion = "AddPortfolioVersion";
+    public const string ChangePortfolioOperatingState = "ChangePortfolioOperatingState";
+    public const string AddFundToPortfolio = "AddFundToPortfolio";
+    public const string DelegateFundAllocation = "DelegateFundAllocation";
+    public const string DelegateFundRiskEnvelope = "DelegateFundRiskEnvelope";
+    public const string RetirePortfolio = "RetirePortfolio";
+    public const string DeleteDraftPortfolio = "DeleteDraftPortfolio";
+    public const string CreateFundMandate = "CreateFundMandate";
+    public const string AddFundMandateVersion = "AddFundMandateVersion";
+    public const string ChangeFundOperatingState = "ChangeFundOperatingState";
+    public const string AssignTradeTemplate = "AssignTradeTemplate";
+    public const string ReserveFundOrderComposition = "ReserveFundOrderComposition";
+    public const string CreateManualFundOrder = "CreateManualFundOrder";
+    public const string MarkFundOrderComposing = "MarkFundOrderComposing";
+    public const string RecordFundOrderComposed = "RecordFundOrderComposed";
+    public const string RecordFundOrderRiskOutcome = "RecordFundOrderRiskOutcome";
+    public const string CancelFundOrderComposition = "CancelFundOrderComposition";
+    public const string ExpireFundOrderComposition = "ExpireFundOrderComposition";
+    public const string CreatePortfolioFinancialPolicy = "CreatePortfolioFinancialPolicy";
+    public const string AddPortfolioFinancialPolicyVersion = "AddPortfolioFinancialPolicyVersion";
+    public const string ActivateAndAssignPortfolioFinancialPolicy = "ActivateAndAssignPortfolioFinancialPolicy";
+    public const string RetirePortfolioFinancialPolicy = "RetirePortfolioFinancialPolicy";
+    public const string DeleteDraftPortfolioFinancialPolicy = "DeleteDraftPortfolioFinancialPolicy";
+}
+
 public interface IPortfolioRequestMetadata
 {
     Guid CorrelationId { get; }
@@ -94,7 +123,8 @@ public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>
 [MessagePackObject] public sealed record MarkComposingPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] Guid InvocationId);
 [MessagePackObject] public sealed record RecordComposedPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] OrderCompositionResultReference Result);
 [MessagePackObject] public sealed record RecordRiskOutcomePayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] RiskManagementResultReference Result);
-[MessagePackObject] public sealed record StopCompositionPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] string Reason);
+[MessagePackObject] public sealed record CancelFundOrderCompositionPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] string Reason);
+[MessagePackObject] public sealed record ExpireFundOrderCompositionPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] string Reason);
 [MessagePackObject] public sealed record CreatePortfolioFinancialPolicyPayload([property: Key(0)] PortfolioFinancialPolicyReadModel Policy, [property: Key(1)] Guid IdempotencyKey);
 [MessagePackObject] public sealed record AddPortfolioFinancialPolicyVersionPayload([property: Key(0)] PortfolioFinancialPolicyReadModel Policy, [property: Key(1)] long ExpectedVersion);
 [MessagePackObject] public sealed record ActivateAndAssignPortfolioFinancialPolicyPayload([property: Key(0)] long PolicyVersion, [property: Key(1)] long ExpectedPolicyRevision, [property: Key(2)] long ExpectedPortfolioRevision);

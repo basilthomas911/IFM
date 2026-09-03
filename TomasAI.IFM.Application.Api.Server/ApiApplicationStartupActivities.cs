@@ -1,9 +1,9 @@
 ﻿using System.Collections.Concurrent;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
@@ -22,10 +22,9 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// </summary>
 public sealed class ApiApplicationStartupActivities(
     IFuturesMarketSessionAuthority marketSessionAuthority,
-    SecuritiesSchemaDb securitiesSchema,
-    FuturesContractRolloverStartupCheck rolloverCheck,
+    IDatabentoContractAuthority contractAuthority,
+    ICurrentFuturesContractCatalog contractCatalog,
     IFmpMarketDataImportCoordinator referenceImportCoordinator,
-    IMarketDataQueryApi marketDataQueryApi,
     IMarketDataFeedCommandApi marketDataFeedCommandApi,
     IMarketDataFeedQueryApi marketDataFeedQueryApi,
     IMarketDataAnalyticsCommandApi analyticsCommandApi,
@@ -68,21 +67,13 @@ public sealed class ApiApplicationStartupActivities(
         ApplicationStartupContext context,
         CancellationToken cancellationToken)
     {
-        await securitiesSchema.CreateAsync(["futures_contract_rollover"], cancellationToken)
-            .ConfigureAwait(false);
-        _ = await rolloverCheck.ExecuteAsync(context.ValueDate, cancellationToken)
-            .ConfigureAwait(false);
-
-        var es = await marketDataQueryApi.GetRolloverFuturesContractsAsync("ES")
-            .ConfigureAwait(false);
-        var vx = await marketDataQueryApi.GetRolloverFuturesContractsAsync("VX")
-            .ConfigureAwait(false);
-        if (!es.Success || !vx.Success)
-            throw new InvalidOperationException(
-                $"Current-contract query failed. ES={es.ErrorMessage}; VX={vx.ErrorMessage}");
-
-        var contracts = (es.Value ?? [])
-            .Concat(vx.Value ?? [])
+        var assignments = await contractAuthority.ReconcileAsync(
+            context.ValueDate, nameof(ApiApplicationStartupActivities), cancellationToken).ConfigureAwait(false);
+        var selectedIds = assignments.Select(value => value.ContractId).ToHashSet(StringComparer.Ordinal);
+        var es = await contractCatalog.GetByRootAsync("ES", cancellationToken).ConfigureAwait(false);
+        var vx = await contractCatalog.GetByRootAsync("VX", cancellationToken).ConfigureAwait(false);
+        var contracts = es.Concat(vx)
+            .Where(contract => selectedIds.Contains(contract.ContractId))
             .Where(contract => !string.IsNullOrWhiteSpace(contract.ContractId))
             .DistinctBy(contract => contract.ContractId, StringComparer.Ordinal)
             .ToArray();

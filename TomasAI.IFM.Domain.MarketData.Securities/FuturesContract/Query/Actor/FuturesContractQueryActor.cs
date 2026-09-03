@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query.Extensions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -48,7 +48,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetOnTheRunFuturesContractQuery.Verb] = msg => msg.AsQuery<GetOnTheRunFuturesContractQuery, FuturesContractV3ReadModel>()!,
         [GetRolloverFuturesContractsQuery.Verb] = msg => msg.AsQuery<GetRolloverFuturesContractsQuery, FuturesContractV3ReadModel[]>()!,
@@ -87,7 +87,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     /// <remarks>This dictionary enables dynamic dispatch of futures contract-related queries by associating each query
     /// type name with a function that processes the query against a FuturesContractQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<Type, Func<IFuturesContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesContractQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetOnTheRunFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {

@@ -44,7 +44,7 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetLastFuturesTickDataQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTickDataQuery, FuturesTickDataV2ReadModel>()!,
         [GetLastFuturesTickDataByTickDateQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTickDataByTickDateQuery, FuturesTickDataV2ReadModel>()!
@@ -69,7 +69,7 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures tick data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<Type, Func<IFuturesTickDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesTickDataQueryContext, IQuery, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesTickDataQueryContext, IQuery, ValueTask>>()
     {
         [typeof(GetLastFuturesTickDataQuery)] = async (ctx, q) =>
         {

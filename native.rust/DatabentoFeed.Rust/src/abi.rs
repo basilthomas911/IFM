@@ -53,6 +53,9 @@ pub const STATE_RUNNING: u32 = 5;
 pub const STATE_STOPPING: u32 = 6;
 pub const STATE_STOPPED: u32 = 7;
 pub const STATE_FAULTED: u32 = 8;
+pub const MAJOR_UP: u32 = 1;
+pub const MAJOR_RESETTING: u32 = 2;
+pub const MAJOR_DOWN: u32 = 3;
 pub const WAIT_DATA: u32 = 1;
 pub const WAIT_TERMINAL: u32 = 2;
 pub const WAIT_FAULT: u32 = 4;
@@ -206,6 +209,51 @@ pub struct FeedConfigV1 {
     pub statistics_replay_start_ns: u64,
     pub trade_replay_start_ns: u64,
     pub reserved: [u64; 1],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct WatchdogSnapshotV1 {
+    pub struct_size: u32,
+    pub abi_version: u32,
+    pub entry_count: u32,
+    pub required_count: u32,
+    pub observed_monotonic_ns: u64,
+    pub snapshot_sequence: u64,
+    pub reserved: [u64; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WatchdogFeedStatusV1 {
+    pub struct_size: u32,
+    pub abi_version: u32,
+    pub feed_instance_id: u64,
+    pub generation_id: u64,
+    pub feed_kind: u32,
+    pub major_status: u32,
+    pub state: u32,
+    pub terminal_status: i32,
+    pub producer_alive: u32,
+    pub consumer_ready: u32,
+    pub expected_subscriptions: u32,
+    pub received_subscriptions: u32,
+    pub heartbeat_count: u64,
+    pub provider_message_count: u64,
+    pub last_heartbeat_monotonic_ns: u64,
+    pub last_provider_message_monotonic_ns: u64,
+    pub records_produced: u64,
+    pub records_consumed: u64,
+    pub ring_capacity_records: u64,
+    pub ring_used_records: u64,
+    pub ring_high_water_records: u64,
+    pub ring_overruns: u64,
+    pub dataset: [u8; 56],
+    pub failure_detail: [u8; 128],
+}
+
+impl Default for WatchdogFeedStatusV1 {
+    fn default() -> Self { unsafe { core::mem::zeroed() } }
 }
 
 #[repr(C)]
@@ -491,6 +539,8 @@ const _: () = {
     assert!(size_of::<WaitResultV1>() == 32);
     assert!(size_of::<BatchResultV1>() == 32);
     assert!(size_of::<StatsV1>() == 128);
+    assert!(size_of::<WatchdogSnapshotV1>() == 64);
+    assert!(size_of::<WatchdogFeedStatusV1>() == 320);
     assert!(size_of::<Utf8SliceV1>() == 8);
     assert!(size_of::<ContractQueryV1>() == 64);
     assert!(size_of::<ContractDetailV1>() == 192);

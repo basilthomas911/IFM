@@ -82,12 +82,43 @@ fn layouts_and_version_match_the_c_header() {
     assert_eq!(size_of::<MarketRecord64>(), 64);
     assert_eq!(size_of::<FeedConfigV1>(), 128);
     assert_eq!(size_of::<StatsV1>(), 128);
+    assert_eq!(size_of::<WatchdogSnapshotV1>(), 64);
+    assert_eq!(size_of::<WatchdogFeedStatusV1>(), 320);
     assert_eq!(size_of::<ContractDetailV1>(), 192);
     assert_eq!(size_of::<LatestPriceRequestV1>(), 88);
     assert_eq!(size_of::<HistoricalRequestV1>(), 64);
     assert_eq!(size_of::<HistoricalEstimateV1>(), 32);
     assert_eq!(size_of::<HistoricalRecord120>(), 120);
     assert_eq!(size_of::<HistoricalBatchV1>(), 24);
+}
+
+#[test]
+fn process_wide_watchdog_snapshot_is_complete() {
+    unsafe {
+        let feed = create_subscribed(8, 128);
+        let mut snapshot = WatchdogSnapshotV1 {
+            struct_size: size_of::<WatchdogSnapshotV1>() as u32,
+            abi_version: ABI_VERSION,
+            ..WatchdogSnapshotV1::default()
+        };
+        assert_eq!(dbf_get_watchdog_snapshot_v1(&mut snapshot, ptr::null_mut(), 0), BUFFER_TOO_SMALL);
+        assert!(snapshot.required_count >= 1);
+        let mut entries = Vec::new();
+        loop {
+            entries.resize(snapshot.required_count as usize, WatchdogFeedStatusV1::default());
+            for entry in &mut entries {
+                entry.struct_size = size_of::<WatchdogFeedStatusV1>() as u32;
+                entry.abi_version = ABI_VERSION;
+            }
+            if dbf_get_watchdog_snapshot_v1(&mut snapshot, entries.as_mut_ptr(), entries.len() as u32) == OK {
+                break;
+            }
+        }
+        assert_eq!(snapshot.entry_count, snapshot.required_count);
+        assert!(entries.iter().any(|entry| entry.feed_instance_id != 0
+            && entry.expected_subscriptions == 2 && entry.major_status == MAJOR_DOWN));
+        assert_eq!(dbf_feed_destroy(feed.cast()), OK);
+    }
 }
 
 #[test]

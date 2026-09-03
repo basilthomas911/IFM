@@ -14,6 +14,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// </summary>
 public partial class StatusConsoleView : UserControl
 {
+    const int MaximumStatusLogItems = 500;
     StatusConsoleViewModel? _viewModel;
     StatusConsoleLogReadModel? _latestStatusLog;
 
@@ -47,11 +48,66 @@ public partial class StatusConsoleView : UserControl
     /// <summary>Renders the bounded application status-log snapshot.</summary>
     public void RenderStatusConsole(IReadOnlyList<StatusConsoleLogReadModel> logItems)
     {
+        ArgumentNullException.ThrowIfNull(logItems);
         lstStatusConsole.BeginUpdate();
-        lstStatusConsole.Items.Clear();
-        lstStatusConsole.Items.AddRange(logItems.Select(CreateStatusLogItem).ToArray());
-        _latestStatusLog = logItems.FirstOrDefault();
-        lstStatusConsole.EndUpdate();
+        try
+        {
+            lstStatusConsole.Items.Clear();
+            lstStatusConsole.Items.AddRange(logItems
+                .Take(MaximumStatusLogItems)
+                .Select(CreateStatusLogItem)
+                .ToArray());
+            _latestStatusLog = logItems.FirstOrDefault();
+        }
+        finally
+        {
+            lstStatusConsole.EndUpdate();
+        }
+    }
+
+    /// <summary>
+    /// Reconciles a newest-first snapshot by prepending only rows that arrived since the previous render.
+    /// Falls back to a full render if the snapshots no longer overlap.
+    /// </summary>
+    public void UpdateStatusConsole(IReadOnlyList<StatusConsoleLogReadModel> logItems)
+    {
+        ArgumentNullException.ThrowIfNull(logItems);
+        if (logItems.Count == 0)
+        {
+            if (lstStatusConsole.Items.Count != 0)
+                RenderStatusConsole(logItems);
+            return;
+        }
+
+        if (_latestStatusLog is null || lstStatusConsole.Items.Count == 0)
+        {
+            RenderStatusConsole(logItems);
+            return;
+        }
+
+        var overlapIndex = FindOverlapIndex(logItems, _latestStatusLog);
+        if (overlapIndex < 0)
+        {
+            RenderStatusConsole(logItems);
+            return;
+        }
+
+        lstStatusConsole.BeginUpdate();
+        try
+        {
+            // Insert oldest-to-newest at index zero so the final visual order remains newest-first.
+            for (var index = overlapIndex - 1; index >= 0; index--)
+                lstStatusConsole.Items.Insert(0, CreateStatusLogItem(logItems[index]));
+
+            var targetCount = Math.Min(logItems.Count, MaximumStatusLogItems);
+            while (lstStatusConsole.Items.Count > targetCount)
+                lstStatusConsole.Items.RemoveAt(lstStatusConsole.Items.Count - 1);
+            _latestStatusLog = logItems[0];
+        }
+        finally
+        {
+            lstStatusConsole.EndUpdate();
+        }
     }
 
     /// <summary>Prepends one newly observed application status-log entry.</summary>
@@ -61,11 +117,17 @@ public partial class StatusConsoleView : UserControl
             return;
 
         lstStatusConsole.BeginUpdate();
-        lstStatusConsole.Items.Insert(0, CreateStatusLogItem(logItem));
-        while (lstStatusConsole.Items.Count > 500)
-            lstStatusConsole.Items.RemoveAt(lstStatusConsole.Items.Count - 1);
-        _latestStatusLog = logItem;
-        lstStatusConsole.EndUpdate();
+        try
+        {
+            lstStatusConsole.Items.Insert(0, CreateStatusLogItem(logItem));
+            while (lstStatusConsole.Items.Count > MaximumStatusLogItems)
+                lstStatusConsole.Items.RemoveAt(lstStatusConsole.Items.Count - 1);
+            _latestStatusLog = logItem;
+        }
+        finally
+        {
+            lstStatusConsole.EndUpdate();
+        }
     }
 
     void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
@@ -94,4 +156,23 @@ public partial class StatusConsoleView : UserControl
         => new([
             EasternTime.FromUtc(log.StatusDate).ToString("hh:mm:ss.fff tt", CultureInfo.InvariantCulture),
             log.Message]);
+
+    static int FindOverlapIndex(
+        IReadOnlyList<StatusConsoleLogReadModel> logItems,
+        StatusConsoleLogReadModel latestStatusLog)
+    {
+        for (var index = 0; index < logItems.Count; index++)
+        {
+            if (ReferenceEquals(logItems[index], latestStatusLog))
+                return index;
+        }
+
+        for (var index = 0; index < logItems.Count; index++)
+        {
+            if (EqualityComparer<StatusConsoleLogReadModel>.Default.Equals(logItems[index], latestStatusLog))
+                return index;
+        }
+
+        return -1;
+    }
 }

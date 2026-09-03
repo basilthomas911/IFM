@@ -48,7 +48,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetFuturesOptionContractQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionContractQuery, FuturesOptionContractReadModel>()!,
         [GetFuturesOptionContractsQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionContractsQuery, FuturesOptionContractReadModel[]>()!,
@@ -86,7 +86,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <remarks>This dictionary enables dynamic dispatch of futures option contract-related queries by associating each query
     /// type name with a function that processes the query against a FuturesOptionContractQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<Type, Func<IFuturesOptionContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesOptionContractQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetFuturesOptionContractQuery)] = async (ctx, q, cancellationToken) =>
         {

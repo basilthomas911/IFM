@@ -141,4 +141,32 @@ public static class MarketDataFeedQueryApiResult
             ObservedAtUtc = new DateTimeOffset(2026, 8, 31, 22, 0, 0, TimeSpan.Zero)
         });
 
+    public static Task FromGetDatabentoReadinessAsync(HttpResponse resp)
+        => resp.SetResult(new DatabentoReadinessReadModel
+        {
+            State = "Healthy", DisplayHealth = "Green", CoreReady = true,
+            ValueDate = new DateOnly(2026, 9, 2), CorrelationId = Guid.NewGuid(),
+            NativeGeneration = Guid.NewGuid(), Reason = "ready", ChangedOnUtc = DateTime.UtcNow
+        });
+
+    public static Task FromGetDatabentoCurrentContractsAsync(HttpResponse resp)
+        => resp.SetResult(new[]
+        {
+            new DatabentoContractAssignmentReadModel { Role = "EsQuarterly", RootSymbol = "ES", ContractId = "ES20261218", RowVersion = 1 },
+            new DatabentoContractAssignmentReadModel { Role = "VxFrontMonth", RootSymbol = "VX", ContractId = "VX20260916", RowVersion = 1 },
+            new DatabentoContractAssignmentReadModel { Role = "VxSecondMonth", RootSymbol = "VX", ContractId = "VX20261021", RowVersion = 1 }
+        });
+
+    public static Task FromGetDatabentoWatchdogHistoryAsync(HttpResponse resp)
+        => resp.SetResult(new[]
+        {
+            new DatabentoWatchdogObservationReadModel
+            {
+                Id = 1, ObservationId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(),
+                ValueDate = new DateOnly(2026, 9, 2), ObservedOnUtc = DateTime.UtcNow,
+                OperationReason = "WatchdogPoll", MajorStatus = "Up", DisplayHealth = "Green",
+                CoreReady = true, RowVersion = 1
+            }
+        });
+
 }

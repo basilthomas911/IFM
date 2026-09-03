@@ -13,7 +13,6 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 
@@ -26,7 +25,7 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     protected IMarketDataFeedEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IMarketDataFeedEventContext, nameof(actorContext))!;
     readonly ILogger<MarketDataFeedEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     MarketDataFeedEventParameters _eventParameters = new(
-        ((IMarketDataFeedEventContext)actorContext).MarketDataApi,
+        ((IMarketDataFeedEventContext)actorContext).MarketDataLifecycle,
         ((IMarketDataFeedEventContext)actorContext).OptionTradeLiveFeedMap,
         ((IMarketDataFeedEventContext)actorContext).BlackboardService,
         ((IMarketDataFeedEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);

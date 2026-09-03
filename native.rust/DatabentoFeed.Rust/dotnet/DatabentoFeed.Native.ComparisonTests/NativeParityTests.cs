@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using DatabentoFeed.Native.Interop;
@@ -37,6 +38,8 @@ public sealed unsafe class NativeParityTests
         Assert.Equal(32, sizeof(WaitResultV1));
         Assert.Equal(32, sizeof(BatchResultV1));
         Assert.Equal(128, sizeof(StatsV1));
+        Assert.Equal(64, sizeof(WatchdogSnapshotV1));
+        Assert.Equal(320, sizeof(WatchdogFeedStatusV1));
         Assert.Equal(64, sizeof(ContractQueryV1));
         Assert.Equal(192, sizeof(ContractDetailV1));
         Assert.Equal(88, sizeof(LatestPriceRequestV1));
@@ -56,6 +59,8 @@ public sealed unsafe class NativeParityTests
             [nameof(WaitResultV1)] = sizeof(WaitResultV1),
             [nameof(BatchResultV1)] = sizeof(BatchResultV1),
             [nameof(StatsV1)] = sizeof(StatsV1),
+            [nameof(WatchdogSnapshotV1)] = sizeof(WatchdogSnapshotV1),
+            [nameof(WatchdogFeedStatusV1)] = sizeof(WatchdogFeedStatusV1),
             [nameof(ContractQueryV1)] = sizeof(ContractQueryV1),
             [nameof(ContractDetailV1)] = sizeof(ContractDetailV1),
             [nameof(LatestPriceRequestV1)] = sizeof(LatestPriceRequestV1),
@@ -95,6 +100,125 @@ public sealed unsafe class NativeParityTests
         Assert.Equal(expected.Stats.RecordsProduced, actual.Stats.RecordsProduced);
         Assert.Equal(expected.Stats.RecordsConsumed, actual.Stats.RecordsConsumed);
         Assert.Equal(expected.Stats.RingOverruns, actual.Stats.RingOverruns);
+    }
+
+    [Fact]
+    public void Process_wide_watchdog_snapshot_semantics_match_cpp()
+    {
+        using var cpp = new NativeApi(CppPath);
+        using var rust = new NativeApi(RustPath);
+        using var cppFeed = new PreparedSyntheticFeed(cpp, 100, 16);
+        using var rustFeed = new PreparedSyntheticFeed(rust, 100, 16);
+        var expected = ReadWatchdog(cpp);
+        var actual = ReadWatchdog(rust);
+        Assert.Equal(expected.EntryCount, actual.EntryCount);
+        Assert.Equal(expected.Entry.FeedKind, actual.Entry.FeedKind);
+        Assert.Equal(expected.Entry.MajorStatus, actual.Entry.MajorStatus);
+        Assert.Equal(expected.Entry.State, actual.Entry.State);
+        Assert.Equal(expected.Entry.TerminalStatus, actual.Entry.TerminalStatus);
+        Assert.Equal(expected.Entry.ProducerAlive, actual.Entry.ProducerAlive);
+        Assert.Equal(expected.Entry.ConsumerReady, actual.Entry.ConsumerReady);
+        Assert.Equal(expected.Entry.ExpectedSubscriptions, actual.Entry.ExpectedSubscriptions);
+        Assert.Equal(expected.Entry.ReceivedSubscriptions, actual.Entry.ReceivedSubscriptions);
+        Assert.Equal(expected.Entry.RingCapacityRecords, actual.Entry.RingCapacityRecords);
+    }
+
+    [Fact]
+    public void Bulk_watchdog_poll_and_repeated_restart_soak_is_bounded_for_both_backends()
+    {
+        using var cpp = new NativeApi(CppPath);
+        using var rust = new NativeApi(RustPath);
+        (double AverageMicroseconds, long AllocatedBytes, long PrivateMemoryGrowthBytes, int HandleGrowth,
+            ulong LastRingCapacity, ulong LastRingUsed, ulong LastRingHighWater, ulong LastRingOverruns) cppResult;
+        (double AverageMicroseconds, long AllocatedBytes, long PrivateMemoryGrowthBytes, int HandleGrowth,
+            ulong LastRingCapacity, ulong LastRingUsed, ulong LastRingHighWater, ulong LastRingOverruns) rustResult;
+        using (var cppFeed = new PreparedSyntheticFeed(cpp, 100, 16))
+        using (var rustFeed = new PreparedSyntheticFeed(rust, 100, 16))
+        {
+            cppResult = MeasureWatchdog(cpp, 20_000);
+            rustResult = MeasureWatchdog(rust, 20_000);
+        }
+
+        Assert.True(cppResult.AverageMicroseconds < 1_000, $"C++ watchdog average was {cppResult.AverageMicroseconds:F3} us.");
+        Assert.True(rustResult.AverageMicroseconds < 1_000, $"Rust watchdog average was {rustResult.AverageMicroseconds:F3} us.");
+        Assert.True(cppResult.AllocatedBytes < 2 * 1024 * 1024);
+        Assert.True(rustResult.AllocatedBytes < 2 * 1024 * 1024);
+        Assert.True(cppResult.PrivateMemoryGrowthBytes < 32L * 1024 * 1024);
+        Assert.True(rustResult.PrivateMemoryGrowthBytes < 32L * 1024 * 1024);
+        Assert.True(Math.Abs(cppResult.HandleGrowth) <= 4);
+        Assert.True(Math.Abs(rustResult.HandleGrowth) <= 4);
+        Assert.Equal(cppResult.LastRingCapacity, rustResult.LastRingCapacity);
+        Assert.Equal(cppResult.LastRingUsed, rustResult.LastRingUsed);
+        Assert.Equal(cppResult.LastRingHighWater, rustResult.LastRingHighWater);
+        Assert.Equal(cppResult.LastRingOverruns, rustResult.LastRingOverruns);
+        Console.WriteLine(
+            $"Stage2 native soak: Cpp={cppResult.AverageMicroseconds:F3}us/{cppResult.AllocatedBytes}B managed/" +
+            $"{cppResult.PrivateMemoryGrowthBytes}B private/{cppResult.HandleGrowth} handles; " +
+            $"Rust={rustResult.AverageMicroseconds:F3}us/{rustResult.AllocatedBytes}B managed/" +
+            $"{rustResult.PrivateMemoryGrowthBytes}B private/{rustResult.HandleGrowth} handles; " +
+            $"ring={cppResult.LastRingUsed}/{cppResult.LastRingCapacity}, highWater={cppResult.LastRingHighWater}, " +
+            $"overruns={cppResult.LastRingOverruns}; polls=20000/backend; restarts=50/backend");
+
+        for (var restart = 0; restart < 50; restart++)
+        {
+            using var cppRestart = new PreparedSyntheticFeed(cpp, 1, 1);
+            using var rustRestart = new PreparedSyntheticFeed(rust, 1, 1);
+            Assert.Equal(1u, ReadWatchdog(cpp).EntryCount);
+            Assert.Equal(1u, ReadWatchdog(rust).EntryCount);
+        }
+    }
+
+    static (double AverageMicroseconds, long AllocatedBytes, long PrivateMemoryGrowthBytes, int HandleGrowth,
+        ulong LastRingCapacity, ulong LastRingUsed, ulong LastRingHighWater, ulong LastRingOverruns)
+        MeasureWatchdog(NativeApi api, int iterations)
+    {
+        var process = Process.GetCurrentProcess();
+        process.Refresh();
+        var handles = process.HandleCount;
+        var privateMemory = process.PrivateMemorySize64;
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        var stopwatch = Stopwatch.StartNew();
+        ulong ringCapacity = 0, ringUsed = 0, ringHighWater = 0, ringOverruns = 0;
+        for (var index = 0; index < iterations; index++)
+        {
+            var snapshot = new WatchdogSnapshotV1
+            {
+                StructSize = (uint)sizeof(WatchdogSnapshotV1), AbiVersion = Dbf.AbiVersion
+            };
+            var entry = new WatchdogFeedStatusV1
+            {
+                StructSize = (uint)sizeof(WatchdogFeedStatusV1), AbiVersion = Dbf.AbiVersion
+            };
+            if (api.GetWatchdogSnapshot(&snapshot, &entry, 1) != Dbf.Ok || snapshot.EntryCount != 1)
+                throw new InvalidOperationException("Bulk watchdog soak returned an incomplete snapshot.");
+            ringCapacity = entry.RingCapacityRecords;
+            ringUsed = entry.RingUsedRecords;
+            ringHighWater = entry.RingHighWaterRecords;
+            ringOverruns = entry.RingOverruns;
+        }
+        stopwatch.Stop();
+        process.Refresh();
+        return (stopwatch.Elapsed.TotalMicroseconds / iterations,
+            GC.GetAllocatedBytesForCurrentThread() - allocated,
+            process.PrivateMemorySize64 - privateMemory,
+            process.HandleCount - handles,
+            ringCapacity, ringUsed, ringHighWater, ringOverruns);
+    }
+
+    static (uint EntryCount, WatchdogFeedStatusV1 Entry) ReadWatchdog(NativeApi api)
+    {
+        var snapshot = new WatchdogSnapshotV1
+        {
+            StructSize = (uint)sizeof(WatchdogSnapshotV1), AbiVersion = Dbf.AbiVersion
+        };
+        Assert.Equal(Dbf.BufferTooSmall, api.GetWatchdogSnapshot(&snapshot, null, 0));
+        Assert.Equal(1u, snapshot.RequiredCount);
+        var entry = new WatchdogFeedStatusV1
+        {
+            StructSize = (uint)sizeof(WatchdogFeedStatusV1), AbiVersion = Dbf.AbiVersion
+        };
+        Assert.Equal(Dbf.Ok, api.GetWatchdogSnapshot(&snapshot, &entry, 1));
+        return (snapshot.EntryCount, entry);
     }
 
     [Fact]

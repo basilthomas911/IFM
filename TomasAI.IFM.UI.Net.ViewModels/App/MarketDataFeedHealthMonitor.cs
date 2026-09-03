@@ -10,7 +10,8 @@ public enum MarketDataFeedHealthState
     OffHoursDegraded,
     Healthy,
     Intermittent,
-    Critical
+    Critical,
+    Recovering
 }
 
 public sealed record MarketDataFeedHealthSnapshot(

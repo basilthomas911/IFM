@@ -22,10 +22,18 @@ mod exports {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::ptr;
     use std::slice;
-    use std::sync::atomic::Ordering;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Mutex, OnceLock};
 
     use crate::abi::*;
     use crate::engine::{Feed, Mapping};
+
+    static WATCHDOG_REGISTRY: OnceLock<Mutex<Vec<(u64, usize)>>> = OnceLock::new();
+    static WATCHDOG_IDENTITY: AtomicU64 = AtomicU64::new(1);
+    static WATCHDOG_SNAPSHOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+    fn watchdog_registry() -> &'static Mutex<Vec<(u64, usize)>> {
+        WATCHDOG_REGISTRY.get_or_init(|| Mutex::new(Vec::new()))
+    }
 
     struct ContractResultEntry {
         detail: ContractDetailV1,
@@ -263,8 +271,12 @@ mod exports {
             };
             match Feed::new(config, dataset) {
                 Ok(feed) => {
+                    let pointer = Box::into_raw(feed);
+                    let identity = WATCHDOG_IDENTITY.fetch_add(1, Ordering::Relaxed);
+                    watchdog_registry().lock().unwrap_or_else(|error| error.into_inner())
+                        .push((identity, pointer as usize));
                     unsafe {
-                        result.write(Box::into_raw(feed));
+                        result.write(pointer);
                     }
                     OK
                 }
@@ -678,6 +690,41 @@ mod exports {
         })
     }
 
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_get_watchdog_snapshot_v1(
+        snapshot: *mut WatchdogSnapshotV1,
+        entries: *mut WatchdogFeedStatusV1,
+        entry_capacity: u32,
+    ) -> Status {
+        ffi_status(|| {
+            if snapshot.is_null() { return ABI_MISMATCH; }
+            let snapshot = unsafe { &mut *snapshot };
+            if !valid_struct(snapshot.struct_size, size_of::<WatchdogSnapshotV1>(), snapshot.abi_version) {
+                return ABI_MISMATCH;
+            }
+            let registry = watchdog_registry().lock().unwrap_or_else(|error| error.into_inner());
+            let Ok(required) = u32::try_from(registry.len()) else { return BUFFER_TOO_SMALL; };
+            snapshot.entry_count = 0;
+            snapshot.required_count = required;
+            snapshot.observed_monotonic_ns = registry.first().map_or(0, |(_, pointer)|
+                unsafe { &*(*pointer as *const Feed) }.monotonic_nanoseconds());
+            snapshot.snapshot_sequence = WATCHDOG_SNAPSHOT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            snapshot.reserved = [0; 4];
+            if entry_capacity < required || (required != 0 && entries.is_null()) { return BUFFER_TOO_SMALL; }
+            let output = if required == 0 { &mut [] } else {
+                unsafe { slice::from_raw_parts_mut(entries, required as usize) }
+            };
+            for ((identity, pointer), target) in registry.iter().zip(output.iter_mut()) {
+                if !valid_struct(target.struct_size, size_of::<WatchdogFeedStatusV1>(), target.abi_version) {
+                    return ABI_MISMATCH;
+                }
+                unsafe { &*(*pointer as *const Feed) }.fill_watchdog(target, *identity);
+            }
+            snapshot.entry_count = required;
+            OK
+        })
+    }
+
     fn copy_error(error: &[u8], buffer: *mut u8, capacity: u32, required: *mut u32) -> Status {
         if required.is_null() {
             return INVALID_ARGUMENT;
@@ -730,6 +777,12 @@ mod exports {
                 return INVALID_STATE;
             }
             feed_ref.join_completed();
+            {
+                let mut registry = watchdog_registry().lock().unwrap_or_else(|error| error.into_inner());
+                if let Some(index) = registry.iter().position(|(_, pointer)| *pointer == feed as usize) {
+                    registry.swap_remove(index);
+                }
+            }
             unsafe {
                 drop(Box::from_raw(feed));
             }

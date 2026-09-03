@@ -12,6 +12,30 @@ using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using AllocatePortfolioBusinessIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioBusinessIdAllocation>;
+using GetActivePortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetActivePolicyRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>;
+using GetFundAllocationQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetAllocationRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundAllocationReadModel>;
+using GetFundCompositionByWorkflowQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetCompositionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundCompositionWorkflowProjectionReadModel[]>;
+using GetFundOrderByOrderIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetOrderRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel>;
+using GetFundOrderTradeByTradeIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetTradeRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel>;
+using GetFundOrderTradesPageQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetOrderTradesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel>>;
+using GetFundOrdersPageQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetOrdersRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel>>;
+using GetFundQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel>;
+using GetFundRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundRevisionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioAggregateRevision>;
+using GetFundRiskEnvelopeQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetEnvelopeRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel>;
+using GetFundsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel>>;
+using GetFundTemplateAssignmentsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetAssignmentsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel[]>;
+using GetLegacyFundCatalogQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyFundCatalogRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyFundHistoryReadModel[]>;
+using GetLegacyFundOrdersQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyFundOrdersRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyFundOrderHistoryReadModel[]>;
+using GetLegacyFundOrderTradesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyFundOrderTradesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyFundTradeHistoryReadModel[]>;
+using GetLegacyPortfolioScopesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyPortfolioScopesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyPortfolioScopeReadModel[]>;
+using GetPortfolioFinancialPoliciesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPoliciesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>>;
+using GetPortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPolicyRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>;
+using GetPortfolioFundStrategyReferenceCombinationsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategyReferenceCombinationsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioFundStrategyReferenceCombination[]>;
+using GetPortfolioFundStrategySnapshotQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategySnapshotRequest, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot>;
+using GetPortfolioQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel>;
+using GetPortfolioRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRevisionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioAggregateRevision>;
+using GetPortfoliosQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfoliosRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel>>;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query.Actor;
 
@@ -43,35 +67,195 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         ?? throw new ArgumentException("PortfolioQueryActor requires its Portfolio query context.", nameof(context));
 
     protected override IQuery ParseMessage(IQueryActorContext<PortfolioQueryActor> context, IActorMessage message) =>
-        ParseMappedQuery(context, message, ParseMap);
+        ParseMappedQuery(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap = new Dictionary<string, Func<IActorMessage, IQuery>>
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
-        ["GetPortfolio"] = x => x.AsQuery<PortfolioQuery<GetPortfolioRequest, PortfolioReadModel>, PortfolioReadModel>()!,
-        ["GetPortfolioRevision"] = x => x.AsQuery<PortfolioQuery<GetPortfolioRevisionRequest, PortfolioAggregateRevision>, PortfolioAggregateRevision>()!,
-        ["GetPortfolios"] = x => x.AsQuery<PortfolioQuery<GetPortfoliosRequest, PortfolioPage<PortfolioReadModel>>, PortfolioPage<PortfolioReadModel>>()!,
-        ["GetFund"] = x => x.AsQuery<PortfolioQuery<GetFundRequest, FundMandateReadModel>, FundMandateReadModel>()!,
-        ["GetFundRevision"] = x => x.AsQuery<PortfolioQuery<GetFundRevisionRequest, PortfolioAggregateRevision>, PortfolioAggregateRevision>()!,
-        ["GetFunds"] = x => x.AsQuery<PortfolioQuery<GetFundsRequest, PortfolioPage<FundMandateReadModel>>, PortfolioPage<FundMandateReadModel>>()!,
-        ["GetFundAllocation"] = x => x.AsQuery<PortfolioQuery<GetAllocationRequest, FundAllocationReadModel>, FundAllocationReadModel>()!,
-        ["GetFundRiskEnvelope"] = x => x.AsQuery<PortfolioQuery<GetEnvelopeRequest, FundRiskEnvelopeReadModel>, FundRiskEnvelopeReadModel>()!,
-        ["GetFundTemplateAssignments"] = x => x.AsQuery<PortfolioQuery<GetAssignmentsRequest, FundTradeTemplateAssignmentReadModel[]>, FundTradeTemplateAssignmentReadModel[]>()!,
-        ["GetPortfolioFundStrategySnapshot"] = x => x.AsQuery<PortfolioQuery<GetStrategySnapshotRequest, PortfolioFundStrategySnapshot>, PortfolioFundStrategySnapshot>()!,
-        ["GetFundOrderByOrderId"] = x => x.AsQuery<PortfolioQuery<GetOrderRequest, FundOrderProjectionReadModel>, FundOrderProjectionReadModel>()!,
-        ["GetFundOrderTradeByTradeId"] = x => x.AsQuery<PortfolioQuery<GetTradeRequest, FundOrderTradeProjectionReadModel>, FundOrderTradeProjectionReadModel>()!,
-        ["GetFundCompositionByWorkflow"] = x => x.AsQuery<PortfolioQuery<GetCompositionRequest, FundCompositionWorkflowProjectionReadModel[]>, FundCompositionWorkflowProjectionReadModel[]>()!,
-        ["GetFundOrdersPage"] = x => x.AsQuery<PortfolioQuery<GetOrdersRequest, PortfolioPage<FundOrderProjectionReadModel>>, PortfolioPage<FundOrderProjectionReadModel>>()!,
-        ["GetFundOrderTradesPage"] = x => x.AsQuery<PortfolioQuery<GetOrderTradesRequest, PortfolioPage<FundOrderTradeProjectionReadModel>>, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
-        ["GetPortfolioFundStrategyReferenceCombinations"] = x => x.AsQuery<PortfolioQuery<GetStrategyReferenceCombinationsRequest, PortfolioFundStrategyReferenceCombination[]>, PortfolioFundStrategyReferenceCombination[]>()!,
-        ["AllocatePortfolioBusinessId"] = x => x.AsQuery<PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation>, PortfolioBusinessIdAllocation>()!,
-        ["GetPortfolioFinancialPolicy"] = x => x.AsQuery<PortfolioQuery<GetPolicyRequest, PortfolioFinancialPolicyReadModel>, PortfolioFinancialPolicyReadModel>()!,
-        ["GetPortfolioFinancialPolicies"] = x => x.AsQuery<PortfolioQuery<GetPoliciesRequest, PortfolioPage<PortfolioFinancialPolicyReadModel>>, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
-        ["GetActivePortfolioFinancialPolicy"] = x => x.AsQuery<PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel>, PortfolioFinancialPolicyReadModel>()!,
-        ["GetLegacyPortfolioScopes"] = x => x.AsQuery<PortfolioQuery<GetLegacyPortfolioScopesRequest, LegacyPortfolioScopeReadModel[]>, LegacyPortfolioScopeReadModel[]>()!,
-        ["GetLegacyFundCatalog"] = x => x.AsQuery<PortfolioQuery<GetLegacyFundCatalogRequest, LegacyFundHistoryReadModel[]>, LegacyFundHistoryReadModel[]>()!,
-        ["GetLegacyFundOrders"] = x => x.AsQuery<PortfolioQuery<GetLegacyFundOrdersRequest, LegacyFundOrderHistoryReadModel[]>, LegacyFundOrderHistoryReadModel[]>()!,
-        ["GetLegacyFundOrderTrades"] = x => x.AsQuery<PortfolioQuery<GetLegacyFundOrderTradesRequest, LegacyFundTradeHistoryReadModel[]>, LegacyFundTradeHistoryReadModel[]>()!,
+        [PortfolioQueryVerbs.GetPortfolio] = static message => message.AsQuery<GetPortfolioQuery, PortfolioReadModel>()!,
+        [PortfolioQueryVerbs.GetPortfolioRevision] = static message => message.AsQuery<GetPortfolioRevisionQuery, PortfolioAggregateRevision>()!,
+        [PortfolioQueryVerbs.GetPortfolios] = static message => message.AsQuery<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>()!,
+        [PortfolioQueryVerbs.GetFund] = static message => message.AsQuery<GetFundQuery, FundMandateReadModel>()!,
+        [PortfolioQueryVerbs.GetFundRevision] = static message => message.AsQuery<GetFundRevisionQuery, PortfolioAggregateRevision>()!,
+        [PortfolioQueryVerbs.GetFunds] = static message => message.AsQuery<GetFundsQuery, PortfolioPage<FundMandateReadModel>>()!,
+        [PortfolioQueryVerbs.GetFundAllocation] = static message => message.AsQuery<GetFundAllocationQuery, FundAllocationReadModel>()!,
+        [PortfolioQueryVerbs.GetFundRiskEnvelope] = static message => message.AsQuery<GetFundRiskEnvelopeQuery, FundRiskEnvelopeReadModel>()!,
+        [PortfolioQueryVerbs.GetFundTemplateAssignments] = static message => message.AsQuery<GetFundTemplateAssignmentsQuery, FundTradeTemplateAssignmentReadModel[]>()!,
+        [PortfolioQueryVerbs.GetPortfolioFundStrategySnapshot] = static message => message.AsQuery<GetPortfolioFundStrategySnapshotQuery, PortfolioFundStrategySnapshot>()!,
+        [PortfolioQueryVerbs.GetFundOrderByOrderId] = static message => message.AsQuery<GetFundOrderByOrderIdQuery, FundOrderProjectionReadModel>()!,
+        [PortfolioQueryVerbs.GetFundOrderTradeByTradeId] = static message => message.AsQuery<GetFundOrderTradeByTradeIdQuery, FundOrderTradeProjectionReadModel>()!,
+        [PortfolioQueryVerbs.GetFundCompositionByWorkflow] = static message => message.AsQuery<GetFundCompositionByWorkflowQuery, FundCompositionWorkflowProjectionReadModel[]>()!,
+        [PortfolioQueryVerbs.GetFundOrdersPage] = static message => message.AsQuery<GetFundOrdersPageQuery, PortfolioPage<FundOrderProjectionReadModel>>()!,
+        [PortfolioQueryVerbs.GetFundOrderTradesPage] = static message => message.AsQuery<GetFundOrderTradesPageQuery, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
+        [PortfolioQueryVerbs.GetPortfolioFundStrategyReferenceCombinations] = static message => message.AsQuery<GetPortfolioFundStrategyReferenceCombinationsQuery, PortfolioFundStrategyReferenceCombination[]>()!,
+        [PortfolioQueryVerbs.AllocatePortfolioBusinessId] = static message => message.AsQuery<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>()!,
+        [PortfolioQueryVerbs.GetPortfolioFinancialPolicy] = static message => message.AsQuery<GetPortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
+        [PortfolioQueryVerbs.GetPortfolioFinancialPolicies] = static message => message.AsQuery<GetPortfolioFinancialPoliciesQuery, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
+        [PortfolioQueryVerbs.GetActivePortfolioFinancialPolicy] = static message => message.AsQuery<GetActivePortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
+        [PortfolioQueryVerbs.GetLegacyPortfolioScopes] = static message => message.AsQuery<GetLegacyPortfolioScopesQuery, LegacyPortfolioScopeReadModel[]>()!,
+        [PortfolioQueryVerbs.GetLegacyFundCatalog] = static message => message.AsQuery<GetLegacyFundCatalogQuery, LegacyFundHistoryReadModel[]>()!,
+        [PortfolioQueryVerbs.GetLegacyFundOrders] = static message => message.AsQuery<GetLegacyFundOrdersQuery, LegacyFundOrderHistoryReadModel[]>()!,
+        [PortfolioQueryVerbs.GetLegacyFundOrderTrades] = static message => message.AsQuery<GetLegacyFundOrderTradesQuery, LegacyFundTradeHistoryReadModel[]>()!,
     };
+
+    static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryActor,
+        IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<PortfolioQueryActor,
+            IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>>
+        {
+            [typeof(GetPortfolioQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfolioQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetPortfolioAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.Version, cancellationToken));
+            },
+            [typeof(GetPortfolioRevisionQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfolioRevisionQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetPortfolioRevisionAsync(
+                    typed.Parameters.PortfolioId, cancellationToken));
+            },
+            [typeof(GetPortfoliosQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfoliosQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetPortfoliosAsync(
+                    typed.Parameters.State is null ? null : (PortfolioOperatingState)typed.Parameters.State,
+                    typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
+            },
+            [typeof(GetFundQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetFundAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.Version, cancellationToken));
+            },
+            [typeof(GetFundRevisionQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundRevisionQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetFundRevisionAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.FundId, cancellationToken));
+            },
+            [typeof(GetFundsQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundsQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetFundsAsync(
+                    typed.Parameters.PortfolioId,
+                    typed.Parameters.State is null ? null : (FundOperatingState)typed.Parameters.State,
+                    typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
+            },
+            [typeof(GetFundAllocationQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundAllocationQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetFundAllocationAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.FundId, cancellationToken));
+            },
+            [typeof(GetFundRiskEnvelopeQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundRiskEnvelopeQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetFundRiskEnvelopeAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.AsOfUtc, cancellationToken));
+            },
+            [typeof(GetFundTemplateAssignmentsQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundTemplateAssignmentsQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetAssignmentsAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.MandateVersion, cancellationToken));
+            },
+            [typeof(GetPortfolioFundStrategySnapshotQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfolioFundStrategySnapshotQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetStrategySnapshotAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.TradingYear, typed.Parameters.DecisionHorizon,
+                    typed.Parameters.UnderlyingRoot, typed.Parameters.AssetType, typed.Parameters.AsOfUtc,
+                    typed.Parameters.WorkflowId, typed.Parameters.WorkflowRevision, typed.Parameters.CorrelationId,
+                    cancellationToken));
+            },
+            [typeof(GetFundOrderByOrderIdQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundOrderByOrderIdQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetOrderAsync(
+                    typed.Parameters.OrderId, cancellationToken));
+            },
+            [typeof(GetFundOrderTradeByTradeIdQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundOrderTradeByTradeIdQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetTradeAsync(
+                    typed.Parameters.TradeId, cancellationToken));
+            },
+            [typeof(GetFundCompositionByWorkflowQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundCompositionByWorkflowQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetCompositionByWorkflowAsync(
+                    typed.Parameters.WorkflowId, cancellationToken));
+            },
+            [typeof(GetFundOrdersPageQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundOrdersPageQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetOrdersAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.OrderMonth,
+                    typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
+            },
+            [typeof(GetFundOrderTradesPageQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetFundOrderTradesPageQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetOrderTradesAsync(
+                    typed.Parameters.OrderId, typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
+            },
+            [typeof(GetPortfolioFundStrategyReferenceCombinationsQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfolioFundStrategyReferenceCombinationsQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetStrategyReferenceCombinationsAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.AsOfUtc, cancellationToken));
+            },
+            [typeof(AllocatePortfolioBusinessIdQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (AllocatePortfolioBusinessIdQuery)query;
+                return ReplyAsync(context, typed, actor.AllocateAsync(typed, cancellationToken));
+            },
+            [typeof(GetPortfolioFinancialPolicyQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfolioFinancialPolicyQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetPolicyAsync(
+                    typed.Parameters.PolicyId, typed.Parameters.PolicyVersion, cancellationToken));
+            },
+            [typeof(GetPortfolioFinancialPoliciesQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetPortfolioFinancialPoliciesQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetPoliciesAsync(
+                    typed.Parameters.PortfolioId, typed.Parameters.PageSize, cancellationToken));
+            },
+            [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetActivePortfolioFinancialPolicyQuery)query;
+                return ReplyAsync(context, typed, actor._service.GetActivePolicyAsync(
+                    typed.Parameters.PortfolioId, cancellationToken));
+            },
+            [typeof(GetLegacyPortfolioScopesQuery)] = static (actor, context, query, cancellationToken) =>
+                ReplyAsync(context, query, actor._legacyHistory.GetScopesAsync(cancellationToken)),
+            [typeof(GetLegacyFundCatalogQuery)] = static (actor, context, query, cancellationToken) =>
+                ReplyAsync(context, query, actor._legacyHistory.GetCatalogAsync(cancellationToken)),
+            [typeof(GetLegacyFundOrdersQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetLegacyFundOrdersQuery)query;
+                return ReplyAsync(context, typed, actor._legacyHistory.GetOrdersAsync(
+                    typed.Parameters.LegacyFundId, typed.Parameters.FromDate, typed.Parameters.ToDate,
+                    typed.Parameters.PageSize, cancellationToken));
+            },
+            [typeof(GetLegacyFundOrderTradesQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var typed = (GetLegacyFundOrderTradesQuery)query;
+                return ReplyAsync(context, typed, actor._legacyHistory.GetOrderTradesAsync(
+                    typed.Parameters.LegacyFundId, typed.Parameters.OrderId, cancellationToken));
+            },
+        };
+
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) => exception switch
+        {
+            PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
+            PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
+            _ when query is AllocatePortfolioBusinessIdQuery => PortfolioErrorCodes.SequenceAllocationFailed,
+            _ => PortfolioErrorCodes.ValidationFailed,
+        });
 
     protected override ValueTask ReceiveAsync(IQueryActorContext<PortfolioQueryActor> context, IQuery query) =>
         ReceiveAsync(context, query, CancellationToken.None);
@@ -80,64 +264,14 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
     {
         var request = (IPortfolioRequestMetadata)query;
         using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request);
-        var allocatesIdentity = query.Subject.Verb == "AllocatePortfolioBusinessId";
+        var allocatesIdentity = query is AllocatePortfolioBusinessIdQuery;
         operationalGuard.Demand(allocatesIdentity ? PortfolioOperation.AdministerPortfolio : PortfolioOperation.Read,
             request, mutation: allocatesIdentity);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
-          switch (query)
-          {
-            case PortfolioQuery<GetPortfolioRequest, PortfolioReadModel> q:
-                await Reply(context, q, await _service.GetPortfolioAsync(q.Parameters.PortfolioId, q.Parameters.Version, cancellationToken)); break;
-            case PortfolioQuery<GetPortfolioRevisionRequest, PortfolioAggregateRevision> q:
-                await Reply(context, q, await _service.GetPortfolioRevisionAsync(q.Parameters.PortfolioId, cancellationToken)); break;
-            case PortfolioQuery<GetPortfoliosRequest, PortfolioPage<PortfolioReadModel>> q:
-                await Reply(context, q, await _service.GetPortfoliosAsync(q.Parameters.State is null ? null : (PortfolioOperatingState)q.Parameters.State, q.Parameters.PageSize, q.Parameters.PageToken, cancellationToken)); break;
-            case PortfolioQuery<GetFundRequest, FundMandateReadModel> q:
-                await Reply(context, q, await _service.GetFundAsync(q.Parameters.PortfolioId, q.Parameters.FundId, q.Parameters.Version, cancellationToken)); break;
-            case PortfolioQuery<GetFundRevisionRequest, PortfolioAggregateRevision> q:
-                await Reply(context, q, await _service.GetFundRevisionAsync(q.Parameters.PortfolioId, q.Parameters.FundId, cancellationToken)); break;
-            case PortfolioQuery<GetFundsRequest, PortfolioPage<FundMandateReadModel>> q:
-                await Reply(context, q, await _service.GetFundsAsync(q.Parameters.PortfolioId, q.Parameters.State is null ? null : (FundOperatingState)q.Parameters.State, q.Parameters.PageSize, q.Parameters.PageToken, cancellationToken)); break;
-            case PortfolioQuery<GetAllocationRequest, FundAllocationReadModel> q:
-                await Reply(context, q, await _service.GetFundAllocationAsync(q.Parameters.PortfolioId, q.Parameters.FundId, cancellationToken)); break;
-            case PortfolioQuery<GetEnvelopeRequest, FundRiskEnvelopeReadModel> q:
-                await Reply(context, q, await _service.GetFundRiskEnvelopeAsync(q.Parameters.PortfolioId, q.Parameters.FundId, q.Parameters.AsOfUtc, cancellationToken)); break;
-            case PortfolioQuery<GetAssignmentsRequest, FundTradeTemplateAssignmentReadModel[]> q:
-                await Reply(context, q, await _service.GetAssignmentsAsync(q.Parameters.PortfolioId, q.Parameters.FundId, q.Parameters.MandateVersion, cancellationToken)); break;
-            case PortfolioQuery<GetStrategySnapshotRequest, PortfolioFundStrategySnapshot> q:
-                await Reply(context, q, await _service.GetStrategySnapshotAsync(q.Parameters.PortfolioId, q.Parameters.TradingYear, q.Parameters.DecisionHorizon, q.Parameters.UnderlyingRoot, q.Parameters.AssetType, q.Parameters.AsOfUtc, q.Parameters.WorkflowId, q.Parameters.WorkflowRevision, q.Parameters.CorrelationId, cancellationToken)); break;
-            case PortfolioQuery<GetOrderRequest, FundOrderProjectionReadModel> q:
-                await Reply(context, q, await _service.GetOrderAsync(q.Parameters.OrderId, cancellationToken)); break;
-            case PortfolioQuery<GetTradeRequest, FundOrderTradeProjectionReadModel> q:
-                await Reply(context, q, await _service.GetTradeAsync(q.Parameters.TradeId, cancellationToken)); break;
-            case PortfolioQuery<GetCompositionRequest, FundCompositionWorkflowProjectionReadModel[]> q:
-                await Reply(context, q, await _service.GetCompositionByWorkflowAsync(q.Parameters.WorkflowId, cancellationToken)); break;
-            case PortfolioQuery<GetOrdersRequest, PortfolioPage<FundOrderProjectionReadModel>> q:
-                await Reply(context, q, await _service.GetOrdersAsync(q.Parameters.PortfolioId, q.Parameters.FundId, q.Parameters.OrderMonth, q.Parameters.PageSize, q.Parameters.PageToken, cancellationToken)); break;
-            case PortfolioQuery<GetOrderTradesRequest, PortfolioPage<FundOrderTradeProjectionReadModel>> q:
-                await Reply(context, q, await _service.GetOrderTradesAsync(q.Parameters.OrderId, q.Parameters.PageSize, q.Parameters.PageToken, cancellationToken)); break;
-            case PortfolioQuery<GetStrategyReferenceCombinationsRequest, PortfolioFundStrategyReferenceCombination[]> q:
-                await Reply(context, q, await _service.GetStrategyReferenceCombinationsAsync(q.Parameters.PortfolioId, q.Parameters.AsOfUtc, cancellationToken)); break;
-            case PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation> q:
-                await Reply(context, q, await AllocateAsync(q, cancellationToken)); break;
-            case PortfolioQuery<GetPolicyRequest, PortfolioFinancialPolicyReadModel> q:
-                await Reply(context, q, await _service.GetPolicyAsync(q.Parameters.PolicyId, q.Parameters.PolicyVersion, cancellationToken)); break;
-            case PortfolioQuery<GetPoliciesRequest, PortfolioPage<PortfolioFinancialPolicyReadModel>> q:
-                await Reply(context, q, await _service.GetPoliciesAsync(q.Parameters.PortfolioId, q.Parameters.PageSize, cancellationToken)); break;
-            case PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel> q:
-                await Reply(context, q, await _service.GetActivePolicyAsync(q.Parameters.PortfolioId, cancellationToken)); break;
-            case PortfolioQuery<GetLegacyPortfolioScopesRequest, LegacyPortfolioScopeReadModel[]> q:
-                await Reply(context, q, await _legacyHistory.GetScopesAsync(cancellationToken)); break;
-            case PortfolioQuery<GetLegacyFundCatalogRequest, LegacyFundHistoryReadModel[]> q:
-                await Reply(context, q, await _legacyHistory.GetCatalogAsync(cancellationToken)); break;
-            case PortfolioQuery<GetLegacyFundOrdersRequest, LegacyFundOrderHistoryReadModel[]> q:
-                await Reply(context, q, await _legacyHistory.GetOrdersAsync(q.Parameters.LegacyFundId, q.Parameters.FromDate, q.Parameters.ToDate, q.Parameters.PageSize, cancellationToken)); break;
-            case PortfolioQuery<GetLegacyFundOrderTradesRequest, LegacyFundTradeHistoryReadModel[]> q:
-                await Reply(context, q, await _legacyHistory.GetOrderTradesAsync(q.Parameters.LegacyFundId, q.Parameters.OrderId, cancellationToken)); break;
-            default: throw new InvalidOperationException($"Unsupported Portfolio query {query.GetType().Name}.");
-          }
+            var receive = ResolveMappedQueryHandler(query, _receiveMap);
+            await receive(this, context, query, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -168,23 +302,21 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         });
     }
 
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<PortfolioQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<PortfolioQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception) =>
+        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+
+    static async ValueTask ReplyAsync<TResult>(
+        IQueryActorContext<PortfolioQueryActor> context,
+        IQuery query,
+        Task<ServiceResult<TResult>> resultTask)
+        where TResult : class
     {
-        var errorCode = ex switch
-        {
-            PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
-            PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
-            _ when query is PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation> => PortfolioErrorCodes.SequenceAllocationFailed,
-            _ => PortfolioErrorCodes.ValidationFailed,
-        };
-        var method = typeof(PortfolioQueryActor).GetMethod(nameof(ReplyFailure), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
-            .MakeGenericMethod(query.GetType().GetGenericArguments()[1]);
-        await (ValueTask)method.Invoke(null, [context, threadId, verb, errorCode, ex.Message])!;
+        var result = await resultTask.ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
     }
-
-    static ValueTask Reply<TResult>(IQueryActorContext<PortfolioQueryActor> context, IQuery query, ServiceResult<TResult> result) =>
-        context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result);
-
-    static ValueTask ReplyFailure<TResult>(IQueryActorContext<PortfolioQueryActor> context, ActorThreadId threadId, string verb, int errorCode, string message) =>
-        context.ReplyAsync(threadId, verb, new ServiceFailed<TResult>(errorCode, message));
 }

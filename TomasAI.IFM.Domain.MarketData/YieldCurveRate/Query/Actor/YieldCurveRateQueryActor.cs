@@ -40,7 +40,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     protected override IQuery ParseMessage(IQueryActorContext<YieldCurveRateQueryActor> context, IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetLastYieldCurveRateQuery.Verb] = message =>
             message.AsQuery<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>()!,
@@ -74,8 +74,8 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         await receive(this, YieldCurveRateContext, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type,
-        Func<YieldCurveRateQueryActor, IYieldCurveRateQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type,
+        Func<YieldCurveRateQueryActor, IYieldCurveRateQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<YieldCurveRateQueryActor, IYieldCurveRateQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetLastYieldCurveRateQuery)] = static (actor, context, query, cancellationToken) =>
             actor.ReceiveAsync(context, (GetLastYieldCurveRateQuery)query, cancellationToken),

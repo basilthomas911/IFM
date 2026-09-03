@@ -19,7 +19,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
     IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> actorContext)
     : BaseQueryActor<IntrinsicTimeStrategyWorkflowQueryActor>(actorContext, RequireContext(actorContext).Logger)
 {
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetIntrinsicTimeStrategyWorkflowByIdQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowByIdQuery, IntrinsicTimeStrategyWorkflowReadModel>()!,
@@ -60,8 +60,9 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<IntrinsicTimeStrategyWorkflowQueryActor,
-        IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IntrinsicTimeStrategyWorkflowQueryActor,
+        IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IntrinsicTimeStrategyWorkflowQueryActor,
+        IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (actor, context, query, cancellationToken) =>
             actor.ReceiveAsync(context, (GetIntrinsicTimeStrategyWorkflowByIdQuery)query, cancellationToken),

@@ -32,7 +32,11 @@ public sealed record EventProjectorReliabilityOptions
     public TimeSpan ClaimLeaseDuration { get; init; } = TimeSpan.FromMinutes(2);
     public int OutboxBatchSize { get; init; } = 256;
     public int MaximumOutboxAttempts { get; init; } = 20;
-    public TimeSpan OutboxPollingInterval { get; init; } = TimeSpan.FromMilliseconds(250);
+    /// <summary>
+    /// Gets the recovery polling interval used when an outbox wake-up signal is missed or work was staged by
+    /// another process. Normal in-process dispatch is signal-driven and does not wait for this interval.
+    /// </summary>
+    public TimeSpan OutboxPollingInterval { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan OutboxDispatchLeaseDuration { get; init; } = TimeSpan.FromMinutes(2);
     public TimeSpan MetricsPollingInterval { get; init; } = TimeSpan.FromSeconds(5);
     /// <summary>Gets the bounded capacity of each projector's process-local non-durable queue.</summary>

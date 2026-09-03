@@ -75,6 +75,9 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataFeedQueryUriPath.GetFuturesEodMovingAverages, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetFuturesEodMovingAveragesAsync(resp));
         app.MapGet(MarketDataFeedQueryUriPath.GetStreamingRequestId, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetStreamingRequestIdAsync(resp));
         app.MapGet(MarketDataFeedQueryUriPath.GetRuntimeStatus, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetRuntimeStatusAsync(resp));
+        app.MapGet(MarketDataFeedQueryUriPath.GetDatabentoReadiness, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetDatabentoReadinessAsync(resp));
+        app.MapGet(MarketDataFeedQueryUriPath.GetDatabentoCurrentContracts, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetDatabentoCurrentContractsAsync(resp));
+        app.MapGet(MarketDataFeedQueryUriPath.GetDatabentoWatchdogHistory, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetDatabentoWatchdogHistoryAsync(resp));
 
         // map Market Data Query APIs
         app.MapGet(MarketDataQueryUriPath.GetOnTheRunFuturesContract, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetOnTheRunFuturesContractAsync(resp));

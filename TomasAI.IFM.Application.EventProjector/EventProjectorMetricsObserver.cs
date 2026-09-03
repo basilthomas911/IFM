@@ -50,6 +50,12 @@ internal sealed class EventProjectorMetricsObserver(
 
     async Task RunAsync(CancellationToken cancellationToken)
     {
+        // Projectors are constructed together during startup. Give each one a stable phase within the polling
+        // interval so their PostgreSQL snapshot queries do not form a periodic thundering herd.
+        var initialDelay = GetInitialDelay(_projectorName, _options.MetricsPollingInterval);
+        if (initialDelay > TimeSpan.Zero)
+            await Task.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+
         using var timer = new PeriodicTimer(_options.MetricsPollingInterval);
         do
         {
@@ -71,6 +77,26 @@ internal sealed class EventProjectorMetricsObserver(
             }
         }
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    internal static TimeSpan GetInitialDelay(string projectorName, TimeSpan pollingInterval)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        if (pollingInterval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(pollingInterval));
+
+        // FNV-1a is deterministic across processes, unlike string.GetHashCode(). This keeps a projector's phase
+        // stable between runs while distributing independently named projectors across the complete interval.
+        const ulong offsetBasis = 14695981039346656037UL;
+        const ulong prime = 1099511628211UL;
+        var hash = offsetBasis;
+        foreach (var character in projectorName)
+        {
+            hash ^= character;
+            hash *= prime;
+        }
+
+        return TimeSpan.FromTicks((long)(hash % (ulong)pollingInterval.Ticks));
     }
 
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);

@@ -13,6 +13,35 @@ public static class PortfolioQuerySubjects
     public const int ErrorCode = 34100;
 }
 
+/// <summary>Stable serialized verbs accepted by the Portfolio query actor.</summary>
+public static class PortfolioQueryVerbs
+{
+    public const string GetPortfolio = "GetPortfolio";
+    public const string GetPortfolioRevision = "GetPortfolioRevision";
+    public const string GetPortfolios = "GetPortfolios";
+    public const string GetFund = "GetFund";
+    public const string GetFundRevision = "GetFundRevision";
+    public const string GetFunds = "GetFunds";
+    public const string GetFundAllocation = "GetFundAllocation";
+    public const string GetFundRiskEnvelope = "GetFundRiskEnvelope";
+    public const string GetFundTemplateAssignments = "GetFundTemplateAssignments";
+    public const string GetPortfolioFundStrategySnapshot = "GetPortfolioFundStrategySnapshot";
+    public const string GetFundOrderByOrderId = "GetFundOrderByOrderId";
+    public const string GetFundOrderTradeByTradeId = "GetFundOrderTradeByTradeId";
+    public const string GetFundCompositionByWorkflow = "GetFundCompositionByWorkflow";
+    public const string GetFundOrdersPage = "GetFundOrdersPage";
+    public const string GetFundOrderTradesPage = "GetFundOrderTradesPage";
+    public const string GetPortfolioFundStrategyReferenceCombinations = "GetPortfolioFundStrategyReferenceCombinations";
+    public const string AllocatePortfolioBusinessId = "AllocatePortfolioBusinessId";
+    public const string GetPortfolioFinancialPolicy = "GetPortfolioFinancialPolicy";
+    public const string GetPortfolioFinancialPolicies = "GetPortfolioFinancialPolicies";
+    public const string GetActivePortfolioFinancialPolicy = "GetActivePortfolioFinancialPolicy";
+    public const string GetLegacyPortfolioScopes = "GetLegacyPortfolioScopes";
+    public const string GetLegacyFundCatalog = "GetLegacyFundCatalog";
+    public const string GetLegacyFundOrders = "GetLegacyFundOrders";
+    public const string GetLegacyFundOrderTrades = "GetLegacyFundOrderTrades";
+}
+
 [MessagePackObject(AllowPrivate = true)]
 public sealed record PortfolioQuery<TParameters, TResult> : IQuery<TResult>, IPortfolioRequestMetadata where TResult : class
 {

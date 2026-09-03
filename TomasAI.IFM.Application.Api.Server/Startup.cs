@@ -17,6 +17,7 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
@@ -47,6 +48,7 @@ using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Actor.Event;
@@ -432,6 +434,8 @@ public static class Startup
                 .Add("EventSourceActorDbConnection", config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("ConfigurationDbConnection", config.GetConnectionString("ConfigurationDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                .Add("MarketDataServiceDbConnection", config.GetConnectionString("MarketDataServiceDbConnection")
+                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("SystemAdminDbConnection", config.GetConnectionString("SystemAdminDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
@@ -474,6 +478,8 @@ public static class Startup
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ConfigurationDbContext>() as IConfigurationDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!);
+            services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
@@ -488,6 +494,7 @@ public static class Startup
             services.AddSingleton<TradeSchemaDb>();
             services.AddSingleton<SystemAdminSchemaDb>();
             services.AddSingleton<ConfigurationSchemaDb>();
+            services.AddSingleton<MarketDataServiceSchemaDb>();
             services.AddSingleton<RegimeDiscoveryMarketSignalSnapshotProvider>();
             services.AddSingleton<IRegimeDiscoveryMarketSignalSnapshotProvider>(provider =>
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
@@ -595,6 +602,25 @@ public static class Startup
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
+            services.AddSingleton(new DatabentoWatchdogOptions
+            {
+                Enabled = config.GetValue("MarketDataRecovery:Enabled", true),
+                NativeBackend = config.GetValue("MarketDataRecovery:NativeBackend", "Cpp")!,
+                PollInterval = config.GetValue("MarketDataRecovery:PollInterval", TimeSpan.FromMinutes(1)),
+                ProbeTimeout = config.GetValue("MarketDataRecovery:ProbeTimeout", TimeSpan.FromSeconds(1)),
+                AttemptTwoDelay = config.GetValue("MarketDataRecovery:AttemptTwoDelay", TimeSpan.FromSeconds(5)),
+                AttemptThreeDelay = config.GetValue("MarketDataRecovery:AttemptThreeDelay", TimeSpan.FromSeconds(15)),
+                PersistenceRetryDelay = config.GetValue("MarketDataRecovery:PersistenceRetryDelay", TimeSpan.FromMilliseconds(100))
+            }.Validate());
+            services.AddSingleton<IDatabentoWatchdogPublisher, DatabentoWatchdogStatusConsolePublisher>();
+            services.AddSingleton<ICurrentFuturesContractCatalog, SecuritiesCurrentFuturesContractCatalog>();
+            services.AddSingleton<IDatabentoContractAuthority, DatabentoContractAuthority>();
+            services.AddSingleton<IDatabentoLifecycleRuntime, DatabentoLifecycleRuntime>();
+            services.AddSingleton<DatabentoMarketDataWatchdogService>();
+            services.AddSingleton<IMarketDataLifecycleRequests>(provider =>
+                provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
+            services.AddHostedService(provider =>
+                provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
             var historicalOptions = new DatabentoHistoricalOptions
             {
                 StagingRoot = Path.Combine(AppContext.BaseDirectory, "market-data-history"),
@@ -605,7 +631,6 @@ public static class Startup
                 UseSyntheticProvider = feedOptions.DataSource == FeedDataSourceMode.Synthetic
             });
             services.AddApplicationMarketDataHistoricalApi(historicalOptions);
-            services.AddHostedService<FuturesRolloverPreparationHostedService>();
             services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
             services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
             services.AddSingleton(provider =>
@@ -633,8 +658,11 @@ public static class Startup
             services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
                 provider.GetRequiredService<MarketOutlookHotCache>());
             services.AddSingleton<MarketOutlookProcessorMetrics>();
+            services.AddSingleton<DatabentoWatchdogMetrics>();
             services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
-                provider.GetRequiredService<MarketOutlookProcessorMetrics>());
+                new CompositeMarketDataOperationsRecorder(
+                    provider.GetRequiredService<MarketOutlookProcessorMetrics>(),
+                    provider.GetRequiredService<DatabentoWatchdogMetrics>()));
             services.AddSingleton<MarketOutlookUpdateChannel>();
             services.AddSingleton<IMarketOutlookUpdateWriter>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());

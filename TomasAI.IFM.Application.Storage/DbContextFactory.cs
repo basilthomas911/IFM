@@ -24,6 +24,8 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -52,6 +54,8 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
     public IPortfolioDbContext PortfolioDb => _dbContextResolver.Resolve<PortfolioDbContext>() as IPortfolioDbContext;
+    public IMarketDataServiceStore MarketDataServiceDb =>
+        (_dbContextResolver.Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!;
 
     public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;
     public LogSchemaDb LogSchema => (_dbContextResolver.Resolve<LogSchemaDb>() as LogSchemaDb)!;
@@ -66,6 +70,8 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public SystemAdminSchemaDb SystemAdminSchema => (_dbContextResolver.Resolve<SystemAdminSchemaDb>() as SystemAdminSchemaDb)!;
     public ConfigurationSchemaDb ConfigurationSchema => (_dbContextResolver.Resolve<ConfigurationSchemaDb>() as ConfigurationSchemaDb)!;
     public PortfolioSchemaDb PortfolioSchema => (_dbContextResolver.Resolve<PortfolioSchemaDb>() as PortfolioSchemaDb)!;
+    public MarketDataServiceSchemaDb MarketDataServiceSchema =>
+        (_dbContextResolver.Resolve<MarketDataServiceSchemaDb>() as MarketDataServiceSchemaDb)!;
 
     public IDbContextPool<ReferenceDbContext> ReferencePool => GetPool<ReferenceDbContext>();
 

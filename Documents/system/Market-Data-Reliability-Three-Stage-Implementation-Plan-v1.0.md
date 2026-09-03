@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Plan ID | `MDR` |
-| Status | Stage 1 complete; Stage 2 not started |
+| Status | Stage 1 complete; Stage 2 implementation complete, elapsed soak and acceptance pending |
 | Date | 2026-09-01 |
 | Design authority | `Documents/system/Databento-Market-Data-Service-Resiliency-System-Design-v0.1.md` |
 | Stage 1 | Local Market Outlook update processor |
@@ -560,7 +560,95 @@ The typed Market Outlook remained valid, its ES close advanced from `7644.25` to
 minutes; the ES live path and the Stage 1 processor were operating. The isolated live host was then
 shut down normally.
 
-## 11. Next action
+## 11. Stage 2 execution record - 2026-09-02
 
-Review and accept the Stage 1 evidence. Do not begin DBR Stage 2 or MDOH Stage 3 production work
-without explicit user direction.
+### 11.1 Gate status
+
+| Gate | Status | Recorded evidence |
+| --- | --- | --- |
+| `DBR-01` | Complete | Lifecycle start, stop, reset, rollover, feed acquisition and worker ownership were inventoried. `Test-DatabentoLifecycleOwnership.ps1` passes and prohibits direct production lifecycle mutation outside the watchdog/runtime boundary. Synthetic, live-feature-build and fault-injection baselines are recorded below. |
+| `DBR-02` | Complete | `MarketDataServiceDbContext` and schema-managed migrations provide full assignment and observation CRUD. PostgreSQL integration proves source-catalog fingerprint validation, all three required roles, sequence IDs, JSONB history, optimistic concurrency and atomic VX pair rollback. The read-only futures catalog is not mutated. |
+| `DBR-03` | Complete | Startup reconciles PostgreSQL-authoritative ES quarterly, VX front and VX second assignments, publishes only the committed role set into the runtime registry, is idempotent and performs value-date rollover through the serialized lifecycle owner. |
+| `DBR-04` | Complete | C++ ABI v3 exposes a bounded one-call process registry snapshot containing lifecycle state, heartbeat/provider activity, subscriptions, terminal state, counters, ring occupancy and bounded failure detail. Registry enumeration and destruction are synchronized. Native tests pass in synthetic and live-enabled builds. |
+| `DBR-05` | Complete | Rust implements the same ABI, export set, layout and behavioral semantics. The capability manifest and managed comparison suite validate the frozen surface, lifecycle, records, historical data, watchdog results and bounded repeated polling/restarts. Synthetic and live-enabled Rust tests pass. |
+| `DBR-06` | Complete | The managed wrapper uses one explicitly configured `Cpp` or `Rust` backend, joins the native registry with committed contract roles and managed epoch/worker/cache state, returns non-throwing typed snapshots, and records distinct native, interop and aggregation stages. |
+| `DBR-07` | Complete | `DatabentoMarketDataWatchdogService` is the sole lifecycle owner. Contracts, native feeds, subscriptions, aggregation workers, configured/running contracts and the last-price cache must qualify before Ready. A hosted one-minute poll runs for active value dates. |
+| `DBR-08` | Complete | Resetting is Orange, core recovery is exactly three serialized attempts followed by stop-and-latched Red, optional failures remain isolated Orange, terminal worker completion signals an immediate out-of-cycle probe, and transition observations are retried, persisted and published. |
+| `DBR-09` | Complete | Existing typed lifecycle commands/events are routed into the lifecycle request boundary. New typed readiness, current-contract and history queries work over NATS and REST without native polling. The UI exposes clickable detail, fences navigation to System for unexpected core failure, and preserves planned-closure read-only access. |
+| `DBR-10` | Complete | Refresh performs an immediate serialized probe and managed qualification without an implicit reset, records requested/started/completed/failed outcomes, and remains independent from Market Outlook recompose. |
+| `DBR-11` | Pending elapsed run | All automated, PostgreSQL, native, parity, fault, concurrency, UI and accelerated 24-hour/restart qualifications pass. The repository contains valid C++ and Rust market-close soak launchers, but the checked-in 2026-08-15 artifacts are preflight-only. A real complete active-session/overnight run has not yet elapsed and is not represented as passed. |
+| `DBR-12` | Pending | Technical criteria 1-7 pass. Criterion 8 awaits the real elapsed DBR-11 run, and criterion 9 requires explicit user acceptance. Stage 3 must not begin yet. |
+
+### 11.2 Automated qualification
+
+| Suite | Result |
+| --- | --- |
+| Application MarketData unit | 139 passed |
+| Framework Databento unit | 133 passed |
+| MarketData Feed actor/NATS unit | 505 passed; focused typed NATS round-trip 1 passed |
+| REST MarketData Feed integration | 20 passed |
+| PostgreSQL Market Data Service integration | 2 passed against the configured test database |
+| Databento UI system | 10 passed |
+| C++ native synthetic | 1 CTest target passed |
+| C++ native live-enabled | 1 CTest target passed |
+| Rust native synthetic | 6 passed |
+| Rust native live-enabled | 8 passed across unit and FFI suites |
+| C++/Rust ABI and behavioral parity | 6 passed |
+| API Server build | succeeded with 0 warnings and 0 errors |
+| UI build | succeeded with 0 warnings and 0 errors |
+| Lifecycle ownership architecture gate | passed |
+| Command/Event/Realtime/Query actor convention gates | 39/31/16/36 domain actors passed |
+
+The live-enabled native suites compile and test provider-specific normalization and slow-reader
+semantics; they do not claim that a provider-connected overnight run occurred.
+
+### 11.3 Fault, concurrency and persistence evidence
+
+- Connection loss, heartbeat timeout, terminal fault and aggregation-worker completion enter the
+  same exactly-three-attempt core recovery policy.
+- A terminal worker signal triggers an immediate probe rather than waiting for the next minute.
+- Manual reset, watchdog poll, rollover and recovery share one serialized executor; the measured
+  maximum concurrent lifecycle mutation is one.
+- Optional-feed exhaustion remains Orange with core readiness retained. Core exhaustion stops the
+  runtime and latches Red.
+- Observation persistence retries exactly three times with one idempotent observation ID.
+  Publication failure cannot undo persistence and instead degrades the in-memory status.
+- The live PostgreSQL test verifies assignment and observation create/read/update/delete, stale
+  row-version rejection, two-row VX atomicity and rollback, source validation, indexes and JSONB
+  detail filtering.
+
+### 11.4 Resource and accelerated-soak evidence
+
+- The deterministic managed soak executed 1,440 one-minute-equivalent probes and 50 serialized
+  restarts in 81.684 ms, allocated 3,943,872 bytes, grew private memory by 4,096 bytes and added no
+  handles. The history query remained bounded to 1,000 rows.
+- Each backend completed 20,000 one-call bulk watchdog snapshots and 50 restarts. The measured C++
+  mean was 0.598 microseconds per poll and the Rust mean was 1.071 microseconds. Each allocated 40
+  managed bytes for the measurement loop, added zero private bytes and zero handles, and reported
+  matching ring state: 0/16,384 used, zero high-water backlog and zero overruns.
+- Native ring-overrun/fault tests pass for C++ and Rust; live-enabled tests cover slow-reader warning
+  behavior without treating that advisory as a terminal connection failure.
+
+These accelerated tests prove deterministic state-machine, allocation, memory, handle, ring,
+backlog and P/Invoke-latency bounds. They complement rather than replace the real elapsed run
+required by `DBR-11`.
+
+### 11.5 Elapsed soak commands
+
+Run the provider-connected qualification during a representative session with a clean or explicitly
+acknowledged dirty tree, retaining each generated manifest, console log, TRX, machine result and
+completion record:
+
+```powershell
+& scripts/Databento/Run-MarketCloseSoak.ps1 -Implementation Cpp -Scenario Future -DurationMinutes 1440 -StartAt <start> -AllowDirtyWorkingTree
+& scripts/Databento/Run-MarketCloseSoak.ps1 -Implementation Rust -Scenario Future -DurationMinutes 1440 -StartAt <start> -AllowDirtyWorkingTree
+```
+
+The two implementations should be qualified sequentially unless the Databento entitlement and the
+test machine are intentionally approved for concurrent sessions.
+
+## 12. Next action
+
+Complete and review the two elapsed provider-connected Stage 2 soak runs. If they pass, record the
+artifacts here and explicitly accept Stage 2. Do not begin MDOH Stage 3 before both conditions are
+satisfied.

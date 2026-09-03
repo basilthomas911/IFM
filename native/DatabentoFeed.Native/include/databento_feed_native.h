@@ -93,6 +93,12 @@ typedef enum dbf_feed_state {
     DBF_STATE_FAULTED = 8
 } dbf_feed_state;
 
+typedef enum dbf_major_feed_status {
+    DBF_MAJOR_UP = 1,
+    DBF_MAJOR_RESETTING = 2,
+    DBF_MAJOR_DOWN = 3
+} dbf_major_feed_status;
+
 typedef enum dbf_wait_flags {
     DBF_WAIT_DATA = 1,
     DBF_WAIT_TERMINAL = 2,
@@ -342,6 +348,45 @@ typedef struct dbf_stats_v1 {
     uint32_t producer_unique_processor_count;
 } dbf_stats_v1;
 
+/* Process-wide point-in-time inventory. Call once with null entries to obtain
+   required_count, then once with sufficient capacity. No partial snapshots are returned. */
+typedef struct dbf_watchdog_snapshot_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t entry_count;
+    uint32_t required_count;
+    uint64_t observed_monotonic_ns;
+    uint64_t snapshot_sequence;
+    uint64_t reserved[4];
+} dbf_watchdog_snapshot_v1;
+
+typedef struct dbf_watchdog_feed_status_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint64_t feed_instance_id;
+    uint64_t generation_id;
+    uint32_t feed_kind;
+    uint32_t major_status;
+    uint32_t state;
+    int32_t terminal_status;
+    uint32_t producer_alive;
+    uint32_t consumer_ready;
+    uint32_t expected_subscriptions;
+    uint32_t received_subscriptions;
+    uint64_t heartbeat_count;
+    uint64_t provider_message_count;
+    uint64_t last_heartbeat_monotonic_ns;
+    uint64_t last_provider_message_monotonic_ns;
+    uint64_t records_produced;
+    uint64_t records_consumed;
+    uint64_t ring_capacity_records;
+    uint64_t ring_used_records;
+    uint64_t ring_high_water_records;
+    uint64_t ring_overruns;
+    char dataset[56];
+    char failure_detail[128];
+} dbf_watchdog_feed_status_v1;
+
 typedef struct dbf_utf8_slice_v1 {
     uint32_t offset;
     uint32_t length;
@@ -537,6 +582,10 @@ DBF_API dbf_status DBF_CALL dbf_feed_stop(dbf_feed_t* feed, uint32_t timeout_ms)
 DBF_API dbf_status DBF_CALL dbf_feed_free_read_buffer64(dbf_feed_t* feed,
                                                          dbf_market_record64* buffer);
 DBF_API dbf_status DBF_CALL dbf_feed_get_stats(dbf_feed_t* feed, dbf_stats_v1* stats);
+DBF_API dbf_status DBF_CALL dbf_get_watchdog_snapshot_v1(
+    dbf_watchdog_snapshot_v1* snapshot,
+    dbf_watchdog_feed_status_v1* entries,
+    uint32_t entry_capacity);
 DBF_API dbf_status DBF_CALL dbf_feed_get_last_error(dbf_feed_t* feed,
                                                      uint8_t* utf8_buffer,
                                                      uint32_t utf8_buffer_capacity,

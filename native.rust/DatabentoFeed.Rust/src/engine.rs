@@ -111,6 +111,9 @@ pub struct Feed {
     wait_count: AtomicU64,
     ring_full_episodes: AtomicU64,
     ring_overruns: AtomicU64,
+    subscription_acknowledgements: AtomicU64,
+    heartbeat_messages: AtomicU64,
+    last_message_monotonic_ns: AtomicU64,
     observed_producer_location: AtomicU32,
     producer_affinity_verified: AtomicU32,
     last_producer_location: AtomicU32,
@@ -184,6 +187,9 @@ impl Feed {
             wait_count: AtomicU64::new(0),
             ring_full_episodes: AtomicU64::new(0),
             ring_overruns: AtomicU64::new(0),
+            subscription_acknowledgements: AtomicU64::new(0),
+            heartbeat_messages: AtomicU64::new(0),
+            last_message_monotonic_ns: AtomicU64::new(0),
             observed_producer_location: AtomicU32::new(u32::MAX),
             producer_affinity_verified: AtomicU32::new(0),
             last_producer_location: AtomicU32::new(u32::MAX),
@@ -208,6 +214,16 @@ impl Feed {
     }
     pub fn terminal_status(&self) -> Status {
         self.terminal_status.load(Ordering::Acquire)
+    }
+    pub fn record_transport_message(&self) {
+        self.last_message_monotonic_ns.store(
+            self.performance_clock.now_nanoseconds().max(0) as u64, Ordering::Relaxed);
+    }
+    pub fn record_subscription_acknowledgement(&self) {
+        self.subscription_acknowledgements.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn record_heartbeat(&self) {
+        self.heartbeat_messages.fetch_add(1, Ordering::Relaxed);
     }
     pub fn notify(&self) {
         self.signal_count.fetch_add(1, Ordering::Relaxed);
@@ -848,6 +864,54 @@ impl Feed {
         stats.producer_off_assignment_count =
             self.producer_off_assignment_count.load(Ordering::Relaxed);
         stats.producer_unique_processor_count = lock(&self.observed_processors).len() as u32;
+    }
+
+    pub fn fill_watchdog(&self, target: &mut WatchdogFeedStatusV1, instance_id: u64) {
+        let mut stats = StatsV1::default();
+        self.fill_stats(&mut stats);
+        let mappings = lock(&self.mappings);
+        let ready = self.consumer_ready.load(Ordering::Acquire);
+        let expected = mappings.len().min(u32::MAX as usize) as u32;
+        let received = if self.config.data_source == DATA_SOURCE_SYNTHETIC && ready {
+            expected
+        } else {
+            self.subscription_acknowledgements.load(Ordering::Relaxed).min(u64::from(expected)) as u32
+        };
+        let alive = stats.state == STATE_RUNNING && !self.producer_done.load(Ordering::Acquire);
+        let operational = alive && ready && stats.terminal_status == OK && received >= expected;
+        *target = WatchdogFeedStatusV1::default();
+        target.struct_size = size_of::<WatchdogFeedStatusV1>() as u32;
+        target.abi_version = ABI_VERSION;
+        target.feed_instance_id = instance_id;
+        target.generation_id = instance_id;
+        target.feed_kind = self.config.feed_kind;
+        target.major_status = if operational { MAJOR_UP } else if matches!(stats.state,
+            STATE_STARTING | STATE_CONSUMER_SETUP | STATE_STOPPING) { MAJOR_RESETTING } else { MAJOR_DOWN };
+        target.state = stats.state;
+        target.terminal_status = stats.terminal_status;
+        target.producer_alive = alive as u32;
+        target.consumer_ready = ready as u32;
+        target.expected_subscriptions = expected;
+        target.received_subscriptions = received;
+        target.heartbeat_count = self.heartbeat_messages.load(Ordering::Relaxed);
+        target.provider_message_count = stats.records_produced;
+        target.last_heartbeat_monotonic_ns = self.last_message_monotonic_ns.load(Ordering::Relaxed);
+        target.last_provider_message_monotonic_ns = target.last_heartbeat_monotonic_ns;
+        target.records_produced = stats.records_produced;
+        target.records_consumed = stats.records_consumed;
+        target.ring_capacity_records = stats.ring_capacity_records;
+        target.ring_used_records = stats.ring_used_records;
+        target.ring_high_water_records = stats.ring_high_water_records;
+        target.ring_overruns = stats.ring_overruns;
+        let dataset_length = self.dataset.len().min(target.dataset.len() - 1);
+        target.dataset[..dataset_length].copy_from_slice(&self.dataset[..dataset_length]);
+        let error = lock(&self.error);
+        let error_length = error.len().min(target.failure_detail.len() - 1);
+        target.failure_detail[..error_length].copy_from_slice(&error[..error_length]);
+    }
+
+    pub fn monotonic_nanoseconds(&self) -> u64 {
+        self.performance_clock.now_nanoseconds().max(0) as u64
     }
 
     pub fn error_bytes(&self) -> Vec<u8> {

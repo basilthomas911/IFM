@@ -68,6 +68,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         DashboardTypography.ApplyFamilyAndSize(operationViewSplitter);
         operationViewSplitter.Paint += DashboardSplitter_Paint;
         marketViewSplitter.Paint += DashboardSplitter_Paint;
+        marketDataFeedHealthIndicator.IsLink = true;
+        marketDataFeedHealthIndicator.Click += MarketDataFeedHealthIndicator_Click;
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
     }
@@ -220,11 +222,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.MarketDataFeedHealthState):
                 RenderMarketDataFeedState();
                 break;
+            case nameof(IFMAppViewModel.IsSystemOnlyNavigation):
+                RenderMenuState();
+                break;
             case nameof(IFMAppViewModel.StatusLine):
                 RenderStatusLine();
                 break;
             case nameof(IFMAppViewModel.StatusLogs):
-                statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
+                statusConsoleView1.UpdateStatusConsole(_viewModel.StatusLogs);
                 break;
             case nameof(IFMAppViewModel.Operations):
                 if (_viewModel.Operations is { } operations)
@@ -276,11 +281,12 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     {
         // Navigation is an application-shell capability. Only the live feed action below is
         // conditional on trading-session/market-data readiness.
-        tradeButton.Enabled = true;
-        marketDataButton.Enabled = true;
-        fundButton.Enabled = true;
-        portfolioButton.Enabled = true;
-        referenceButton.Enabled = true;
+        var generalNavigationEnabled = !_viewModel.IsSystemOnlyNavigation;
+        tradeButton.Enabled = generalNavigationEnabled;
+        marketDataButton.Enabled = generalNavigationEnabled;
+        fundButton.Enabled = generalNavigationEnabled;
+        portfolioButton.Enabled = generalNavigationEnabled;
+        referenceButton.Enabled = generalNavigationEnabled;
         systemAdminButton.Enabled = true;
         RenderMarketDataFeedState();
     }
@@ -315,10 +321,27 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             MarketDataFeedHealthState.Healthy => (Color.LimeGreen, Color.Black),
             MarketDataFeedHealthState.Intermittent => (Color.Yellow, Color.Black),
             MarketDataFeedHealthState.Critical => (Color.Red, Color.White),
+            MarketDataFeedHealthState.Recovering => (Color.DarkOrange, Color.Black),
             MarketDataFeedHealthState.OffHoursActive => (Color.SteelBlue, Color.White),
             MarketDataFeedHealthState.OffHoursDegraded => (Color.DarkOrange, Color.Black),
             _ => (Color.DimGray, Color.White)
         };
+
+    async void MarketDataFeedHealthIndicator_Click(object? sender, EventArgs eventArgs)
+    {
+        try
+        {
+            var history = await _viewModel.GetDatabentoWatchdogHistoryAsync();
+            var detail = history.Length == 0 ? "No persisted watchdog observations are available."
+                : string.Join(Environment.NewLine, history.Take(25).Select(item =>
+                    $"{item.ObservedOnUtc:u} {item.DisplayHealth} {item.OperationReason} attempt={item.RecoveryAttempt} {item.FailureDetail}"));
+            MessageBox.Show(this, detail, "Databento Watchdog History", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Databento Watchdog History");
+        }
+    }
 
     private void RenderStatusLine()
     {

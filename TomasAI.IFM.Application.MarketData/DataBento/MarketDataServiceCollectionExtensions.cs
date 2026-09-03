@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -27,6 +28,7 @@ public static class MarketDataServiceCollectionExtensions
             provider.GetRequiredService<DatabentoContractRegistrationRegistry>());
         services.TryAddSingleton(effectiveRuntimeOptions);
         services.TryAddSingleton(apiOptions ?? new DatabentoMarketDataApiOptions());
+        services.TryAddSingleton<DatabentoTerminalFaultSignal>();
         services.TryAddSingleton<IDatabentoMarketDataEpochFactory,
             DatabentoMarketDataEpochFactory>();
         services.TryAddSingleton<IDatabentoCurrentFuturesContractResolver,

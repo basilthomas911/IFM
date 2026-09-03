@@ -3,6 +3,7 @@ using NSubstitute;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.Views.App;
@@ -141,6 +142,7 @@ public sealed class DashboardSplitterRenderingTests
             [MarketDataFeedHealthState.OffHoursDegraded] = (Color.DarkOrange, Color.Black),
             [MarketDataFeedHealthState.Healthy] = (Color.LimeGreen, Color.Black),
             [MarketDataFeedHealthState.Intermittent] = (Color.Yellow, Color.Black),
+            [MarketDataFeedHealthState.Recovering] = (Color.DarkOrange, Color.Black),
             [MarketDataFeedHealthState.Critical] = (Color.Red, Color.White)
         };
         foreach (var healthState in expectedHealthColors)
@@ -158,6 +160,20 @@ public sealed class DashboardSplitterRenderingTests
         menuBar.DrawToBitmap(bitmap, menuBar.ClientRectangle);
         bitmap.GetPixel(indicator.Bounds.Left + 2, indicator.Bounds.Top + 2).ToArgb()
             .Should().Be(Color.Yellow.ToArgb());
+    }
+
+    [Fact]
+    public void Databento_readiness_maps_recovery_and_unexpected_failure_to_operator_fencing()
+    {
+        var healthMapper = typeof(IFMAppViewModel).GetMethod(
+            "MapDatabentoDisplayHealth", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var navigationMapper = typeof(IFMAppViewModel).GetMethod(
+            "IsDatabentoCoreNavigationRestricted", BindingFlags.Static | BindingFlags.NonPublic)!;
+
+        healthMapper.Invoke(null, ["Orange"]).Should().Be(MarketDataFeedHealthState.Recovering);
+        healthMapper.Invoke(null, ["Red"]).Should().Be(MarketDataFeedHealthState.Critical);
+        navigationMapper.Invoke(null, [false, FuturesMarketState.LiveTrading]).Should().Be(true);
+        navigationMapper.Invoke(null, [false, FuturesMarketState.Closed]).Should().Be(false);
     }
 
     [Fact]

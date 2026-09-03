@@ -47,7 +47,7 @@ public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActo
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetFuturesEodDataByDateRangeQuery.Verb] = msg => msg.AsQuery<GetFuturesEodDataByDateRangeQuery, FuturesEodDataV2ReadModel[]>()!,
         [GetFuturesEodDataParametersQuery.Verb] = msg => msg.AsQuery<GetFuturesEodDataParametersQuery, FuturesEodDataParametersReadModel>()!,
@@ -77,7 +77,7 @@ public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActo
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures EOD data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<Type, Func<IFuturesEodDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesEodDataQueryContext, IQuery, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesEodDataQueryContext, IQuery, ValueTask>>()
     {
         [typeof(GetFuturesEodDataByDateRangeQuery)] = async (ctx, q) =>
         {

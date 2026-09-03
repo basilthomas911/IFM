@@ -43,7 +43,7 @@ public class FuturesAdxSignalQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetFuturesAdxSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAdxSignalQuery, FuturesAdxSignalReadModel>()!,
         [GetFuturesAdxDailySignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAdxDailySignalQuery, FuturesAdxSignalReadModel>()!
@@ -75,7 +75,7 @@ public class FuturesAdxSignalQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures ADX signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesAdxSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesAdxSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesAdxSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetFuturesAdxSignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {

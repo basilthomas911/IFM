@@ -13,6 +13,13 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
+using ActivateAndAssignPortfolioFinancialPolicyCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.ActivateAndAssignPortfolioFinancialPolicyPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFinancialPolicyId>;
+using AddPortfolioFinancialPolicyVersionCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.AddPortfolioFinancialPolicyVersionPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFinancialPolicyId>;
+using CreatePortfolioFinancialPolicyCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.CreatePortfolioFinancialPolicyPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFinancialPolicyId>;
+using DeleteDraftPortfolioFinancialPolicyCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.DeleteDraftPortfolioFinancialPolicyPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFinancialPolicyId>;
+using RetirePortfolioFinancialPolicyCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.RetirePortfolioFinancialPolicyPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFinancialPolicyId>;
 
 namespace TomasAI.IFM.Domain.Portfolio.Command.Actor;
 
@@ -33,21 +40,96 @@ public sealed class PortfolioFinancialPolicyCommandActor(
 
     protected override ValueTask OnShutdown(ICommandActorContext<PortfolioFinancialPolicyCommandActor> actorContext) => projector.StopAsync();
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap = new Dictionary<string, Func<IActorMessage, ICommand>>
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
-        ["CreatePortfolioFinancialPolicy"] = x => x.AsCommand<PortfolioCommand<CreatePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId>>()!,
-        ["AddPortfolioFinancialPolicyVersion"] = x => x.AsCommand<PortfolioCommand<AddPortfolioFinancialPolicyVersionPayload, PortfolioFinancialPolicyId>>()!,
-        ["ActivateAndAssignPortfolioFinancialPolicy"] = x => x.AsCommand<PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId>>()!,
-        ["RetirePortfolioFinancialPolicy"] = x => x.AsCommand<PortfolioCommand<RetirePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId>>()!,
-        ["DeleteDraftPortfolioFinancialPolicy"] = x => x.AsCommand<PortfolioCommand<DeleteDraftPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId>>()!,
+        [PortfolioCommandVerbs.CreatePortfolioFinancialPolicy] = static message => message.AsCommand<CreatePortfolioFinancialPolicyCommand>()!,
+        [PortfolioCommandVerbs.AddPortfolioFinancialPolicyVersion] = static message => message.AsCommand<AddPortfolioFinancialPolicyVersionCommand>()!,
+        [PortfolioCommandVerbs.ActivateAndAssignPortfolioFinancialPolicy] = static message => message.AsCommand<ActivateAndAssignPortfolioFinancialPolicyCommand>()!,
+        [PortfolioCommandVerbs.RetirePortfolioFinancialPolicy] = static message => message.AsCommand<RetirePortfolioFinancialPolicyCommand>()!,
+        [PortfolioCommandVerbs.DeleteDraftPortfolioFinancialPolicy] = static message => message.AsCommand<DeleteDraftPortfolioFinancialPolicyCommand>()!,
     };
 
-    protected override ICommand ParseMessage(ICommandActorContext<PortfolioFinancialPolicyCommandActor> actorContext, IActorMessage message) =>
-        ParseMappedCommand(actorContext, message, ParseMap);
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(CreatePortfolioFinancialPolicyCommand)] = command =>
+            {
+                var typed = (CreatePortfolioFinancialPolicyCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateCreate(errors, typed);
+                return errors;
+            },
+            [typeof(AddPortfolioFinancialPolicyVersionCommand)] = command =>
+            {
+                var typed = (AddPortfolioFinancialPolicyVersionCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateVersion(errors, typed);
+                return errors;
+            },
+            [typeof(ActivateAndAssignPortfolioFinancialPolicyCommand)] = command =>
+            {
+                var typed = (ActivateAndAssignPortfolioFinancialPolicyCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateActivation(errors, typed);
+                return errors;
+            },
+            [typeof(RetirePortfolioFinancialPolicyCommand)] = command =>
+            {
+                var typed = (RetirePortfolioFinancialPolicyCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateRetire(errors, typed);
+                return errors;
+            },
+            [typeof(DeleteDraftPortfolioFinancialPolicyCommand)] = command =>
+            {
+                var typed = (DeleteDraftPortfolioFinancialPolicyCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                ValidateDelete(errors, typed);
+                return errors;
+            },
+        };
 
-    protected override ValueTask OnValidateAsync(ICommandActorContext<PortfolioFinancialPolicyCommandActor> _, ActorThreadId __, ICommand command)
+    static readonly IReadOnlyDictionary<Type, Func<PortfolioFinancialPolicyCommandActor, ICommand,
+        PolicyActorState, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
+        new Dictionary<Type, Func<PortfolioFinancialPolicyCommandActor, ICommand,
+            PolicyActorState, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
+        {
+            [typeof(CreatePortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
+                actor.CreateAsync(state, (CreatePortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+            [typeof(AddPortfolioFinancialPolicyVersionCommand)] = static (actor, command, state, principal, cancellationToken) =>
+                actor.AddVersionAsync(state, (AddPortfolioFinancialPolicyVersionCommand)command, principal, cancellationToken),
+            [typeof(ActivateAndAssignPortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
+                actor.ActivateWithLockAsync(state, (ActivateAndAssignPortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+            [typeof(RetirePortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
+                actor.RetireAsync(state, (RetirePortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+            [typeof(DeleteDraftPortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
+                actor.DeleteDraftAsync(state, (DeleteDraftPortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+        };
+
+    protected override ICommand ParseMessage(ICommandActorContext<PortfolioFinancialPolicyCommandActor> context, IActorMessage message) =>
+        ParseMappedCommand(context, message, _parseMap);
+
+    protected override ValueTask OnValidateAsync(ICommandActorContext<PortfolioFinancialPolicyCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        if (command.CommandId == Guid.Empty || ParseId(command).Validate().Count != 0) throw new ArgumentException("A valid policy command identity is required.");
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(threadId);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -64,40 +146,29 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         var request = (IPortfolioRequestMetadata)command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request);
         var principal = operationalGuard.Demand(PortfolioOperation.AdministerPortfolio, request, mutation: true).Principal;
-        if (command is PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> activation)
-        {
-            var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(state.PolicyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
-            await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return await ActivateAndAssignAsync(state, activation, principal, cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                assignmentLock.Release();
-            }
-        }
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
+        return await receive(this, command, state, principal, cancellationToken).ConfigureAwait(false);
+    }
 
+    async ValueTask<ServiceResult<GuidResult>> CommitPolicyMutationAsync<TPayload>(
+        PolicyActorState state,
+        PortfolioCommand<TPayload, PortfolioFinancialPolicyId> command,
+        string principal,
+        Func<bool, DateTime, PortfolioFinancialPolicyDomainEvent> createEvent,
+        Func<PortfolioFinancialPolicyDomainEvent, bool>? isIdempotencyConflict,
+        CancellationToken cancellationToken)
+    {
         var committed = await events.FindCommittedPolicyCommandAsync(state.PolicyId, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
-            if (command is PortfolioCommand<CreatePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> create &&
-                committed is PortfolioFinancialPolicyCreated prior &&
-                !string.Equals(create.Payload.Policy.CanonicalSha256(), prior.Policy.CanonicalSha256(), StringComparison.Ordinal))
+            if (isIdempotencyConflict?.Invoke(committed) == true)
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the command was committed for a different policy payload.");
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         var now = DateTime.UtcNow;
         var currentPortfolio = await events.LoadPortfolioAsync(new PortfolioId(state.PolicyId.PortfolioId), cancellationToken).ConfigureAwait(false);
         var referenced = currentPortfolio.Current?.ActivePolicyId == state.PolicyId.PolicyId;
-        PortfolioFinancialPolicyDomainEvent domainEvent = command switch
-        {
-            PortfolioCommand<CreatePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.Create(x.CommandId, x.Payload.IdempotencyKey, x.Payload.Policy, now, principal),
-            PortfolioCommand<AddPortfolioFinancialPolicyVersionPayload, PortfolioFinancialPolicyId> x => state.Aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Policy, now, principal),
-            PortfolioCommand<RetirePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.Retire(x.CommandId, x.Payload.ExpectedRevision, x.Payload.PolicyVersion, x.Payload.Reason, referenced, now, principal),
-            PortfolioCommand<DeleteDraftPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.DeleteDraft(x.CommandId, x.Payload.ExpectedRevision, x.Payload.Reason, referenced, now, principal),
-            _ => throw new InvalidOperationException($"Unsupported policy command {command.GetType().Name}."),
-        };
+        var domainEvent = createEvent(referenced, now);
         await events.AppendPolicyAsync(state.PolicyId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
         if (domainEvent is DraftPortfolioFinancialPolicyDeleted)
@@ -110,9 +181,82 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
+    ValueTask<ServiceResult<GuidResult>> CreateAsync(
+        PolicyActorState state,
+        CreatePortfolioFinancialPolicyCommand command,
+        string principal,
+        CancellationToken cancellationToken) =>
+        CommitPolicyMutationAsync(
+            state,
+            command,
+            principal,
+            (_, now) => state.Aggregate.Create(command.CommandId, command.Payload.IdempotencyKey, command.Payload.Policy, now, principal),
+            committed => committed is PortfolioFinancialPolicyCreated prior &&
+                !string.Equals(command.Payload.Policy.CanonicalSha256(), prior.Policy.CanonicalSha256(), StringComparison.Ordinal),
+            cancellationToken);
+
+    ValueTask<ServiceResult<GuidResult>> AddVersionAsync(
+        PolicyActorState state,
+        AddPortfolioFinancialPolicyVersionCommand command,
+        string principal,
+        CancellationToken cancellationToken) =>
+        CommitPolicyMutationAsync(
+            state,
+            command,
+            principal,
+            (_, now) => state.Aggregate.AddVersion(command.CommandId, command.Payload.ExpectedVersion, command.Payload.Policy, now, principal),
+            null,
+            cancellationToken);
+
+    ValueTask<ServiceResult<GuidResult>> RetireAsync(
+        PolicyActorState state,
+        RetirePortfolioFinancialPolicyCommand command,
+        string principal,
+        CancellationToken cancellationToken) =>
+        CommitPolicyMutationAsync(
+            state,
+            command,
+            principal,
+            (referenced, now) => state.Aggregate.Retire(command.CommandId, command.Payload.ExpectedRevision,
+                command.Payload.PolicyVersion, command.Payload.Reason, referenced, now, principal),
+            null,
+            cancellationToken);
+
+    ValueTask<ServiceResult<GuidResult>> DeleteDraftAsync(
+        PolicyActorState state,
+        DeleteDraftPortfolioFinancialPolicyCommand command,
+        string principal,
+        CancellationToken cancellationToken) =>
+        CommitPolicyMutationAsync(
+            state,
+            command,
+            principal,
+            (referenced, now) => state.Aggregate.DeleteDraft(command.CommandId, command.Payload.ExpectedRevision,
+                command.Payload.Reason, referenced, now, principal),
+            null,
+            cancellationToken);
+
+    async ValueTask<ServiceResult<GuidResult>> ActivateWithLockAsync(
+        PolicyActorState state,
+        ActivateAndAssignPortfolioFinancialPolicyCommand command,
+        string principal,
+        CancellationToken cancellationToken)
+    {
+        var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(state.PolicyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
+        await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ActivateAndAssignAsync(state, command, principal, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            assignmentLock.Release();
+        }
+    }
+
     async ValueTask<ServiceResult<GuidResult>> ActivateAndAssignAsync(
         PolicyActorState state,
-        PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> command,
+        ActivateAndAssignPortfolioFinancialPolicyCommand command,
         string principal,
         CancellationToken cancellationToken)
     {
@@ -182,6 +326,101 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         var parts = command.Subject.EntityId.Split('.');
         return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var policyId)
             ? new(portfolioId, policyId) : new();
+    }
+
+    static void ValidateIdentity<TPayload>(
+        List<ValidationError> errors,
+        PortfolioCommand<TPayload, PortfolioFinancialPolicyId> command)
+    {
+        if (command.EntityId is null)
+        {
+            if (command.Payload is null)
+                errors.Add(new($"{command.CommandName}.Payload is null"));
+            return;
+        }
+        AddErrors(errors, command.EntityId.Validate(), command.CommandName);
+        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+            errors.Add(new($"{command.CommandName}.EntityId does not match Subject.EntityId"));
+        if (command.Payload is null)
+            errors.Add(new($"{command.CommandName}.Payload is null"));
+    }
+
+    static void ValidateCreate(List<ValidationError> errors, CreatePortfolioFinancialPolicyCommand command)
+    {
+        if (command.Payload is null) return;
+        if (command.Payload.IdempotencyKey == Guid.Empty)
+            errors.Add(new($"{command.CommandName}.Payload.IdempotencyKey is empty"));
+        ValidatePolicy(errors, command, command.Payload.Policy);
+    }
+
+    static void ValidateVersion(List<ValidationError> errors, AddPortfolioFinancialPolicyVersionCommand command)
+    {
+        if (command.Payload is null) return;
+        ValidateExpectedRevision(errors, command.Payload.ExpectedVersion, command.CommandName);
+        ValidatePolicy(errors, command, command.Payload.Policy);
+    }
+
+    static void ValidateActivation(List<ValidationError> errors, ActivateAndAssignPortfolioFinancialPolicyCommand command)
+    {
+        if (command.Payload is null) return;
+        if (command.Payload.PolicyVersion <= 0)
+            errors.Add(new($"{command.CommandName}.Payload.PolicyVersion must be positive"));
+        ValidateExpectedRevision(errors, command.Payload.ExpectedPolicyRevision, command.CommandName);
+        ValidateExpectedRevision(errors, command.Payload.ExpectedPortfolioRevision, command.CommandName);
+    }
+
+    static void ValidateRetire(List<ValidationError> errors, RetirePortfolioFinancialPolicyCommand command)
+    {
+        if (command.Payload is null) return;
+        if (command.Payload.PolicyVersion <= 0)
+            errors.Add(new($"{command.CommandName}.Payload.PolicyVersion must be positive"));
+        ValidateExpectedRevision(errors, command.Payload.ExpectedRevision, command.CommandName);
+        ValidateReason(errors, command.Payload.Reason, command.CommandName);
+    }
+
+    static void ValidateDelete(List<ValidationError> errors, DeleteDraftPortfolioFinancialPolicyCommand command)
+    {
+        if (command.Payload is null) return;
+        ValidateExpectedRevision(errors, command.Payload.ExpectedRevision, command.CommandName);
+        ValidateReason(errors, command.Payload.Reason, command.CommandName);
+    }
+
+    static void ValidatePolicy<TPayload>(
+        List<ValidationError> errors,
+        PortfolioCommand<TPayload, PortfolioFinancialPolicyId> command,
+        PortfolioFinancialPolicyReadModel? policy)
+    {
+        if (policy is null)
+        {
+            errors.Add(new($"{command.CommandName}.Payload.Policy is null"));
+            return;
+        }
+        if (policy.TradeFamilyLimits is null || policy.TradeFamilyLimits.Any(static family => family is null))
+            errors.Add(new($"{command.CommandName}.Payload.Policy.TradeFamilyLimits contains null values"));
+        else
+            AddErrors(errors, policy.Validate(), command.CommandName);
+        if (command.EntityId is null)
+            return;
+        if (policy.PortfolioId != command.EntityId.PortfolioId || policy.PolicyId != command.EntityId.PolicyId)
+            errors.Add(new($"{command.CommandName}.Payload.Policy identity does not match EntityId"));
+    }
+
+    static void ValidateExpectedRevision(List<ValidationError> errors, long expectedRevision, string commandName)
+    {
+        if (expectedRevision < 0)
+            errors.Add(new($"{commandName}.Payload expected revision cannot be negative"));
+    }
+
+    static void ValidateReason(List<ValidationError> errors, string? reason, string commandName)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            errors.Add(new($"{commandName}.Payload.Reason is required"));
+    }
+
+    static void AddErrors(List<ValidationError> errors, IEnumerable<string> messages, string commandName)
+    {
+        foreach (var message in messages)
+            errors.Add(new($"{commandName}.{message}"));
     }
 
     sealed class PolicyActorState(PortfolioFinancialPolicyId id, PortfolioFinancialPolicyAggregate aggregate) : IActorState<PolicyActorState>

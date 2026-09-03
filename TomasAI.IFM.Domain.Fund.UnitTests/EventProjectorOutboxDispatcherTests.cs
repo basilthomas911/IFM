@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using System.Threading.Channels;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Fund.Shared;
@@ -14,6 +15,34 @@ namespace TomasAI.IFM.Domain.Fund.UnitTests;
 
 public sealed class EventProjectorOutboxDispatcherTests
 {
+    [Fact]
+    public async Task Worker_dispatches_on_signal_without_empty_database_polling_between_signals()
+    {
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        var claims = Channel.CreateUnbounded<int>();
+        var claimCount = 0;
+        eventSource.ClaimEventProjectorOutboxAsync(
+                Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<TimeSpan>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                claims.Writer.TryWrite(Interlocked.Increment(ref claimCount));
+                return Task.FromResult<IReadOnlyList<EventProjectorOutboxReadModel>>([]);
+            });
+        await using var dispatcher = CreateDispatcher(
+            eventSource,
+            static (_, _) => ValueTask.CompletedTask);
+
+        await dispatcher.StartAsync();
+        (await claims.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2))).Should().Be(1);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        Volatile.Read(ref claimCount).Should().Be(1);
+
+        dispatcher.Signal();
+        (await claims.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2))).Should().Be(2);
+    }
+
     [Fact]
     public async Task Failed_publication_releases_for_retry_and_reuses_the_same_event_identity()
     {

@@ -12,7 +12,7 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
     IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> actorContext)
     : BaseQueryActor<RegimeDiscoveryConfigurationQueryActor>(actorContext, Typed(actorContext).Logger)
 {
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetRegimeDiscoveryParameterSetQuery.Verb] = message =>
@@ -45,8 +45,9 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
         await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<RegimeDiscoveryConfigurationQueryActor,
-        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<RegimeDiscoveryConfigurationQueryActor,
+        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<RegimeDiscoveryConfigurationQueryActor,
+        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetRegimeDiscoveryParameterSetQuery)] = static async (actor, context, query, cancellationToken) =>
         {

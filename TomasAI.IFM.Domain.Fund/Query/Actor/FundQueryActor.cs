@@ -53,7 +53,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetClosingFundBalanceQuery.Verb] = msg => msg.AsQuery<GetClosingFundBalanceQuery, FundBalanceReadModel>()!,
         [GetFundBalanceQuery.Verb] = msg => msg.AsQuery<GetFundBalanceQuery, FundBalanceReadModel>()!,
@@ -89,7 +89,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         await receiveFunc(query, FundQueryContext, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<IQuery, IFundQueryContext, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQuery, IFundQueryContext, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, IFundQueryContext, CancellationToken, ValueTask>>()
     {
         [typeof(GetClosingFundBalanceQuery)] =  async (q, ctx, cancellationToken) =>
         {

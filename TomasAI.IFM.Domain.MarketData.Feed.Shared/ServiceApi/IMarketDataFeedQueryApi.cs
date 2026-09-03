@@ -34,4 +34,8 @@ public interface IMarketDataFeedQueryApi
     Task<ServiceResult<RiskPositionTypeReadModel>> GetFuturesRiskPositionTypeAsync(DateOnly valueDate, TradeType tradeType);
     Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync();
     Task<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> GetRuntimeStatusAsync();
+    Task<ServiceResult<DatabentoReadinessReadModel>> GetDatabentoReadinessAsync();
+    Task<ServiceResult<DatabentoContractAssignmentReadModel[]>> GetDatabentoCurrentContractsAsync();
+    Task<ServiceResult<DatabentoWatchdogObservationReadModel[]>> GetDatabentoWatchdogHistoryAsync(
+        DateOnly? valueDate = null, string? majorStatus = null, int pageSize = 100);
 }

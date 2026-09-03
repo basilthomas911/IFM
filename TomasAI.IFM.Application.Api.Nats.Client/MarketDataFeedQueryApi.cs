@@ -273,5 +273,39 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
             query);
     }
 
+    public async Task<ServiceResult<DatabentoReadinessReadModel>> GetDatabentoReadinessAsync()
+    {
+        var entityId = new GetDatabentoReadinessParameter();
+        var query = new GetDatabentoReadinessQuery
+        {
+            Subject = new ActorSubject(ActorType.Query, GetDatabentoReadinessQuery.Actor,
+                GetDatabentoReadinessQuery.Verb, entityId.Format())
+        };
+        return await RequestAsync<GetDatabentoReadinessQuery, DatabentoReadinessReadModel>(query.Subject, query);
+    }
+
+    public async Task<ServiceResult<DatabentoContractAssignmentReadModel[]>> GetDatabentoCurrentContractsAsync()
+    {
+        var entityId = new GetDatabentoCurrentContractsParameter();
+        var query = new GetDatabentoCurrentContractsQuery
+        {
+            Subject = new ActorSubject(ActorType.Query, GetDatabentoCurrentContractsQuery.Actor,
+                GetDatabentoCurrentContractsQuery.Verb, entityId.Format())
+        };
+        return await RequestAsync<GetDatabentoCurrentContractsQuery, DatabentoContractAssignmentReadModel[]>(query.Subject, query);
+    }
+
+    public async Task<ServiceResult<DatabentoWatchdogObservationReadModel[]>> GetDatabentoWatchdogHistoryAsync(
+        DateOnly? valueDate = null, string? majorStatus = null, int pageSize = 100)
+    {
+        var entityId = new GetDatabentoWatchdogHistoryParameter(valueDate, majorStatus, pageSize);
+        var query = new GetDatabentoWatchdogHistoryQuery(valueDate, majorStatus, pageSize)
+        {
+            Subject = new ActorSubject(ActorType.Query, GetDatabentoWatchdogHistoryQuery.Actor,
+                GetDatabentoWatchdogHistoryQuery.Verb, entityId.Format())
+        };
+        return await RequestAsync<GetDatabentoWatchdogHistoryQuery, DatabentoWatchdogObservationReadModel[]>(query.Subject, query);
+    }
+
 }
 

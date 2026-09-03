@@ -114,6 +114,29 @@ public struct StatsV1
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public unsafe struct WatchdogSnapshotV1
+{
+    public uint StructSize, AbiVersion, EntryCount, RequiredCount;
+    public ulong ObservedMonotonicNanoseconds, SnapshotSequence;
+    public fixed ulong Reserved[4];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct WatchdogFeedStatusV1
+{
+    public uint StructSize, AbiVersion;
+    public ulong FeedInstanceId, GenerationId;
+    public uint FeedKind, MajorStatus, State;
+    public int TerminalStatus;
+    public uint ProducerAlive, ConsumerReady, ExpectedSubscriptions, ReceivedSubscriptions;
+    public ulong HeartbeatCount, ProviderMessageCount, LastHeartbeatMonotonicNanoseconds,
+        LastProviderMessageMonotonicNanoseconds, RecordsProduced, RecordsConsumed,
+        RingCapacityRecords, RingUsedRecords, RingHighWaterRecords, RingOverruns;
+    public fixed byte Dataset[56];
+    public fixed byte FailureDetail[128];
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct Utf8SliceV1 { public uint Offset, Length; }
 
 [StructLayout(LayoutKind.Sequential)]

@@ -28,7 +28,7 @@ public class DatabaseBackupQueryActor(
     /// <summary>Gets the SupportedQueryTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes => QueryRoutes.Select(route => route.QueryType).ToArray();
     /// <summary>Gets the SupportedVerbs value.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys;
+    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys.ToArray();
 
     static readonly (Type QueryType, Type ResultType)[] QueryRoutes =
     [
@@ -49,7 +49,7 @@ public class DatabaseBackupQueryActor(
         (typeof(GetDatabaseRecoveryRunStatsQuery), typeof(DatabaseRecoveryRunStatsReadModel))
     ];
     static readonly MethodInfo ParseMethod = typeof(DatabaseBackupQueryActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = QueryRoutes.ToDictionary(
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = QueryRoutes.ToDictionary(
         route => ((DatabaseBackupQuery)Activator.CreateInstance(route.QueryType)!).Verb,
         route => (Func<IActorMessage, IQuery>)ParseMethod.MakeGenericMethod(route.QueryType, route.ResultType).CreateDelegate(typeof(Func<IActorMessage, IQuery>)),
         StringComparer.Ordinal);
@@ -72,8 +72,9 @@ public class DatabaseBackupQueryActor(
         await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<DatabaseBackupQueryActor,
-        IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<DatabaseBackupQueryActor,
+        IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<DatabaseBackupQueryActor,
+        IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetDatabaseProtectionSetsQuery)] = static async (actor, context, query, cancellationToken) =>
             await Reply(context, (GetDatabaseProtectionSetsQuery)query,

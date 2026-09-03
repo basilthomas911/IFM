@@ -33,3 +33,4 @@ EXPORTS
     dbf_historical_result_get_next_batch
     dbf_historical_result_get_error
     dbf_historical_result_destroy
+    dbf_get_watchdog_snapshot_v1

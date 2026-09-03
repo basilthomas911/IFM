@@ -188,6 +188,8 @@ void unlock_pages(void* memory, std::size_t bytes) noexcept {
 } // namespace
 
 struct dbf_feed {
+    std::uint64_t instance_id{};
+    std::uint64_t generation_id{};
     dbf_feed_config_v1 config{};
     std::string dataset;
     dbf_market_record64* ring{};
@@ -244,6 +246,20 @@ struct dbf_feed {
     std::mutex error_mutex;
     std::string last_error;
 };
+
+namespace {
+std::mutex watchdog_registry_mutex;
+std::vector<dbf_feed*> watchdog_registry;
+std::atomic<std::uint64_t> watchdog_identity{1};
+std::atomic<std::uint64_t> watchdog_snapshot_sequence{1};
+
+template <std::size_t Size>
+void copy_bounded(char (&destination)[Size], std::string_view source) noexcept {
+    const auto count = std::min(source.size(), Size - 1);
+    std::memcpy(destination, source.data(), count);
+    destination[count] = '\0';
+}
+}
 
 std::uint32_t current_processor_location() noexcept {
 #if defined(_WIN32)
@@ -1973,6 +1989,8 @@ dbf_status DBF_CALL dbf_feed_create(const dbf_feed_config_v1* config,
 
     try {
         auto* feed = new dbf_feed{};
+        feed->instance_id = watchdog_identity.fetch_add(1, std::memory_order_relaxed);
+        feed->generation_id = feed->instance_id;
         feed->config = *config;
         if (config->dataset_length != 0) {
             feed->dataset.assign(
@@ -1987,6 +2005,10 @@ dbf_status DBF_CALL dbf_feed_create(const dbf_feed_config_v1* config,
             release_feed_memory(feed);
             delete feed;
             return status;
+        }
+        {
+            std::lock_guard lock(watchdog_registry_mutex);
+            watchdog_registry.push_back(feed);
         }
         *result = feed;
         return DBF_OK;
@@ -2481,6 +2503,73 @@ dbf_status DBF_CALL dbf_feed_get_last_error(dbf_feed_t* feed,
     return DBF_OK;
 }
 
+dbf_status DBF_CALL dbf_get_watchdog_snapshot_v1(
+    dbf_watchdog_snapshot_v1* snapshot,
+    dbf_watchdog_feed_status_v1* entries,
+    std::uint32_t entry_capacity) {
+    if (snapshot == nullptr
+        || !valid_struct(snapshot->struct_size, sizeof(*snapshot), snapshot->abi_version)) {
+        return DBF_ABI_MISMATCH;
+    }
+    std::lock_guard registry_lock(watchdog_registry_mutex);
+    if (watchdog_registry.size() > std::numeric_limits<std::uint32_t>::max()) {
+        return DBF_BUFFER_TOO_SMALL;
+    }
+    snapshot->entry_count = 0;
+    snapshot->required_count = static_cast<std::uint32_t>(watchdog_registry.size());
+    snapshot->observed_monotonic_ns = monotonic_nanoseconds();
+    snapshot->snapshot_sequence = watchdog_snapshot_sequence.fetch_add(1, std::memory_order_relaxed);
+    std::fill(std::begin(snapshot->reserved), std::end(snapshot->reserved), 0);
+    if (entry_capacity < snapshot->required_count || (snapshot->required_count != 0 && entries == nullptr)) {
+        return DBF_BUFFER_TOO_SMALL;
+    }
+    for (std::uint32_t index = 0; index < snapshot->required_count; ++index) {
+        auto& target = entries[index];
+        if (!valid_struct(target.struct_size, sizeof(target), target.abi_version)) {
+            return DBF_ABI_MISMATCH;
+        }
+        auto* feed = watchdog_registry[index];
+        const auto state = feed->state.load(std::memory_order_acquire);
+        const auto terminal = feed->terminal_status.load(std::memory_order_acquire);
+        const auto produced = feed->records_produced.load(std::memory_order_relaxed);
+        const auto consumed = feed->records_consumed.load(std::memory_order_relaxed);
+        target = {};
+        target.struct_size = sizeof(target);
+        target.abi_version = DBF_ABI_VERSION;
+        target.feed_instance_id = feed->instance_id;
+        target.generation_id = feed->generation_id;
+        target.feed_kind = feed->config.feed_kind;
+        target.state = state;
+        target.terminal_status = terminal;
+        target.producer_alive = state == DBF_STATE_RUNNING && !feed->producer_done.load(std::memory_order_acquire);
+        target.consumer_ready = feed->consumer_ready.load(std::memory_order_acquire);
+        target.expected_subscriptions = static_cast<std::uint32_t>(feed->mappings.size());
+        target.received_subscriptions = static_cast<std::uint32_t>(std::min<std::uint64_t>(
+            feed->subscription_acknowledgements.load(std::memory_order_relaxed), feed->mappings.size()));
+        if (feed->config.data_source == DBF_DATA_SOURCE_SYNTHETIC && target.consumer_ready != 0)
+            target.received_subscriptions = target.expected_subscriptions;
+        target.heartbeat_count = feed->heartbeat_messages.load(std::memory_order_relaxed);
+        target.provider_message_count = produced;
+        target.last_heartbeat_monotonic_ns = feed->last_message_monotonic_ns.load(std::memory_order_relaxed);
+        target.last_provider_message_monotonic_ns = target.last_heartbeat_monotonic_ns;
+        target.records_produced = produced;
+        target.records_consumed = consumed;
+        target.ring_capacity_records = feed->ring_capacity;
+        target.ring_used_records = produced - consumed;
+        target.ring_high_water_records = feed->ring_high_water.load(std::memory_order_relaxed);
+        target.ring_overruns = feed->ring_overruns.load(std::memory_order_relaxed);
+        const bool operational = target.producer_alive != 0 && target.consumer_ready != 0
+            && terminal == DBF_OK && target.received_subscriptions >= target.expected_subscriptions;
+        target.major_status = operational ? DBF_MAJOR_UP
+            : (state == DBF_STATE_STARTING || state == DBF_STATE_CONSUMER_SETUP || state == DBF_STATE_STOPPING)
+                ? DBF_MAJOR_RESETTING : DBF_MAJOR_DOWN;
+        copy_bounded(target.dataset, feed->dataset);
+        { std::lock_guard error_lock(feed->error_mutex); copy_bounded(target.failure_detail, feed->last_error); }
+    }
+    snapshot->entry_count = snapshot->required_count;
+    return DBF_OK;
+}
+
 dbf_status DBF_CALL dbf_feed_destroy(dbf_feed_t* feed) {
     if (feed == nullptr) {
         return DBF_INVALID_ARGUMENT;
@@ -2493,6 +2582,11 @@ dbf_status DBF_CALL dbf_feed_destroy(dbf_feed_t* feed) {
             }
             feed->producer.join();
         }
+    }
+    {
+        std::lock_guard lock(watchdog_registry_mutex);
+        const auto item = std::find(watchdog_registry.begin(), watchdog_registry.end(), feed);
+        if (item != watchdog_registry.end()) watchdog_registry.erase(item);
     }
     release_feed_memory(feed);
     delete feed;

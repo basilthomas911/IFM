@@ -33,11 +33,7 @@ public static class MarketDataFeedReset
         var source = $"MarketDataFeedResetEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataApi.StopAsync(e.ValueDate);
-            await p.MarketDataApi.StartAsync(
-                e.ValueDate,
-                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
-                    LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
+            await p.MarketDataLifecycle.ResetAsync(e.ValueDate, e.CommandId);
             await eventApi.MarketDataFeedResetCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset");
             p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);

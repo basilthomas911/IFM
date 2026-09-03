@@ -43,7 +43,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetLookupTypesQuery.Verb] = msg => msg.AsQuery<GetLookupTypesQuery, LookupTypeCollection>()!,
         [GetLookupTypeQuery.Verb] = msg => msg.AsQuery<GetLookupTypeQuery, LookupTypeCollection>()!,
@@ -80,7 +80,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <remarks>This dictionary enables dynamic dispatch of lookup type-related queries by associating each query
     /// type name with a function that processes the query against a LookupTypeQueryActorState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<Type, Func<ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetLookupTypesQuery)] = async (ctx, q, cancellationToken) =>
         {

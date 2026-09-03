@@ -48,7 +48,7 @@ public class TradeQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetTradeHistoryQuery.Verb] = msg => msg.AsQuery<GetTradeHistoryQuery, TradeHistoryReadModel[]>()!,
         [GetTradeLimitQuery.Verb] = msg => msg.AsQuery<GetTradeLimitQuery, TradeLimitReadModel>()!,
@@ -83,7 +83,7 @@ public class TradeQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding trade
     /// query logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<Type, Func<IQueryActorContext<TradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<TradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<TradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetTradeHistoryQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {

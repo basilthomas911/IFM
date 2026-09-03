@@ -143,6 +143,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     OperationsViewModel? _operations;
     long _errorSequence;
     MarketDataFeedHealthState _marketDataFeedHealthState = MarketDataFeedHealthState.Inactive;
+    bool _isSystemOnlyNavigation;
     FuturesEodDataUIViewModel? _marketOutlook;
     string _marketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
     FuturesTradeSignalUIViewModel? _futuresTradeSignal;
@@ -318,6 +319,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
+    public bool IsSystemOnlyNavigation
+    {
+        get => _isSystemOnlyNavigation;
+        private set => SetProperty(ref _isSystemOnlyNavigation, value);
+    }
+
     /// <summary>Gets whether a shell-initiated market-data feed transition is in progress.</summary>
     public bool IsMarketDataFeedOperationInProgress
     {
@@ -354,6 +361,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             MarketDataFeedHealthState.Healthy => "Feed Health: Green",
             MarketDataFeedHealthState.Intermittent => "Feed Health: Yellow",
             MarketDataFeedHealthState.Critical => "Feed Health: Red",
+            MarketDataFeedHealthState.Recovering => "Feed Health: Orange / Resetting",
             MarketDataFeedHealthState.OffHoursActive => "Feed Health: Off-hours Active",
             MarketDataFeedHealthState.OffHoursDegraded => "Feed Health: Off-hours Degraded",
             _ => "Feed Health: Stopped"
@@ -655,6 +663,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await StartMarketOutlookEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
+            await RefreshDatabentoReadinessAsync();
             await WriteStatusConsoleAsync(marketSession.IsMarketOpen
                 ? $"IFMApp v{_appVersion} - {_appEnvironment}...presentation initialization complete; backend lifecycle is API-owned."
                 : $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
@@ -692,6 +701,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 else
                     await WriteStatusConsoleAsync(
                         "Market-session refresh returned no valid authoritative snapshot; the last coherent value date remains active.");
+                await RefreshDatabentoReadinessAsync();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -1736,6 +1746,34 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     void ApplyMarketDataFeedHealth(MarketDataFeedHealthSnapshot snapshot)
         => MarketDataFeedHealthState = snapshot.State;
+
+    async Task RefreshDatabentoReadinessAsync()
+    {
+        var readiness = await _appRoot.Services.FeedQueries.GetDatabentoReadinessAsync();
+        if (readiness is null) return;
+        IsMarketDataFeedActive = IsDatabentoLifecycleActive(readiness.State);
+        MarketDataFeedHealthState = MapDatabentoDisplayHealth(readiness.DisplayHealth);
+        IsSystemOnlyNavigation = IsDatabentoCoreNavigationRestricted(readiness.CoreReady, MarketState);
+    }
+
+    internal static bool IsDatabentoLifecycleActive(string state)
+        => state is "Healthy" or "Degraded" or "Resetting" or "Starting";
+
+    internal static MarketDataFeedHealthState MapDatabentoDisplayHealth(string displayHealth)
+        => displayHealth switch
+        {
+            "Green" => MarketDataFeedHealthState.Healthy,
+            "Yellow" => MarketDataFeedHealthState.Intermittent,
+            "Orange" => MarketDataFeedHealthState.Recovering,
+            "Red" => MarketDataFeedHealthState.Critical,
+            _ => MarketDataFeedHealthState.Inactive
+        };
+
+    internal static bool IsDatabentoCoreNavigationRestricted(bool coreReady, FuturesMarketState marketState)
+        => marketState != FuturesMarketState.Closed && !coreReady;
+
+    public Task<DatabentoWatchdogObservationReadModel[]> GetDatabentoWatchdogHistoryAsync(int pageSize = 25)
+        => _appRoot.Services.FeedQueries.GetDatabentoWatchdogHistoryAsync(pageSize);
 
     async Task ApplyMarketDataFeedHealthAsync(MarketDataFeedHealthSnapshot snapshot)
     {

@@ -33,6 +33,9 @@
 
 namespace {
 
+static_assert(sizeof(dbf_watchdog_snapshot_v1) == 64);
+static_assert(sizeof(dbf_watchdog_feed_status_v1) == 320);
+
 dbf_feed_config_v1 make_config(std::uint32_t record_count,
                                std::uint64_t ring_bytes = 1u << 20) {
     dbf_feed_config_v1 config{};
@@ -657,6 +660,27 @@ void test_live_dbn_normalization() {
 
 #endif
 
+void test_process_wide_watchdog_snapshot_is_complete() {
+    auto* feed = create_subscribed_feed(8);
+    dbf_watchdog_snapshot_v1 snapshot{};
+    snapshot.struct_size = sizeof(snapshot);
+    snapshot.abi_version = DBF_ABI_VERSION;
+    require(dbf_get_watchdog_snapshot_v1(&snapshot, nullptr, 0), DBF_BUFFER_TOO_SMALL);
+    assert(snapshot.required_count == 1);
+    dbf_watchdog_feed_status_v1 entry{};
+    entry.struct_size = sizeof(entry);
+    entry.abi_version = DBF_ABI_VERSION;
+    require(dbf_get_watchdog_snapshot_v1(&snapshot, &entry, 1));
+    assert(snapshot.entry_count == 1);
+    assert(entry.feed_instance_id != 0);
+    assert(entry.expected_subscriptions == 2);
+    assert(entry.major_status == DBF_MAJOR_DOWN);
+    require(dbf_feed_destroy(feed));
+    require(dbf_get_watchdog_snapshot_v1(&snapshot, nullptr, 0));
+    assert(snapshot.entry_count == 0);
+    assert(snapshot.required_count == 0);
+}
+
 } // namespace
 
 int main() {
@@ -682,6 +706,8 @@ int main() {
     test_native_producer_affinity_is_verified();
     std::cout << "test_registered_buffer_ownership" << std::endl;
     test_registered_buffer_ownership();
+    std::cout << "test_process_wide_watchdog_snapshot_is_complete" << std::endl;
+    test_process_wide_watchdog_snapshot_is_complete();
     std::cout << "test_ring_overrun_faults_without_overwrite" << std::endl;
     test_ring_overrun_faults_without_overwrite();
     std::cout << "test_historical_synthetic_abi" << std::endl;

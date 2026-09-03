@@ -109,6 +109,13 @@ internal static partial class NativeMethods
         SafeDbFeedHandle feed,
         ref NativeFeedStats stats);
 
+    [LibraryImport(LibraryName, EntryPoint = "dbf_get_watchdog_snapshot_v1")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus GetWatchdogSnapshot(
+        NativeWatchdogSnapshot* snapshot,
+        NativeWatchdogFeedStatus* entries,
+        uint entryCapacity);
+
     [LibraryImport(LibraryName, EntryPoint = "dbf_feed_get_last_error")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial DatabentoFeedStatus FeedGetLastError(

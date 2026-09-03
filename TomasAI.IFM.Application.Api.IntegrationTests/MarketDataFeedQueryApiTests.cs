@@ -351,4 +351,23 @@ public class MarketDataFeedQueryApiTests(WebApplicationFactory<Program> factory)
         response.Value.ActiveValueDate.Should().Be(new DateOnly(2026, 9, 1));
     }
 
+    [Fact]
+    public async Task GetDatabentoOperationalQueries_ReturnTypedReadinessContractsAndHistory()
+    {
+        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer,
+            new QueryServiceApiOptions("http://localhost"));
+        var queryApi = new MarketDataFeedQueryApi(queryServiceApi);
+
+        var readiness = await queryApi.GetDatabentoReadinessAsync();
+        var contracts = await queryApi.GetDatabentoCurrentContractsAsync();
+        var history = await queryApi.GetDatabentoWatchdogHistoryAsync(new DateOnly(2026, 9, 2), pageSize: 25);
+
+        readiness.Success.Should().BeTrue(readiness.ErrorMessage);
+        readiness.Value!.CoreReady.Should().BeTrue();
+        contracts.Success.Should().BeTrue(contracts.ErrorMessage);
+        contracts.Value.Should().HaveCount(3);
+        history.Success.Should().BeTrue(history.ErrorMessage);
+        history.Value.Should().ContainSingle(item => item.DisplayHealth == "Green");
+    }
+
 }

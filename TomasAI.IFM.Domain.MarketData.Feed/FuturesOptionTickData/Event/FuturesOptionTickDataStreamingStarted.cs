@@ -30,10 +30,10 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataApi.StartAsync(
-                e.ValueDate,
-                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
-                    LogSourceType.FuturesOptionTickDataEvent, errorCode, errorMsg));
+            var runtime = p.MarketDataApi.GetRuntimeStatus();
+            if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
+                throw new InvalidOperationException(
+                    "The Databento watchdog must start and qualify the value-date runtime before an option route is attached.");
             _ = await p.MarketDataApi.GetFuturesOptionContractAsync(
                 e.Contract.ContractId)
                 ?? throw new InvalidOperationException(

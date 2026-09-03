@@ -26,7 +26,7 @@ public sealed class TradePlanQueryActor(
     protected override IQuery ParseMessage(IQueryActorContext<TradePlanQueryActor> context, IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetStopLossLimitQuery.Verb] = message => message.AsQuery<GetStopLossLimitQuery, TradePlanStopLossLimitReadModel>()!,
         [GetTradePlanForwardLossRatiosQuery.Verb] = message => message.AsQuery<GetTradePlanForwardLossRatiosQuery, TradePlanForwardLossRatioReadModel[]>()!,
@@ -49,8 +49,9 @@ public sealed class TradePlanQueryActor(
         await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<TradePlanQueryActor,
-        IQueryActorContext<TradePlanQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<TradePlanQueryActor,
+        IQueryActorContext<TradePlanQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<TradePlanQueryActor,
+        IQueryActorContext<TradePlanQueryActor>, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetStopLossLimitQuery)] = static async (actor, context, query, _) =>
         {

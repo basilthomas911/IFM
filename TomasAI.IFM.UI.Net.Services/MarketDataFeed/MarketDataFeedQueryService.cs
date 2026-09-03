@@ -148,4 +148,16 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
         return result.Success ? result.Value : null;
     }
 
+    public async Task<DatabentoReadinessReadModel?> GetDatabentoReadinessAsync()
+    {
+        var result = await _marketDataFeedQueryApi.GetDatabentoReadinessAsync();
+        return result.Success ? result.Value : null;
+    }
+
+    public async Task<DatabentoWatchdogObservationReadModel[]> GetDatabentoWatchdogHistoryAsync(int pageSize = 100)
+    {
+        var result = await _marketDataFeedQueryApi.GetDatabentoWatchdogHistoryAsync(pageSize: pageSize);
+        return result.Success ? result.Value ?? [] : [];
+    }
+
 }

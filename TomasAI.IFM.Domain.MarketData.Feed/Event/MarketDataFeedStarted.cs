@@ -36,7 +36,7 @@ public static class MarketDataFeedStarted
         var source = $"MarketDataFeedStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataApi.StartAsync(
+            await p.MarketDataLifecycle.StartAsync(
                 e.ValueDate,
                 (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
                     LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));

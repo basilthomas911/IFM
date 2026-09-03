@@ -15,15 +15,15 @@ public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProdu
     static PortfolioAccessContext Access => PortfolioAccessScope.Current
         ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}");
     public Task<ServiceResult<Guid>> CreatePolicyAsync(PortfolioFinancialPolicyReadModel policy, Guid idempotencyKey, CancellationToken cancellationToken = default) =>
-        Send(new(policy.PortfolioId, policy.PolicyId), "CreatePortfolioFinancialPolicy", new CreatePortfolioFinancialPolicyPayload(policy, idempotencyKey), cancellationToken);
+        Send(new(policy.PortfolioId, policy.PolicyId), PortfolioCommandVerbs.CreatePortfolioFinancialPolicy, new CreatePortfolioFinancialPolicyPayload(policy, idempotencyKey), cancellationToken);
     public Task<ServiceResult<Guid>> AddPolicyVersionAsync(PortfolioFinancialPolicyReadModel policy, long expectedRevision, CancellationToken cancellationToken = default) =>
-        Send(new(policy.PortfolioId, policy.PolicyId), "AddPortfolioFinancialPolicyVersion", new AddPortfolioFinancialPolicyVersionPayload(policy, expectedRevision), cancellationToken);
+        Send(new(policy.PortfolioId, policy.PolicyId), PortfolioCommandVerbs.AddPortfolioFinancialPolicyVersion, new AddPortfolioFinancialPolicyVersionPayload(policy, expectedRevision), cancellationToken);
     public Task<ServiceResult<Guid>> ActivateAndAssignAsync(PortfolioFinancialPolicyId id, long version, long expectedPolicyRevision, long expectedPortfolioRevision, CancellationToken cancellationToken = default) =>
-        Send(id, "ActivateAndAssignPortfolioFinancialPolicy", new ActivateAndAssignPortfolioFinancialPolicyPayload(version, expectedPolicyRevision, expectedPortfolioRevision), cancellationToken);
+        Send(id, PortfolioCommandVerbs.ActivateAndAssignPortfolioFinancialPolicy, new ActivateAndAssignPortfolioFinancialPolicyPayload(version, expectedPolicyRevision, expectedPortfolioRevision), cancellationToken);
     public Task<ServiceResult<Guid>> RetirePolicyAsync(PortfolioFinancialPolicyId id, long version, long expectedRevision, string reason, CancellationToken cancellationToken = default) =>
-        Send(id, "RetirePortfolioFinancialPolicy", new RetirePortfolioFinancialPolicyPayload(version, expectedRevision, reason), cancellationToken);
+        Send(id, PortfolioCommandVerbs.RetirePortfolioFinancialPolicy, new RetirePortfolioFinancialPolicyPayload(version, expectedRevision, reason), cancellationToken);
     public Task<ServiceResult<Guid>> DeleteDraftPolicyAsync(PortfolioFinancialPolicyId id, long expectedRevision, string reason, CancellationToken cancellationToken = default) =>
-        Send(id, "DeleteDraftPortfolioFinancialPolicy", new DeleteDraftPortfolioFinancialPolicyPayload(expectedRevision, reason), cancellationToken);
+        Send(id, PortfolioCommandVerbs.DeleteDraftPortfolioFinancialPolicy, new DeleteDraftPortfolioFinancialPolicyPayload(expectedRevision, reason), cancellationToken);
 
     async Task<ServiceResult<Guid>> Send<T>(PortfolioFinancialPolicyId id, string verb, T payload, CancellationToken cancellationToken)
     {

@@ -74,7 +74,12 @@ public enum MarketDataOperationStage : byte
     MarketOutlookChannel,
     MarketOutlookComposition,
     MarketOutlookCache,
-    MarketOutlookPublication
+    MarketOutlookPublication,
+    DatabentoNative,
+    DatabentoInterop,
+    DatabentoAggregation,
+    DatabentoLifecycle,
+    DatabentoRefresh
 }
 
 public enum MarketDataOperationOutcome : byte
@@ -86,7 +91,10 @@ public enum MarketDataOperationOutcome : byte
     Composed,
     Published,
     Failed,
-    Coalesced
+    Coalesced,
+    Requested,
+    Started,
+    Completed
 }
 
 public readonly record struct MarketDataOperationMeasurement(

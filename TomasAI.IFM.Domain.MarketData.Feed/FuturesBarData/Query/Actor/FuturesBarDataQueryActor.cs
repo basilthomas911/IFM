@@ -44,7 +44,7 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetFuturesBarDataQuery.Verb] = msg => msg.AsQuery<GetFuturesBarDataQuery, FuturesBarDataReadModel[]>()!,
         [GetLastFuturesBarDataQuery.Verb] = msg => msg.AsQuery<GetLastFuturesBarDataQuery, FuturesBarDataReadModel>()!
@@ -69,7 +69,7 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures bar data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<Type, Func<IFuturesBarDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesBarDataQueryContext, IQuery, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesBarDataQueryContext, IQuery, ValueTask>>()
     {
         [typeof(GetFuturesBarDataQuery)] = async (ctx, q) =>
         {

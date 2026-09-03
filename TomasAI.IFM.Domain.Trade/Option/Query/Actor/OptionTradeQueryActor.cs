@@ -48,7 +48,7 @@ public class OptionTradeQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetOptionTradeQuery.Verb] = msg => msg.AsQuery<GetOptionTradeQuery, OptionTradeReadModel>()!,
         [GetOptionTradesQuery.Verb] = msg => msg.AsQuery<GetOptionTradesQuery, OptionTradeReadModel[]>()!,
@@ -88,7 +88,7 @@ public class OptionTradeQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding option trade query
     /// logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<Type, Func<IQueryActorContext<OptionTradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<OptionTradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<OptionTradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetOptionTradeQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {

@@ -46,7 +46,9 @@ public sealed class EventProjectorReliabilityContractTests
     [Fact]
     public void Reliability_options_are_bounded_and_default_to_valid_values()
     {
-        new EventProjectorReliabilityOptions().Validate().Should().NotBeNull();
+        var defaults = new EventProjectorReliabilityOptions().Validate();
+        defaults.Should().NotBeNull();
+        defaults.OutboxPollingInterval.Should().Be(TimeSpan.FromSeconds(30));
 
         var invalidBatch = new EventProjectorReliabilityOptions { RecoveryBatchSize = 0 };
         var invalidConcurrency = new EventProjectorReliabilityOptions { RecoveryStreamConcurrency = 33 };
@@ -61,6 +63,28 @@ public sealed class EventProjectorReliabilityContractTests
         outboxWithoutFence.Invoking(options => options.Validate()).Should().Throw<InvalidOperationException>();
         invalidMetricsPolling.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
         invalidNonDurableCapacity.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void Metrics_observer_assigns_stable_bounded_polling_phases_per_projector()
+    {
+        var interval = TimeSpan.FromSeconds(5);
+        var projectorNames = new[]
+        {
+            "FundEventProjector",
+            "TradeEventProjector",
+            "PortfolioEventProjector",
+            "MarketDataEventProjector"
+        };
+
+        var phases = projectorNames
+            .Select(name => EventProjectorMetricsObserver.GetInitialDelay(name, interval))
+            .ToArray();
+
+        phases.Should().OnlyContain(phase => phase >= TimeSpan.Zero && phase < interval);
+        phases.Should().OnlyHaveUniqueItems();
+        EventProjectorMetricsObserver.GetInitialDelay(projectorNames[0], interval)
+            .Should().Be(phases[0]);
     }
 
     [Fact]

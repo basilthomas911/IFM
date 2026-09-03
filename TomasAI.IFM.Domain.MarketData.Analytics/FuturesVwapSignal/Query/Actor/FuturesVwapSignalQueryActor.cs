@@ -25,7 +25,7 @@ public sealed class FuturesVwapSignalQueryActor(
         IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetLatestFuturesVwapSignalQuery.Verb] = message =>
             message.AsQuery<GetLatestFuturesVwapSignalQuery, FuturesVwapSignalReadModel?>()!,
@@ -47,8 +47,9 @@ public sealed class FuturesVwapSignalQueryActor(
         await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<FuturesVwapSignalQueryActor,
-        IQueryActorContext<FuturesVwapSignalQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<FuturesVwapSignalQueryActor,
+        IQueryActorContext<FuturesVwapSignalQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<FuturesVwapSignalQueryActor,
+        IQueryActorContext<FuturesVwapSignalQueryActor>, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetLatestFuturesVwapSignalQuery)] = static async (actor, context, query, cancellationToken) =>
         {

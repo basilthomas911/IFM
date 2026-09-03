@@ -20,7 +20,7 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
         IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb] = message =>
             message.AsQuery<GetFuturesAnalyticsHistoricalDataLoaderQuery,
@@ -42,8 +42,9 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
         await receive(context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
-        IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
+        IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
+        IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static async (context, query, cancellationToken) =>
         {

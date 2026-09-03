@@ -32,7 +32,7 @@ public static class MarketDataFeedStopped
         var source = $"MarketDataFeedStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataApi.StopAsync(e.ValueDate);
+            await p.MarketDataLifecycle.StopAsync(e.ValueDate);
 
             await eventApi.SendMarketDataFeedStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed stopped");

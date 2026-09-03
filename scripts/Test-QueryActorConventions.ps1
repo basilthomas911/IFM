@@ -27,14 +27,19 @@ foreach ($actorFile in $actorFiles) {
         $domainActorCount++
     }
 
-    if ($source -notmatch '(?:IReadOnlyDictionary|Dictionary)<string,\s*Func<IActorMessage,\s*IQuery>>\s+_parseMap') {
+    $parseMapType = if ($isTemplate) { '(?:IReadOnlyDictionary|Dictionary)' } else { 'IReadOnlyDictionary' }
+    $receiveMapType = if ($isTemplate) { '(?:IReadOnlyDictionary|Dictionary)' } else { 'IReadOnlyDictionary' }
+    if ($source -notmatch "$parseMapType<string,\s*Func<IActorMessage,\s*IQuery>>\s+_parseMap") {
         $violations.Add("$relativePath does not expose a verb-keyed _parseMap.")
     }
-    if ($source -notmatch '(?:IReadOnlyDictionary|Dictionary)<Type,[\s\S]{0,500}?_receiveMap') {
+    if ($source -notmatch "$receiveMapType<Type,[\s\S]{0,500}?_receiveMap") {
         $violations.Add("$relativePath does not expose an exact-Type _receiveMap.")
     }
     if ($source -notmatch 'IReadOnlyDictionary<Type,\s*QueryExceptionHandler>\s+_exceptionMap') {
         $violations.Add("$relativePath does not expose an exact-Type _exceptionMap.")
+    }
+    if ($source -notmatch 'CreateQueryExceptionMap\(\s*_receiveMap\.Keys') {
+        $violations.Add("$relativePath does not derive _exceptionMap from the receive-map manifest.")
     }
     if ($source -notmatch 'ParseMappedQuery\(\s*context,\s*message,\s*_parseMap\s*\)') {
         $violations.Add("$relativePath does not delegate parsing to ParseMappedQuery.")
@@ -76,8 +81,8 @@ foreach ($actorFile in $actorFiles) {
     }
 }
 
-if ($domainActorCount -ne 33) {
-    $violations.Add("Expected 33 domain QueryActors but discovered $domainActorCount.")
+if ($domainActorCount -ne 36) {
+    $violations.Add("Expected 36 domain QueryActors but discovered $domainActorCount.")
 }
 
 if ($violations.Count -gt 0) {

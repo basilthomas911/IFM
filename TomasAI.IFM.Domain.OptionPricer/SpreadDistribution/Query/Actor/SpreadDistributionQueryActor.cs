@@ -38,7 +38,7 @@ public class SpreadDistributionQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetSpreadDistributionQuery.Verb] = msg => msg.AsQuery<GetSpreadDistributionQuery, SpreadDistributionReadModel>()!
     };
@@ -69,7 +69,7 @@ public class SpreadDistributionQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding spread distribution query
     /// logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<Type, Func<IQueryActorContext<SpreadDistributionQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<SpreadDistributionQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<SpreadDistributionQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
         [typeof(GetSpreadDistributionQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {

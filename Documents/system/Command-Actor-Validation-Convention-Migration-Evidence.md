@@ -9,7 +9,7 @@ This record covers gates V-00 through V-12 in
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| V-00 | Complete | Inventory fixed at 37 domain CommandActors and 156 concrete command contracts. |
+| V-00 | Complete | Original inventory fixed at 37 domain CommandActors and 156 concrete command contracts; the current inventory contains 39 actors and 178 command contracts. |
 | V-01 | Complete | `ParseMappedCommand` and `ValidateMappedCommand` base dispatch, template, aggregate validation adapter, and source conformance checks implemented. |
 | V-02 | Complete | Application and Lookup Type maps migrated; identifier/read-model validators co-located. |
 | V-03 | Complete | Fund Transaction migrated with conditional transaction identity rules and index-aware batch validation. |
@@ -21,13 +21,13 @@ This record covers gates V-00 through V-12 in
 | V-09 | Complete | Option Trade and both Trade Plan maps migrated. |
 | V-10 | Complete | Workflow, Regime Discovery, and parameter-set configuration maps migrated. Workflow receive dispatch is now explicit and parity-checked. |
 | V-11 | Complete | Database Backup exposes an explicit 28-entry exact-type validation map. |
-| V-12 | Qualified with recorded test-harness gaps | No allowlist remains; all 37 actors pass conformance; unit/BDD tests and the serial full-solution build are green where runnable. See gaps below. |
+| V-12 | Qualified with recorded test-harness gaps | No allowlist remains; all 39 actors pass conformance; unit/BDD tests and the serial full-solution build are green where runnable. See gaps below. |
 
 ## Mechanical conformance
 
 `scripts/Test-CommandActorConventions.ps1` verifies:
 
-- exactly 37 domain CommandActors are discovered;
+- exactly 39 domain CommandActors are discovered;
 - read-only parse maps delegate to `ParseMappedCommand`;
 - validation maps use exact concrete `Type` keys and return `List<ValidationError>`;
 - validation dispatch delegates to `ValidateMappedCommand`;
@@ -35,7 +35,7 @@ This record covers gates V-00 through V-12 in
 - every explicit validation entry visibly validates `CommandId` and `EntityId` (Database Backup uses its explicit common typed pattern);
 - no domain-local audit tracker or direct audit-log write remains.
 
-Result: **37/37 actors and 156/156 commands pass; no legacy allowlist.**
+Result: **39/39 actors and 178/178 commands pass; no legacy allowlist.**
 
 ## Test evidence
 
