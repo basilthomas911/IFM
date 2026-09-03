@@ -1,5 +1,6 @@
 ﻿using System.Collections.Frozen;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -24,6 +25,7 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
     private readonly TimeProvider _timeProvider;
     private readonly ITickLiveEventPublisher _livePublisher;
     private readonly DatabentoTerminalFaultSignal? _terminalFaultSignal;
+    private readonly ILoggerFactory? _loggerFactory;
 
     public DatabentoMarketDataEpochFactory(
         IDatabentoFeedFactory feeds,
@@ -31,7 +33,8 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         DatabentoMarketDataRuntimeOptions options,
         TimeProvider? timeProvider = null,
         ITickLiveEventPublisher? livePublisher = null,
-        DatabentoTerminalFaultSignal? terminalFaultSignal = null)
+        DatabentoTerminalFaultSignal? terminalFaultSignal = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _feeds = feeds ?? throw new ArgumentNullException(nameof(feeds));
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
@@ -39,6 +42,7 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         _timeProvider = timeProvider ?? TimeProvider.System;
         _livePublisher = livePublisher ?? new NullTickLiveEventPublisher();
         _terminalFaultSignal = terminalFaultSignal;
+        _loggerFactory = loggerFactory;
     }
 
     public IDatabentoMarketDataEpoch Create(DateOnly valueDate)
@@ -50,7 +54,8 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         return
         new DatabentoMarketDataEpoch(
             valueDate, _feeds, _publisher, snapshot, _timeProvider, _livePublisher,
-            _terminalFaultSignal is null ? null : detail => _terminalFaultSignal.Notify(detail));
+            _terminalFaultSignal is null ? null : detail => _terminalFaultSignal.Notify(detail),
+            _loggerFactory);
     }
 }
 
@@ -65,9 +70,11 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     private readonly ITickLiveRouter _liveRouter;
     private readonly ITickerStreamRouteController _streamRoutes;
     private readonly Action<string>? _terminalFaultHandler;
+    private readonly ILoggerFactory? _loggerFactory;
     private readonly List<DatabentoOperationRunner> _operations = [];
     private DatabentoMarketDataCatalog? _catalog;
     private DatabentoLastPriceStore? _lastPrices;
+    private DatabentoTickContractMappingStore? _mappings;
     private FrozenDictionary<string, TickAggregationService> _aggregationsByDataset =
         FrozenDictionary<string, TickAggregationService>.Empty;
     private FrozenDictionary<string, TickAggregationService> _aggregationByContractId =
@@ -82,7 +89,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         DatabentoMarketDataRuntimeOptions options,
         TimeProvider timeProvider,
         ITickLiveEventPublisher livePublisher,
-        Action<string>? terminalFaultHandler = null)
+        Action<string>? terminalFaultHandler = null,
+        ILoggerFactory? loggerFactory = null)
     {
         if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
         ValueDate = valueDate;
@@ -94,6 +102,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _liveRouter = new TickLiveRouter(livePublisher);
         _streamRoutes = new DatabentoTickerStreamRouteController(_liveRouter, _optionRoutes);
         _terminalFaultHandler = terminalFaultHandler;
+        _loggerFactory = loggerFactory;
     }
 
     public DateOnly ValueDate { get; }
@@ -207,6 +216,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             _lastPrices = new DatabentoLastPriceStore(
                 ValueDate, _options.LastPriceCapacity);
             var mappings = new DatabentoTickContractMappingStore();
+            _mappings = mappings;
             var contractsByDataset = _catalog.ResolvedContracts
                 .GroupBy(static resolved => resolved.Dataset, StringComparer.Ordinal)
                 .Select(static group => (Dataset: group.Key, Contracts: group.ToArray()))
@@ -277,15 +287,16 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                                 Dataset = dataset,
                                 DefinitionDate = ValueDate,
                                 FeedStartTimeout = _options.FeedStartTimeout,
-                                FeedStopTimeout = _options.FeedStopTimeout,
-                                ReaderPollTimeout = _options.ReaderPollTimeout
+                                FeedStopTimeout = _options.FeedStopTimeout
                             },
                             _timeProvider,
                             _lastPrices,
                             _liveRouter,
                             _streamRoutes,
-                            detail => _terminalFaultHandler?.Invoke($"{dataset}: {detail}"));
-                        await aggregation.StartAsync().ConfigureAwait(false);
+                            detail => _terminalFaultHandler?.Invoke($"{dataset}: {detail}"),
+                            _loggerFactory?.CreateLogger<TickAggregationService>(),
+                            Guid.CreateVersion7(_timeProvider.GetUtcNow()));
+                        await aggregation.StartAsync(cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -361,6 +372,158 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         finally { _lifecycle.Release(); }
     }
 
+    public async Task<DatabentoDatasetResetResult> ResetDatasetAsync(
+        DatabentoDatasetResetRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset);
+        if (request.TeardownTimeout <= TimeSpan.Zero
+            || request.QualificationTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(request),
+                "Dataset teardown and qualification timeouts must be positive.");
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureRunning();
+            if (request.ValueDate != ValueDate)
+                throw new InvalidOperationException(
+                    $"Dataset reset value date {request.ValueDate:yyyy-MM-dd} does not match epoch {ValueDate:yyyy-MM-dd}.");
+
+            var datasets = Volatile.Read(ref _aggregationsByDataset);
+            if (!datasets.TryGetValue(request.Dataset, out var previous))
+                throw new KeyNotFoundException($"Dataset '{request.Dataset}' is not active.");
+            if (previous.GenerationId != request.ExpectedGenerationId)
+                return new(request.Dataset, request.ExpectedGenerationId, previous.GenerationId, true,
+                    "A newer dataset generation already owns the route; stale reset was ignored.");
+
+            var owners = previous.CaptureStreamOwners();
+            try
+            {
+                using var teardown = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                teardown.CancelAfter(request.TeardownTimeout);
+                await previous.StopAsync(teardown.Token).ConfigureAwait(false);
+                await previous.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested)
+            {
+                return new(request.Dataset, previous.GenerationId, Guid.Empty, false,
+                    $"Dataset teardown did not complete: {exception.Message}");
+            }
+
+            var remainingDatasets = datasets.ToDictionary(StringComparer.Ordinal);
+            remainingDatasets.Remove(request.Dataset);
+            var remainingContracts = Volatile.Read(ref _aggregationByContractId)
+                .ToDictionary(StringComparer.Ordinal);
+            foreach (var contract in _catalog!.ResolvedContracts.Where(contract =>
+                         string.Equals(contract.Dataset, request.Dataset, StringComparison.Ordinal)))
+                remainingContracts.Remove(contract.Registration.DomainContractId);
+            Volatile.Write(ref _aggregationsByDataset,
+                remainingDatasets.ToFrozenDictionary(StringComparer.Ordinal));
+            Volatile.Write(ref _aggregationByContractId,
+                remainingContracts.ToFrozenDictionary(StringComparer.Ordinal));
+
+            TickAggregationService? replacement = null;
+            var generation = Guid.CreateVersion7(_timeProvider.GetUtcNow());
+            try
+            {
+                using var qualification = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                qualification.CancelAfter(request.QualificationTimeout);
+                replacement = await CreateDatasetAggregationAsync(
+                    request.Dataset, generation, qualification.Token).ConfigureAwait(false);
+                replacement.RestoreStreamOwners(owners);
+                if (!replacement.IsFeedUp())
+                    throw new InvalidOperationException("Replacement feed did not qualify as operational.");
+
+                var nextDatasets = remainingDatasets;
+                nextDatasets[request.Dataset] = replacement;
+                var nextContracts = remainingContracts;
+                foreach (var contract in _catalog!.ResolvedContracts.Where(contract =>
+                             string.Equals(contract.Dataset, request.Dataset, StringComparison.Ordinal)))
+                    nextContracts[contract.Registration.DomainContractId] = replacement;
+                Volatile.Write(ref _aggregationsByDataset,
+                    nextDatasets.ToFrozenDictionary(StringComparer.Ordinal));
+                Volatile.Write(ref _aggregationByContractId,
+                    nextContracts.ToFrozenDictionary(StringComparer.Ordinal));
+                return new(request.Dataset, previous.GenerationId, generation, true,
+                    "Dataset generation was torn down, replaced, and qualified.");
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested)
+            {
+                if (replacement is not null)
+                {
+                    try { await replacement.DisposeAsync().ConfigureAwait(false); }
+                    catch { /* Preserve the reset qualification failure. */ }
+                }
+                return new(request.Dataset, previous.GenerationId, generation, false,
+                    $"Replacement dataset did not qualify: {exception.Message}");
+            }
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    async Task<TickAggregationService> CreateDatasetAggregationAsync(
+        string dataset,
+        Guid generation,
+        CancellationToken cancellationToken)
+    {
+        var contracts = _catalog!.ResolvedContracts.Where(contract =>
+                string.Equals(contract.Dataset, dataset, StringComparison.Ordinal))
+            .ToArray();
+        if (contracts.Length == 0)
+            throw new InvalidOperationException($"Dataset '{dataset}' has no resolved contracts.");
+        var feed = _feeds.CreateTickerFeed(_options.FeedOptions with
+        {
+            Dataset = dataset,
+            StatisticsReplayStartTimestampNanoseconds = ToUnixNanoseconds(
+                FuturesTradingValueDate.GetSessionStartUtc(ValueDate)),
+            TradeReplayStartTimestampNanoseconds = ToUnixNanoseconds(
+                FuturesTradingValueDate.GetSessionStartUtc(ValueDate))
+        });
+        TickAggregationService? aggregation = null;
+        try
+        {
+            feed.Subscribe(contracts.Select(contract => new TickerSubscription(
+                contract.Detail.RawSymbol,
+                DatabentoInputSymbology.RawSymbol,
+                GetTickerDataKinds(contract))).ToArray(), _options.ProviderQueryTimeout);
+            aggregation = new TickAggregationService(
+                feed,
+                _mappings!,
+                _publisher,
+                new TickQuoteBufferPool(),
+                new EpochValueDateProvider(ValueDate),
+                new TickAggregationOptions
+                {
+                    Dataset = dataset,
+                    DefinitionDate = ValueDate,
+                    FeedStartTimeout = _options.FeedStartTimeout,
+                    FeedStopTimeout = _options.FeedStopTimeout
+                },
+                _timeProvider,
+                _lastPrices,
+                _liveRouter,
+                _streamRoutes,
+                detail => _terminalFaultHandler?.Invoke($"{dataset}: {detail}"),
+                _loggerFactory?.CreateLogger<TickAggregationService>(),
+                generation);
+            await aggregation.StartAsync(cancellationToken).ConfigureAwait(false);
+            return aggregation;
+        }
+        catch
+        {
+            if (aggregation is null) feed.Dispose();
+            else
+            {
+                try { await aggregation.DisposeAsync().ConfigureAwait(false); }
+                catch { }
+            }
+            throw;
+        }
+    }
+
     public TickAggregationContractStatus GetAggregationStatus(string contractId) =>
         Volatile.Read(ref _aggregationByContractId).GetValueOrDefault(contractId)
             ?.GetContractStatus(contractId)
@@ -376,7 +539,9 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
             .Select(static pair => new DatabentoDatasetFeedHealth(
                 pair.Key,
-                pair.Value.GetFeedHealth()))
+                pair.Value.GenerationId,
+                pair.Value.GetFeedHealth(),
+                pair.Value.GetMetrics()))
             .ToArray();
         var statuses = Volatile.Read(ref _aggregationByContractId).Keys
             .Order(StringComparer.Ordinal)

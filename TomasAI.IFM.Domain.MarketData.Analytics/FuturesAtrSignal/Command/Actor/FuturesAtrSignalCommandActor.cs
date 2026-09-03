@@ -135,25 +135,21 @@ public class FuturesAtrSignalCommandActor(
         [typeof(StartFuturesAtrSignalCommand)] = cmd => {
             var e = (StartFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName);
         },
         [typeof(StopFuturesAtrSignalCommand)] = cmd => {
             var e = (StopFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName);
         },
         [typeof(GenerateFuturesAtrSignalCommand)] = cmd => {
             var e = (GenerateFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName);
         },
         [typeof(GenerateFuturesAtrDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesAtrDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName);
         }
     };

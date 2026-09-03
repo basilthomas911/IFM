@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
@@ -7,6 +9,22 @@ public enum DatabentoFeedCriticality { Core = 1, Optional = 2 }
 public enum DatabentoMajorStatus { Up = 1, Resetting = 2, Down = 3 }
 public enum DatabentoDisplayHealth { Green = 1, Yellow = 2, Orange = 3, Red = 4, Inactive = 5 }
 public enum DatabentoLifecycleState { ScheduledStopped = 1, Starting = 2, Healthy = 3, Degraded = 4, Failed = 5, Resetting = 6 }
+public enum DatabentoDatasetState { Starting = 1, Qualifying = 2, Up = 3, Suspect = 4, Down = 5, Resetting = 6, Failed = 7 }
+public enum DatabentoDatasetFailureReason
+{
+    None = 0,
+    SnapshotIncomplete = 1,
+    NativeTerminalFailure = 2,
+    NativeProducerStopped = 3,
+    NativeRingOverrun = 4,
+    NativeDrainStalled = 5,
+    ManagedChannelBlocked = 6,
+    AggregationWorkerStopped = 7,
+    AggregationRecordStalled = 8,
+    SubscriptionIncomplete = 9,
+    DatasetTeardownUnresponsive = 10,
+    DatasetQualificationFailed = 11
+}
 public enum DatabentoOperationReason
 {
     InitialStartup = 1, ScheduledSessionStart = 2, WatchdogPoll = 3,
@@ -60,9 +78,19 @@ public sealed record DatabentoFeedWatchdogStatus
     public required ulong RingUsed { get; init; }
     public required ulong RingHighWater { get; init; }
     public required ulong RingOverruns { get; init; }
+    public ulong BatchesPublished { get; init; }
+    public ulong ChannelFullCount { get; init; }
+    public ulong PoolMissCount { get; init; }
+    public int ChannelBatchCount { get; init; }
+    public int ChannelBatchCapacity { get; init; }
     public required string FailureDetail { get; init; }
+    public DatabentoDatasetState DatasetState { get; init; } = DatabentoDatasetState.Up;
+    public DatabentoDatasetFailureReason FailureReason { get; init; }
+    public DateTime? SuspectSinceUtc { get; init; }
     public IReadOnlyList<DatabentoContractRole> ContractRoles { get; init; } = [];
     public IReadOnlyList<string> ContractIds { get; init; } = [];
+    public FeedDrainDiagnostics? DrainDiagnostics { get; init; }
+    public TickAggregationMetricsSnapshot? AggregationMetrics { get; init; }
 }
 
 public sealed record DatabentoBulkWatchdogSnapshot
@@ -118,13 +146,16 @@ public sealed record DatabentoWatchdogOptions
 {
     public bool Enabled { get; init; } = true;
     public string NativeBackend { get; init; } = "Cpp";
-    public TimeSpan PollInterval { get; init; } = TimeSpan.FromMinutes(1);
+    public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(15);
     public TimeSpan ProbeTimeout { get; init; } = TimeSpan.FromSeconds(1);
     public TimeSpan AttemptTwoDelay { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan AttemptThreeDelay { get; init; } = TimeSpan.FromSeconds(15);
     public TimeSpan PersistenceRetryDelay { get; init; } = TimeSpan.FromMilliseconds(100);
     public TimeSpan YellowFreshnessAge { get; init; } = TimeSpan.FromMinutes(5);
     public TimeSpan RedFreshnessAge { get; init; } = TimeSpan.FromMinutes(15);
+    public TimeSpan HardStallTimeout { get; init; } = TimeSpan.FromMinutes(5);
+    public TimeSpan DatasetTeardownTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan DatasetQualificationTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     public DatabentoWatchdogOptions Validate()
     {
@@ -133,7 +164,9 @@ public sealed record DatabentoWatchdogOptions
         if (PollInterval <= TimeSpan.Zero || ProbeTimeout <= TimeSpan.Zero
             || AttemptTwoDelay < TimeSpan.Zero || AttemptThreeDelay < TimeSpan.Zero
             || PersistenceRetryDelay < TimeSpan.Zero
-            || YellowFreshnessAge <= TimeSpan.Zero || RedFreshnessAge <= YellowFreshnessAge)
+            || YellowFreshnessAge <= TimeSpan.Zero || RedFreshnessAge <= YellowFreshnessAge
+            || HardStallTimeout <= TimeSpan.Zero || DatasetTeardownTimeout <= TimeSpan.Zero
+            || DatasetQualificationTimeout <= TimeSpan.Zero)
             throw new InvalidOperationException("Databento watchdog intervals and freshness boundaries are invalid.");
         return this;
     }
@@ -159,8 +192,29 @@ public interface IDatabentoLifecycleRuntime
     Task PrepareContractsAsync(DateOnly valueDate, CancellationToken cancellationToken);
     Task StartAsync(DateOnly valueDate, CancellationToken cancellationToken);
     Task StopAsync(CancellationToken cancellationToken);
+    Task<DatabentoDatasetResetResult> ResetDatasetAsync(
+        DatabentoDatasetResetRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<DatabentoDatasetResetResult>(
+            new NotSupportedException("Per-dataset reset is not supported by this runtime."));
     ValueTask<DatabentoBulkWatchdogSnapshot> GetWatchdogSnapshotAsync(TimeSpan timeout, CancellationToken cancellationToken);
 }
+
+public sealed record DatabentoDatasetResetRequest(
+    string Dataset,
+    Guid ExpectedGenerationId,
+    DateOnly ValueDate,
+    DatabentoDatasetFailureReason Reason,
+    TimeSpan TeardownTimeout,
+    TimeSpan QualificationTimeout,
+    Guid CorrelationId);
+
+public sealed record DatabentoDatasetResetResult(
+    string Dataset,
+    Guid PreviousGenerationId,
+    Guid GenerationId,
+    bool Succeeded,
+    string Detail);
 
 public interface IMarketDataLifecycleRequests
 {

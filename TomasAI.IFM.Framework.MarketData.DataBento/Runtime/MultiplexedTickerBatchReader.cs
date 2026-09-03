@@ -48,11 +48,17 @@ internal sealed class MultiplexedTickerBatchReader(
     }
 
     public bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch) =>
-        TryReadCore(timeout, out batch) == ReadResult.Success;
+        TryReadCore(timeout, CancellationToken.None, out batch) == ReadResult.Success;
+
+    public bool TryRead(
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        out InstrumentBatch64 batch) =>
+        TryReadCore(timeout, cancellationToken, out batch) == ReadResult.Success;
 
     public InstrumentBatch64 Read(TimeSpan timeout)
     {
-        return TryReadCore(timeout, out var batch) switch
+        return TryReadCore(timeout, CancellationToken.None, out var batch) switch
         {
             ReadResult.Success => batch,
             ReadResult.Completed => throw new EndOfStreamException(
@@ -62,13 +68,17 @@ internal sealed class MultiplexedTickerBatchReader(
         };
     }
 
-    private ReadResult TryReadCore(TimeSpan timeout, out InstrumentBatch64 batch)
+    private ReadResult TryReadCore(
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        out InstrumentBatch64 batch)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
             throw new ArgumentOutOfRangeException(nameof(timeout));
         var started = Stopwatch.GetTimestamp();
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (TryRead(out var leased))
             {
                 batch = leased;
@@ -93,7 +103,7 @@ internal sealed class MultiplexedTickerBatchReader(
             var remaining = timeout == Timeout.InfiniteTimeSpan
                 ? Timeout.InfiniteTimeSpan
                 : timeout - Stopwatch.GetElapsedTime(started);
-            if (remaining <= TimeSpan.Zero || !ready.Wait(remaining))
+            if (remaining <= TimeSpan.Zero || !ready.Wait(remaining, cancellationToken))
             {
                 batch = default;
                 return ReadResult.TimedOut;

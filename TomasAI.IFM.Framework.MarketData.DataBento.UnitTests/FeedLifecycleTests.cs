@@ -30,6 +30,15 @@ public sealed class FeedLifecycleTests
             Assert.True(SpinWait.SpinUntil(
                 () => feed.GetHealth().ChannelFullCount > 0,
                 TimeSpan.FromSeconds(5)));
+            var blockedDrain = Assert.IsType<FeedDrainDiagnostics>(
+                feed.GetHealth().DrainDiagnostics);
+            Assert.Equal(FeedDrainStage.PublishingManagedBatch, blockedDrain.Stage);
+            Assert.True(blockedDrain.NativeReadCallCount > 0);
+            Assert.InRange(blockedDrain.LastNativeReadRecordCount, 1u, 512u);
+            Assert.True(blockedDrain.LastNativeReadRecordsRouted <=
+                        blockedDrain.LastNativeReadRecordCount);
+            Assert.True(blockedDrain.ManagedBatchPublishActive);
+            Assert.InRange(blockedDrain.ManagedBatchPublishRecordCount, 1, 512);
             var incomplete = Assert.Throws<FeedStopDrainIncompleteException>(() =>
                 feed.Stop(TimeSpan.FromMilliseconds(50)));
             Assert.Equal(DatabentoFeedStatus.StopDrainIncomplete, incomplete.Status);
@@ -42,7 +51,12 @@ public sealed class FeedLifecycleTests
 
             feed.Stop(TimeSpan.FromSeconds(5));
             stopped = true;
-            Assert.True(feed.GetHealth().ChannelFullCount > 0);
+            var stoppedHealth = feed.GetHealth();
+            Assert.True(stoppedHealth.ChannelFullCount > 0);
+            var completedDrain = Assert.IsType<FeedDrainDiagnostics>(
+                stoppedHealth.DrainDiagnostics);
+            Assert.Equal(FeedDrainStage.Completed, completedDrain.Stage);
+            Assert.False(completedDrain.ManagedBatchPublishActive);
         }
         finally
         {

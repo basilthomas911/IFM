@@ -13,6 +13,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Operations;
 /// </summary>
 public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
+    internal static readonly TimeSpan DefaultReconciliationInterval = TimeSpan.FromSeconds(30);
     static readonly IReadOnlyList<TimeFrameType> SupportedPeriods = Array.AsReadOnly(
         new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly });
     readonly object _stateGate = new();
@@ -21,6 +22,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     readonly DateOnly _valueDate;
     readonly Guid _siteId = Guid.NewGuid();
     readonly AsyncLifecycleCoordinator _lifecycle;
+    readonly TimeProvider _timeProvider;
+    readonly TimeSpan _reconciliationInterval;
     readonly List<FuturesItiSignalEventRow> _eventBuffer = [];
     readonly HashSet<string> _eventIdentities = new(StringComparer.Ordinal);
     IReadOnlyList<FuturesItiSignalEventRow> _events = [];
@@ -36,22 +39,31 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             (appRoot ?? throw new ArgumentNullException(nameof(appRoot)))
                 .Services.StrategyOperations,
             contractId,
-            valueDate)
+            valueDate,
+            TimeProvider.System)
     {
     }
 
     internal StrategyOperationsViewModel(
         StrategyOperationsService model,
         string contractId,
-        DateOnly valueDate)
+        DateOnly valueDate,
+        TimeProvider? timeProvider = null,
+        TimeSpan? reconciliationInterval = null)
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         if (valueDate == default)
             throw new ArgumentException("A trading value date is required.", nameof(valueDate));
 
+        var resolvedInterval = reconciliationInterval ?? DefaultReconciliationInterval;
+        if (resolvedInterval <= TimeSpan.Zero || resolvedInterval == Timeout.InfiniteTimeSpan)
+            throw new ArgumentOutOfRangeException(nameof(reconciliationInterval));
+
         _contractId = contractId;
         _valueDate = valueDate;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _reconciliationInterval = resolvedInterval;
         _lifecycle = new AsyncLifecycleCoordinator(StartCoreAsync, StopCoreAsync);
     }
 
@@ -123,6 +135,10 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             // is merged rather than lost. Stable identities remove the overlap.
             foreach (var period in SupportedPeriods)
                 await LoadInitialHistoryAsync(period, cancellationToken);
+
+            // Core NATS notifications provide the immediate path. Periodic authoritative
+            // reconciliation makes the view self-healing after a missed or rejected notification.
+            _ = _lifecycle.RunAsync(ReconcileLoopAsync);
         }
         catch
         {
@@ -181,6 +197,75 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         }
     }
 
+    async Task ReconcileLoopAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            await Task.Delay(_reconciliationInterval, _timeProvider, cancellationToken);
+            foreach (var period in SupportedPeriods)
+                await ReconcilePeriodAsync(period, cancellationToken);
+        }
+    }
+
+    async Task ReconcilePeriodAsync(
+        TimeFrameType period,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var current = await _model.GetFuturesItiSignalAsync(
+                _contractId,
+                _valueDate,
+                period,
+                cancellationToken);
+            if (!current.IsSuccess)
+            {
+                PublishError(
+                    current.Error!.Code,
+                    current.Error.Message,
+                    $"{period} ITI Reconciliation Unavailable");
+                return;
+            }
+
+            if (current.Value is not { IsValid: true } signal)
+                return;
+
+            var currentRow = FuturesItiSignalEventRow.FromHistory(signal);
+            if (Contains(currentRow))
+                return;
+
+            // A changed authoritative head means one or more Core NATS notifications may
+            // have been missed. Reload the bounded history to recover every missing point.
+            var history = await _model.GetFuturesItiSignalHistoryAsync(
+                _contractId,
+                _valueDate,
+                period,
+                cancellationToken);
+            if (!history.IsSuccess)
+            {
+                // Keep the graph current even when the complete catch-up query is unavailable.
+                Add(currentRow);
+                PublishError(
+                    history.Error!.Code,
+                    history.Error.Message,
+                    $"{period} ITI History Reconciliation Unavailable");
+                return;
+            }
+
+            AddRange((history.Value ?? [])
+                .Append(signal)
+                .Select(FuturesItiSignalEventRow.FromHistory));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            PublishError(0, exception.Message, $"{period} ITI Reconciliation Unavailable");
+        }
+    }
+
     void OnNotification(FuturesItiSignalUpdatedNotifyEvent notification)
     {
         if (Volatile.Read(ref _acceptEvents) == 0 || !notification.IsValid)
@@ -225,6 +310,12 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
         Events = published.Where(item => item.TimePeriod == SelectedTimeFrame).ToArray();
         PublishStatus();
+    }
+
+    bool Contains(FuturesItiSignalEventRow row)
+    {
+        lock (_stateGate)
+            return _eventIdentities.Contains(row.StableIdentity);
     }
 
     void PublishSelectedEvents()

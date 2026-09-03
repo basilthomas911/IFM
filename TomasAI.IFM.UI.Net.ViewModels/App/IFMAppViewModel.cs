@@ -654,7 +654,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 Operations = new OperationsViewModel(
                     _appRoot,
                     strategyContractId,
-                    ValueDate.Value);
+                    ValueDate.Value,
+                    _timeProvider);
                 Operations.PropertyChanged += OperationsPropertyChanged;
                 await Operations.InitializeAsync(cancellationToken);
             }
@@ -754,7 +755,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     Operations = new OperationsViewModel(
                         _appRoot,
                         strategyContractId,
-                        refreshed.OperationalValueDate);
+                        refreshed.OperationalValueDate,
+                        _timeProvider);
                     Operations.PropertyChanged += OperationsPropertyChanged;
                     await Operations.InitializeAsync(cancellationToken);
                 }

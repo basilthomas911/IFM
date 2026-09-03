@@ -21,6 +21,8 @@ public sealed class DatabentoMarketDataWatchdogService(
     const int MaximumRecoveryAttempts = 3;
     readonly SemaphoreSlim _operations = new(1, 1);
     readonly object _snapshotSync = new();
+    readonly DatabentoDatasetHealthEvaluator _datasetEvaluator =
+        new(options.HardStallTimeout);
     DatabentoLifecycleSnapshot _current = NewSnapshot();
 
     public DatabentoLifecycleSnapshot Current { get { lock (_snapshotSync) return _current; } }
@@ -150,7 +152,86 @@ public sealed class DatabentoMarketDataWatchdogService(
                 return;
             }
         }
-        var native = await SafeProbeAsync(token).ConfigureAwait(false);
+        var native = EvaluateDatasets(await SafeProbeAsync(token).ConfigureAwait(false));
+        var failedDatasets = native.Feeds
+            .Where(feed => feed.FeedKind == "Ticker"
+                && feed.DatasetState == DatabentoDatasetState.Down)
+            .ToArray();
+        if (failedDatasets.Length != 0)
+        {
+            var correlationId = Guid.CreateVersion7(timeProvider.GetUtcNow());
+            await RecordAsync(DatabentoOperationReason.WatchdogPoll,
+                DatabentoMajorStatus.Down, DatabentoDisplayHealth.Red, false, 0,
+                native, correlationId, token, "DatasetDiagnosis",
+                string.Join("; ", failedDatasets.Select(feed => $"{feed.Dataset}:{feed.FailureReason}")))
+                .ConfigureAwait(false);
+            if (!options.Enabled)
+            {
+                Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 0,
+                    "Per-dataset recovery is disabled.", native.NativeGeneration);
+                return;
+            }
+
+            Transition(DatabentoLifecycleState.Resetting, valueDate, correlationId, 1,
+                $"Resetting {failedDatasets.Length} failed dataset generation(s).",
+                native.NativeGeneration, attemptStarted: UtcNow());
+            foreach (var failed in failedDatasets)
+            {
+                DatabentoDatasetResetResult reset;
+                try
+                {
+                    reset = await runtime.ResetDatasetAsync(new DatabentoDatasetResetRequest(
+                        failed.Dataset,
+                        failed.GenerationId,
+                        valueDate,
+                        failed.FailureReason,
+                        options.DatasetTeardownTimeout,
+                        options.DatasetQualificationTimeout,
+                        correlationId), token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch (Exception exception)
+                {
+                    reset = new(failed.Dataset, failed.GenerationId, Guid.Empty, false,
+                        Bound(exception.Message));
+                }
+                if (!reset.Succeeded)
+                {
+                    Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 1,
+                        $"Dataset {failed.Dataset} reset failed: {reset.Detail}",
+                        native.NativeGeneration, attemptCompleted: UtcNow());
+                    await RecordAsync(DatabentoOperationReason.AutomaticRecovery,
+                        DatabentoMajorStatus.Down, DatabentoDisplayHealth.Red, false, 1,
+                        EvaluateDatasets(await SafeProbeAsync(token).ConfigureAwait(false)),
+                        correlationId, token, "DatasetReset", Current.Reason).ConfigureAwait(false);
+                    return;
+                }
+                _datasetEvaluator.Forget(failed.Dataset);
+            }
+
+            var qualified = EvaluateDatasets(await SafeProbeAsync(token).ConfigureAwait(false));
+            var postEvaluation = Evaluate(qualified, session.IsLiveTrading);
+            if (!postEvaluation.CoreReady)
+            {
+                Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 1,
+                    $"Dataset replacement did not qualify: {postEvaluation.Reason}",
+                    qualified.NativeGeneration, attemptCompleted: UtcNow());
+                await RecordAsync(DatabentoOperationReason.AutomaticRecovery,
+                    DatabentoMajorStatus.Down, DatabentoDisplayHealth.Red, false, 1,
+                    qualified, correlationId, token, "DatasetQualification", Current.Reason)
+                    .ConfigureAwait(false);
+                return;
+            }
+            Transition(postEvaluation.Health == DatabentoDisplayHealth.Orange
+                    ? DatabentoLifecycleState.Degraded : DatabentoLifecycleState.Healthy,
+                valueDate, correlationId, 0,
+                $"Failed dataset generation(s) were replaced and qualified. {postEvaluation.Reason}",
+                qualified.NativeGeneration, attemptCompleted: UtcNow());
+            await RecordAsync(DatabentoOperationReason.AutomaticRecovery,
+                postEvaluation.Major, postEvaluation.Health, true, 1,
+                qualified, correlationId, token).ConfigureAwait(false);
+            return;
+        }
         var evaluation = Evaluate(native, session.IsLiveTrading);
         if (evaluation.CoreReady)
         {
@@ -284,6 +365,30 @@ public sealed class DatabentoMarketDataWatchdogService(
         }
     }
 
+    DatabentoBulkWatchdogSnapshot EvaluateDatasets(DatabentoBulkWatchdogSnapshot snapshot)
+    {
+        if (!snapshot.Complete)
+            return snapshot;
+        return snapshot with
+        {
+            Feeds = snapshot.Feeds.Select(feed =>
+            {
+                if (feed.FeedKind != "Ticker")
+                    return feed;
+                var evaluation = _datasetEvaluator.Evaluate(feed, snapshot.ObservedOnUtc);
+                return feed with
+                {
+                    DatasetState = evaluation.State,
+                    FailureReason = evaluation.Reason,
+                    SuspectSinceUtc = evaluation.SuspectSinceUtc,
+                    FailureDetail = evaluation.State == DatabentoDatasetState.Up
+                        ? feed.FailureDetail
+                        : evaluation.Detail
+                };
+            }).ToArray()
+        };
+    }
+
     (bool CoreReady, DatabentoMajorStatus Major, DatabentoDisplayHealth Health, string Reason) Evaluate(
         DatabentoBulkWatchdogSnapshot snapshot, bool enforceFreshness)
     {
@@ -300,6 +405,9 @@ public sealed class DatabentoMarketDataWatchdogService(
         if (snapshot.Feeds.Any(feed => feed.Criticality == DatabentoFeedCriticality.Optional
                 && !Operational(feed)))
             return (true, DatabentoMajorStatus.Up, DatabentoDisplayHealth.Orange, "An optional feed is unavailable.");
+        if (snapshot.Feeds.Any(feed => feed.DatasetState == DatabentoDatasetState.Suspect))
+            return (true, DatabentoMajorStatus.Up, DatabentoDisplayHealth.Yellow,
+                "A dataset has causal stall evidence and is inside the five-minute confirmation window.");
         if (!enforceFreshness)
             return (true, DatabentoMajorStatus.Up, DatabentoDisplayHealth.Green,
                 "All core feeds are operational; freshness is not enforced off-trading.");
@@ -316,6 +424,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         && feed.ProducerAlive
         && feed.AggregationWorkerRunning
         && feed.TransportRunning
+        && feed.DatasetState is DatabentoDatasetState.Up or DatabentoDatasetState.Suspect
         && feed.TerminalStatus == 0
         && feed.ReceivedSubscriptions >= feed.ExpectedSubscriptions;
 

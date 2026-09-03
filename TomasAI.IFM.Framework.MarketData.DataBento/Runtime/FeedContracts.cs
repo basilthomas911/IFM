@@ -42,6 +42,11 @@ public interface IMultiplexedTickerBatchReader : IDisposable
 {
     bool TryRead(out InstrumentBatch64 batch);
     bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch);
+    bool TryRead(TimeSpan timeout, CancellationToken cancellationToken, out InstrumentBatch64 batch)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return TryRead(timeout, out batch);
+    }
     InstrumentBatch64 Read(TimeSpan timeout);
     bool IsCompleted { get; }
 }
@@ -55,6 +60,11 @@ public interface IDatabentoTickerFeed : IDisposable
     /// </summary>
     void Start(TimeSpan timeout, Action<TimeSpan> startConsumer);
     void Stop(TimeSpan timeout);
+    void Stop(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Stop(timeout);
+    }
     ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey instrument);
     IMultiplexedTickerBatchReader GetMultiplexedReader();
     IReadOnlyList<TickerInstrumentRegistration> GetInstruments();
@@ -296,6 +306,38 @@ public interface IDatabentoOptionChainFeed : IDisposable
     FeedHealthSnapshot GetHealth();
 }
 
+public enum FeedDrainStage
+{
+    Idle = 0,
+    WaitingForNativeSignal = 1,
+    ReadingNativeBatch = 2,
+    RoutingNativeRecord = 3,
+    FlushingPartialBatches = 4,
+    PublishingManagedBatch = 5,
+    ReadingNativeStatistics = 6,
+    Completed = 7,
+    Faulted = 8
+}
+
+public sealed record FeedDrainDiagnostics
+{
+    public required FeedDrainStage Stage { get; init; }
+    public required long NativeReadCallCount { get; init; }
+    public required uint LastNativeReadRecordCount { get; init; }
+    public required ulong LastNativeReadFirstSequence { get; init; }
+    public required ulong LastNativeReadLastSequence { get; init; }
+    public required uint LastNativeReadRecordsRouted { get; init; }
+    public required int CurrentNativeReadRecordIndex { get; init; }
+    public required string CurrentRecordKind { get; init; }
+    public required ushort CurrentPublisherId { get; init; }
+    public required uint CurrentInstrumentId { get; init; }
+    public required uint CurrentSourceSequence { get; init; }
+    public required bool ManagedBatchPublishActive { get; init; }
+    public required int ManagedBatchPublishRecordCount { get; init; }
+    public required ushort ManagedBatchPublisherId { get; init; }
+    public required uint ManagedBatchInstrumentId { get; init; }
+}
+
 public sealed record FeedHealthSnapshot(
     FeedState State,
     DatabentoFeedStatus TerminalStatus,
@@ -337,4 +379,5 @@ public sealed record FeedHealthSnapshot(
     public ulong ManagedDrainProcessorMigrations { get; init; }
     public uint ManagedDrainUniqueProcessors { get; init; }
     public ulong ManagedDrainOffAssignmentSamples { get; init; }
+    public FeedDrainDiagnostics? DrainDiagnostics { get; init; }
 }

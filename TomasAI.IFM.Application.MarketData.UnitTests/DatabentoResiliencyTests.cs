@@ -31,7 +31,7 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
-    public async Task Optional_failure_is_orange_and_does_not_reset_core_runtime()
+    public async Task Optional_dataset_failure_is_replaced_without_resetting_core_runtime()
     {
         var runtime = new TestRuntime { Snapshot = Up(optionalDown: true) };
         var service = Create(runtime, new InMemoryMarketDataServiceStore());
@@ -39,8 +39,8 @@ public sealed class DatabentoResiliencyTests
         await service.ProbeAsync();
 
         runtime.StartCount.Should().Be(0);
-        service.Current.State.Should().Be(DatabentoLifecycleState.Degraded);
-        service.Current.LastObservation!.DisplayHealth.Should().Be(DatabentoDisplayHealth.Orange);
+        runtime.ResetDatasets.Should().Equal("OPTIONAL");
+        service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
     }
 
     [Fact]
@@ -202,18 +202,15 @@ public sealed class DatabentoResiliencyTests
     [Theory]
     [InlineData("connection-loss")]
     [InlineData("heartbeat-timeout")]
-    [InlineData("terminal-fault")]
-    [InlineData("worker-completion")]
-    public async Task Every_core_fault_class_enters_the_same_three_attempt_policy(string fault)
+    public async Task Epoch_level_faults_enter_the_same_three_attempt_policy(string fault)
     {
         var snapshot = fault switch
         {
             "connection-loss" => Down(),
             "heartbeat-timeout" => Up() with { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true)
                 with { LastProviderMessageAge = TimeSpan.FromHours(1) }] },
-            "terminal-fault" => Up() with { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] },
             _ => Up() with { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true)
-                with { AggregationWorkerRunning = false }] }
+                with { LastProviderMessageAge = TimeSpan.FromHours(1) }] }
         };
         var runtime = new TestRuntime { Snapshot = snapshot, FailStarts = true };
 
@@ -221,6 +218,27 @@ public sealed class DatabentoResiliencyTests
 
         runtime.StartCount.Should().Be(3);
         runtime.MaximumConcurrentMutations.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("terminal-fault")]
+    [InlineData("worker-completion")]
+    public async Task Dataset_faults_replace_only_the_failed_generation(string fault)
+    {
+        var failed = Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true) with
+        {
+            MajorStatus = fault == "terminal-fault" ? DatabentoMajorStatus.Down : DatabentoMajorStatus.Up,
+            TerminalStatus = fault == "terminal-fault" ? 10 : 0,
+            ProducerAlive = fault != "terminal-fault",
+            AggregationWorkerRunning = fault != "worker-completion"
+        };
+        var runtime = new TestRuntime { Snapshot = Up() with { Feeds = [failed] } };
+
+        await Create(runtime, new InMemoryMarketDataServiceStore()).ProbeAsync();
+
+        runtime.ResetDatasets.Should().Equal("TEST");
+        runtime.StartCount.Should().Be(0);
+        runtime.StopCount.Should().Be(0);
     }
 
     [Fact]
@@ -292,6 +310,123 @@ public sealed class DatabentoResiliencyTests
         handleGrowth.Should().BeLessThanOrEqualTo(8);
     }
 
+    [Fact]
+    public void Dataset_evaluator_requires_causal_stall_and_resets_its_timer_on_progress()
+    {
+        var evaluator = new DatabentoDatasetHealthEvaluator(TimeSpan.FromMinutes(5));
+        var generation = Guid.NewGuid();
+        var observed = new DateTime(2026, 9, 2, 13, 0, 0, DateTimeKind.Utc);
+        var baseline = Feed(generation, DatabentoFeedCriticality.Core, true) with
+        {
+            RecordsProduced = 100,
+            RecordsConsumed = 100,
+            RingUsed = 0,
+            BatchesPublished = 10,
+            AggregationMetrics = Metrics(100, 100)
+        };
+
+        evaluator.Evaluate(baseline, observed).State.Should().Be(DatabentoDatasetState.Up);
+        var suspect = evaluator.Evaluate(baseline with
+        {
+            RecordsProduced = 110,
+            RingUsed = 10
+        }, observed.AddSeconds(1));
+        suspect.State.Should().Be(DatabentoDatasetState.Suspect);
+        suspect.Reason.Should().Be(DatabentoDatasetFailureReason.NativeDrainStalled);
+
+        evaluator.Evaluate(baseline with
+        {
+            RecordsProduced = 120,
+            RingUsed = 20
+        }, observed.AddMinutes(5)).State.Should().Be(DatabentoDatasetState.Suspect);
+        evaluator.Evaluate(baseline with
+        {
+            RecordsProduced = 121,
+            RingUsed = 21
+        }, observed.AddMinutes(5).AddSeconds(1)).State.Should().Be(DatabentoDatasetState.Down);
+
+        evaluator.Evaluate(baseline with
+        {
+            RecordsProduced = 121,
+            RecordsConsumed = 121,
+            RingUsed = 0,
+            BatchesPublished = 11,
+            AggregationMetrics = Metrics(121, 121)
+        }, observed.AddMinutes(5).AddSeconds(2)).State.Should().Be(DatabentoDatasetState.Up);
+    }
+
+    [Fact]
+    public void Dataset_evaluator_does_not_fail_a_causally_quiet_market()
+    {
+        var evaluator = new DatabentoDatasetHealthEvaluator(TimeSpan.FromMinutes(5));
+        var feed = Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true) with
+        {
+            LastProviderMessageAge = TimeSpan.FromHours(12),
+            RecordsProduced = 500,
+            RecordsConsumed = 500,
+            RingUsed = 0,
+            AggregationMetrics = Metrics(500, 500)
+        };
+        var observed = DateTime.UtcNow;
+
+        evaluator.Evaluate(feed, observed).State.Should().Be(DatabentoDatasetState.Up);
+        evaluator.Evaluate(feed, observed.AddHours(6)).State.Should().Be(DatabentoDatasetState.Up);
+    }
+
+    [Fact]
+    public async Task Confirmed_native_drain_stall_replaces_only_affected_dataset_and_qualifies_new_generation()
+    {
+        var observed = new DateTime(2026, 9, 2, 13, 0, 0, DateTimeKind.Utc);
+        var failedGeneration = Guid.NewGuid();
+        var healthyGeneration = Guid.NewGuid();
+        var failed = Feed(failedGeneration, DatabentoFeedCriticality.Core, true) with
+        {
+            RecordsProduced = 100, RecordsConsumed = 100,
+            AggregationMetrics = Metrics(100, 100)
+        };
+        var healthy = Feed(healthyGeneration, DatabentoFeedCriticality.Optional, true) with
+        {
+            Dataset = "HEALTHY", FeedInstanceId = 2,
+            AggregationMetrics = Metrics(50, 50)
+        };
+        var runtime = new TestRuntime
+        {
+            Snapshot = Up() with { ObservedOnUtc = observed, Feeds = [failed, healthy] }
+        };
+        var store = new InMemoryMarketDataServiceStore();
+        var service = Create(runtime, store);
+
+        await service.ProbeAsync();
+        runtime.Snapshot = runtime.Snapshot with
+        {
+            ObservedOnUtc = observed.AddSeconds(1),
+            Feeds = [failed with { RecordsProduced = 110, RingUsed = 10 }, healthy]
+        };
+        await service.ProbeAsync();
+        runtime.ResetDatasets.Should().BeEmpty();
+        service.Current.State.Should().Be(DatabentoLifecycleState.Healthy,
+            "suspect status is non-terminal during the confirmation window");
+
+        runtime.Snapshot = runtime.Snapshot with
+        {
+            ObservedOnUtc = observed.AddMinutes(5).AddSeconds(1),
+            Feeds = [failed with { RecordsProduced = 120, RingUsed = 20 }, healthy]
+        };
+        await service.ProbeAsync();
+
+        runtime.ResetDatasets.Should().Equal("TEST");
+        runtime.StartCount.Should().Be(0);
+        runtime.StopCount.Should().Be(0);
+        runtime.Snapshot.Feeds.Single(feed => feed.Dataset == "HEALTHY")
+            .GenerationId.Should().Be(healthyGeneration);
+        runtime.Snapshot.Feeds.Single(feed => feed.Dataset == "TEST")
+            .GenerationId.Should().NotBe(failedGeneration);
+        service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+        (await store.ListObservationsAsync()).Should().Contain(observation =>
+            observation.FailureStage == "DatasetDiagnosis"
+            && observation.FailureDetail.Contains(nameof(DatabentoDatasetFailureReason.NativeDrainStalled)));
+    }
+
     static readonly DateOnly ValueDate = new(2026, 9, 2);
 
     static DatabentoMarketDataWatchdogService Create(TestRuntime runtime, IMarketDataServiceStore store,
@@ -329,7 +464,8 @@ public sealed class DatabentoResiliencyTests
     {
         var generation = Guid.NewGuid();
         var feeds = new List<DatabentoFeedWatchdogStatus> { Feed(generation, DatabentoFeedCriticality.Core, true) };
-        if (optionalDown) feeds.Add(Feed(generation, DatabentoFeedCriticality.Optional, false));
+        if (optionalDown) feeds.Add(Feed(generation, DatabentoFeedCriticality.Optional, false) with
+            { Dataset = "OPTIONAL", FeedInstanceId = 2 });
         return new()
         {
             Complete = true, NativeBackend = "Test", NativeAbiVersion = 3,
@@ -352,6 +488,14 @@ public sealed class DatabentoResiliencyTests
         ContractRoles = criticality == DatabentoFeedCriticality.Core
             ? Enum.GetValues<DatabentoContractRole>() : []
     };
+
+    static TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts.TickAggregationMetricsSnapshot Metrics(
+        long started,
+        long completed) => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)
+        {
+            RecordsStarted = started,
+            RecordsCompleted = completed
+        };
 
     static FuturesRolloverContractAssignment Assignment(DatabentoContractRole role, string id, DateOnly maturity) => new()
     {
@@ -384,10 +528,12 @@ public sealed class DatabentoResiliencyTests
     {
         int _activeMutations;
         public DateOnly? ActiveValueDate { get; private set; } = ValueDate;
-        public required DatabentoBulkWatchdogSnapshot Snapshot { get; init; }
+        public required DatabentoBulkWatchdogSnapshot Snapshot { get; set; }
         public bool FailStarts { get; init; }
         public TimeSpan MutationDelay { get; init; }
         public int StartCount { get; private set; }
+        public int StopCount { get; private set; }
+        public List<string> ResetDatasets { get; } = [];
         public int MaximumConcurrentMutations { get; private set; }
         public void SetActive(DateOnly? valueDate) => ActiveValueDate = valueDate;
         public Task PrepareContractsAsync(DateOnly valueDate, CancellationToken cancellationToken) => Mutate();
@@ -397,7 +543,28 @@ public sealed class DatabentoResiliencyTests
             if (FailStarts) throw new InvalidOperationException("Injected start failure.");
             ActiveValueDate = valueDate;
         }
-        public async Task StopAsync(CancellationToken cancellationToken) { await Mutate(); ActiveValueDate = null; }
+        public async Task StopAsync(CancellationToken cancellationToken) { StopCount++; await Mutate(); ActiveValueDate = null; }
+        public async Task<DatabentoDatasetResetResult> ResetDatasetAsync(
+            DatabentoDatasetResetRequest request,
+            CancellationToken cancellationToken)
+        {
+            await Mutate();
+            ResetDatasets.Add(request.Dataset);
+            var generation = Guid.NewGuid();
+            Snapshot = Snapshot with
+            {
+                ObservedOnUtc = Snapshot.ObservedOnUtc.AddSeconds(1),
+                Feeds = Snapshot.Feeds.Select(feed => feed.Dataset == request.Dataset
+                    ? Feed(generation, feed.Criticality, true) with
+                    {
+                        Dataset = feed.Dataset,
+                        FeedInstanceId = feed.FeedInstanceId,
+                        ContractRoles = feed.ContractRoles
+                    }
+                    : feed).ToArray()
+            };
+            return new(request.Dataset, request.ExpectedGenerationId, generation, true, "reset");
+        }
         public ValueTask<DatabentoBulkWatchdogSnapshot> GetWatchdogSnapshotAsync(TimeSpan timeout, CancellationToken cancellationToken)
             => ValueTask.FromResult(Snapshot);
         async Task Mutate()

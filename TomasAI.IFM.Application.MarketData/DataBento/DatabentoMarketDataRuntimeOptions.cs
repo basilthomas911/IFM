@@ -34,5 +34,4 @@ public sealed record DatabentoMarketDataRuntimeOptions
     public TimeSpan CatalogQueryRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
     public TimeSpan FeedStartTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan FeedStopTimeout { get; init; } = TimeSpan.FromSeconds(5);
-    public TimeSpan ReaderPollTimeout { get; init; } = TimeSpan.FromMilliseconds(50);
 }

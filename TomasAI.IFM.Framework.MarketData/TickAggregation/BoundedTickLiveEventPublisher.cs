@@ -32,15 +32,25 @@ public sealed class BoundedTickLiveEventPublisher :
     }
 
     public ValueTask PublishAsync(LiveTickQuoteServiceEvent @event)
+        => PublishAsync(@event, CancellationToken.None);
+
+    public ValueTask PublishAsync(
+        LiveTickQuoteServiceEvent @event,
+        CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        return _channel.Writer.WriteAsync(new Publication(@event, null));
+        return _channel.Writer.WriteAsync(new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
     public ValueTask PublishAsync(LiveTickTradeServiceEvent @event)
+        => PublishAsync(@event, CancellationToken.None);
+
+    public ValueTask PublishAsync(
+        LiveTickTradeServiceEvent @event,
+        CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        return _channel.Writer.WriteAsync(new Publication(null, @event));
+        return _channel.Writer.WriteAsync(new Publication(null, @event, cancellationToken), cancellationToken);
     }
 
     private async Task ProcessAsync()
@@ -48,10 +58,12 @@ public sealed class BoundedTickLiveEventPublisher :
         await foreach (var publication in _channel.Reader.ReadAllAsync()
             .ConfigureAwait(false))
         {
+            if (publication.CancellationToken.IsCancellationRequested)
+                continue;
             if (publication.Quote is { } quote)
-                await _sink.OnQuoteAsync(quote).ConfigureAwait(false);
+                await _sink.OnQuoteAsync(quote, publication.CancellationToken).ConfigureAwait(false);
             else if (publication.Trade is { } trade)
-                await _sink.OnTradeAsync(trade).ConfigureAwait(false);
+                await _sink.OnTradeAsync(trade, publication.CancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -64,5 +76,6 @@ public sealed class BoundedTickLiveEventPublisher :
 
     private readonly record struct Publication(
         LiveTickQuoteServiceEvent? Quote,
-        LiveTickTradeServiceEvent? Trade);
+        LiveTickTradeServiceEvent? Trade,
+        CancellationToken CancellationToken);
 }

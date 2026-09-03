@@ -606,11 +606,14 @@ public static class Startup
             {
                 Enabled = config.GetValue("MarketDataRecovery:Enabled", true),
                 NativeBackend = config.GetValue("MarketDataRecovery:NativeBackend", "Cpp")!,
-                PollInterval = config.GetValue("MarketDataRecovery:PollInterval", TimeSpan.FromMinutes(1)),
+                PollInterval = config.GetValue("MarketDataRecovery:PollInterval", TimeSpan.FromSeconds(15)),
                 ProbeTimeout = config.GetValue("MarketDataRecovery:ProbeTimeout", TimeSpan.FromSeconds(1)),
                 AttemptTwoDelay = config.GetValue("MarketDataRecovery:AttemptTwoDelay", TimeSpan.FromSeconds(5)),
                 AttemptThreeDelay = config.GetValue("MarketDataRecovery:AttemptThreeDelay", TimeSpan.FromSeconds(15)),
-                PersistenceRetryDelay = config.GetValue("MarketDataRecovery:PersistenceRetryDelay", TimeSpan.FromMilliseconds(100))
+                PersistenceRetryDelay = config.GetValue("MarketDataRecovery:PersistenceRetryDelay", TimeSpan.FromMilliseconds(100)),
+                HardStallTimeout = config.GetValue("MarketDataRecovery:HardStallTimeout", TimeSpan.FromMinutes(5)),
+                DatasetTeardownTimeout = config.GetValue("MarketDataRecovery:DatasetTeardownTimeout", TimeSpan.FromSeconds(10)),
+                DatasetQualificationTimeout = config.GetValue("MarketDataRecovery:DatasetQualificationTimeout", TimeSpan.FromSeconds(30))
             }.Validate());
             services.AddSingleton<IDatabentoWatchdogPublisher, DatabentoWatchdogStatusConsolePublisher>();
             services.AddSingleton<ICurrentFuturesContractCatalog, SecuritiesCurrentFuturesContractCatalog>();

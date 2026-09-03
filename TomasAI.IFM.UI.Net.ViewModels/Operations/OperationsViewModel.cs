@@ -20,8 +20,17 @@ public sealed class OperationsViewModel : ObservableObject, IAsyncLifecycle, IAs
     readonly AsyncLifecycleCoordinator _lifecycle;
     OperationsViewType _selectedView = OperationsViewType.Strategy;
 
-    public OperationsViewModel(IAppRoot appRoot, string contractId, DateOnly valueDate)
-        : this(new StrategyOperationsViewModel(appRoot, contractId, valueDate))
+    public OperationsViewModel(
+        IAppRoot appRoot,
+        string contractId,
+        DateOnly valueDate,
+        TimeProvider? timeProvider = null)
+        : this(new StrategyOperationsViewModel(
+            (appRoot ?? throw new ArgumentNullException(nameof(appRoot)))
+                .Services.StrategyOperations,
+            contractId,
+            valueDate,
+            timeProvider))
     {
     }
 

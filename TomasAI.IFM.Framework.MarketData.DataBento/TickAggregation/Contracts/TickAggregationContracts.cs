@@ -131,6 +131,48 @@ public interface ITickAggregationMetricsSource
     TickAggregationMetricsSnapshot GetMetrics();
 }
 
+public enum TickAggregationProcessingStage
+{
+    Idle = 0,
+    Starting = 1,
+    ValueDateFlush = 2,
+    StatisticsReplayPublish = 3,
+    TradeReplayPublish = 4,
+    QuoteUpdate = 5,
+    QuoteMarketPricePublish = 6,
+    QuoteLiveRoute = 7,
+    QuoteFlush = 8,
+    TradeUpdate = 9,
+    TradeMarketPricePublish = 10,
+    TradeLiveRoute = 11,
+    TradeQuoteFlush = 12,
+    TradePublish = 13,
+    StatisticsUpdate = 14,
+    StatisticsPublish = 15
+}
+
+public sealed record TickAggregationRecordProgress(
+    string Dataset,
+    string ContractId,
+    string RecordKind,
+    ushort PublisherId,
+    uint InstrumentId,
+    uint SourceSequence,
+    DateTimeOffset StartedAtUtc);
+
+public sealed record TickAggregationProcessingFailure(
+    string Dataset,
+    string ContractId,
+    string RecordKind,
+    ushort PublisherId,
+    uint InstrumentId,
+    uint SourceSequence,
+    TickAggregationProcessingStage Stage,
+    DateTimeOffset FailedAtUtc,
+    TimeSpan ProcessingDuration,
+    string ExceptionType,
+    string ExceptionMessage);
+
 public readonly record struct TickAggregationMetricsSnapshot(
     long SourceQuoteRecords,
     long SourceTradeRecords,
@@ -145,7 +187,25 @@ public readonly record struct TickAggregationMetricsSnapshot(
     long PublicationFailures,
     long ProcessingFailures,
     int ActiveTickers,
-    int ServiceOwnedQuoteBuffers);
+    int ServiceOwnedQuoteBuffers)
+{
+    public long RecordsStarted { get; init; }
+    public long RecordsCompleted { get; init; }
+    public long SourceMboRecords { get; init; }
+    public long SourceStatisticsRecords { get; init; }
+    public long StatisticsReplayCompleteRecords { get; init; }
+    public long TradeReplayCompleteRecords { get; init; }
+    public long UnsupportedRecords { get; init; }
+    public long CurrentProcessingDurationTicks { get; init; }
+    public long TotalProcessingDurationTicks { get; init; }
+    public long MaximumProcessingDurationTicks { get; init; }
+    public DateTimeOffset? LastRecordStartedAtUtc { get; init; }
+    public DateTimeOffset? LastRecordCompletedAtUtc { get; init; }
+    public DateTimeOffset? LastRecordFailedAtUtc { get; init; }
+    public TickAggregationProcessingStage CurrentStage { get; init; }
+    public TickAggregationRecordProgress? InFlightRecord { get; init; }
+    public TickAggregationProcessingFailure? LastFailure { get; init; }
+}
 
 public readonly record struct TickContractMapping(
     string Dataset,
@@ -216,5 +276,4 @@ public sealed record TickAggregationOptions
     public required DateOnly DefinitionDate { get; init; }
     public TimeSpan FeedStartTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan FeedStopTimeout { get; init; } = TimeSpan.FromSeconds(30);
-    public TimeSpan ReaderPollTimeout { get; init; } = TimeSpan.FromMilliseconds(50);
 }

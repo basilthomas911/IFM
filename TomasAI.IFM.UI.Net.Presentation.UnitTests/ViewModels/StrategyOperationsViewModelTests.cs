@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Models.Operations;
+using TomasAI.IFM.UI.Net.Presentation.UnitTests.TestDoubles;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
@@ -139,6 +140,97 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
+    public async Task Reconciliation_RecoversEveryPointAfterNotificationGap()
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 21, 14, 0, 0, TimeSpan.Zero));
+        var interval = TimeSpan.FromMinutes(1);
+        var missed = Signal(
+            TimeFrameType.Daily,
+            10,
+            IntrinsicTimeModeType.TrendExtremeChanged);
+        var authoritativeHead = Signal(
+            TimeFrameType.Daily,
+            11,
+            IntrinsicTimeModeType.TrendDirectionChanged);
+        var dailyHistoryCalls = 0;
+        var subject = CreateSubject(timeProvider, interval);
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(
+                ContractId,
+                ValueDate,
+                TimeFrameType.Daily)
+            .Returns(_ => Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>(
+                    Interlocked.Increment(ref dailyHistoryCalls) == 1
+                        ? []
+                        : [missed, authoritativeHead])));
+        subject.QueryApi.GetFuturesItiSignalAsync(
+                ContractId,
+                ValueDate,
+                TimeFrameType.Daily)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel>(authoritativeHead)));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.ViewModel.Events.Should().BeEmpty();
+
+        timeProvider.Advance(interval);
+        await WaitUntilAsync(() => subject.ViewModel.Events.Count == 2);
+
+        subject.ViewModel.Events.Select(row => row.SequenceId).Should().Equal(11, 10);
+        subject.ViewModel.Events.Should().OnlyContain(row => row.IsHistorical);
+        dailyHistoryCalls.Should().Be(2, "the changed head triggers one bounded history catch-up");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Reconciliation_DoesNotReloadHistoryAfterLiveNotificationArrives()
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 21, 14, 0, 0, TimeSpan.Zero));
+        var interval = TimeSpan.FromMinutes(1);
+        var live = Signal(
+            TimeFrameType.Daily,
+            12,
+            IntrinsicTimeModeType.TrendReversalChanged);
+        var dailyHistoryCalls = 0;
+        var currentCalls = 0;
+        var subject = CreateSubject(timeProvider, interval);
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(
+                ContractId,
+                ValueDate,
+                TimeFrameType.Daily)
+            .Returns(_ =>
+            {
+                Interlocked.Increment(ref dailyHistoryCalls);
+                return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                    new ServiceOk<FuturesItiSignalV2ReadModel[]>([]));
+            });
+        subject.QueryApi.GetFuturesItiSignalAsync(
+                ContractId,
+                ValueDate,
+                TimeFrameType.Daily)
+            .Returns(_ =>
+            {
+                Interlocked.Increment(ref currentCalls);
+                return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
+                    new ServiceOk<FuturesItiSignalV2ReadModel>(live));
+            });
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.EventSource.Publish(live);
+        subject.ViewModel.Events.Should().ContainSingle()
+            .Which.IsHistorical.Should().BeFalse();
+
+        timeProvider.Advance(interval);
+        await WaitUntilAsync(() => Volatile.Read(ref currentCalls) == 1);
+
+        dailyHistoryCalls.Should().Be(1, "the live notification already supplied the authoritative head");
+        subject.ViewModel.Events.Should().ContainSingle();
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Operations_DefaultsToStrategyAndAllowsEveryTab()
     {
         var subject = CreateSubject();
@@ -154,9 +246,17 @@ public sealed class StrategyOperationsViewModelTests
         await operations.DisposeAsync();
     }
 
-    static Subject CreateSubject()
+    static Subject CreateSubject(
+        TimeProvider? timeProvider = null,
+        TimeSpan? reconciliationInterval = null)
     {
         var queryApi = Substitute.For<IMarketDataAnalyticsQueryApi>();
+        queryApi.GetFuturesItiSignalAsync(
+                Arg.Any<string>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<TimeFrameType>())
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel>(new())));
         queryApi.GetFuturesItiSignalHistoryAsync(
                 Arg.Any<string>(),
                 Arg.Any<DateOnly>(),
@@ -168,9 +268,25 @@ public sealed class StrategyOperationsViewModelTests
         var eventSource = new TestEventSource(consumer);
         var model = new StrategyOperationsService(queryApi, consumer);
         return new Subject(
-            new StrategyOperationsViewModel(model, ContractId, ValueDate),
+            new StrategyOperationsViewModel(
+                model,
+                ContractId,
+                ValueDate,
+                timeProvider,
+                reconciliationInterval),
             queryApi,
             eventSource);
+    }
+
+    static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var timeout = DateTime.UtcNow.AddSeconds(5);
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= timeout)
+                throw new TimeoutException("The expected reconciled presentation state was not published.");
+            await Task.Delay(10);
+        }
     }
 
     static FuturesItiSignalV2ReadModel Signal(

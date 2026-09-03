@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -406,6 +407,21 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             _errorMessageHandler = null;
             if (failures is not null)
                 throw new AggregateException("The DataBento epoch did not stop cleanly.", failures);
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    /// <summary>Replaces exactly one failed dataset generation inside the active epoch.</summary>
+    public async Task<DatabentoDatasetResetResult> ResetDatasetAsync(
+        DatabentoDatasetResetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var active = GetRunningEpoch();
+            return await active.ResetDatasetAsync(request, cancellationToken).ConfigureAwait(false);
         }
         finally { _lifecycle.Release(); }
     }

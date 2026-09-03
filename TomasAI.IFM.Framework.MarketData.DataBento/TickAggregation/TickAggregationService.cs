@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
@@ -11,6 +13,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using System.Collections.Frozen;
+using System.Diagnostics;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 
@@ -30,7 +33,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private readonly ITickLiveRouter? _liveRouter;
     private readonly ITickerStreamRouteController? _streamRoutes;
     private readonly Action<string>? _terminalFaultHandler;
+    private readonly ILogger<TickAggregationService> _logger;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly CancellationTokenSource _generationStopping = new();
     private readonly Dictionary<InstrumentKey, TickerState> _states = [];
     private FrozenDictionary<string, TickerState> _statesByContractId =
         FrozenDictionary<string, TickerState>.Empty;
@@ -50,6 +55,22 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private long _sourceSequenceGaps;
     private long _publicationFailures;
     private long _processingFailures;
+    private long _recordsStarted;
+    private long _recordsCompleted;
+    private long _sourceMboRecords;
+    private long _sourceStatisticsRecords;
+    private long _statisticsReplayCompleteRecords;
+    private long _tradeReplayCompleteRecords;
+    private long _unsupportedRecords;
+    private long _totalProcessingDurationTicks;
+    private long _maximumProcessingDurationTicks;
+    private long _lastRecordStartedUtcTicks;
+    private long _lastRecordCompletedUtcTicks;
+    private long _lastRecordFailedUtcTicks;
+    private long _inFlightStartedTimestamp;
+    private int _currentProcessingStage;
+    private TickAggregationRecordProgress? _inFlightRecord;
+    private TickAggregationProcessingFailure? _lastProcessingFailure;
     private int _activeTickers;
     private int _outstandingQuoteBuffers;
 
@@ -64,7 +85,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         IDatabentoLastPriceWriter? lastPrices = null,
         ITickLiveRouter? liveRouter = null,
         ITickerStreamRouteController? streamRoutes = null,
-        Action<string>? terminalFaultHandler = null)
+        Action<string>? terminalFaultHandler = null,
+        ILogger<TickAggregationService>? logger = null,
+        Guid generationId = default)
     {
         _feed = feed ?? throw new ArgumentNullException(nameof(feed));
         _mappings = mappings ?? throw new ArgumentNullException(nameof(mappings));
@@ -79,9 +102,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         _liveRouter = liveRouter;
         _streamRoutes = streamRoutes;
         _terminalFaultHandler = terminalFaultHandler;
+        _logger = logger ?? NullLogger<TickAggregationService>.Instance;
+        GenerationId = generationId == Guid.Empty ? Guid.NewGuid() : generationId;
     }
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
+    public Guid GenerationId { get; }
 
     /// <summary>
     /// Returns the native transport and managed-drain health snapshot, including terminal
@@ -363,9 +389,36 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             throw new AggregateException("One or more ticker stream routes could not be released.", failures);
     }
 
-    public async ValueTask StartAsync()
+    public IReadOnlyDictionary<string, TickerStreamOwner[]> CaptureStreamOwners()
     {
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        var result = new Dictionary<string, TickerStreamOwner[]>(StringComparer.Ordinal);
+        foreach (var state in Volatile.Read(ref _statesByContractId).Values)
+        {
+            lock (state.StreamSync)
+            {
+                if (state.StreamOwners.Count != 0)
+                    result[state.Mapping.ContractId] = [.. state.StreamOwners];
+            }
+        }
+        return result;
+    }
+
+    public void RestoreStreamOwners(
+        IReadOnlyDictionary<string, TickerStreamOwner[]> ownersByContract)
+    {
+        ArgumentNullException.ThrowIfNull(ownersByContract);
+        foreach (var pair in ownersByContract)
+        {
+            foreach (var owner in pair.Value)
+                StartTickDataStream(owner, pair.Key);
+        }
+    }
+
+    public ValueTask StartAsync() => StartAsync(CancellationToken.None);
+
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (IsRunning) return;
@@ -374,7 +427,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 ref _statesByContractId,
                 FrozenDictionary<string, TickerState>.Empty);
             Volatile.Write(ref _stopping, 0);
-            await _publisher.StartAsync().ConfigureAwait(false);
+            await _publisher.StartAsync(cancellationToken).ConfigureAwait(false);
             var feedStarted = false;
             try
             {
@@ -406,7 +459,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     Volatile.Write(ref _activeTickers, _states.Count);
                     _reader = _feed.GetMultiplexedReader();
                     Volatile.Write(ref _running, 1);
-                    _worker = Task.Run(() => ProcessAsync(consumerReady));
+                    _worker = Task.Run(
+                        () => ProcessAsync(_generationStopping.Token, consumerReady),
+                        CancellationToken.None);
                     if (!consumerReady.Wait(remaining))
                         throw new TimeoutException(
                             "The tick aggregation consumer did not become ready before feed activation.");
@@ -415,6 +470,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             }
             catch
             {
+                await _generationStopping.CancelAsync().ConfigureAwait(false);
                 Volatile.Write(
                     ref _statesByContractId,
                     FrozenDictionary<string, TickerState>.Empty);
@@ -433,7 +489,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     try { _feed.Stop(_options.FeedStopTimeout); }
                     catch { /* Preserve the original startup failure. */ }
                 }
-                try { await _publisher.StopAsync().ConfigureAwait(false); }
+                try { await _publisher.StopAsync(cancellationToken).ConfigureAwait(false); }
                 catch { /* Preserve the original startup failure. */ }
                 throw;
             }
@@ -441,17 +497,26 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         finally { _lifecycle.Release(); }
     }
 
-    public async ValueTask StopAsync()
+    public ValueTask StopAsync() => StopAsyncCore(CancellationToken.None, fenceGeneration: false);
+
+    public ValueTask StopAsync(CancellationToken cancellationToken) =>
+        StopAsyncCore(cancellationToken, fenceGeneration: true);
+
+    private async ValueTask StopAsyncCore(
+        CancellationToken cancellationToken,
+        bool fenceGeneration)
     {
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!IsRunning) return;
             Volatile.Write(ref _stopping, 1);
+            if (fenceGeneration)
+                await _generationStopping.CancelAsync().ConfigureAwait(false);
             List<Exception>? failures = null;
             try { ClearAllStreams(); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
-            try { _feed.Stop(_options.FeedStopTimeout); }
+            try { _feed.Stop(_options.FeedStopTimeout, cancellationToken); }
             catch (Exception exception)
             {
                 (failures ??= []).Add(exception);
@@ -461,14 +526,16 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 // leave the service in Stopping so a later StopAsync can retry.
                 throw new AggregateException("Tick aggregation shutdown failed.", failures);
             }
-            try { if (_worker is not null) await _worker.ConfigureAwait(false); }
-            catch (Exception exception) { (failures ??= []).Add(exception); }
-            try { await FlushAllAsync(QuoteEmissionReason.FeedStopped).ConfigureAwait(false); }
+            try
+            {
+                if (_worker is not null)
+                    await _worker.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
             catch (Exception exception) { (failures ??= []).Add(exception); }
             _reader?.Dispose();
             _reader = null;
             _worker = null;
-            try { await _publisher.StopAsync().ConfigureAwait(false); }
+            try { await _publisher.StopAsync(cancellationToken).ConfigureAwait(false); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
             Volatile.Write(ref _running, 0);
             Volatile.Write(ref _activeTickers, 0);
@@ -478,14 +545,19 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         finally { _lifecycle.Release(); }
     }
 
-    private async Task ProcessAsync(ManualResetEventSlim? startupReady = null)
+    private async Task ProcessAsync(
+        CancellationToken cancellationToken,
+        ManualResetEventSlim? startupReady = null)
     {
         startupReady?.Set();
         try
         {
             while (true)
             {
-                if (!_reader!.TryRead(_options.ReaderPollTimeout, out var leased))
+                if (!_reader!.TryRead(
+                        Timeout.InfiniteTimeSpan,
+                        cancellationToken,
+                        out var leased))
                 {
                     if (_reader.IsCompleted) break;
                     continue;
@@ -499,18 +571,24 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         var record = leased.Batch.Records[index];
                         try
                         {
-                            await ProcessRecordAsync(state, record).ConfigureAwait(false);
+                            await ProcessRecordAsync(state, record, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
                         }
                         catch
                         {
-                            // A transient publication or malformed observation must not terminate the
-                            // dataset worker. Pending quote/trade state remains owned by this ticker and
-                            // is retried by the next observation or the bounded shutdown flush.
-                            Interlocked.Increment(ref _processingFailures);
+                            // ProcessRecordAsync records and logs the complete failure context. A
+                            // recoverable record failure must not terminate the dataset worker.
                         }
                     }
                 }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Dataset generation was fenced and asked to quiesce.
         }
         finally
         {
@@ -522,12 +600,115 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
-    private async ValueTask ProcessRecordAsync(TickerState state, MarketRecord64 record)
+    private async ValueTask ProcessRecordAsync(
+        TickerState state,
+        MarketRecord64 record,
+        CancellationToken cancellationToken)
     {
+        var startedAtUtc = _timeProvider.GetUtcNow();
+        var startedTimestamp = Stopwatch.GetTimestamp();
+        var header = record.Header;
+        var progress = new TickAggregationRecordProgress(
+            _options.Dataset,
+            state.Mapping.ContractId,
+            header.RecordKind.ToString(),
+            header.PublisherId,
+            header.InstrumentId,
+            header.Sequence,
+            startedAtUtc);
+
+        Interlocked.Increment(ref _recordsStarted);
+        Interlocked.Exchange(ref _lastRecordStartedUtcTicks, startedAtUtc.UtcTicks);
+        TrackRecordKind(header.RecordKind);
+        Interlocked.Exchange(ref _inFlightStartedTimestamp, startedTimestamp);
+        Volatile.Write(ref _inFlightRecord, progress);
+        Volatile.Write(ref _currentProcessingStage, (int)TickAggregationProcessingStage.Starting);
+
+        try
+        {
+            await ProcessRecordCoreAsync(state, record, cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _recordsCompleted);
+            Interlocked.Exchange(ref _lastRecordCompletedUtcTicks, _timeProvider.GetUtcNow().UtcTicks);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var failedAtUtc = _timeProvider.GetUtcNow();
+            var elapsed = Stopwatch.GetElapsedTime(startedTimestamp);
+            var stage = (TickAggregationProcessingStage)Volatile.Read(ref _currentProcessingStage);
+            Interlocked.Increment(ref _processingFailures);
+            Interlocked.Exchange(ref _lastRecordFailedUtcTicks, failedAtUtc.UtcTicks);
+            Volatile.Write(ref _lastProcessingFailure, new TickAggregationProcessingFailure(
+                progress.Dataset,
+                progress.ContractId,
+                progress.RecordKind,
+                progress.PublisherId,
+                progress.InstrumentId,
+                progress.SourceSequence,
+                stage,
+                failedAtUtc,
+                elapsed,
+                exception.GetType().FullName ?? exception.GetType().Name,
+                exception.Message));
+
+            var metrics = GetMetrics();
+            _logger.LogError(
+                exception,
+                "Tick aggregation failed processing dataset {Dataset}, contract {ContractId}, " +
+                "record {RecordKind}, publisher {PublisherId}, instrument {InstrumentId}, " +
+                "sequence {SourceSequence}, stage {ProcessingStage}, elapsed {ElapsedMilliseconds} ms. " +
+                "Records started {RecordsStarted}, completed {RecordsCompleted}, failed {ProcessingFailures}; " +
+                "quotes {SourceQuoteRecords}, trades {SourceTradeRecords}, MBO {SourceMboRecords}, " +
+                "statistics {SourceStatisticsRecords}; publication failures {PublicationFailures}.",
+                progress.Dataset,
+                progress.ContractId,
+                progress.RecordKind,
+                progress.PublisherId,
+                progress.InstrumentId,
+                progress.SourceSequence,
+                stage,
+                elapsed.TotalMilliseconds,
+                metrics.RecordsStarted,
+                metrics.RecordsCompleted,
+                metrics.ProcessingFailures,
+                metrics.SourceQuoteRecords,
+                metrics.SourceTradeRecords,
+                metrics.SourceMboRecords,
+                metrics.SourceStatisticsRecords,
+                metrics.PublicationFailures);
+            throw;
+        }
+        finally
+        {
+            var elapsedTicks = Stopwatch.GetElapsedTime(startedTimestamp).Ticks;
+            Interlocked.Add(ref _totalProcessingDurationTicks, elapsedTicks);
+            UpdateMaximum(ref _maximumProcessingDurationTicks, elapsedTicks);
+            Volatile.Write(ref _currentProcessingStage, (int)TickAggregationProcessingStage.Idle);
+            Volatile.Write(ref _inFlightRecord, null);
+            Interlocked.Exchange(ref _inFlightStartedTimestamp, 0);
+        }
+    }
+
+    private async ValueTask ProcessRecordCoreAsync(
+        TickerState state,
+        MarketRecord64 record,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var observedUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var valueDate = _valueDates.GetValueDate(observedUtc);
         if (state.ValueDate != default && state.ValueDate != valueDate)
-            await FlushAsync(state, QuoteEmissionReason.ValueDateChanged).ConfigureAwait(false);
+        {
+            SetProcessingStage(TickAggregationProcessingStage.ValueDateFlush);
+            await FlushAsync(
+                    state,
+                    QuoteEmissionReason.ValueDateChanged,
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
         if (state.ValueDate != valueDate)
         {
             state.ValueDate = valueDate;
@@ -539,9 +720,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
         if (record.Header.RecordKind == MarketRecordKind.StatisticsReplayComplete)
         {
+            SetProcessingStage(TickAggregationProcessingStage.StatisticsReplayPublish);
             foreach (var replayedStatistics in state.SessionStatistics.ReadAll(
                          state.Mapping.ContractId))
-                await PublishSessionStatisticsAsync(state, replayedStatistics)
+                await PublishSessionStatisticsAsync(state, replayedStatistics, cancellationToken)
                     .ConfigureAwait(false);
             return;
         }
@@ -552,7 +734,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 state.ValueDate);
             state.StreamEpochId = Guid.NewGuid();
             state.TradeOrdinal = 0;
-            await PublishSessionStatisticsAsync(state, reconstructed).ConfigureAwait(false);
+            SetProcessingStage(TickAggregationProcessingStage.TradeReplayPublish);
+            await PublishSessionStatisticsAsync(state, reconstructed, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -564,7 +748,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         switch (record.Header.RecordKind)
         {
             case MarketRecordKind.Quote:
-                Interlocked.Increment(ref _sourceQuoteRecords);
+                SetProcessingStage(TickAggregationProcessingStage.QuoteUpdate);
                 MarkObserved(state);
                 if (!UpdateLastQuote(state, record.Quote, out var quoteMarketPrice))
                 {
@@ -574,23 +758,37 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 MarkAccepted(state, record.Quote.Header.EventTimestampNanoseconds);
                 if (IsVxFutures(state.Mapping))
                 {
+                    SetProcessingStage(TickAggregationProcessingStage.QuoteMarketPricePublish);
                     await PublishMarketPriceAsync(
                             state,
                             quoteMarketPrice,
                             FuturesMarketPriceUpdateSource.Quote,
-                            observedUtc)
+                            observedUtc,
+                            cancellationToken)
                         .ConfigureAwait(false);
                 }
                 if (_liveRouter is not null
                     && _liveRouter.IsActive(state.Mapping.ContractId))
-                    await _liveRouter.RouteAsync(CreateLiveQuote(state, record.Quote))
+                {
+                    SetProcessingStage(TickAggregationProcessingStage.QuoteLiveRoute);
+                    await _liveRouter.RouteAsync(
+                            CreateLiveQuote(state, record.Quote), cancellationToken)
                         .ConfigureAwait(false);
+                }
                 AddQuote(state, record.Quote);
                 if (state.QuoteCount == FuturesTickQuoteDataSegment.MaximumCount)
-                    await FlushAsync(state, QuoteEmissionReason.BufferFull, observedUtc).ConfigureAwait(false);
+                {
+                    SetProcessingStage(TickAggregationProcessingStage.QuoteFlush);
+                    await FlushAsync(
+                            state,
+                            QuoteEmissionReason.BufferFull,
+                            observedUtc,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
                 break;
             case MarketRecordKind.Trade:
-                Interlocked.Increment(ref _sourceTradeRecords);
+                SetProcessingStage(TickAggregationProcessingStage.TradeUpdate);
                 var isReplay = (record.Header.Flags & 2) != 0;
                 _ = state.SessionStatistics.TryAccumulateTrade(
                     state.Mapping.ContractId,
@@ -607,16 +805,22 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     break;
                 }
                 MarkAccepted(state, record.Trade.Header.EventTimestampNanoseconds);
+                SetProcessingStage(TickAggregationProcessingStage.TradeMarketPricePublish);
                 await PublishMarketPriceAsync(
                         state,
                         marketPrice,
                         FuturesMarketPriceUpdateSource.Trade,
-                        observedUtc)
+                        observedUtc,
+                        cancellationToken)
                     .ConfigureAwait(false);
                 if (_liveRouter is not null
                     && _liveRouter.IsActive(state.Mapping.ContractId))
-                    await _liveRouter.RouteAsync(CreateLiveTrade(state, record.Trade))
+                {
+                    SetProcessingStage(TickAggregationProcessingStage.TradeLiveRoute);
+                    await _liveRouter.RouteAsync(
+                            CreateLiveTrade(state, record.Trade), cancellationToken)
                         .ConfigureAwait(false);
+                }
                 var quotePending = state.QuoteCount > 0
                     ? EnsurePendingQuote(state, QuoteEmissionReason.TradeObserved, observedUtc)
                     : null;
@@ -625,10 +829,18 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     record.Trade,
                     observedUtc,
                     checked(state.Sequence + (quotePending is null ? 1 : 2)));
-                await FlushAsync(state, QuoteEmissionReason.TradeObserved, observedUtc).ConfigureAwait(false);
-                await PublishPendingTradeAsync(state).ConfigureAwait(false);
+                SetProcessingStage(TickAggregationProcessingStage.TradeQuoteFlush);
+                await FlushAsync(
+                        state,
+                        QuoteEmissionReason.TradeObserved,
+                        observedUtc,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                SetProcessingStage(TickAggregationProcessingStage.TradePublish);
+                await PublishPendingTradeAsync(state, cancellationToken).ConfigureAwait(false);
                 break;
             case MarketRecordKind.Statistics:
+                SetProcessingStage(TickAggregationProcessingStage.StatisticsUpdate);
                 if (state.Mapping.AssetTypeId == AssetTypeId.Futures
                     && state.SessionStatistics.TryApplyStatistic(
                         state.Mapping.ContractId,
@@ -637,7 +849,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         out var statistics)
                     && (record.Header.Flags & 2) == 0)
                 {
-                    await PublishSessionStatisticsAsync(state, statistics)
+                    SetProcessingStage(TickAggregationProcessingStage.StatisticsPublish);
+                    await PublishSessionStatisticsAsync(state, statistics, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 break;
@@ -646,7 +859,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
     private async ValueTask PublishSessionStatisticsAsync(
         TickerState state,
-        FuturesSessionStatisticsSnapshot statistics)
+        FuturesSessionStatisticsSnapshot statistics,
+        CancellationToken cancellationToken)
     {
         var entityId = new FuturesEodDataId(
             state.Mapping.ContractId,
@@ -669,11 +883,18 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
         try
         {
-            await _publisher.PublishAsync(@event).ConfigureAwait(false);
+            await _publisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Interlocked.Increment(ref _publicationFailures);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            TrackHandledPublicationException(
+                state,
+                exception,
+                nameof(FuturesSessionStatisticsUpdatedRealtimeEvent));
         }
     }
 
@@ -772,7 +993,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         TickerState state,
         FuturesMarketPriceSnapshot snapshot,
         FuturesMarketPriceUpdateSource updateSource,
-        DateTime observedUtc)
+        DateTime observedUtc,
+        CancellationToken cancellationToken)
     {
         var entity = new TickDataEntityId(
             state.Mapping.ContractId,
@@ -797,14 +1019,21 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
         try
         {
-            await _publisher.PublishAsync(@event).ConfigureAwait(false);
+            await _publisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
             MarkPublished(ref state.LastMarketPricePublishedUtcTicks);
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
         {
             // Core NATS delivery is intentionally non-durable. Preserve feed ingestion and expose
             // the missed notification through publication-failure metrics; the cache remains current.
-            Interlocked.Increment(ref _publicationFailures);
+            TrackHandledPublicationException(
+                state,
+                exception,
+                nameof(FuturesMarketPriceUpdatedRealtimeEvent));
         }
     }
 
@@ -875,7 +1104,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private async ValueTask FlushAsync(
         TickerState state,
         QuoteEmissionReason reason,
-        DateTime? timestampUtc = null)
+        DateTime? timestampUtc = null,
+        CancellationToken cancellationToken = default)
     {
         if (state.QuoteLease is null || state.QuoteCount == 0) return;
         var lease = state.QuoteLease;
@@ -895,8 +1125,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         };
         try
         {
-            await _publisher.PublishAsync(evt, lease).ConfigureAwait(false);
+            await _publisher.PublishAsync(evt, lease, cancellationToken).ConfigureAwait(false);
             MarkPublished(ref state.LastDurableTickPublishedUtcTicks);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -916,14 +1150,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             Interlocked.Increment(ref _partialQuoteFlushes);
     }
 
-    private async ValueTask PublishPendingTradeAsync(TickerState state)
+    private async ValueTask PublishPendingTradeAsync(
+        TickerState state,
+        CancellationToken cancellationToken = default)
     {
         if (state.PendingTrade is null) return;
         var pending = state.PendingTrade;
         try
         {
-            await _publisher.PublishAsync(pending.Event).ConfigureAwait(false);
+            await _publisher.PublishAsync(pending.Event, cancellationToken).ConfigureAwait(false);
             MarkPublished(ref state.LastDurableTickPublishedUtcTicks);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -1028,7 +1268,102 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         Interlocked.Read(ref _publicationFailures),
         Interlocked.Read(ref _processingFailures),
         Volatile.Read(ref _activeTickers),
-        Volatile.Read(ref _outstandingQuoteBuffers));
+        Volatile.Read(ref _outstandingQuoteBuffers))
+    {
+        RecordsStarted = Interlocked.Read(ref _recordsStarted),
+        RecordsCompleted = Interlocked.Read(ref _recordsCompleted),
+        SourceMboRecords = Interlocked.Read(ref _sourceMboRecords),
+        SourceStatisticsRecords = Interlocked.Read(ref _sourceStatisticsRecords),
+        StatisticsReplayCompleteRecords = Interlocked.Read(ref _statisticsReplayCompleteRecords),
+        TradeReplayCompleteRecords = Interlocked.Read(ref _tradeReplayCompleteRecords),
+        UnsupportedRecords = Interlocked.Read(ref _unsupportedRecords),
+        CurrentProcessingDurationTicks = ReadCurrentProcessingDurationTicks(),
+        TotalProcessingDurationTicks = Interlocked.Read(ref _totalProcessingDurationTicks),
+        MaximumProcessingDurationTicks = Interlocked.Read(ref _maximumProcessingDurationTicks),
+        LastRecordStartedAtUtc = ReadTimestamp(Interlocked.Read(ref _lastRecordStartedUtcTicks)),
+        LastRecordCompletedAtUtc = ReadTimestamp(Interlocked.Read(ref _lastRecordCompletedUtcTicks)),
+        LastRecordFailedAtUtc = ReadTimestamp(Interlocked.Read(ref _lastRecordFailedUtcTicks)),
+        CurrentStage = (TickAggregationProcessingStage)Volatile.Read(ref _currentProcessingStage),
+        InFlightRecord = Volatile.Read(ref _inFlightRecord),
+        LastFailure = Volatile.Read(ref _lastProcessingFailure)
+    };
+
+    private long ReadCurrentProcessingDurationTicks()
+    {
+        var startedTimestamp = Interlocked.Read(ref _inFlightStartedTimestamp);
+        return startedTimestamp == 0
+            ? 0
+            : Stopwatch.GetElapsedTime(startedTimestamp).Ticks;
+    }
+
+    private void TrackRecordKind(MarketRecordKind kind)
+    {
+        switch (kind)
+        {
+            case MarketRecordKind.Quote:
+                Interlocked.Increment(ref _sourceQuoteRecords);
+                break;
+            case MarketRecordKind.Trade:
+                Interlocked.Increment(ref _sourceTradeRecords);
+                break;
+            case MarketRecordKind.Mbo:
+                Interlocked.Increment(ref _sourceMboRecords);
+                break;
+            case MarketRecordKind.Statistics:
+                Interlocked.Increment(ref _sourceStatisticsRecords);
+                break;
+            case MarketRecordKind.StatisticsReplayComplete:
+                Interlocked.Increment(ref _statisticsReplayCompleteRecords);
+                break;
+            case MarketRecordKind.TradeReplayComplete:
+                Interlocked.Increment(ref _tradeReplayCompleteRecords);
+                break;
+            default:
+                Interlocked.Increment(ref _unsupportedRecords);
+                break;
+        }
+    }
+
+    private void SetProcessingStage(TickAggregationProcessingStage stage) =>
+        Volatile.Write(ref _currentProcessingStage, (int)stage);
+
+    private void TrackHandledPublicationException(
+        TickerState state,
+        Exception exception,
+        string publicationType)
+    {
+        Interlocked.Increment(ref _publicationFailures);
+        var progress = Volatile.Read(ref _inFlightRecord);
+        var stage = (TickAggregationProcessingStage)Volatile.Read(
+            ref _currentProcessingStage);
+        _logger.LogWarning(
+            exception,
+            "Tick aggregation handled a non-durable publication failure for {PublicationType}; " +
+            "dataset {Dataset}, contract {ContractId}, record {RecordKind}, publisher {PublisherId}, " +
+            "instrument {InstrumentId}, sequence {SourceSequence}, stage {ProcessingStage}. " +
+            "The hot cache remains current and record processing will continue. " +
+            "Publication failures {PublicationFailures}.",
+            publicationType,
+            progress?.Dataset ?? _options.Dataset,
+            progress?.ContractId ?? state.Mapping.ContractId,
+            progress?.RecordKind ?? string.Empty,
+            progress?.PublisherId ?? state.Mapping.PublisherId,
+            progress?.InstrumentId ?? state.Mapping.InstrumentId,
+            progress?.SourceSequence ?? 0,
+            stage,
+            Interlocked.Read(ref _publicationFailures));
+    }
+
+    private static void UpdateMaximum(ref long target, long candidate)
+    {
+        var observed = Interlocked.Read(ref target);
+        while (candidate > observed)
+        {
+            var prior = Interlocked.CompareExchange(ref target, candidate, observed);
+            if (prior == observed) return;
+            observed = prior;
+        }
+    }
 
     private void MarkObserved(TickerState state) =>
         MarkPublished(ref state.LastSourceRecordObservedUtcTicks);
@@ -1057,7 +1392,6 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             throw new ArgumentOutOfRangeException(nameof(options.DefinitionDate));
         ValidateTimeout(options.FeedStartTimeout, nameof(options.FeedStartTimeout));
         ValidateTimeout(options.FeedStopTimeout, nameof(options.FeedStopTimeout));
-        ValidateTimeout(options.ReaderPollTimeout, nameof(options.ReaderPollTimeout));
     }
 
     private static void ValidateTimeout(TimeSpan timeout, string parameterName)
@@ -1078,6 +1412,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
         _reader?.Dispose();
         _feed.Dispose();
+        _generationStopping.Dispose();
         _lifecycle.Dispose();
     }
 

@@ -33,21 +33,33 @@ public sealed class TickLiveRouter(ITickLiveEventPublisher publisher) : ITickLiv
     }
 
     public ValueTask RouteAsync(LiveTickQuoteServiceEvent @event)
+        => RouteAsync(@event, CancellationToken.None);
+
+    public ValueTask RouteAsync(
+        LiveTickQuoteServiceEvent @event,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         lock (_sync)
         {
             return _active.Contains(@event.ContractId)
-                ? _publisher.PublishAsync(@event)
+                ? _publisher.PublishAsync(@event, cancellationToken)
                 : ValueTask.CompletedTask;
         }
     }
 
     public ValueTask RouteAsync(LiveTickTradeServiceEvent @event)
+        => RouteAsync(@event, CancellationToken.None);
+
+    public ValueTask RouteAsync(
+        LiveTickTradeServiceEvent @event,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         lock (_sync)
         {
             return _active.Contains(@event.ContractId)
-                ? _publisher.PublishAsync(@event)
+                ? _publisher.PublishAsync(@event, cancellationToken)
                 : ValueTask.CompletedTask;
         }
     }
@@ -63,4 +75,12 @@ public sealed class NullTickLiveEventPublisher : ITickLiveEventPublisher
         ValueTask.CompletedTask;
     public ValueTask PublishAsync(LiveTickTradeServiceEvent @event) =>
         ValueTask.CompletedTask;
+    public ValueTask PublishAsync(LiveTickQuoteServiceEvent @event, CancellationToken cancellationToken) =>
+        cancellationToken.IsCancellationRequested
+            ? ValueTask.FromCanceled(cancellationToken)
+            : ValueTask.CompletedTask;
+    public ValueTask PublishAsync(LiveTickTradeServiceEvent @event, CancellationToken cancellationToken) =>
+        cancellationToken.IsCancellationRequested
+            ? ValueTask.FromCanceled(cancellationToken)
+            : ValueTask.CompletedTask;
 }

@@ -28,9 +28,11 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
 
-    public async ValueTask StartAsync()
+    public ValueTask StartAsync() => StartAsync(CancellationToken.None);
+
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (IsRunning) return;
@@ -47,26 +49,50 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     }
 
     public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event)
+        => PublishAsync(@event, CancellationToken.None);
+
+    public ValueTask PublishAsync(
+        FuturesTickTradeDataChangedEvent @event,
+        CancellationToken cancellationToken)
     {
         EnsureRunning();
-        return _channel!.Writer.WriteAsync(new Publication(@event, null));
+        return _channel!.Writer.WriteAsync(
+            new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
     public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
+        => PublishAsync(@event, CancellationToken.None);
+
+    public ValueTask PublishAsync(
+        FuturesMarketPriceUpdatedRealtimeEvent @event,
+        CancellationToken cancellationToken)
     {
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        return _channel!.Writer.WriteAsync(new Publication(@event, null));
+        return _channel!.Writer.WriteAsync(
+            new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event)
+        => PublishAsync(@event, CancellationToken.None);
+
+    public ValueTask PublishAsync(
+        FuturesSessionStatisticsUpdatedRealtimeEvent @event,
+        CancellationToken cancellationToken)
     {
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        return _channel!.Writer.WriteAsync(new Publication(@event, null));
+        return _channel!.Writer.WriteAsync(
+            new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
     public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event, ITickQuoteBufferLease lease)
+        => await PublishAsync(@event, lease, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask PublishAsync(
+        FuturesTickQuoteDataChangedEvent @event,
+        ITickQuoteBufferLease lease,
+        CancellationToken cancellationToken)
     {
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(lease);
@@ -75,12 +101,15 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             lease.Count != @event.QuoteCount ||
             @event.QuoteCount is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
             throw new ArgumentException("The quote event does not describe the supplied active buffer lease.", nameof(@event));
-        await _channel!.Writer.WriteAsync(new Publication(@event, lease)).ConfigureAwait(false);
+        await _channel!.Writer.WriteAsync(
+            new Publication(@event, lease, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask StopAsync()
+    public ValueTask StopAsync() => StopAsync(CancellationToken.None);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_channel is null) return;
@@ -88,7 +117,8 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             Exception? failure = null;
             try
             {
-                if (_worker is not null) await _worker.ConfigureAwait(false);
+                if (_worker is not null)
+                    await _worker.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -112,21 +142,31 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             {
                 try
                 {
+                    if (publication.CancellationToken.IsCancellationRequested)
+                        continue;
                     switch (publication.Event)
                     {
                         case FuturesTickTradeDataChangedEvent trade:
-                            await _realtimeProducer!.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(trade.Subject, trade).ConfigureAwait(false);
+                            await _realtimeProducer!.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(
+                                trade.Subject, trade, publication.CancellationToken).ConfigureAwait(false);
                             break;
                         case FuturesTickQuoteDataChangedEvent quote:
-                            await _realtimeProducer!.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote).ConfigureAwait(false);
+                            await _realtimeProducer!.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(
+                                quote.Subject, quote, publication.CancellationToken).ConfigureAwait(false);
                             break;
                         case FuturesMarketPriceUpdatedRealtimeEvent price:
-                            await _realtimeProducer!.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(price.Subject, price).ConfigureAwait(false);
+                            await _realtimeProducer!.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+                                price.Subject, price, publication.CancellationToken).ConfigureAwait(false);
                             break;
                         case FuturesSessionStatisticsUpdatedRealtimeEvent statistics:
-                            await _realtimeProducer!.SendAsync<FuturesSessionStatisticsUpdatedRealtimeEvent, FuturesEodDataId>(statistics.Subject, statistics).ConfigureAwait(false);
+                            await _realtimeProducer!.SendAsync<FuturesSessionStatisticsUpdatedRealtimeEvent, FuturesEodDataId>(
+                                statistics.Subject, statistics, publication.CancellationToken).ConfigureAwait(false);
                             break;
                     }
+                }
+                catch (OperationCanceledException) when (publication.CancellationToken.IsCancellationRequested)
+                {
+                    // A fenced dataset generation must not fault the shared publisher worker.
                 }
                 finally
                 {
@@ -166,10 +206,14 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         _lifecycle.Dispose();
     }
 
-    private sealed class Publication(object @event, ITickQuoteBufferLease? lease)
+    private sealed class Publication(
+        object @event,
+        ITickQuoteBufferLease? lease,
+        CancellationToken cancellationToken)
     {
         private ITickQuoteBufferLease? _lease = lease;
         public object Event { get; } = @event;
+        public CancellationToken CancellationToken { get; } = cancellationToken;
         public void DisposeLease() => Interlocked.Exchange(ref _lease, null)?.Dispose();
     }
 }

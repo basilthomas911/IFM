@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
@@ -85,6 +86,39 @@ public sealed class DatabentoProductionEpochTests
         await Assert.ThrowsAsync<MarketDataPricingInputUnavailableException>(() =>
             api.StartStreamingFuturesOptionChainDataAsync(
                 "ES-202609", maturity, ["ES20260918C6500"]));
+
+        var oldFeed = provider.Feed;
+        var oldGeneration = datasetHealth.GenerationId;
+        var reset = await api.ResetDatasetAsync(new DatabentoDatasetResetRequest(
+            "GLBX.MDP3",
+            oldGeneration,
+            valueDate,
+            DatabentoDatasetFailureReason.AggregationRecordStalled,
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromSeconds(2),
+            Guid.NewGuid()));
+
+        Assert.True(reset.Succeeded, reset.Detail);
+        Assert.NotEqual(oldGeneration, reset.GenerationId);
+        Assert.True(oldFeed.Disposed);
+        Assert.Equal(1, oldFeed.StopCount);
+        Assert.NotSame(oldFeed, provider.Feed);
+        Assert.True(api.IsDatabentoFeedUp());
+        Assert.True(api.IsTickDataStreamActive("ES-202609"));
+        Assert.True(api.IsTickDataStreamActive("ES20260918C6500"));
+        Assert.Equal(reset.GenerationId,
+            Assert.Single(api.GetHealth().Epoch!.Value.DatasetFeedStatuses!).GenerationId);
+        var staleReset = await api.ResetDatasetAsync(new DatabentoDatasetResetRequest(
+            "GLBX.MDP3",
+            oldGeneration,
+            valueDate,
+            DatabentoDatasetFailureReason.NativeDrainStalled,
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromSeconds(2),
+            Guid.NewGuid()));
+        Assert.True(staleReset.Succeeded);
+        Assert.Equal(reset.GenerationId, staleReset.GenerationId);
+        Assert.Equal(2, provider.FeedHistory.Count);
 
         await api.StopAsync(valueDate);
 
@@ -240,6 +274,7 @@ public sealed class DatabentoProductionEpochTests
         internal Dictionary<string, DatabentoFeedOptions> FeedOptions { get; } =
             new(StringComparer.Ordinal);
         internal List<string> FeedStartOrder { get; } = [];
+        internal List<FakeTickerFeed> FeedHistory { get; } = [];
         internal CatalogQueryState CatalogQueries { get; } = new();
         internal FakeTickerFeed Feed => Feeds.Values.Single();
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options)
@@ -248,8 +283,9 @@ public sealed class DatabentoProductionEpochTests
                 details.Where(detail => detail.Dataset == options.Dataset).ToArray(),
                 options.DataSource,
                 StopBarrier);
-            Feeds.Add(options.Dataset, feed);
-            FeedOptions.Add(options.Dataset, options);
+            Feeds[options.Dataset] = feed;
+            FeedOptions[options.Dataset] = options;
+            FeedHistory.Add(feed);
             FeedStartOrder.Add(options.Dataset);
             return feed;
         }

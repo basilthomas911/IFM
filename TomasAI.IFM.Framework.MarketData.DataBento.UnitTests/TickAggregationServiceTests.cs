@@ -1,5 +1,6 @@
 ﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -490,6 +491,7 @@ public sealed class TickAggregationServiceTests
             Trade(instrument, 1, 5_000_000_000),
             Trade(instrument, 2, 5_100_000_000));
         var publisher = new RejectRealtimePublisher();
+        var logger = new CapturingLogger<TickAggregationService>();
         await using var service = new TickAggregationService(
             feed,
             new MappingProvider(instrument),
@@ -500,7 +502,8 @@ public sealed class TickAggregationServiceTests
             {
                 Dataset = "GLBX.MDP3",
                 DefinitionDate = valueDate
-            });
+            },
+            logger: logger);
 
         await service.StartAsync();
         Assert.True(SpinWait.SpinUntil(
@@ -511,6 +514,10 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(5.1m, snapshot.Trade!.Value.LastPrice);
         Assert.Equal(2, publisher.DurableTradeCount);
         Assert.Equal(2, service.GetMetrics().PublicationFailures);
+        Assert.Equal(2, service.GetMetrics().RecordsCompleted);
+        Assert.Equal(0, service.GetMetrics().ProcessingFailures);
+        Assert.Equal(2, logger.Exceptions.Count);
+        Assert.All(logger.Exceptions, exception => Assert.IsType<IOException>(exception));
 
         await service.StopAsync();
     }
@@ -764,13 +771,15 @@ public sealed class TickAggregationServiceTests
             Trade(instrument, 2, 5_050_000_000),
             Trade(instrument, 3, 5_060_000_000));
         var publisher = new RejectFirstQuotePublisher();
+        var logger = new CapturingLogger<TickAggregationService>();
         await using var service = new TickAggregationService(
             feed,
             new MappingProvider(instrument),
             publisher,
             new TickQuoteBufferPool(),
             new UtcTickValueDateProvider(),
-            new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = new DateOnly(2026, 8, 7) });
+            new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = new DateOnly(2026, 8, 7) },
+            logger: logger);
 
         await service.StartAsync();
         Assert.True(SpinWait.SpinUntil(
@@ -782,10 +791,95 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(publisher.QuoteAttempts[0], publisher.QuoteAttempts[1]);
         Assert.Equal(QuoteEmissionReason.TradeObserved, publisher.Reasons[0]);
         Assert.Equal(publisher.Reasons[0], publisher.Reasons[1]);
-        Assert.Equal(1, service.GetMetrics().ProcessingFailures);
+        var metrics = service.GetMetrics();
+        Assert.Equal(1, metrics.ProcessingFailures);
+        Assert.Equal(3, metrics.RecordsStarted);
+        Assert.Equal(2, metrics.RecordsCompleted);
+        Assert.Equal(TickAggregationProcessingStage.Idle, metrics.CurrentStage);
+        Assert.Null(metrics.InFlightRecord);
+        Assert.NotNull(metrics.LastRecordFailedAtUtc);
+        Assert.Equal("ESU6", metrics.LastFailure?.ContractId);
+        Assert.Equal(nameof(MarketRecordKind.Trade), metrics.LastFailure?.RecordKind);
+        Assert.Equal((uint)2, metrics.LastFailure?.SourceSequence);
+        Assert.Equal(TickAggregationProcessingStage.TradeQuoteFlush, metrics.LastFailure?.Stage);
+        Assert.Equal(typeof(IOException).FullName, metrics.LastFailure?.ExceptionType);
+        Assert.Single(logger.Exceptions);
+        Assert.IsType<IOException>(logger.Exceptions[0]);
         Assert.Equal(1, publisher.DurableTradeCount);
         Assert.True(service.TryGetLastTickPrice("ESU6", out var latest));
         Assert.Equal(5.06m, latest.Trade!.Value.LastPrice);
+    }
+
+    [Fact]
+    public async Task In_flight_metrics_identify_an_incomplete_ProcessRecordAsync_await()
+    {
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(instrument, Trade(instrument, 17, 5_050_000_000));
+        var publisher = new BlockingMarketPricePublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = new DateOnly(2026, 8, 7) });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().CurrentStage ==
+                  TickAggregationProcessingStage.TradeMarketPricePublish,
+            TimeSpan.FromSeconds(2)));
+
+        var blocked = service.GetMetrics();
+        Assert.Equal(1, blocked.RecordsStarted);
+        Assert.Equal(0, blocked.RecordsCompleted);
+        Assert.Equal(0, blocked.ProcessingFailures);
+        Assert.NotNull(blocked.LastRecordStartedAtUtc);
+        Assert.Null(blocked.LastRecordCompletedAtUtc);
+        Assert.Equal("ESU6", blocked.InFlightRecord?.ContractId);
+        Assert.Equal(nameof(MarketRecordKind.Trade), blocked.InFlightRecord?.RecordKind);
+        Assert.Equal((uint)17, blocked.InFlightRecord?.SourceSequence);
+        Assert.True(blocked.CurrentProcessingDurationTicks > 0);
+
+        publisher.Release();
+        await service.StopAsync();
+
+        var completed = service.GetMetrics();
+        Assert.Equal(1, completed.RecordsCompleted);
+        Assert.NotNull(completed.LastRecordCompletedAtUtc);
+        Assert.Equal(TickAggregationProcessingStage.Idle, completed.CurrentStage);
+        Assert.Null(completed.InFlightRecord);
+        Assert.Equal(0, completed.CurrentProcessingDurationTicks);
+        Assert.True(completed.TotalProcessingDurationTicks > 0);
+        Assert.True(completed.MaximumProcessingDurationTicks > 0);
+    }
+
+    [Fact]
+    public async Task Dataset_stop_cancels_an_in_flight_generation_owned_publish_without_external_release()
+    {
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(instrument, Trade(instrument, 17, 5_050_000_000));
+        var publisher = new BlockingMarketPricePublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = new DateOnly(2026, 8, 7) });
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().CurrentStage == TickAggregationProcessingStage.TradeMarketPricePublish,
+            TimeSpan.FromSeconds(2)));
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await service.StopAsync(timeout.Token);
+
+        Assert.False(service.IsRunning);
+        var metrics = service.GetMetrics();
+        Assert.Equal(0, metrics.ProcessingFailures);
+        Assert.Null(metrics.InFlightRecord);
+        Assert.True(publisher.PublishWasCancelled);
     }
 
     [Fact]
@@ -1163,6 +1257,67 @@ public sealed class TickAggregationServiceTests
             return ValueTask.CompletedTask;
         }
         public ValueTask DisposeAsync() => StopAsync();
+    }
+
+    private sealed class BlockingMarketPricePublisher : ITickAggregationEventPublisher
+    {
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsRunning { get; private set; }
+        public ValueTask StartAsync()
+        {
+            IsRunning = true;
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e) =>
+            new(_release.Task);
+        public bool PublishWasCancelled { get; private set; }
+        public async ValueTask PublishAsync(
+            FuturesMarketPriceUpdatedRealtimeEvent e,
+            CancellationToken cancellationToken)
+        {
+            try { await _release.Task.WaitAsync(cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                PublishWasCancelled = true;
+                throw;
+            }
+        }
+        public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e) =>
+            ValueTask.CompletedTask;
+        public ValueTask PublishAsync(
+            FuturesTickQuoteDataChangedEvent e,
+            ITickQuoteBufferLease lease)
+        {
+            lease.Dispose();
+            return ValueTask.CompletedTask;
+        }
+        public void Release() => _release.TrySetResult();
+        public ValueTask StopAsync()
+        {
+            IsRunning = false;
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask DisposeAsync() => StopAsync();
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<Exception> Exceptions { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (exception is not null)
+                Exceptions.Add(exception);
+        }
     }
 
     private sealed class FakeFeed : IDatabentoTickerFeed

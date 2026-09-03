@@ -8,7 +8,7 @@
 | Design authority | `Documents/system/Databento-Market-Data-Service-Resiliency-System-Design-v0.1.md` |
 | Stage 1 | Local Market Outlook update processor |
 | Stage 2 | Databento lifecycle and resiliency refactor |
-| Stage 3 | Central market-data operations-health service |
+| Stage 3 | Central market-data operations-health service and dataset process containment |
 | Deployment now | API Server hosted |
 | Deployment later | Dedicated Aspire Market Data service |
 
@@ -17,14 +17,14 @@
 Implement market-data reliability in three independently reviewable stages. Each stage must be
 completed, tested and accepted before the next stage begins. The sequence provides immediate Market
 Outlook single-writer correctness, then resilient Databento lifecycle ownership, and finally one
-central end-to-end operational-health view.
+central end-to-end operational-health view with supervised per-dataset process containment.
 
 The stages are intentionally ordered:
 
 1. create the local Market Outlook processing boundary without changing Databento lifecycle;
 2. create the authoritative Databento lifecycle, watchdog, persistence and recovery boundary; and
 3. aggregate every stage's already-instrumented measurements into the central operations-health
-   service and UI.
+   service and UI, then contain hard-reset escalation within the affected dataset worker process.
 
 ## 2. Binding implementation rules
 
@@ -43,7 +43,7 @@ The stages are intentionally ordered:
 10. C++ and Rust remain equal implementations of one native ABI and must change together.
 11. A minimal operational recording contract is defined in Stage 1. Stage 1 records Market Outlook
     measurements and Stage 2 instruments Databento through that boundary. Stage 3 supplies the full
-    central aggregation, evaluation, queries and UI.
+    central aggregation, evaluation, queries, UI and supervised dataset-process containment.
 12. Metric dimensions are bounded. Update, command and correlation GUIDs belong in diagnostic
     records/traces and never become metric labels.
 13. Operational metric recording cannot throw into or synchronously block the market-data path.
@@ -372,7 +372,7 @@ Stage 2 is complete only when:
 8. all qualification and soak evidence passes; and
 9. the user accepts Stage 2 evidence before Stage 3 begins.
 
-## 7. Stage 3 — Central market-data operations-health service
+## 7. Stage 3 — Central market-data operations-health service and dataset process containment
 
 ### Stage 3 entry criteria
 
@@ -438,7 +438,25 @@ Stage 2 is complete only when:
 - define, but do not automatically enable, future sampled time-series retention/export;
 - prevent unbounded labels, payloads or errors from entering PostgreSQL or telemetry exporters.
 
-### MDOH-09 — End-to-end qualification
+### MDOH-09 — Supervised per-dataset process containment
+
+- host each active Databento dataset generation in its own supervised worker process; the process
+  owns that generation's native handle, producer, managed drain, channels, aggregation worker and
+  cancellation source;
+- keep `DatabentoMarketDataWatchdogService` as the sole health and reset authority; the process
+  supervisor executes its escalation decision but does not independently decide to reset data;
+- attempt the bounded cooperative Stage 2 teardown first, then terminate only the affected dataset
+  worker when it fails to quiesce within the hard-reset deadline;
+- fence every worker generation at publication and hot-cache ingress so a terminated or stale
+  generation cannot publish, mutate current state or overlap its replacement;
+- expose process identity, generation, exit reason, graceful-stop outcome, forced-termination count,
+  restart count and post-restart qualification through the central operations-health snapshot;
+- prove that terminating one dataset worker leaves the API/Core host, the health authority and every
+  healthy dataset worker running; and
+- treat later Aspire Market Data Feed extraction as orchestration of this established boundary, not
+  as a second lifecycle or reset authority.
+
+### MDOH-10 — End-to-end qualification
 
 Required evidence:
 
@@ -447,10 +465,12 @@ Required evidence:
 - failure injection at every monitored boundary;
 - proof that the health service remains queryable when each worker is independently stopped;
 - saturation, high-cardinality guard, metrics-recorder failure and exporter failure tests;
+- graceful-stop timeout and forced process-termination tests for each dataset, including proof that
+  no stale generation publishes after replacement and that unaffected datasets do not restart;
 - runtime and UI journeys identifying a deliberately stopped RSI, TDI, aggregation, publication or
   native stage without log reconstruction.
 
-### MDOH-10 — Stage 3 and plan acceptance
+### MDOH-11 — Stage 3 and plan acceptance
 
 The complete plan is accepted only when:
 
@@ -461,8 +481,11 @@ The complete plan is accepted only when:
 5. every registered stage is refreshable through its authoritative owner;
 6. metric collection cannot block or fail the market-data path;
 7. no loss, saturation, coalescing or recovery is silent;
-8. all BDD, unit, integration, verification, runtime, UI and soak suites pass; and
-9. documentation contains final evidence and no partial gates remain.
+8. an unresponsive dataset generation is forcibly terminated and replaced without restarting the
+   API/Core host or an unaffected dataset;
+9. no old and replacement dataset generations can concurrently publish or mutate current state;
+10. all BDD, unit, integration, verification, runtime, UI and soak suites pass; and
+11. documentation contains final evidence and no partial gates remain.
 
 ## 8. Cross-stage verification matrix
 

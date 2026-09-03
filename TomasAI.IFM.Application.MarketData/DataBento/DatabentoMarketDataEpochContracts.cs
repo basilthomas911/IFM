@@ -5,6 +5,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -51,6 +52,11 @@ public interface IDatabentoMarketDataEpoch : IAsyncDisposable
 
     Task StartAsync(CancellationToken cancellationToken);
     Task StopAsync();
+    Task<DatabentoDatasetResetResult> ResetDatasetAsync(
+        DatabentoDatasetResetRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<DatabentoDatasetResetResult>(
+            new NotSupportedException("Per-dataset reset is not supported by this epoch."));
     DatabentoMarketDataEpochHealth GetHealth();
     TickAggregationContractStatus GetAggregationStatus(string contractId);
     bool StartFuturesRoute(TickerStreamOwner owner, string futuresContractId);
@@ -84,7 +90,9 @@ public readonly record struct DatabentoMarketDataEpochHealth(
 /// </summary>
 public readonly record struct DatabentoDatasetFeedHealth(
     string Dataset,
-    FeedHealthSnapshot Health);
+    Guid GenerationId,
+    FeedHealthSnapshot Health,
+    TickAggregationMetricsSnapshot AggregationMetrics);
 
 public readonly record struct DatabentoMarketDataApiHealth(
     bool Running,

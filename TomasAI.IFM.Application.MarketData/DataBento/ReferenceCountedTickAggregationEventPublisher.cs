@@ -20,10 +20,12 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
 
     public bool IsRunning => _inner.IsRunning;
 
-    public async ValueTask StartAsync()
+    public ValueTask StartAsync() => StartAsync(CancellationToken.None);
+
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_references != 0)
@@ -32,7 +34,7 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
                 return;
             }
 
-            await _inner.StartAsync().ConfigureAwait(false);
+            await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
             _references = 1;
         }
         finally { _lifecycle.Release(); }
@@ -41,19 +43,39 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
     public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event) =>
         _inner.PublishAsync(@event);
 
+    public ValueTask PublishAsync(
+        FuturesMarketPriceUpdatedRealtimeEvent @event,
+        CancellationToken cancellationToken) => _inner.PublishAsync(@event, cancellationToken);
+
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event) =>
         _inner.PublishAsync(@event);
+
+    public ValueTask PublishAsync(
+        FuturesSessionStatisticsUpdatedRealtimeEvent @event,
+        CancellationToken cancellationToken) => _inner.PublishAsync(@event, cancellationToken);
 
     public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event) =>
         _inner.PublishAsync(@event);
 
     public ValueTask PublishAsync(
+        FuturesTickTradeDataChangedEvent @event,
+        CancellationToken cancellationToken) => _inner.PublishAsync(@event, cancellationToken);
+
+    public ValueTask PublishAsync(
         FuturesTickQuoteDataChangedEvent @event,
         ITickQuoteBufferLease lease) => _inner.PublishAsync(@event, lease);
 
-    public async ValueTask StopAsync()
+    public ValueTask PublishAsync(
+        FuturesTickQuoteDataChangedEvent @event,
+        ITickQuoteBufferLease lease,
+        CancellationToken cancellationToken) =>
+        _inner.PublishAsync(@event, lease, cancellationToken);
+
+    public ValueTask StopAsync() => StopAsync(CancellationToken.None);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_references == 0) return;
@@ -65,7 +87,7 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
 
             try
             {
-                await _inner.StopAsync().ConfigureAwait(false);
+                await _inner.StopAsync(cancellationToken).ConfigureAwait(false);
                 _references = 0;
             }
             catch

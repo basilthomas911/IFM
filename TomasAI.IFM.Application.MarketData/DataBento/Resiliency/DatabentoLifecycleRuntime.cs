@@ -32,6 +32,11 @@ public sealed class DatabentoLifecycleRuntime(
             await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);
     }
 
+    public Task<DatabentoDatasetResetResult> ResetDatasetAsync(
+        DatabentoDatasetResetRequest request,
+        CancellationToken cancellationToken) =>
+        marketDataApi.ResetDatasetAsync(request, cancellationToken);
+
     public ValueTask<DatabentoBulkWatchdogSnapshot> GetWatchdogSnapshotAsync(
         TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -75,7 +80,9 @@ public sealed class DatabentoLifecycleRuntime(
         var isCore = roles.Length != 0;
         var contractStatuses = epoch?.ContractStatuses ?? [];
         var memberIds = members.Select(member => member.DomainContractId).ToHashSet(StringComparer.Ordinal);
-        var managedReady = epoch is { Running: true, AggregationRunning: true, LastPriceStoreActive: true }
+        var datasetHealth = epoch?.DatasetFeedStatuses?.FirstOrDefault(status =>
+            string.Equals(status.Dataset, native.Dataset, StringComparison.Ordinal));
+        var managedReady = epoch is { Running: true, LastPriceStoreActive: true }
             && memberIds.Count != 0
             && contractStatuses.Where(status => memberIds.Contains(status.ContractId)).ToArray() is { Length: > 0 } statuses
             && statuses.All(status => status.ServiceRunning && status.ContractConfigured && status.ContractRunning);
@@ -88,7 +95,8 @@ public sealed class DatabentoLifecycleRuntime(
         var up = major == DatabentoMajorStatus.Up && managedReady;
         return new DatabentoFeedWatchdogStatus
         {
-            FeedInstanceId = native.FeedInstanceId, GenerationId = Generation,
+            FeedInstanceId = native.FeedInstanceId,
+            GenerationId = datasetHealth?.GenerationId ?? Generation,
             Dataset = native.Dataset, FeedKind = native.FeedKind == 2 ? "OptionChain" : "Ticker", Criticality = isCore
                 ? DatabentoFeedCriticality.Core : DatabentoFeedCriticality.Optional,
             MajorStatus = up ? DatabentoMajorStatus.Up : major,
@@ -102,8 +110,19 @@ public sealed class DatabentoLifecycleRuntime(
             RecordsProduced = native.RecordsProduced, RecordsConsumed = native.RecordsConsumed,
             RingCapacity = native.RingCapacityRecords, RingUsed = native.RingUsedRecords,
             RingHighWater = native.RingHighWaterRecords, RingOverruns = native.RingOverruns,
+            BatchesPublished = datasetHealth?.Health.BatchesPublished ?? 0,
+            ChannelFullCount = datasetHealth?.Health.ChannelFullCount ?? 0,
+            PoolMissCount = datasetHealth?.Health.PoolMissCount ?? 0,
+            ChannelBatchCount = datasetHealth?.Health.ChannelBatchCount ?? 0,
+            ChannelBatchCapacity = datasetHealth?.Health.ChannelBatchCapacity ?? 0,
             FailureDetail = native.FailureDetail, ContractRoles = roles,
-            ContractIds = members.Select(registration => registration.DomainContractId).ToArray()
+            ContractIds = members.Select(registration => registration.DomainContractId).ToArray(),
+            DrainDiagnostics = datasetHealth is { Dataset: not null }
+                ? datasetHealth.Value.Health.DrainDiagnostics
+                : null,
+            AggregationMetrics = datasetHealth is { Dataset: not null }
+                ? datasetHealth.Value.AggregationMetrics
+                : null
         };
     }
 

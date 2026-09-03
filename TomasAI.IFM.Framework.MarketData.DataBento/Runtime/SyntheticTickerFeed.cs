@@ -6,8 +6,6 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
 {
-    private static readonly Func<bool> NeverStopping = static () => false;
-
     private sealed class ChannelState
     {
         internal required InstrumentKey Instrument { get; init; }
@@ -25,6 +23,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private readonly ManualResetEventSlim _drainReady = new(false);
     private readonly SemaphoreSlim _multiplexedReady = new(0);
     private readonly ulong[]? _managedObservedProcessors;
+    private readonly Func<bool> _isStopping;
     private TickerSubscription[]? _subscriptions;
     private OptionContractSelection[]? _optionContracts;
     private MarketDataKinds _optionDataKinds;
@@ -52,6 +51,22 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private long _managedProcessorSampleCount;
     private long _managedProcessorMigrationCount;
     private long _managedOffAssignmentCount;
+    private long _nativeReadCallCount;
+    private long _lastNativeReadFirstSequence;
+    private long _lastNativeReadLastSequence;
+    private int _lastNativeReadRecordCount;
+    private int _lastNativeReadRecordsRouted;
+    private int _currentNativeReadRecordIndex = -1;
+    private int _currentRecordKind;
+    private int _currentRecordPublisherId;
+    private int _currentRecordInstrumentId;
+    private int _currentRecordSourceSequence;
+    private int _managedBatchPublishActive;
+    private int _managedBatchPublishRecordCount;
+    private int _managedBatchPublisherId;
+    private int _managedBatchInstrumentId;
+    private int _drainStage;
+    private int _stopRequested;
     private int _managedUniqueProcessorCount;
     private FeedProcessorSelectionKind _processorSelection;
     private LogicalProcessorLocation? _resolvedNativeProducer;
@@ -65,6 +80,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     {
         _options = options;
         _singleChannel = singleChannel;
+        _isStopping = IsStopping;
         _managedObservedProcessors = options.ProcessorResidency.EnableTracking
             ? new ulong[64]
             : null;
@@ -249,9 +265,18 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
-    public void Stop(TimeSpan timeout)
+    public void Stop(TimeSpan timeout) => StopCore(timeout, CancellationToken.None, forceManagedUnblock: false);
+
+    public void Stop(TimeSpan timeout, CancellationToken cancellationToken) =>
+        StopCore(timeout, cancellationToken, forceManagedUnblock: true);
+
+    private void StopCore(
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        bool forceManagedUnblock)
     {
         ValidateTimeout(timeout);
+        cancellationToken.ThrowIfCancellationRequested();
         var deadline = new MonotonicDeadline(timeout);
         lock (_lifecycleGate)
         {
@@ -266,7 +291,12 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             }
         }
 
-        _drainStart.Set();
+        if (forceManagedUnblock)
+        {
+            Volatile.Write(ref _stopRequested, 1);
+            _drainStart.Set();
+            WakeManagedWaiters();
+        }
         if (_handle is not null && !_handle.IsInvalid && !_handle.IsClosed)
         {
             NativeStatus.ThrowIfFailed(
@@ -450,7 +480,39 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             ManagedDrainUniqueProcessors = unchecked((uint)Volatile.Read(
                 ref _managedUniqueProcessorCount)),
             ManagedDrainOffAssignmentSamples = unchecked((ulong)Interlocked.Read(
-                ref _managedOffAssignmentCount))
+                ref _managedOffAssignmentCount)),
+            DrainDiagnostics = GetDrainDiagnostics()
+        };
+    }
+
+    private FeedDrainDiagnostics GetDrainDiagnostics()
+    {
+        var currentIndex = Volatile.Read(ref _currentNativeReadRecordIndex);
+        return new FeedDrainDiagnostics
+        {
+            Stage = (FeedDrainStage)Volatile.Read(ref _drainStage),
+            NativeReadCallCount = Interlocked.Read(ref _nativeReadCallCount),
+            LastNativeReadRecordCount = unchecked((uint)Volatile.Read(
+                ref _lastNativeReadRecordCount)),
+            LastNativeReadFirstSequence = unchecked((ulong)Interlocked.Read(
+                ref _lastNativeReadFirstSequence)),
+            LastNativeReadLastSequence = unchecked((ulong)Interlocked.Read(
+                ref _lastNativeReadLastSequence)),
+            LastNativeReadRecordsRouted = unchecked((uint)Volatile.Read(
+                ref _lastNativeReadRecordsRouted)),
+            CurrentNativeReadRecordIndex = currentIndex,
+            CurrentRecordKind = currentIndex < 0
+                ? string.Empty
+                : ((MarketRecordKind)Volatile.Read(ref _currentRecordKind)).ToString(),
+            CurrentPublisherId = unchecked((ushort)Volatile.Read(ref _currentRecordPublisherId)),
+            CurrentInstrumentId = unchecked((uint)Volatile.Read(ref _currentRecordInstrumentId)),
+            CurrentSourceSequence = unchecked((uint)Volatile.Read(ref _currentRecordSourceSequence)),
+            ManagedBatchPublishActive = Volatile.Read(ref _managedBatchPublishActive) != 0,
+            ManagedBatchPublishRecordCount = Volatile.Read(ref _managedBatchPublishRecordCount),
+            ManagedBatchPublisherId = unchecked((ushort)Volatile.Read(
+                ref _managedBatchPublisherId)),
+            ManagedBatchInstrumentId = unchecked((uint)Volatile.Read(
+                ref _managedBatchInstrumentId))
         };
     }
 
@@ -783,8 +845,19 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             _drainReady.Set();
             Interlocked.Exchange(ref _drainAllocatedBytes, DrainLoop());
         }
+        catch (OperationCanceledException) when (IsStopping())
+        {
+            Volatile.Write(ref _drainStage, (int)FeedDrainStage.Completed);
+            _drainAllocated.Set();
+            _drainReady.Set();
+            foreach (var state in _channelStates)
+            {
+                state.Channel.Complete();
+            }
+        }
         catch (Exception exception)
         {
+            Volatile.Write(ref _drainStage, (int)FeedDrainStage.Faulted);
             _drainFailure = exception;
             _drainAllocated.Set();
             _drainReady.Set();
@@ -815,6 +888,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         long allocationBaseline = -1;
         while (true)
         {
+            Volatile.Write(ref _drainStage, (int)FeedDrainStage.WaitingForNativeSignal);
             var wait = new NativeWaitResult
             {
                 StructSize = (uint)sizeof(NativeWaitResult),
@@ -827,6 +901,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             var recordsThisPass = 0;
             while (recordsThisPass < _options.Drain.MaxRecordsPerDrainPass)
             {
+                Volatile.Write(ref _drainStage, (int)FeedDrainStage.ReadingNativeBatch);
                 var readCapacity = Math.Min(
                     _options.Drain.NativeReadRecordCapacity,
                     _options.Drain.MaxRecordsPerDrainPass - recordsThisPass);
@@ -840,11 +915,42 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                         _handle!, _readBuffer, checked((uint)readCapacity), ref batch),
                     _handle,
                     "Native batch read");
+                Interlocked.Increment(ref _nativeReadCallCount);
+                if (batch.RecordsRead != 0)
+                {
+                    Volatile.Write(
+                        ref _lastNativeReadRecordCount,
+                        checked((int)batch.RecordsRead));
+                    Interlocked.Exchange(
+                        ref _lastNativeReadFirstSequence,
+                        unchecked((long)batch.FirstSequence));
+                    Interlocked.Exchange(
+                        ref _lastNativeReadLastSequence,
+                        unchecked((long)batch.LastSequence));
+                    Volatile.Write(ref _lastNativeReadRecordsRouted, 0);
+                }
+                Volatile.Write(ref _drainStage, (int)FeedDrainStage.RoutingNativeRecord);
                 for (var index = 0u; index < batch.RecordsRead; index++)
                 {
+                    var record = _readBuffer[index];
+                    Volatile.Write(ref _currentNativeReadRecordIndex, checked((int)index));
+                    Volatile.Write(ref _currentRecordKind, (int)record.Header.RecordKind);
+                    Volatile.Write(ref _currentRecordPublisherId, record.Header.PublisherId);
+                    Volatile.Write(
+                        ref _currentRecordInstrumentId,
+                        unchecked((int)record.Header.InstrumentId));
+                    Volatile.Write(
+                        ref _currentRecordSourceSequence,
+                        unchecked((int)record.Header.Sequence));
                     RecordManagedProcessorResidency();
-                    RouteRecord(_readBuffer[index]);
+                    RouteRecord(record);
+                    Volatile.Write(ref _lastNativeReadRecordsRouted, checked((int)index + 1));
                 }
+                Volatile.Write(ref _currentNativeReadRecordIndex, -1);
+                Volatile.Write(ref _currentRecordKind, 0);
+                Volatile.Write(ref _currentRecordPublisherId, 0);
+                Volatile.Write(ref _currentRecordInstrumentId, 0);
+                Volatile.Write(ref _currentRecordSourceSequence, 0);
                 if (allocationBaseline < 0 && batch.RecordsRead != 0)
                 {
                     var warmStats = new NativeFeedStats
@@ -864,6 +970,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                     break;
                 }
             }
+            Volatile.Write(ref _drainStage, (int)FeedDrainStage.FlushingPartialBatches);
             FlushPartialBatches();
 
             if (recordsThisPass == _options.Drain.MaxRecordsPerDrainPass)
@@ -871,6 +978,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 Interlocked.Increment(ref _drainPassLimitHitCount);
             }
 
+            Volatile.Write(ref _drainStage, (int)FeedDrainStage.ReadingNativeStatistics);
             var stats = new NativeFeedStats
             {
                 StructSize = (uint)sizeof(NativeFeedStats),
@@ -892,6 +1000,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 {
                     state.Channel.Complete(error);
                 }
+                Volatile.Write(ref _drainStage, (int)FeedDrainStage.Completed);
                 return allocationBaseline < 0
                     ? 0
                     : GC.GetAllocatedBytesForCurrentThread() - allocationBaseline;
@@ -911,7 +1020,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         {
             Volatile.Write(ref state.BaselineReady, 1);
         }
-        state.AssemblyBatch ??= state.Channel.RentBatch(NeverStopping);
+        state.AssemblyBatch ??= state.Channel.RentBatch(_isStopping);
         state.AssemblyBatch.Add(record);
         if (state.AssemblyBatch.IsFull)
         {
@@ -934,12 +1043,33 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     {
         var batch = state.AssemblyBatch!;
         state.AssemblyBatch = null;
-        if (!state.Channel.Publish(batch, NeverStopping))
+        var priorStage = Volatile.Read(ref _drainStage);
+        var batchInstrument = batch.Count == 0
+            ? state.Instrument
+            : new InstrumentKey(
+                batch.Records[0].Header.PublisherId,
+                batch.Records[0].Header.InstrumentId);
+        Volatile.Write(ref _managedBatchPublishRecordCount, batch.Count);
+        Volatile.Write(ref _managedBatchPublisherId, batchInstrument.PublisherId);
+        Volatile.Write(
+            ref _managedBatchInstrumentId,
+            unchecked((int)batchInstrument.InstrumentId));
+        Volatile.Write(ref _managedBatchPublishActive, 1);
+        Volatile.Write(ref _drainStage, (int)FeedDrainStage.PublishingManagedBatch);
+        try
         {
-            state.Channel.ReturnUnpublished(batch);
-            throw new OperationCanceledException("Managed channel publication was interrupted.");
+            if (!state.Channel.Publish(batch, _isStopping))
+            {
+                state.Channel.ReturnUnpublished(batch);
+                throw new OperationCanceledException("Managed channel publication was interrupted.");
+            }
+            Interlocked.Increment(ref _batchesPublished);
         }
-        Interlocked.Increment(ref _batchesPublished);
+        finally
+        {
+            Volatile.Write(ref _drainStage, priorStage);
+            Volatile.Write(ref _managedBatchPublishActive, 0);
+        }
     }
 
     private void ApplyManagedDrainSettings()
@@ -1118,7 +1248,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
 
     private void RollBackStart(MonotonicDeadline deadline)
     {
+        Volatile.Write(ref _stopRequested, 1);
         _drainStart.Set();
+        WakeManagedWaiters();
         if (_handle is not null && !_handle.IsInvalid && !_handle.IsClosed)
         {
             NativeMethods.FeedStop(_handle, deadline.RemainingMilliseconds);
@@ -1145,6 +1277,16 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private bool IsStopping() => Volatile.Read(ref _stopRequested) != 0;
+
+    private void WakeManagedWaiters()
+    {
+        foreach (var state in _channelStates)
+        {
+            state.Channel.WakeWaiters();
+        }
+    }
 }
 
 internal readonly struct MonotonicDeadline

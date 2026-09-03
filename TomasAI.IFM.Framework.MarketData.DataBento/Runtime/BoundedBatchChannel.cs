@@ -209,6 +209,16 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
             _signalReader?.Invoke();
     }
 
+    internal void WakeWaiters()
+    {
+        lock (_gate)
+        {
+            Monitor.PulseAll(_gate);
+        }
+        _pool.WakeAll();
+        _signalReader?.Invoke();
+    }
+
     internal void ReturnUnpublished(MarketDataBatch64 batch) => _pool.Return(batch);
 
     internal void ReturnConsumerLease(MarketDataBatch64 batch)
