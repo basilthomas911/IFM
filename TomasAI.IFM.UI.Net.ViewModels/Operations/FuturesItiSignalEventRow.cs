@@ -38,9 +38,8 @@ public sealed record FuturesItiSignalEventRow(
     public string StableIdentity => string.Join(
         '|',
         ContractId,
-        TimeFrameStartValueDate,
+        ValueDate,
         TimePeriod,
-        SequenceId,
         OccurredOn.Ticks,
         Mode,
         Trend,

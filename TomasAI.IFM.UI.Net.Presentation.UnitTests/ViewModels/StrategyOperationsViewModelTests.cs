@@ -77,8 +77,13 @@ public sealed class StrategyOperationsViewModelTests
         {
             subject.EventSource.Publish(Signal(
                 (TimeFrameType)((index % 3) + (int)TimeFrameType.Daily),
-                index + 1,
-                modes[index]));
+                0,
+                modes[index]) with
+            {
+                IntrinsicTime = new DateTime(2026, 8, 21, 13, 30, 0, DateTimeKind.Utc)
+                    .AddSeconds(index),
+                IntrinsicPrice = 6500 + index
+            });
         }
 
         foreach (var timeFrame in subject.ViewModel.TimeFrames)
@@ -90,6 +95,7 @@ public sealed class StrategyOperationsViewModelTests
             subject.ViewModel.Events.Select(row => row.Mode)
                 .Should().BeEquivalentTo(expectedModes);
             subject.ViewModel.Events.Should().OnlyContain(row => row.TimePeriod == timeFrame);
+            subject.ViewModel.Events.Should().OnlyContain(row => row.SequenceId == 0);
         }
 
         subject.ViewModel.SelectedTimeFrame = TimeFrameType.Daily;
@@ -164,13 +170,6 @@ public sealed class StrategyOperationsViewModelTests
                     Interlocked.Increment(ref dailyHistoryCalls) == 1
                         ? []
                         : [missed, authoritativeHead])));
-        subject.QueryApi.GetFuturesItiSignalAsync(
-                ContractId,
-                ValueDate,
-                TimeFrameType.Daily)
-            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
-                new ServiceOk<FuturesItiSignalV2ReadModel>(authoritativeHead)));
-
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         subject.ViewModel.Events.Should().BeEmpty();
 
@@ -179,54 +178,55 @@ public sealed class StrategyOperationsViewModelTests
 
         subject.ViewModel.Events.Select(row => row.SequenceId).Should().Equal(11, 10);
         subject.ViewModel.Events.Should().OnlyContain(row => row.IsHistorical);
-        dailyHistoryCalls.Should().Be(2, "the changed head triggers one bounded history catch-up");
+        dailyHistoryCalls.Should().Be(2, "the recovery cadence reloads authoritative history");
         await subject.ViewModel.DisposeAsync();
     }
 
     [Fact]
-    public async Task Reconciliation_DoesNotReloadHistoryAfterLiveNotificationArrives()
+    public async Task Reconciliation_DeduplicatesPersistedSignalAfterZeroSequenceLiveNotification()
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 21, 14, 0, 0, TimeSpan.Zero));
         var interval = TimeSpan.FromMinutes(1);
-        var live = Signal(
-            TimeFrameType.Daily,
+        var persisted = Signal(
+            TimeFrameType.Weekly,
             12,
-            IntrinsicTimeModeType.TrendReversalChanged);
-        var dailyHistoryCalls = 0;
-        var currentCalls = 0;
+            IntrinsicTimeModeType.TrendReversalChanged) with
+        {
+            TimeFrameStartValueDate = default
+        };
+        var live = persisted with
+        {
+            SequenceId = 0,
+            TimeFrameStartValueDate = ValueDate.AddDays(-4)
+        };
+        var weeklyHistoryCalls = 0;
         var subject = CreateSubject(timeProvider, interval);
         subject.QueryApi.GetFuturesItiSignalHistoryAsync(
                 ContractId,
                 ValueDate,
-                TimeFrameType.Daily)
+                TimeFrameType.Weekly)
             .Returns(_ =>
             {
-                Interlocked.Increment(ref dailyHistoryCalls);
+                Interlocked.Increment(ref weeklyHistoryCalls);
                 return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
-                    new ServiceOk<FuturesItiSignalV2ReadModel[]>([]));
-            });
-        subject.QueryApi.GetFuturesItiSignalAsync(
-                ContractId,
-                ValueDate,
-                TimeFrameType.Daily)
-            .Returns(_ =>
-            {
-                Interlocked.Increment(ref currentCalls);
-                return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
-                    new ServiceOk<FuturesItiSignalV2ReadModel>(live));
+                    new ServiceOk<FuturesItiSignalV2ReadModel[]>(
+                        weeklyHistoryCalls == 1 ? [] : [persisted]));
             });
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.ViewModel.SelectedTimeFrame = TimeFrameType.Weekly;
         subject.EventSource.Publish(live);
         subject.ViewModel.Events.Should().ContainSingle()
             .Which.IsHistorical.Should().BeFalse();
 
         timeProvider.Advance(interval);
-        await WaitUntilAsync(() => Volatile.Read(ref currentCalls) == 1);
+        await WaitUntilAsync(() => Volatile.Read(ref weeklyHistoryCalls) == 2);
 
-        dailyHistoryCalls.Should().Be(1, "the live notification already supplied the authoritative head");
-        subject.ViewModel.Events.Should().ContainSingle();
+        subject.ViewModel.Events.Should().ContainSingle(
+            "persistence-only metadata does not create a duplicate display event");
+        subject.ViewModel.Events.Single().IsHistorical.Should().BeFalse(
+            "the live notification arrived first and remains the displayed instance");
         await subject.ViewModel.DisposeAsync();
     }
 

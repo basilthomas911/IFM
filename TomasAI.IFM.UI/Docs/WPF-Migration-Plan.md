@@ -122,6 +122,9 @@ flowchart LR
 
 The WPF adapter is intentionally absent from the Stage 1 runtime, but all shared interfaces must be implementable by both UI frameworks without conditional compilation.
 
+All current and future presentation implementations are governed by the normative
+[Frontend Display-Only Policy](Frontend-Display-Only-Policy.md). Backend query results and notifications are authoritative. The UI may format, order, group, and select them for display, but it must not silently reject records using business validation or hidden, non-display fields.
+
 ## Threading and concurrency contract
 
 Every Stage 1 implementation must obey these invariants:

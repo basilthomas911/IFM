@@ -57,7 +57,8 @@ public sealed record EsTradeMarketOutlookUpdate : MarketOutlookUpdate
 public sealed record VixPriceMarketOutlookUpdate : MarketOutlookUpdate
 {
     public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.VixPrice;
-    public required decimal Price { get; init; }
+    public required decimal? Price { get; init; }
+    public decimal? SessionOpenPrice { get; init; }
 }
 
 public sealed record EodMarketOutlookUpdate : MarketOutlookUpdate
@@ -415,7 +416,20 @@ public sealed class MarketOutlookUpdateProcessor(
                 MarketOutlookRefreshTrigger.Component, now),
             VixPriceMarketOutlookUpdate value => Write(
                 update, [new(CacheComponentType.Vx, position)],
-                state => state with { VixFuturesPrice = value.Price },
+                state => state with
+                {
+                    VixFuturesPrice = value.Price is > 0m
+                        ? value.Price
+                        : state.VixFuturesPrice,
+                    // The first accepted VX observation is a provisional session open. A later
+                    // official statistic replaces it, so a delayed statistics feed never leaves
+                    // Price Volatility permanently Unknown.
+                    VixFuturesSessionOpenPrice = value.SessionOpenPrice is > 0m
+                        ? value.SessionOpenPrice
+                        : state.VixFuturesSessionOpenPrice is > 0m
+                            ? state.VixFuturesSessionOpenPrice
+                            : value.Price is > 0m ? value.Price : null
+                },
                 MarketOutlookRefreshTrigger.Component, now),
             TradeSignalMarketOutlookUpdate value => Write(
                 update, [new(CacheComponentType.TradeSignal, position)],

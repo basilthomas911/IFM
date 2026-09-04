@@ -6,6 +6,12 @@ Target: existing WinForms trading application. Strategy is the default
 Operations view. UI is read-only operational presentation; all
 trading/business decisions remain outside the UI.
 
+All Operations views must follow the normative
+[Frontend Display-Only Policy](Frontend-Display-Only-Policy.md). Backend query
+results and notifications are authoritative; frontend code formats and selects
+data for display and must not silently reject records using duplicated business
+or data-quality rules.
+
 ## 1. Operations Shell
 
 Five views: **Strategy, Latency, Traffic, Errors, Saturation**.

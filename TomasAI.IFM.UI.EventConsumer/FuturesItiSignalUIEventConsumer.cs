@@ -10,7 +10,8 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.UI.EventConsumer;
 
 /// <summary>
-/// Delivers every valid, successfully persisted Futures ITI change to independently owned UI subscribers.
+/// Delivers every successfully deserialized Futures ITI notification to independently owned UI subscribers.
+/// Backend services own business and data-quality validation; this presentation consumer does not reject payloads.
 /// </summary>
 public sealed class FuturesItiSignalUIEventConsumer(INatsEventListenerOptions options, ILogger logger)
     : NatsActorEventListener(options, logger), IFuturesItiSignalUIEventConsumer
@@ -94,9 +95,6 @@ public sealed class FuturesItiSignalUIEventConsumer(INatsEventListenerOptions op
 
     internal void Dispatch(FuturesItiSignalUpdatedNotifyEvent notification)
     {
-        if (!notification.IsValid)
-            return;
-
         foreach (var eventAction in _eventActions.Values)
         {
             try

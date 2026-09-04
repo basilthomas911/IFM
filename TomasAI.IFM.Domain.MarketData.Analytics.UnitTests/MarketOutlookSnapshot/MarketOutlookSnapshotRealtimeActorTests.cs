@@ -1,12 +1,17 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -115,7 +120,97 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.VixFuturesPrice.Should().Be(22.25m);
+        current.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Flat);
         current.LatestItiTrendSignal.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ConsecutiveVxComponents_SeedProvisionalOpenAndThenMove()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
+        var actor = new TestActor(context);
+        var id = Id();
+
+        await actor.Receive(context, Component(id, 1) with { VixFuturesPrice = 18m });
+        await runtime.DrainAsync();
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var initial).Should().BeTrue();
+        initial.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Flat);
+
+        await actor.Receive(context, Component(id, 2) with { VixFuturesPrice = 18.25m });
+        await runtime.DrainAsync();
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var moved).Should().BeTrue();
+        moved.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Rising);
+    }
+
+    [Fact]
+    public async Task DirectVxUpdate_UsesOfficialSessionOpenAndTargetsCurrentEsContract()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var marketDataApi = Substitute.For<IMarketDataApi>();
+        var valueDate = new DateOnly(2026, 8, 31);
+        var vx = Contract("VXU26", "VX", valueDate.AddDays(15));
+        var es = Contract("ESU26", "ES", valueDate.AddDays(17));
+        marketDataApi.TryGetOnTheRunFuturesContract("VX", out Arg.Any<FuturesContractV3ReadModel>())
+            .Returns(call => { call[1] = vx; return true; });
+        marketDataApi.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>())
+            .Returns(call => { call[1] = es; return true; });
+        marketDataApi.GetFuturesPriceAsync(vx.ContractId).Returns(19m);
+        var statistics = new FuturesSessionStatisticsSnapshot(
+            vx.ContractId, valueDate, 18m, 19.5m, 17.5m, 42, 1);
+        marketDataApi.TryGetFuturesSessionStatistics(
+                vx.ContractId, out Arg.Any<FuturesSessionStatisticsSnapshot>())
+            .Returns(call => { call[1] = statistics; return true; });
+        var context = Context(runtime.Channel, marketDataApi);
+        var actor = new TestActor(context);
+        var source = WithCurrentTimestamp(
+            MarketOutlookDailyPreviewCalculatorTests.Trade(vx.ContractId, 19m, 1));
+
+        await actor.Receive(context, source);
+        await runtime.DrainAsync();
+
+        var id = new MarketOutlookEntityId(es.ContractId, valueDate);
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.VixFuturesPrice.Should().Be(19m);
+        current.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Rising);
+    }
+
+    [Fact]
+    public async Task OfficialVxStatistics_ReplaceProvisionalOpen()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var marketDataApi = Substitute.For<IMarketDataApi>();
+        var id = Id();
+        var vx = Contract("VXU26", "VX", id.ValueDate.AddDays(15));
+        var es = Contract(id.ContractId, "ES", id.ValueDate.AddDays(17));
+        marketDataApi.TryGetOnTheRunFuturesContract("VX", out Arg.Any<FuturesContractV3ReadModel>())
+            .Returns(call => { call[1] = vx; return true; });
+        marketDataApi.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>())
+            .Returns(call => { call[1] = es; return true; });
+        marketDataApi.GetFuturesPriceAsync(vx.ContractId).Returns(17m);
+        var context = Context(runtime.Channel, marketDataApi);
+        var actor = new TestActor(context);
+        await actor.Receive(context, Component(id, 1) with { VixFuturesPrice = 19m });
+        await runtime.DrainAsync();
+
+        var source = new FuturesSessionStatisticsUpdatedRealtimeEvent
+        {
+            Subject = new(ActorType.Realtime,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Verb,
+                $"{vx.ContractId}:{id.ValueDate:yyyyMMdd}"),
+            Id = Guid.NewGuid(),
+            EntityId = new(vx.ContractId, id.ValueDate),
+            CommandId = Guid.NewGuid(),
+            ReceivedOn = DateTime.UtcNow,
+            Statistics = new(vx.ContractId, id.ValueDate, 18m, 19.5m, 16.5m, 43, 2)
+        };
+        await actor.Receive(context, source);
+        await runtime.DrainAsync();
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.VixFuturesPrice.Should().Be(17m);
+        current.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Falling);
     }
 
     [Fact]
@@ -308,7 +403,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         };
 
     static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context(
-        IMarketOutlookUpdateWriter writer)
+        IMarketOutlookUpdateWriter writer,
+        IMarketDataApi? marketDataApi = null)
     {
         var context = Substitute.For<
             IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>,
@@ -317,8 +413,24 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         typed.DbFactory.Returns(Substitute.For<IDbContextFactory>());
         typed.Logger.Returns(Substitute.For<ILogger<MarketOutlookSnapshotRealtimeActor>>());
         typed.UpdateWriter.Returns(writer);
+        typed.MarketDataApi.Returns(marketDataApi ?? Substitute.For<IMarketDataApi>());
         return context;
     }
+
+    static FuturesContractV3ReadModel Contract(
+        string contractId,
+        string symbol,
+        DateOnly lastTradeDate) => new(
+        contractId,
+        contractId,
+        symbol,
+        contractId,
+        "FUT",
+        "USD",
+        "CME",
+        "1",
+        lastTradeDate,
+        true);
 
     static ActorSubject Subject(string verb, MarketOutlookEntityId id) =>
         new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName, verb, id.Format());

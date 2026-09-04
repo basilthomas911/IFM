@@ -37,7 +37,7 @@ public sealed class FuturesItiSignalUIEventConsumerTests
     }
 
     [Fact]
-    public void Dispatch_IgnoresInvalidNotificationWithoutInvokingSubscriber()
+    public void Dispatch_ForwardsBackendPayloadWithoutApplyingUiValidation()
     {
         var consumer = new FuturesItiSignalUIEventConsumer(
             new NatsEventListenerOptions(),
@@ -45,12 +45,17 @@ public sealed class FuturesItiSignalUIEventConsumerTests
         var invoked = false;
         consumer.AddSubscriber(Guid.NewGuid(), _ => invoked = true);
 
-        consumer.Dispatch(Notification(IntrinsicTimeModeType.Trending) with
+        var notification = Notification(IntrinsicTimeModeType.Trending);
+        consumer.Dispatch(notification with
         {
-            CommandId = Guid.Empty
+            CommandId = Guid.Empty,
+            FuturesItiSignal = notification.FuturesItiSignal with
+            {
+                SequenceId = 0
+            }
         });
 
-        invoked.Should().BeFalse();
+        invoked.Should().BeTrue();
     }
 
     static FuturesItiSignalUpdatedNotifyEvent Notification(IntrinsicTimeModeType mode)

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command;
@@ -28,6 +29,8 @@ public interface IMarketOutlookSnapshotRealtimeContext : IRealtimeActorContext<M
     ILogger<MarketOutlookSnapshotRealtimeActor> Logger { get; }
     /// <summary>Gets the local Market Outlook update writer.</summary>
     IMarketOutlookUpdateWriter UpdateWriter { get; }
+    /// <summary>Gets the provider-neutral live market-data state.</summary>
+    IMarketDataApi MarketDataApi { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="MarketOutlookSnapshotRealtimeActor"/>.</summary>
@@ -37,12 +40,14 @@ public sealed class MarketOutlookSnapshotRealtimeContext : EventActorContext, IR
     public MarketOutlookSnapshotRealtimeContext(
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
+        IMarketDataApi marketDataApi,
         IMarketOutlookUpdateWriter updateWriter,
         ILogger<MarketOutlookSnapshotRealtimeActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         DbFactory = IsArgumentNull.Set(dbFactory);
+        MarketDataApi = IsArgumentNull.Set(marketDataApi);
         UpdateWriter = IsArgumentNull.Set(updateWriter);
         Logger = IsArgumentNull.Set(logger);
     }
@@ -51,6 +56,8 @@ public sealed class MarketOutlookSnapshotRealtimeContext : EventActorContext, IR
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
+    /// <inheritdoc/>
+    public IMarketDataApi MarketDataApi { get; }
     /// <inheritdoc/>
     public IMarketOutlookUpdateWriter UpdateWriter { get; }
     /// <inheritdoc/>

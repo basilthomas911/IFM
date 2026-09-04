@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -28,6 +29,11 @@ public class MarketOutlookSnapshotRealtimeActor(
         FuturesMarketPriceUpdatedRealtimeEvent.Actor,
         FuturesMarketPriceUpdatedRealtimeEvent.Verb);
 
+    static readonly ActorTypeId SessionStatisticsRoute = new(
+        ActorType.Realtime,
+        FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+        FuturesSessionStatisticsUpdatedRealtimeEvent.Verb);
+
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
@@ -35,6 +41,8 @@ public class MarketOutlookSnapshotRealtimeActor(
                 message => message.AsEvent<MarketOutlookComponentChangedRealtimeEvent>()!,
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
                 message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
+            [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesSessionStatisticsUpdatedRealtimeEvent>()!,
             [MarketOutlookEodUpdatedRealtimeEvent.Verb] =
                 message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!,
             [MarketOutlookSnapshotInsertedEvent.Verb] =
@@ -57,10 +65,10 @@ public class MarketOutlookSnapshotRealtimeActor(
                 return ValueTask.CompletedTask;
             },
             [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context) =>
-            {
-                SubmitEsTrade((FuturesMarketPriceUpdatedRealtimeEvent)@event, context);
-                return ValueTask.CompletedTask;
-            },
+                SubmitMarketPriceAsync((FuturesMarketPriceUpdatedRealtimeEvent)@event, context),
+            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static (@event, context) =>
+                SubmitVxSessionStatisticsAsync(
+                    (FuturesSessionStatisticsUpdatedRealtimeEvent)@event, context),
             [typeof(MarketOutlookSnapshotInsertedEvent)] = static (@event, context) =>
                 ((MarketOutlookSnapshotInsertedEvent)@event).ExecuteAsync(context)
         };
@@ -68,12 +76,14 @@ public class MarketOutlookSnapshotRealtimeActor(
     protected override ValueTask OnStartup(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         context.AddRealtimeRouter(MarketPriceRoute, Id);
+        context.AddRealtimeRouter(SessionStatisticsRoute, Id);
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask OnShutdown(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
+        context.RemoveRealtimeRouter(SessionStatisticsRoute, Id);
         return ValueTask.CompletedTask;
     }
 
@@ -270,6 +280,109 @@ public class MarketOutlookSnapshotRealtimeActor(
                 StreamEpochId = trade.StreamEpochId,
                 StreamOrdinal = trade.TradeOrdinal
             });
+    }
+
+    static async ValueTask SubmitMarketPriceAsync(
+        FuturesMarketPriceUpdatedRealtimeEvent source,
+        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
+    {
+        if (source.Price.ContractId.StartsWith("ES", StringComparison.OrdinalIgnoreCase))
+        {
+            SubmitEsTrade(source, context);
+            return;
+        }
+
+        var typed = (IMarketOutlookSnapshotRealtimeContext)context;
+        if (!TryResolveVxTarget(typed, source.Price.ContractId, source.Price.ValueDate, out var target))
+            return;
+
+        var price = await typed.MarketDataApi.GetFuturesPriceAsync(source.Price.ContractId)
+            .ConfigureAwait(false);
+        if (price is not > 0m)
+            return;
+
+        decimal? sessionOpen = null;
+        if (typed.MarketDataApi.TryGetFuturesSessionStatistics(
+                source.Price.ContractId, out var statistics)
+            && statistics.ValueDate == source.Price.ValueDate
+            && statistics.OpenPrice > 0m)
+            sessionOpen = statistics.OpenPrice;
+
+        var (marketDataAsOfUtc, sourceSequence, streamEpochId, streamOrdinal) =
+            VxSourcePosition(source);
+        typed.UpdateWriter.Submit(new VixPriceMarketOutlookUpdate
+        {
+            UpdateId = source.Id,
+            EntityId = target,
+            ReceivedAtUtc = source.ReceivedOn,
+            MarketDataAsOfUtc = marketDataAsOfUtc,
+            Price = price,
+            SessionOpenPrice = sessionOpen,
+            CommandId = source.CommandId,
+            AggregateId = source.AggregateId,
+            EventSource = "MarketOutlookVxPriceRefresh",
+            SourceSequence = sourceSequence,
+            StreamEpochId = streamEpochId,
+            StreamOrdinal = streamOrdinal
+        });
+    }
+
+    static async ValueTask SubmitVxSessionStatisticsAsync(
+        FuturesSessionStatisticsUpdatedRealtimeEvent source,
+        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
+    {
+        var statistics = source.Statistics;
+        if (!statistics.HasPriceStatistics)
+            return;
+
+        var typed = (IMarketOutlookSnapshotRealtimeContext)context;
+        if (!TryResolveVxTarget(typed, statistics.ContractId, statistics.ValueDate, out var target))
+            return;
+
+        var price = await typed.MarketDataApi.GetFuturesPriceAsync(statistics.ContractId)
+            .ConfigureAwait(false);
+        typed.UpdateWriter.Submit(new VixPriceMarketOutlookUpdate
+        {
+            UpdateId = source.Id,
+            EntityId = target,
+            ReceivedAtUtc = source.ReceivedOn,
+            MarketDataAsOfUtc = source.ReceivedOn,
+            Price = price,
+            SessionOpenPrice = statistics.OpenPrice,
+            CommandId = source.CommandId,
+            AggregateId = source.AggregateId,
+            EventSource = "MarketOutlookVxSessionOpenRefresh",
+            SourceSequence = statistics.SourceSequence
+        });
+    }
+
+    static bool TryResolveVxTarget(
+        IMarketOutlookSnapshotRealtimeContext context,
+        string sourceContractId,
+        DateOnly valueDate,
+        out MarketOutlookEntityId target)
+    {
+        target = default!;
+        if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("VX", out var vx)
+            || !StringComparer.Ordinal.Equals(vx.ContractId, sourceContractId)
+            || !context.MarketDataApi.TryGetOnTheRunFuturesContract("ES", out var es))
+            return false;
+
+        target = new(es.ContractId, valueDate);
+        return true;
+    }
+
+    static (DateTime MarketDataAsOfUtc, long SourceSequence, Guid StreamEpochId, long StreamOrdinal)
+        VxSourcePosition(FuturesMarketPriceUpdatedRealtimeEvent source)
+    {
+        if (source.UpdateSource == FuturesMarketPriceUpdateSource.Trade
+            && source.Price.Trade is { } trade)
+            return (trade.EventTimestamp.UtcDateTime, trade.SourceSequence,
+                trade.StreamEpochId, trade.TradeOrdinal);
+        if (source.UpdateSource == FuturesMarketPriceUpdateSource.Quote
+            && source.Price.Quote is { } quote)
+            return (quote.EventTimestamp.UtcDateTime, quote.SourceSequence, Guid.Empty, 0);
+        return (source.ReceivedOn, source.EventId, Guid.Empty, 0);
     }
 
     static Guid ComponentId(Guid sourceId, MarketOutlookUpdateKind kind)

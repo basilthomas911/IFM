@@ -213,29 +213,9 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     {
         try
         {
-            var current = await _model.GetFuturesItiSignalAsync(
-                _contractId,
-                _valueDate,
-                period,
-                cancellationToken);
-            if (!current.IsSuccess)
-            {
-                PublishError(
-                    current.Error!.Code,
-                    current.Error.Message,
-                    $"{period} ITI Reconciliation Unavailable");
-                return;
-            }
-
-            if (current.Value is not { IsValid: true } signal)
-                return;
-
-            var currentRow = FuturesItiSignalEventRow.FromHistory(signal);
-            if (Contains(currentRow))
-                return;
-
-            // A changed authoritative head means one or more Core NATS notifications may
-            // have been missed. Reload the bounded history to recover every missing point.
+            // Core NATS is the immediate display path. Reload authoritative history on the
+            // recovery cadence so a missed notification is recovered without asking the UI
+            // to validate a backend payload or infer the latest row from domain fields.
             var history = await _model.GetFuturesItiSignalHistoryAsync(
                 _contractId,
                 _valueDate,
@@ -243,17 +223,14 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                 cancellationToken);
             if (!history.IsSuccess)
             {
-                // Keep the graph current even when the complete catch-up query is unavailable.
-                Add(currentRow);
                 PublishError(
                     history.Error!.Code,
                     history.Error.Message,
-                    $"{period} ITI History Reconciliation Unavailable");
+                    $"{period} ITI Reconciliation Unavailable");
                 return;
             }
 
             AddRange((history.Value ?? [])
-                .Append(signal)
                 .Select(FuturesItiSignalEventRow.FromHistory));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -268,7 +245,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     void OnNotification(FuturesItiSignalUpdatedNotifyEvent notification)
     {
-        if (Volatile.Read(ref _acceptEvents) == 0 || !notification.IsValid)
+        if (Volatile.Read(ref _acceptEvents) == 0)
             return;
 
         Add(FuturesItiSignalEventRow.FromNotification(notification));
@@ -312,12 +289,6 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         PublishStatus();
     }
 
-    bool Contains(FuturesItiSignalEventRow row)
-    {
-        lock (_stateGate)
-            return _eventIdentities.Contains(row.StableIdentity);
-    }
-
     void PublishSelectedEvents()
     {
         FuturesItiSignalEventRow[] selected;
@@ -334,8 +305,6 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     bool IsRelevant(FuturesItiSignalEventRow row)
     {
         if (!string.Equals(row.ContractId, _contractId, StringComparison.Ordinal)
-            || row.SequenceId <= 0
-            || row.OccurredOn == default
             || !SupportedPeriods.Contains(row.TimePeriod))
         {
             return false;
