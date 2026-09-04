@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.Application.Actor.UnitTests;
 public sealed class ApplicationEventProjectorTests
 {
     [Fact]
-    public void Application_lifecycle_descriptors_are_complete_and_explicitly_non_durable()
+    public void Application_lifecycle_descriptors_are_complete_and_durable()
     {
         var projector = new ApplicationEventProjector(
             Stub<IDurableReplayQueue>(),
@@ -25,13 +25,13 @@ public sealed class ApplicationEventProjectorTests
             descriptor =>
             {
                 Assert.Equal(typeof(ApplicationShutdownEvent), descriptor.SourceEventType);
-                Assert.False(descriptor.UseDurableReplay);
+                Assert.True(descriptor.UseDurableReplay);
                 Assert.False(descriptor.PublishTerminalEvent);
             },
             descriptor =>
             {
                 Assert.Equal(typeof(ApplicationStartupEvent), descriptor.SourceEventType);
-                Assert.False(descriptor.UseDurableReplay);
+                Assert.True(descriptor.UseDurableReplay);
                 Assert.False(descriptor.PublishTerminalEvent);
             });
         Assert.Equal(

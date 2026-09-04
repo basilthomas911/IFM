@@ -9,7 +9,9 @@ public interface IMarketDataAnalyticsCommandApi
     /// <summary>Requests Development-only automatic ES historical coverage over NATS.</summary>
     Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(
         DateOnly candidateValueDate,
-        string analyticsTargetContractId);
+        string analyticsTargetContractId,
+        Guid processBootId = default,
+        Guid startupCommandId = default);
     Task<ServiceResult<Guid>> UpdateFuturesTradeSignalAsync(
         FuturesEodDataV2ReadModel futuresEodData, 
         FuturesRsiSignalReadModel futuresRsiSignal,

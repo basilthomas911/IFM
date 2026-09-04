@@ -968,7 +968,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             : IsLiveMarketSessionOpen ? "live" : "current";
         var completeness = string.IsNullOrWhiteSpace(snapshot.MissingInputs)
             ? "complete"
-            : $"missing {snapshot.MissingInputs}";
+            : $"warming/degraded: {snapshot.MissingInputs}";
         MarketOutlookSnapshotStatus =
             $"Market Outlook {snapshot.RefreshTrigger} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}";
         FuturesTradeSignal = new FuturesTradeSignalUIViewModel(snapshot);

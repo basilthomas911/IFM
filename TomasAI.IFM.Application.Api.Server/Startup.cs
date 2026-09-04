@@ -241,6 +241,7 @@ public static class Startup
                 .Get<ApplicationStartupOptions>() ?? new ApplicationStartupOptions();
             services.AddSingleton(applicationStartup.Validate());
             services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
+            services.AddSingleton<IApplicationStartupHandoffStatusStore, ApplicationStartupHandoffStatusStore>();
             services.AddSingleton<IApplicationStartupActivities, ApiApplicationStartupActivities>();
             services.AddSingleton<IApplicationBootstrapReadiness, ApplicationBootstrapReadiness>();
             services.AddHealthChecks()

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -244,6 +246,59 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         values.Published.Should().Be(0);
         values.Failed.Should().Be(1);
         runtime.Cache.GetMetrics().NotificationFailures.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Hydration_then_warmup_publishes_one_merged_snapshot()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var persisted = new MarketOutlookReadModel
+        {
+            ContractId = Id.ContractId,
+            ValueDate = Id.ValueDate,
+            UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            MarketDataAsOfUtc = DateTime.UtcNow.AddMinutes(-5),
+            FuturesEodData = SampleData.EodData with
+            {
+                Symbol = "ES",
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate
+            },
+            VixFuturesPrice = 18m,
+            FeedHealth = "Green"
+        };
+        runtime.Channel.Submit(new HydrateMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = DateTime.UtcNow,
+            MarketDataAsOfUtc = persisted.MarketDataAsOfUtc,
+            Snapshot = persisted
+        });
+        runtime.Channel.Submit(new HistoricalWarmupMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = DateTime.UtcNow,
+            MarketDataAsOfUtc = DateTime.UtcNow.AddDays(-1),
+            Ema = new FuturesEmaSignalReadModel { IsWarm = true, Price = 100m },
+            BollingerBand = new FuturesBbSignalReadModel { IsWarm = true, Price = 100m }
+        });
+
+        await runtime.DrainAsync();
+
+        runtime.Cache.TryGetCurrent(Id, out var current).Should().BeTrue();
+        current.FuturesEodData.IsValid.Should().BeTrue();
+        current.VixFuturesPrice.Should().Be(18m);
+        current.HasWarmDailyAnalytics.Should().BeTrue();
+        await runtime.Publisher.Received(1).PublishAsync(
+            Arg.Is<MarketOutlookUpdate>(value => value.Kind == MarketOutlookUpdateKind.HistoricalWarmup),
+            Arg.Is<MarketOutlookReadModel>(value => value.HasWarmDailyAnalytics),
+            Arg.Any<CancellationToken>());
+        runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Hydration].Published
+            .Should().Be(0);
+        runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.HistoricalWarmup].Published
+            .Should().Be(1);
     }
 
     [Fact]

@@ -263,6 +263,7 @@ public class IFMAppViewModelTests
         viewModel.MarketOutlook.Should().NotBeNull();
         viewModel.MarketOutlook!.ClosePrice.Should().Be("5375.00");
         viewModel.MarketOutlook.DailyPercentChange.Should().Be($"{-0.0046:P2}");
+        viewModel.MarketOutlookSnapshotStatus.Should().Contain("warming/degraded: RSI");
 
         await viewModel.ProcessMarketOutlookSnapshotAsync(
             Snapshot(3, source with
@@ -276,15 +277,22 @@ public class IFMAppViewModelTests
         viewModel.MarketOutlook.ClosePrice.Should().Be("5375.00");
         viewModel.MarketOutlook.DailyPercentChange.Should().Be($"{-0.0046:P2}");
 
+        await viewModel.ProcessMarketOutlookSnapshotAsync(
+            Snapshot(4, source, string.Empty),
+            CancellationToken.None);
+
+        viewModel.MarketOutlookSnapshotStatus.Should().EndWith("complete");
+
         MarketOutlookReadModel Snapshot(
             long revision,
-            FuturesEodDataV2ReadModel eod) => new()
+            FuturesEodDataV2ReadModel eod,
+            string missingInputs = "RSI") => new()
             {
                 ContractId = eod.ContractId,
                 ValueDate = eod.ValueDate,
                 UpdatedAtUtc = DateTime.UtcNow.AddTicks(revision),
                 FuturesEodData = eod,
-                MissingInputs = "RSI"
+                MissingInputs = missingInputs
             };
     }
 

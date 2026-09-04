@@ -19,6 +19,7 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
@@ -34,6 +35,7 @@ using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
@@ -405,6 +407,8 @@ public static class Startup
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ConfigurationDbContext>() as IConfigurationDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!);
+            services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
             services.AddSingleton<IFundDbContext, FundDbContext>();
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
@@ -488,6 +492,7 @@ public static class Startup
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
+            services.AddSingleton<IMarketDataLifecycleRequests, IntegrationMarketDataLifecycleRequests>();
             services.AddDatabentoHistoricalMarketDataServices(
                 new DatabentoHistoricalProviderOptions
                 {
@@ -676,5 +681,59 @@ public static class Startup
             return false;
         }
     }
+}
+
+sealed class IntegrationMarketDataLifecycleRequests : IMarketDataLifecycleRequests
+{
+    public DatabentoLifecycleSnapshot Current { get; private set; } = new()
+    {
+        State = DatabentoLifecycleState.ScheduledStopped,
+        StateRevision = 0,
+        ValueDate = null,
+        CorrelationId = Guid.Empty,
+        NativeGeneration = Guid.Empty,
+        RecoveryAttempt = 0,
+        Reason = "Integration host lifecycle stub.",
+        ChangedOnUtc = DateTime.UtcNow
+    };
+
+    public Task StartAsync(
+        DateOnly valueDate,
+        Func<Guid, int, string, Task>? errorMessageHandler = null,
+        CancellationToken cancellationToken = default)
+    {
+        Current = Current with
+        {
+            State = DatabentoLifecycleState.Healthy,
+            StateRevision = Current.StateRevision + 1,
+            ValueDate = valueDate,
+            CorrelationId = Guid.NewGuid(),
+            Reason = "Integration host lifecycle started.",
+            ChangedOnUtc = DateTime.UtcNow
+        };
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(DateOnly valueDate, CancellationToken cancellationToken = default)
+    {
+        Current = Current with
+        {
+            State = DatabentoLifecycleState.ScheduledStopped,
+            StateRevision = Current.StateRevision + 1,
+            ValueDate = valueDate,
+            Reason = "Integration host lifecycle stopped.",
+            ChangedOnUtc = DateTime.UtcNow
+        };
+        return Task.CompletedTask;
+    }
+
+    public Task ResetAsync(
+        DateOnly valueDate,
+        Guid correlationId,
+        CancellationToken cancellationToken = default) => StartAsync(valueDate, cancellationToken: cancellationToken);
+
+    public Task ProbeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task RefreshAsync(Guid correlationId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 

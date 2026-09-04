@@ -11,7 +11,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Application.Actor.Command.EventProjector;
 
-/// <summary>Publishes application lifecycle events through the non-durable projector lane.</summary>
+/// <summary>Publishes application lifecycle events through the durable projector lane.</summary>
 public sealed class ApplicationEventProjector(
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
@@ -24,9 +24,9 @@ public sealed class ApplicationEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         DescribeNotification<ApplicationStartupEvent, ApplicationEntityId>(
-            useDurableReplay: false),
+            useDurableReplay: true),
         DescribeNotification<ApplicationShutdownEvent, ApplicationEntityId>(
-            useDurableReplay: false)
+            useDurableReplay: true)
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

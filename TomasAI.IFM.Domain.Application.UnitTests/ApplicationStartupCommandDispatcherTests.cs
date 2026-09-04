@@ -2,6 +2,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Application.Actor.Event;
+using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -16,8 +18,20 @@ public sealed class ApplicationStartupCommandDispatcherTests
     public async Task Healthy_bootstrap_dispatches_exactly_once_after_application_started()
     {
         var lifetime = new TestLifetime();
-        var commandApi = new RecordingCommandApi();
-        var dispatcher = Create(lifetime, new ConstantReadiness(true), commandApi, enabled: true);
+        var statusStore = new ApplicationStartupStatusStore();
+        var commandApi = new RecordingCommandApi
+        {
+            OnAccepted = (commandId, valueDate) => statusStore.Set(new()
+            {
+                State = ApplicationLifecycleState.Starting,
+                ValueDate = valueDate,
+                CommandId = commandId,
+                StartedAtUtc = DateTime.UtcNow,
+                Summary = "Application startup activities are executing."
+            })
+        };
+        var dispatcher = Create(
+            lifetime, new ConstantReadiness(true), commandApi, enabled: true, statusStore: statusStore);
 
         await dispatcher.StartAsync(CancellationToken.None);
         Assert.Equal(0, commandApi.Count);
@@ -82,22 +96,117 @@ public sealed class ApplicationStartupCommandDispatcherTests
         Assert.True(dispatcher.ExecuteTask.IsCompletedSuccessfully);
     }
 
+    [Fact]
+    public async Task Accepted_but_unobserved_handoff_retries_to_the_configured_limit()
+    {
+        var lifetime = new TestLifetime();
+        var commandApi = new RecordingCommandApi();
+        var handoffStore = new ApplicationStartupHandoffStatusStore();
+        var dispatcher = Create(
+            lifetime,
+            new ConstantReadiness(true),
+            commandApi,
+            enabled: true,
+            handoffStore: handoffStore,
+            handoffMaximumAttempts: 2,
+            handoffObservationTimeout: TimeSpan.FromMilliseconds(100));
+
+        await dispatcher.StartAsync(CancellationToken.None);
+        lifetime.SignalStarted();
+        await dispatcher.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(2, commandApi.Count);
+        Assert.Equal(ApplicationStartupHandoffState.TimedOut, handoffStore.Current.State);
+        Assert.Equal(2, handoffStore.Current.AttemptCount);
+        await dispatcher.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Rejected_command_is_reported_and_is_not_retried()
+    {
+        var lifetime = new TestLifetime();
+        var handoffStore = new ApplicationStartupHandoffStatusStore();
+        var commandApi = new RejectedCommandApi();
+        var dispatcher = Create(
+            lifetime,
+            new ConstantReadiness(true),
+            commandApi,
+            enabled: true,
+            handoffStore: handoffStore,
+            handoffMaximumAttempts: 3);
+
+        await dispatcher.StartAsync(CancellationToken.None);
+        lifetime.SignalStarted();
+        await dispatcher.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, commandApi.Count);
+        Assert.Equal(ApplicationStartupHandoffState.CommandRejected, handoffStore.Current.State);
+        Assert.Equal(1, handoffStore.Current.AttemptCount);
+        Assert.Contains("rejected", handoffStore.Current.Summary, StringComparison.OrdinalIgnoreCase);
+        await dispatcher.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Stale_lifecycle_status_cannot_satisfy_a_new_command_handoff()
+    {
+        var lifetime = new TestLifetime();
+        var valueDate = new DateOnly(2026, 9, 2);
+        var startupStore = new ApplicationStartupStatusStore();
+        startupStore.Set(new()
+        {
+            State = ApplicationLifecycleState.Running,
+            ValueDate = valueDate,
+            CommandId = Guid.NewGuid(),
+            StartedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            CompletedAtUtc = DateTime.UtcNow.AddMinutes(-4),
+            Summary = "A previous startup completed."
+        });
+        var handoffStore = new ApplicationStartupHandoffStatusStore();
+        var commandApi = new RecordingCommandApi();
+        var dispatcher = Create(
+            lifetime,
+            new ConstantReadiness(true),
+            commandApi,
+            enabled: true,
+            statusStore: startupStore,
+            handoffStore: handoffStore,
+            handoffObservationTimeout: TimeSpan.FromMilliseconds(100));
+
+        await dispatcher.StartAsync(CancellationToken.None);
+        lifetime.SignalStarted();
+        await dispatcher.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, commandApi.Count);
+        Assert.Equal(ApplicationStartupHandoffState.TimedOut, handoffStore.Current.State);
+        Assert.NotEqual(startupStore.Current.CommandId, handoffStore.Current.CommandId);
+        await dispatcher.StopAsync(CancellationToken.None);
+    }
+
     static ApplicationStartupCommandDispatcher Create(
         IHostApplicationLifetime lifetime,
         IApplicationBootstrapReadiness readiness,
         IApplicationCommandApi commandApi,
         bool enabled,
-        IStatusConsoleWriter? statusConsole = null) => new(
+        IStatusConsoleWriter? statusConsole = null,
+        IApplicationStartupStatusStore? statusStore = null,
+        IApplicationStartupHandoffStatusStore? handoffStore = null,
+        int handoffMaximumAttempts = 1,
+        TimeSpan? handoffObservationTimeout = null) => new(
             lifetime,
             readiness,
             new TestAuthority(),
             commandApi,
+            statusStore ?? new ApplicationStartupStatusStore(),
+            handoffStore ?? new ApplicationStartupHandoffStatusStore(),
             statusConsole ?? new TestConsole(),
             new ApplicationStartupOptions
             {
                 AutoStartAfterBootstrap = enabled,
                 BootstrapTimeout = TimeSpan.FromSeconds(2),
-                ParticipantTimeout = TimeSpan.FromSeconds(2)
+                ParticipantTimeout = TimeSpan.FromSeconds(2),
+                HandoffObservationTimeout = handoffObservationTimeout ?? TimeSpan.FromMilliseconds(500),
+                HandoffRetryDelay = TimeSpan.Zero,
+                HandoffMaximumAttempts = handoffMaximumAttempts
             },
             TimeProvider.System,
             NullLogger<ApplicationStartupCommandDispatcher>.Instance);
@@ -112,12 +221,15 @@ public sealed class ApplicationStartupCommandDispatcherTests
         int count;
         public int Count => Volatile.Read(ref count);
         public TaskCompletionSource Accepted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Action<Guid, DateOnly>? OnAccepted { get; init; }
 
         public Task<ServiceResult<Guid>> StartApplicationAsync(DateOnly valueDate)
         {
             Interlocked.Increment(ref count);
+            var commandId = Guid.NewGuid();
+            OnAccepted?.Invoke(commandId, valueDate);
             Accepted.TrySetResult();
-            return Task.FromResult<ServiceResult<Guid>>(new ServiceOk<Guid>(Guid.NewGuid()));
+            return Task.FromResult<ServiceResult<Guid>>(new ServiceOk<Guid>(commandId));
         }
 
         public Task<ServiceResult<Guid>> ShutdownApplicationAsync(DateOnly valueDate) => throw new NotSupportedException();
@@ -127,6 +239,21 @@ public sealed class ApplicationStartupCommandDispatcherTests
     {
         public Task<ServiceResult<Guid>> StartApplicationAsync(DateOnly valueDate) =>
             throw new InvalidOperationException("NATS command transport unavailable.");
+
+        public Task<ServiceResult<Guid>> ShutdownApplicationAsync(DateOnly valueDate) =>
+            throw new NotSupportedException();
+    }
+
+    sealed class RejectedCommandApi : IApplicationCommandApi
+    {
+        int count;
+        public int Count => Volatile.Read(ref count);
+
+        public Task<ServiceResult<Guid>> StartApplicationAsync(DateOnly valueDate)
+        {
+            Interlocked.Increment(ref count);
+            return Task.FromResult(new ServiceResult<Guid>(409, "startup already rejected"));
+        }
 
         public Task<ServiceResult<Guid>> ShutdownApplicationAsync(DateOnly valueDate) =>
             throw new NotSupportedException();

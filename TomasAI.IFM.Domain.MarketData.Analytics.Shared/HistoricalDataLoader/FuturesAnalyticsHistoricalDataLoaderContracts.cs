@@ -68,6 +68,10 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderParameters
     [Key(10)] public bool AutomaticStartupWarmup { get; init; }
     /// <summary>Gets the active contract that receives the reconciled Analytics result.</summary>
     [Key(11)] public string AnalyticsTargetContractId { get; init; } = string.Empty;
+    /// <summary>Gets the API process boot that requested automatic startup warmup.</summary>
+    [Key(12)] public Guid ProcessBootId { get; init; }
+    /// <summary>Gets the Application startup command that owns this warmup attempt.</summary>
+    [Key(13)] public Guid StartupCommandId { get; init; }
 }
 
 /// <summary>Requests one durable, idempotent futures Analytics history data load.</summary>

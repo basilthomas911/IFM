@@ -87,6 +87,17 @@ public sealed record HistoricalWarmupMarketOutlookUpdate : MarketOutlookUpdate
     public required FuturesBbSignalReadModel BollingerBand { get; init; }
 }
 
+/// <summary>
+/// Seeds a new process-local cache from the latest durable snapshot before incremental startup
+/// updates are applied. Hydration itself is not republished; the following warmup update publishes
+/// the merged snapshot.
+/// </summary>
+public sealed record HydrateMarketOutlookUpdate : MarketOutlookUpdate
+{
+    public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Hydration;
+    public required MarketOutlookReadModel Snapshot { get; init; }
+}
+
 public sealed record RecomposeMarketOutlookUpdate : MarketOutlookUpdate
 {
     public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Recompose;
@@ -341,6 +352,9 @@ public sealed class MarketOutlookUpdateProcessor(
             DateTime.UtcNow,
             Stopwatch.GetElapsedTime(started)));
 
+        if (update is HydrateMarketOutlookUpdate)
+            return;
+
         var publicationStarted = Stopwatch.GetTimestamp();
         if (!IsPersistable(result.Snapshot))
         {
@@ -456,12 +470,73 @@ public sealed class MarketOutlookUpdateProcessor(
                     FuturesBbSignal = value.BollingerBand
                 },
                 MarketOutlookRefreshTrigger.Warmup, now),
+            HydrateMarketOutlookUpdate value => Write(
+                update,
+                HydratedComponents(value.Snapshot, position),
+                state => Hydrate(state, value.Snapshot),
+                MarketOutlookRefreshTrigger.Component,
+                now),
             RecomposeMarketOutlookUpdate => Write(
                 update, [], static state => state,
                 MarketOutlookRefreshTrigger.Component, now),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(update), update.GetType().FullName, "Unknown Market Outlook update type")
         };
+    }
+
+    static MarketOutlookInputState Hydrate(
+        MarketOutlookInputState state,
+        MarketOutlookReadModel snapshot) => state with
+    {
+        FuturesEodData = snapshot.FuturesEodData.IsValid ? snapshot.FuturesEodData : state.FuturesEodData,
+        FuturesTradeSignal = snapshot.FuturesTradeSignal ?? state.FuturesTradeSignal,
+        FuturesRsiSignal = snapshot.FuturesRsiSignal ?? state.FuturesRsiSignal,
+        FuturesTdiSignal = snapshot.FuturesTdiSignal ?? state.FuturesTdiSignal,
+        TrendDirectionChange = snapshot.TrendDirectionChange ?? state.TrendDirectionChange,
+        TrendExtremeChange = snapshot.TrendExtremeChange ?? state.TrendExtremeChange,
+        TrendReversalChange = snapshot.TrendReversalChange ?? state.TrendReversalChange,
+        LatestItiTrendSignal = snapshot.LatestItiTrendSignal ?? state.LatestItiTrendSignal,
+        VixFuturesPrice = snapshot.VixFuturesPrice is > 0m ? snapshot.VixFuturesPrice : state.VixFuturesPrice,
+        VixFuturesSessionOpenPrice = snapshot.VixFuturesPrice is > 0m
+            ? snapshot.VixFuturesPrice
+            : state.VixFuturesSessionOpenPrice,
+        FuturesEmaSignal = snapshot.FuturesEmaSignal ?? state.FuturesEmaSignal,
+        FuturesBbSignal = snapshot.FuturesBbSignal ?? state.FuturesBbSignal,
+        CurrentEsPrice = snapshot.FuturesTradeSignal?.FuturesPrice is > 0d
+            ? (decimal)snapshot.FuturesTradeSignal.FuturesPrice
+            : snapshot.FuturesEodData.ClosePrice is > 0m
+                ? snapshot.FuturesEodData.ClosePrice
+                : state.CurrentEsPrice,
+        MarketDataAsOfUtc = snapshot.MarketDataAsOfUtc > state.MarketDataAsOfUtc
+            ? snapshot.MarketDataAsOfUtc
+            : state.MarketDataAsOfUtc,
+        FeedHealth = string.IsNullOrWhiteSpace(snapshot.FeedHealth) ? state.FeedHealth : snapshot.FeedHealth,
+        FeedHealthReason = string.IsNullOrWhiteSpace(snapshot.FeedHealthReason)
+            ? state.FeedHealthReason
+            : snapshot.FeedHealthReason
+    };
+
+    static IReadOnlyCollection<MarketOutlookComponentWrite> HydratedComponents(
+        MarketOutlookReadModel snapshot,
+        MarketOutlookSourcePosition position)
+    {
+        List<MarketOutlookComponentWrite> components = [];
+        if (snapshot.FuturesEodData.IsValid) components.Add(new(CacheComponentType.Eod, position));
+        if (snapshot.FuturesTradeSignal is not null) components.Add(new(CacheComponentType.TradeSignal, position));
+        if (snapshot.FuturesRsiSignal is not null) components.Add(new(CacheComponentType.Rsi, position));
+        if (snapshot.FuturesTdiSignal is not null) components.Add(new(CacheComponentType.Tdi, position));
+        if (snapshot.LatestItiTrendSignal is not null) components.Add(new(CacheComponentType.ItiLatest, position));
+        if (snapshot.TrendDirectionChange is not null) components.Add(new(CacheComponentType.ItiDirection, position));
+        if (snapshot.TrendExtremeChange is not null) components.Add(new(CacheComponentType.ItiExtreme, position));
+        if (snapshot.TrendReversalChange is not null) components.Add(new(CacheComponentType.ItiReversal, position));
+        if (snapshot.VixFuturesPrice is > 0m) components.Add(new(CacheComponentType.Vx, position));
+        if (snapshot.FuturesEmaSignal is not null) components.Add(new(CacheComponentType.Ema, position));
+        if (snapshot.FuturesBbSignal is not null) components.Add(new(CacheComponentType.BollingerBand, position));
+        if (!string.IsNullOrWhiteSpace(snapshot.FeedHealth)) components.Add(new(CacheComponentType.FeedHealth, position));
+        if (snapshot.FuturesTradeSignal?.FuturesPrice is > 0d
+            || snapshot.FuturesEodData.ClosePrice is > 0m)
+            components.Add(new(CacheComponentType.EsTrade, position));
+        return components;
     }
 
     MarketOutlookHotCacheWriteResult ApplyTrade(

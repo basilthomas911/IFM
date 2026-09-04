@@ -23,7 +23,9 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <inheritdoc />
     public async Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(
         DateOnly candidateValueDate,
-        string analyticsTargetContractId)
+        string analyticsTargetContractId,
+        Guid processBootId = default,
+        Guid startupCommandId = default)
     {
         var commandId = Guid.NewGuid();
         var entityId = new FuturesAnalyticsHistoricalDataLoaderEntityId(commandId);
@@ -50,7 +52,9 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                     CalculationConfigurationVersion = "ema-bb-daily-v1",
                     RequestedBy = $"{Environment.UserDomainName}\\{Environment.UserName}",
                     AutomaticStartupWarmup = true,
-                    AnalyticsTargetContractId = analyticsTargetContractId
+                    AnalyticsTargetContractId = analyticsTargetContractId,
+                    ProcessBootId = processBootId,
+                    StartupCommandId = startupCommandId
                 }
             };
             return await RequestCommandAsync(command, entityId).ConfigureAwait(false);

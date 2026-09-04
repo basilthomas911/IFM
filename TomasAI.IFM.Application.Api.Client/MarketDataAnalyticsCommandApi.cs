@@ -25,7 +25,9 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
     /// <inheritdoc />
     public Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(
         DateOnly candidateValueDate,
-        string analyticsTargetContractId)
+        string analyticsTargetContractId,
+        Guid processBootId = default,
+        Guid startupCommandId = default)
         => Task.FromResult<ServiceResult<Guid>>(new ServiceFailed<Guid>(
             26020,
             "Automatic historical warm-up is available only through the NATS actor API."));

@@ -3,7 +3,9 @@ using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
+using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
@@ -29,8 +31,12 @@ public sealed class ApiApplicationStartupActivities(
     IMarketDataFeedQueryApi marketDataFeedQueryApi,
     IMarketDataAnalyticsCommandApi analyticsCommandApi,
     IHistoricalDataLoaderStore historicalDataLoaderStore,
+    IDbContextFactory dbContextFactory,
     DatabentoMarketDataApi marketDataApi,
-    MarketOutlookUpdateProcessor marketOutlookProcessor,
+    IMarketOutlookUpdateWriter marketOutlookWriter,
+    IMarketOutlookOperations marketOutlookOperations,
+    IMarketOutlookHotCache marketOutlookCache,
+    HistoricalAnalyticsWarmupOptions historicalWarmupOptions,
     ApplicationStartupOptions options,
     TimeProvider timeProvider,
     ILogger<ApiApplicationStartupActivities> logger) : IApplicationStartupActivities
@@ -152,9 +158,16 @@ public sealed class ApiApplicationStartupActivities(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var es = RequiredEsContract(context.ValueDate);
+        var warmupRequired = HistoricalWarmupRequired();
+        if (warmupRequired)
+            await HydrateCurrentMarketOutlookAsync(
+                    es.ContractId, context.ValueDate, context.CommandId, cancellationToken)
+                .ConfigureAwait(false);
         var accepted = await analyticsCommandApi.EnsureHistoricalAnalyticsWarmupAsync(
             context.ValueDate,
-            es.ContractId).ConfigureAwait(false);
+            es.ContractId,
+            context.ProcessBootId,
+            context.CommandId).ConfigureAwait(false);
         if (!accepted.Success)
             throw new InvalidOperationException(
                 $"Historical Analytics warm-up was rejected ({accepted.ErrorCode}): {accepted.ErrorMessage}");
@@ -164,7 +177,37 @@ public sealed class ApiApplicationStartupActivities(
 
         await WaitForHistoricalAnalyticsWarmupAsync(accepted.Value, cancellationToken)
             .ConfigureAwait(false);
+        if (warmupRequired)
+            await RequireWarmDailyMarketOutlookAsync(es.ContractId, context.ValueDate, cancellationToken)
+                .ConfigureAwait(false);
         return ApplicationStartupActivityOutcome.Started;
+    }
+
+    async Task HydrateCurrentMarketOutlookAsync(
+        string contractId,
+        DateOnly valueDate,
+        Guid commandId,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await dbContextFactory.MarketDataDb.GetMarketOutlookSnapshotAsync(
+            contractId,
+            valueDate,
+            cancellationToken).ConfigureAwait(false);
+        if (snapshot is null || snapshot.ValueDate != valueDate)
+            return;
+
+        var entityId = new MarketOutlookEntityId(contractId, valueDate);
+        marketOutlookWriter.Submit(new HydrateMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = entityId,
+            ReceivedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
+            MarketDataAsOfUtc = snapshot.MarketDataAsOfUtc,
+            CommandId = commandId,
+            AggregateId = entityId.Format(),
+            EventSource = nameof(ApiApplicationStartupActivities),
+            Snapshot = snapshot
+        });
     }
 
     public async ValueTask<ApplicationStartupActivityOutcome> StartRealtimeAnalyticsAsync(
@@ -205,8 +248,21 @@ public sealed class ApiApplicationStartupActivities(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!marketOutlookProcessor.IsReady)
+        if (!marketOutlookOperations.GetMetrics().IsProcessorReady)
             throw new InvalidOperationException("The local Market Outlook processor is not ready.");
+        if (HistoricalWarmupRequired()
+            && !HasWarmDailyMarketOutlook(
+                RequiredEsContract(context.ValueDate).ContractId,
+                context.ValueDate,
+                out var warmupDetail))
+        {
+            // Historical warmup is an optional activity. Its failure already degrades the workflow;
+            // final feed qualification must not promote that explicit degradation to Failed.
+            logger.LogWarning(
+                "Application operational qualification retained the historical analytics degradation. ValueDate={ValueDate}; Detail={Detail}.",
+                context.ValueDate,
+                warmupDetail);
+        }
         if (marketSessionAuthority.Current.ActiveValueDate is not null
             && !marketDataApi.IsDatabentoFeedUp())
             throw new InvalidOperationException("Databento did not satisfy the bounded up/down qualification probe.");
@@ -214,6 +270,47 @@ public sealed class ApiApplicationStartupActivities(
             "Application operational qualification passed for value date {ValueDate}.",
             context.ValueDate);
         return ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
+    }
+
+    bool HistoricalWarmupRequired() =>
+        historicalWarmupOptions.Enabled && historicalWarmupOptions.IsDevelopmentEnvironment;
+
+    async Task RequireWarmDailyMarketOutlookAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+    {
+        var drained = await marketOutlookOperations.WaitForIdleAsync(
+            options.ParticipantTimeout, cancellationToken).ConfigureAwait(false);
+        if (!drained)
+            throw new TimeoutException(
+                $"Market Outlook did not apply the historical warm-up within {options.ParticipantTimeout}.");
+        RequireWarmDailyMarketOutlook(contractId, valueDate);
+    }
+
+    void RequireWarmDailyMarketOutlook(string contractId, DateOnly valueDate)
+    {
+        if (!HasWarmDailyMarketOutlook(contractId, valueDate, out var detail))
+            throw new InvalidOperationException(detail);
+    }
+
+    bool HasWarmDailyMarketOutlook(string contractId, DateOnly valueDate, out string detail)
+    {
+        var entityId = new MarketOutlookEntityId(contractId, valueDate);
+        if (!marketOutlookCache.TryGetCurrent(entityId, out var snapshot))
+        {
+            detail = $"Market Outlook has no snapshot after historical warm-up for {entityId.Format()}.";
+            return false;
+        }
+        if (!snapshot.HasWarmDailyAnalytics
+            || snapshot.FuturesEmaSignal is not { IsWarm: true }
+            || snapshot.FuturesBbSignal is not { IsWarm: true })
+        {
+            detail = $"Market Outlook historical warm-up is incomplete for {entityId.Format()}: {snapshot.MissingInputs}";
+            return false;
+        }
+        detail = string.Empty;
+        return true;
     }
 
     FuturesContractV3ReadModel RequiredEsContract(DateOnly valueDate)
