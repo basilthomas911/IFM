@@ -1,0 +1,24 @@
+[
+  {
+    "Name": "Managed Development",
+    "Projects": [
+      {
+        "Path": "TomasAI.IFM.Application.ServerManager\\TomasAI.IFM.Application.ServerManager.csproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "Direct API and UI Debugging (Unmanaged)",
+    "Projects": [
+      {
+        "Path": "TomasAI.IFM.UI.Net\\TomasAI.IFM.UI.Net.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "TomasAI.IFM.Application.Api.Server\\TomasAI.IFM.Application.Api.Server.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

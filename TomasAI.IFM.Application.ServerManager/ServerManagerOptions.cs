@@ -12,6 +12,8 @@ public sealed class ServerManagerOptions
 
     public int ShutdownTimeoutSeconds { get; set; } = 10;
 
+    public bool DevelopmentProcessOwnershipEnabled { get; set; }
+
     public SchedulerClientOptions Scheduler { get; set; } = new();
 
     public List<ManagedProcessDefinition> Processes { get; set; } = [];
@@ -109,14 +111,20 @@ public sealed class ManagedProcessDefinition
     public string? ShutdownInput { get; set; }
 
     public string ResolveExecutablePath()
-        => Path.IsPathRooted(ExecutablePath)
-            ? Path.GetFullPath(ExecutablePath)
-            : Path.GetFullPath(Path.Combine(ResolveWorkingDirectory(), ExecutablePath));
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(ExecutablePath);
+        return Path.IsPathRooted(expanded)
+            ? Path.GetFullPath(expanded)
+            : Path.GetFullPath(Path.Combine(ResolveWorkingDirectory(), expanded));
+    }
 
     public string ResolveWorkingDirectory()
-        => Path.IsPathRooted(WorkingDirectory)
-            ? Path.GetFullPath(WorkingDirectory)
-            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, WorkingDirectory));
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(WorkingDirectory);
+        return Path.IsPathRooted(expanded)
+            ? Path.GetFullPath(expanded)
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, expanded));
+    }
 
     public void Validate()
     {

@@ -89,6 +89,8 @@ public sealed class DatabentoProductionEpochTests
 
         var oldFeed = provider.Feed;
         var oldGeneration = datasetHealth.GenerationId;
+        oldFeed.HealthState = FeedState.Faulted;
+        oldFeed.TerminalStatus = DatabentoFeedStatus.InternalError;
         var reset = await api.ResetDatasetAsync(new DatabentoDatasetResetRequest(
             "GLBX.MDP3",
             oldGeneration,

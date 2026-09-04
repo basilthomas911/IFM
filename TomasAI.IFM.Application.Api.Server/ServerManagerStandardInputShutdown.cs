@@ -19,12 +19,20 @@ public static class ServerManagerStandardInputShutdown
         }
 
         _ = MonitorAsync(
+            Console.In,
             application.Services.GetRequiredService<IHostApplicationLifetime>(),
             logger);
     }
 
-    private static async Task MonitorAsync(IHostApplicationLifetime lifetime, ILogger logger)
+    public static async Task MonitorAsync(
+        TextReader input,
+        IHostApplicationLifetime lifetime,
+        ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(lifetime);
+        ArgumentNullException.ThrowIfNull(logger);
+
         // Console.In can be backed by an anonymous process pipe whose asynchronous
         // read blocks synchronously until data arrives. Yield before beginning the
         // read so enabling the control channel can never delay host startup.
@@ -34,9 +42,12 @@ public static class ServerManagerStandardInputShutdown
         {
             while (!lifetime.ApplicationStopping.IsCancellationRequested)
             {
-                var message = await Console.In.ReadLineAsync(lifetime.ApplicationStopping);
+                var message = await input.ReadLineAsync(lifetime.ApplicationStopping);
                 if (message is null)
                 {
+                    logger.LogInformation(
+                        "Server Manager standard-input channel closed; requesting graceful API shutdown.");
+                    lifetime.StopApplication();
                     return;
                 }
 

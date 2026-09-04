@@ -16,19 +16,35 @@ public sealed class ServerLauncherContext : IAsyncDisposable
     private readonly SchedulerClientOptions _schedulerOptions;
     private readonly CancellationTokenSource _schedulerMonitorCancellation = new();
     private readonly Task _schedulerMonitor;
+    private readonly DevelopmentProcessSession? _developmentSession;
+    private readonly DevelopmentControlPipe? _developmentControlPipe;
     private int _stopped;
 
     public ServerLauncherContext(
         App application,
         ServerManagerOptions options,
         IMainWindowViewModel viewModel,
-        MainWindow console)
+        MainWindow console,
+        bool enableDevelopmentProcessOwnership)
     {
         _application = application;
         _viewModel = viewModel;
         _console = console;
         _schedulerOptions = options.Scheduler;
-        _supervisor = new ManagedProcessSupervisor(options.Processes, options.ShutdownTimeout, viewModel.AddLog);
+        if (enableDevelopmentProcessOwnership)
+        {
+            _developmentSession = new DevelopmentProcessSession();
+            _developmentSession.MarkDefinitions(options.Processes);
+        }
+
+        _supervisor = new ManagedProcessSupervisor(
+            options.Processes,
+            options.ShutdownTimeout,
+            viewModel.AddLog,
+            useDevelopmentKillOnCloseJob: enableDevelopmentProcessOwnership,
+            runningProcessesChanged: _developmentSession is null
+                ? null
+                : processes => _developmentSession.Record(processes));
         _notifyIcon = CreateNotifyIcon();
 
         _viewModel.ConsoleVisibility = Visibility.Hidden;
@@ -37,6 +53,11 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         console.Hide();
 
         _application.Exit += OnApplicationExit;
+        if (enableDevelopmentProcessOwnership)
+        {
+            _developmentControlPipe = new DevelopmentControlPipe(RequestExitFromDevelopmentControlPipe);
+        }
+
         _ = StartProcessesAsync();
         _schedulerMonitor = MonitorSchedulerAsync(_schedulerMonitorCancellation.Token);
     }
@@ -46,6 +67,11 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
         {
             return;
+        }
+
+        if (_developmentControlPipe is not null)
+        {
+            await _developmentControlPipe.DisposeAsync().ConfigureAwait(false);
         }
 
         _schedulerMonitorCancellation.Cancel();
@@ -59,9 +85,17 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         }
 
         _schedulerMonitorCancellation.Dispose();
-        await _supervisor.DisposeAsync().ConfigureAwait(false);
-        _notifyIcon.Visible = false;
-        _notifyIcon.Dispose();
+        try
+        {
+            await _supervisor.DisposeAsync().ConfigureAwait(false);
+            _developmentSession?.Clear();
+        }
+        finally
+        {
+            _developmentSession?.Dispose();
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+        }
     }
 
     public void PrepareForShutdown() => _console.PrepareForShutdown();
@@ -105,6 +139,12 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         WriteManagerLog("Starting configured API/UI processes.");
         try
         {
+            if (_developmentSession is not null)
+            {
+                await _developmentSession.ReconcilePreviousSessionAsync(WriteManagerLog).ConfigureAwait(false);
+                _developmentSession.Record([]);
+            }
+
             await _supervisor.StartAllAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -149,6 +189,9 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         await DisposeAsync();
         _application.Shutdown();
     }
+
+    private void RequestExitFromDevelopmentControlPipe()
+        => _application.Dispatcher.BeginInvoke(new Action(() => _ = ExitAsync()));
 
     private void OnApplicationExit(object? sender, ExitEventArgs e)
     {

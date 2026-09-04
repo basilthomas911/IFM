@@ -45,6 +45,24 @@
       "problemMatcher": []
     },
     {
+      "label": "IFM: Prepare API Server Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Stop API + UI (Development)",
+        "IFM: Build API Server (Debug)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM: Prepare API + UI Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Stop API + UI (Development)",
+        "IFM: Build API + UI (Debug)"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "IFM: Wait for Development API",
       "type": "process",
       "command": "powershell.exe",
@@ -85,7 +103,12 @@
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "clear": false
+      }
     }
   ]
 }

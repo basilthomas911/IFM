@@ -5,7 +5,8 @@
       "name": "IFM: API Server (Development)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "IFM: Build API Server (Debug)",
+      "preLaunchTask": "IFM: Prepare API Server Debug",
+      "postDebugTask": "IFM: Stop API + UI (Development)",
       "program": "${workspaceFolder}/TomasAI.IFM.Application.Api.Server/bin/Debug/net10.0/TomasAI.IFM.Application.Api.Server.dll",
       "cwd": "${workspaceFolder}/TomasAI.IFM.Application.Api.Server",
       "console": "integratedTerminal",
@@ -50,7 +51,8 @@
       },
       "presentation": {
         "hidden": true
-      }
+      },
+      "postDebugTask": "IFM: Stop API + UI (Development)"
     },
     {
       "name": "_IFM: UI.Net (compound)",
@@ -78,7 +80,7 @@
         "_IFM: API Server (compound)",
         "_IFM: UI.Net (compound)"
       ],
-      "preLaunchTask": "IFM: Build API + UI (Debug)",
+      "preLaunchTask": "IFM: Prepare API + UI Debug",
       "stopAll": true,
       "presentation": {
         "group": "IFM Development",

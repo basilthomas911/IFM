@@ -170,6 +170,62 @@ public sealed class ManagedProcessSupervisorTests
         supervisor.RunningProcessKeys.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Closing_development_job_terminates_assigned_process()
+    {
+        var definition = CreateDefinition(
+            "job-child",
+            ProcessShutdownMode.None,
+            "--delay-ms", "30000");
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = definition.ResolveExecutablePath(),
+                WorkingDirectory = definition.ResolveWorkingDirectory(),
+                UseShellExecute = false
+            }
+        };
+        foreach (var argument in definition.Arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        process.Start().Should().BeTrue();
+        using (var job = new WindowsKillOnCloseJob())
+        {
+            job.Assign(process);
+        }
+
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        process.HasExited.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Reports_running_process_identity_when_children_start_and_exit()
+    {
+        var logs = new ConcurrentQueue<ManagedProcessLogEntry>();
+        var snapshots = new ConcurrentQueue<IReadOnlyCollection<ManagedProcessIdentity>>();
+        var definition = CreateDefinition(
+            "identity",
+            ProcessShutdownMode.StandardInput,
+            "--wait-for-shutdown", "stop");
+        await using var supervisor = new ManagedProcessSupervisor(
+            [definition],
+            TimeSpan.FromSeconds(2),
+            logs.Enqueue,
+            runningProcessesChanged: snapshots.Enqueue);
+
+        await supervisor.StartAllAsync();
+        snapshots.Should().Contain(snapshot => snapshot.Any(identity =>
+            identity.ProcessKey == "identity"
+            && identity.ProcessId > 0
+            && identity.ExecutablePath == definition.ResolveExecutablePath()));
+
+        await supervisor.StopAllAsync();
+        snapshots.Last().Should().BeEmpty();
+    }
+
     private static ManagedProcessSupervisor CreateSupervisor(
         ConcurrentQueue<ManagedProcessLogEntry> logs,
         ProcessShutdownMode shutdownMode,

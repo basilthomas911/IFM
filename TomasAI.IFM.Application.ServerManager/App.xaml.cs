@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
 
         var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Development";
+        ConfigureDevelopmentRepositoryRoot(environment);
         Configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -41,7 +43,9 @@ public partial class App : System.Windows.Application
             this,
             options,
             ServiceProvider.GetRequiredService<IMainWindowViewModel>(),
-            ServiceProvider.GetRequiredService<MainWindow>());
+            ServiceProvider.GetRequiredService<MainWindow>(),
+            options.DevelopmentProcessOwnershipEnabled
+                && string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase));
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -71,5 +75,25 @@ public partial class App : System.Windows.Application
         services.AddSingleton<ISchedulerDashboardClient, SchedulerPipeClient>();
         services.AddSingleton<IMainWindowViewModel, MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
+    }
+
+    private static void ConfigureDevelopmentRepositoryRoot(string environment)
+    {
+        if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT")))
+        {
+            return;
+        }
+
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln")))
+            {
+                Environment.SetEnvironmentVariable("IFM_REPOSITORY_ROOT", directory.FullName);
+                return;
+            }
+        }
     }
 }

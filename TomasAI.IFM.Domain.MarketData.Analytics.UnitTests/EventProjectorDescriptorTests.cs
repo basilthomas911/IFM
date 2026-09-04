@@ -24,7 +24,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 public sealed class EventProjectorDescriptorTests
 {
     [Fact]
-    public void All_analytics_events_have_one_descriptor_and_only_lifecycle_events_are_non_durable()
+    public void All_analytics_events_have_one_descriptor_and_only_transient_events_are_non_durable()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var queue = Substitute.For<IDurableReplayQueue>();
@@ -52,13 +52,15 @@ public sealed class EventProjectorDescriptorTests
             {
                 var isLifecycle = descriptor.SourceEventType.Name.Contains("Started", StringComparison.Ordinal)
                     || descriptor.SourceEventType.Name.Contains("Stopped", StringComparison.Ordinal);
-                descriptor.UseDurableReplay.Should().Be(!isLifecycle);
+                var isLatestValueProjection =
+                    descriptor.SourceEventType == typeof(MarketOutlookSnapshotInsertedEvent);
+                descriptor.UseDurableReplay.Should().Be(!isLifecycle && !isLatestValueProjection);
             }
         }
     }
 
     [Fact]
-    public void Market_outlook_projection_is_durable_source_only_without_lifecycle_events()
+    public void Market_outlook_compatibility_projection_does_not_replay_obsolete_snapshots()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var projector = new MarketOutlookSnapshotEventProjector(
@@ -71,7 +73,7 @@ public sealed class EventProjectorDescriptorTests
         var source = new MarketOutlookSnapshotInsertedEvent();
 
         descriptor.SourceEventType.Should().Be(typeof(MarketOutlookSnapshotInsertedEvent));
-        descriptor.UseDurableReplay.Should().BeTrue();
+        descriptor.UseDurableReplay.Should().BeFalse();
         descriptor.PublishProcessingEvent.Should().BeFalse();
         descriptor.PublishTerminalEvent.Should().BeFalse();
         descriptor.CompletedEventFactory(source).Should().BeNull();

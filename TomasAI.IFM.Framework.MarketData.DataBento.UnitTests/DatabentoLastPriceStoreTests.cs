@@ -98,6 +98,28 @@ public sealed class DatabentoLastPriceStoreTests
     }
 
     [Fact]
+    public void Dataset_reset_clears_only_selected_values_and_preserves_reader_handles()
+    {
+        using var store = new DatabentoLastPriceStore(ValueDate, 2);
+        store.RegisterContract("ESU6 C5000", AssetTypeId.FuturesOption);
+        store.RegisterContract("VXU6 C20", AssetTypeId.FuturesOption);
+        var es = store.GetFuturesOptionReader("ESU6 C5000", ValueDate);
+        var vx = store.GetFuturesOptionReader("VXU6 C20", ValueDate);
+        Assert.True(store.TryUpdateQuote(Quote("ESU6 C5000", 10, 10m, 12m)));
+        Assert.True(store.TryUpdateQuote(Quote("VXU6 C20", 20, 20m, 22m)));
+
+        store.ResetContracts(["ESU6 C5000"]);
+
+        Assert.Same(es, store.GetFuturesOptionReader("ESU6 C5000", ValueDate));
+        Assert.False(es.TryGetLastQuote(out _));
+        Assert.True(vx.TryGetLastQuote(out var unaffected));
+        Assert.Equal(20, unaffected.SourceSequence);
+        Assert.True(store.TryUpdateQuote(Quote("ESU6 C5000", 1, 11m, 13m)));
+        Assert.True(es.TryGetLastQuote(out var restarted));
+        Assert.Equal(1, restarted.SourceSequence);
+    }
+
+    [Fact]
     public void Capacity_is_bounded_and_registration_is_idempotent()
     {
         using var store = new DatabentoLastPriceStore(ValueDate, 1);
@@ -146,7 +168,14 @@ public sealed class DatabentoLastPriceStoreTests
     }
 
     private static LastQuoteTickSnapshot Quote(long sequence, decimal? bid, decimal? ask) =>
-        new("ESU6 C5000", ValueDate, bid, 10, 1, ask, 11, 1,
+        Quote("ESU6 C5000", sequence, bid, ask);
+
+    private static LastQuoteTickSnapshot Quote(
+        string contractId,
+        long sequence,
+        decimal? bid,
+        decimal? ask) =>
+        new(contractId, ValueDate, bid, 10, 1, ask, 11, 1,
             sequence, Timestamp.AddTicks(sequence), Timestamp.AddTicks(sequence + 1));
 
     private static OptionGreeksSnapshot Greeks(long optionSequence) => new(

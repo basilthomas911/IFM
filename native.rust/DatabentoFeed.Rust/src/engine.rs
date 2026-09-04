@@ -101,6 +101,7 @@ pub struct Feed {
     stop_requested: AtomicBool,
     producer_done: AtomicBool,
     consumer_ready: AtomicBool,
+    consumer_waiting: AtomicBool,
     pub state: AtomicU32,
     terminal_status: AtomicI32,
     pub mappings: Mutex<Vec<Mapping>>,
@@ -177,6 +178,7 @@ impl Feed {
             stop_requested: AtomicBool::new(false),
             producer_done: AtomicBool::new(false),
             consumer_ready: AtomicBool::new(false),
+            consumer_waiting: AtomicBool::new(false),
             state: AtomicU32::new(STATE_CREATED),
             terminal_status: AtomicI32::new(OK),
             mappings: Mutex::new(Vec::new()),
@@ -232,6 +234,10 @@ impl Feed {
     pub fn wait_signal(&self, timeout_ms: u32) -> Status {
         self.wait_count.fetch_add(1, Ordering::Relaxed);
         self.signal.wait(timeout_ms)
+    }
+
+    pub fn set_consumer_waiting(&self, waiting: bool) {
+        self.consumer_waiting.store(waiting, Ordering::Release);
     }
     fn ring_ptr(&self) -> *mut RingSlot {
         self.ring_pages.as_ptr()
@@ -720,7 +726,10 @@ impl Feed {
             self.ring_high_water.store(ring_used, Ordering::Relaxed);
         }
         self.record_processor_residency();
-        if was_empty {
+        // The consumer can empty the ring after this producer sampled tail.
+        // The explicit wait handshake prevents that stale sample from losing
+        // the only wake-up for the newly committed record.
+        if was_empty || self.consumer_waiting.load(Ordering::Acquire) {
             self.notify();
         }
         true

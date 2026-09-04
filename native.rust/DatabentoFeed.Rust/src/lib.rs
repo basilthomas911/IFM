@@ -604,9 +604,19 @@ mod exports {
             let mut available = feed.available();
             let mut state = feed.state.load(Ordering::Acquire);
             if available == 0 && state != STATE_STOPPED && state != STATE_FAULTED {
-                let status = feed.wait_signal(timeout_ms);
-                if status != OK {
-                    return status;
+                feed.set_consumer_waiting(true);
+                // Recheck after publishing the wait intent. Publication either
+                // becomes visible here or observes the intent and signals us.
+                available = feed.available();
+                state = feed.state.load(Ordering::Acquire);
+                if available == 0 && state != STATE_STOPPED && state != STATE_FAULTED {
+                    let status = feed.wait_signal(timeout_ms);
+                    feed.set_consumer_waiting(false);
+                    if status != OK {
+                        return status;
+                    }
+                } else {
+                    feed.set_consumer_waiting(false);
                 }
                 available = feed.available();
                 state = feed.state.load(Ordering::Acquire);

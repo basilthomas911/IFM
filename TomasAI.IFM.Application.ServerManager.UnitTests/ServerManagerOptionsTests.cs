@@ -72,6 +72,32 @@ public sealed class ServerManagerOptionsTests
             .WithMessage("*invalid environment-variable name*");
     }
 
+    [Fact]
+    public void Resolve_paths_expands_environment_variables_for_development_outputs()
+    {
+        const string variable = "IFM_SERVER_MANAGER_TEST_ROOT";
+        var prior = Environment.GetEnvironmentVariable(variable);
+        var root = Path.Combine(Path.GetTempPath(), $"ifm-{Guid.NewGuid():N}");
+        try
+        {
+            Environment.SetEnvironmentVariable(variable, root);
+            var definition = new ManagedProcessDefinition
+            {
+                Key = "api",
+                DisplayName = "API",
+                WorkingDirectory = $"%{variable}%\\api",
+                ExecutablePath = "api.exe"
+            };
+
+            definition.ResolveWorkingDirectory().Should().Be(Path.Combine(root, "api"));
+            definition.ResolveExecutablePath().Should().Be(Path.Combine(root, "api", "api.exe"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, prior);
+        }
+    }
+
     [Theory]
     [InlineData("health/ready")]
     [InlineData("file:///C:/ready.txt")]

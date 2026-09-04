@@ -16,7 +16,10 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.EventProjector;
 
-/// <summary>Projects the full snapshot and then emits only its realtime inserted event.</summary>
+/// <summary>
+/// Compatibility projector for legacy snapshot commands. Current Market Outlook publication uses
+/// latest-value persistence and does not enqueue display snapshots in this projector.
+/// </summary>
 public sealed class MarketOutlookSnapshotEventProjector
     : BaseEventProjector<MarketOutlookSnapshotCommandActor>
 {
@@ -42,7 +45,7 @@ public sealed class MarketOutlookSnapshotEventProjector
             _ => null,
             (_, _) => null,
             publishProcessingEvent: false,
-            useDurableReplay: true,
+            useDurableReplay: false,
             publishTerminalEvent: false)
         ];
     }

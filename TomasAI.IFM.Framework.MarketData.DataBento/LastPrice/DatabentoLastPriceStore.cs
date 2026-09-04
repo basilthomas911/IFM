@@ -106,6 +106,23 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
             slot.Invalidate();
     }
 
+    /// <summary>
+    /// Clears the latest values for a replaced dataset generation while preserving the
+    /// epoch-scoped reader handles registered for those contracts.
+    /// </summary>
+    public void ResetContracts(IEnumerable<string> contractIds)
+    {
+        ArgumentNullException.ThrowIfNull(contractIds);
+        ThrowIfInactive();
+
+        foreach (var contractId in contractIds.Distinct(StringComparer.Ordinal))
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+            if (_slots.TryGetValue(contractId, out var slot))
+                slot.Reset();
+        }
+    }
+
     public void Dispose() => Invalidate();
 
     private Slot GetSlot(string contractId, DateOnly valueDate)
@@ -375,6 +392,25 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
                 try
                 {
                     _active = false;
+                    _hasTrade = _hasQuote = false;
+                    _hasTradeWithGreeks = _hasQuoteWithGreeks = false;
+                    _trade = default;
+                    _quote = default;
+                    _tradeWithGreeks = default;
+                    _quoteWithGreeks = default;
+                }
+                finally { EndWrite(odd); }
+            }
+        }
+
+        internal void Reset()
+        {
+            lock (_writeSync)
+            {
+                if (!_active) return;
+                var odd = BeginWrite();
+                try
+                {
                     _hasTrade = _hasQuote = false;
                     _hasTradeWithGreeks = _hasQuoteWithGreeks = false;
                     _trade = default;

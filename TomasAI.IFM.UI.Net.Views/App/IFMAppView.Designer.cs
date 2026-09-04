@@ -185,7 +185,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // pnlAppView
             // 
             pnlAppView.AutoSize = true;
-            pnlAppView.BackColor = Color.FromArgb(64, 64, 64);
+            pnlAppView.BackColor = Color.Black;
             pnlAppView.Controls.Add(pnlStatusConsole);
             pnlAppView.Controls.Add(pnlEconomicCalendar);
             pnlAppView.Controls.Add(pnlMarketData);
@@ -426,7 +426,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // 
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            BackColor = Color.FromArgb(64, 64, 64);
+            BackColor = Color.Black;
             ClientSize = new Size(2637, 872);
             Controls.Add(operationViewSplitter);
             Controls.Add(statusBar);

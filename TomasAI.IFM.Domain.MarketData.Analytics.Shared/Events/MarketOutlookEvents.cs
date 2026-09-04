@@ -59,8 +59,8 @@ public sealed record MarketOutlookEodUpdatedRealtimeEvent : IEvent<MarketOutlook
 }
 
 /// <summary>
-/// Full replacement snapshot event persisted by the command state and published through realtime
-/// only after the ScyllaDB projection succeeds.
+/// Full replacement snapshot notification. The current realtime path publishes this event immediately;
+/// latest-row persistence proceeds independently for restart hydration.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record MarketOutlookSnapshotInsertedEvent : IEvent<MarketOutlookEntityId>

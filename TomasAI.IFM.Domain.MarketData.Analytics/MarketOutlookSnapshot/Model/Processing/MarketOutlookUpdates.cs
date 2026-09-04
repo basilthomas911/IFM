@@ -103,7 +103,11 @@ public sealed record RecomposeMarketOutlookUpdate : MarketOutlookUpdate
     public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Recompose;
 }
 
-public interface IMarketOutlookSnapshotCommandWriter
+/// <summary>
+/// Publishes the latest composed Market Outlook without making realtime delivery wait for
+/// durable snapshot persistence.
+/// </summary>
+public interface IMarketOutlookSnapshotPublisher
 {
     ValueTask PublishAsync(
         MarketOutlookUpdate update,
@@ -111,7 +115,12 @@ public interface IMarketOutlookSnapshotCommandWriter
         CancellationToken cancellationToken);
 }
 
-/// <summary>Sends each complete local snapshot through the sole durable insert command.</summary>
+/// <summary>Legacy event-sourced snapshot command boundary retained for compatibility.</summary>
+public interface IMarketOutlookSnapshotCommandWriter : IMarketOutlookSnapshotPublisher
+{
+}
+
+/// <summary>Sends a snapshot through the legacy event-sourced command path.</summary>
 public sealed class ActorMarketOutlookSnapshotCommandWriter
     : IMarketOutlookSnapshotCommandWriter
 {
@@ -171,7 +180,7 @@ public sealed class MarketOutlookUpdateProcessor(
     IMarketOutlookUpdateReader reader,
     IMarketOutlookHotCache readCache,
     IMarketOutlookHotCacheWriter cache,
-    IMarketOutlookSnapshotCommandWriter publisher,
+    IMarketOutlookSnapshotPublisher publisher,
     MarketOutlookProcessorMetrics metrics,
     ILogger<MarketOutlookUpdateProcessor> logger)
     : BackgroundService, IMarketOutlookOperations

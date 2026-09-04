@@ -2,7 +2,7 @@
 
 **Status:** Implementation available; operator acceptance validation pending; Production inactive
 
-**Version:** 4.4
+**Version:** 4.5
 
 **Date:** 2026-08-20
 
@@ -106,6 +106,37 @@ hidden.
 Relative executable paths resolve beneath their configured working directory. Arguments are passed through
 `ProcessStartInfo.ArgumentList`; they are not concatenated into a shell command.
 
+### 4.1 Development lifecycle ownership
+
+The Development overlay enables `DevelopmentProcessOwnershipEnabled` and points API/UI definitions at repository
+Debug outputs through `%IFM_REPOSITORY_ROOT%`. Server Manager resolves that variable from the solution root when it is
+started from a repository build; `scripts/Development/Start-IFMDevelopment.ps1` also sets it explicitly.
+
+Development ownership adds four safeguards that are deliberately disabled by the Production overlay:
+
+1. A per-user singleton prevents two Development managers from starting duplicate application sets.
+2. A versioned session record under local application data records manager and child PID, creation time, role, and
+   resolved executable path. Every child transition rewrites the record atomically.
+3. API/UI children are assigned to a Windows Job Object configured with `KILL_ON_JOB_CLOSE`, so manager failure cannot
+   orphan them.
+4. A current-user-only named pipe supports graceful shutdown from `Stop-IFMDevelopment.ps1`; bounded forced cleanup is
+   allowed only for identities validated against the owned session record.
+
+The API treats EOF on its opt-in Server Manager stdin channel as loss of its owner and requests normal host shutdown.
+The job remains the final containment boundary if graceful shutdown does not complete.
+
+The supported commands are:
+
+```powershell
+./scripts/Development/Start-IFMDevelopment.ps1
+./scripts/Development/Get-IFMDevelopmentProcess.ps1
+./scripts/Development/Stop-IFMDevelopment.ps1 -VerifyStopped
+```
+
+The shared `Managed Development` solution launch profile starts only Server Manager. The separate unmanaged profile is
+retained for direct API/UI debugging; developers must use IDE `Stop All` and the stopped verification command before
+rebuilding after that workflow.
+
 ## 5. Log behavior
 
 Every entry has:
@@ -193,6 +224,7 @@ service and enabling schedules remain separate, explicitly approved actions.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 4.5 | 2026-09-04 | Added Development-only API/UI session identity, atomic process records, safe stale-session reconciliation, named-pipe shutdown, Job Object crash containment, repository Debug-output launch paths, and developer start/stop/inspection commands. Production behavior remains disabled and unchanged. |
 | 4.4 | 2026-08-20 | Reserved the published layout for future Production use, recorded that Production infrastructure is not provisioned, and marked final Server Manager operator acceptance as pending. |
 | 4.3 | 2026-08-20 | Made child environments deterministic, launched UI.Net maximized, and kept tray console recovery available. |
 | 4.2 | 2026-08-20 | Added the repeatable full application-set publishing script. |

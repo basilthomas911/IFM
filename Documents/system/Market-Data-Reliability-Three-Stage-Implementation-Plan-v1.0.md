@@ -1,30 +1,38 @@
-# Market Data Reliability Three-Stage Implementation Plan v1.0
+# Market Data Reliability Four-Stage Implementation Plan v1.0
 
 | Item | Value |
 | --- | --- |
 | Plan ID | `MDR` |
-| Status | Stage 1 complete; Stage 2 implementation complete, elapsed soak and acceptance pending |
+| Status | Stages 1-2 accepted; Stage 3 specified and ready for review; Stage 4 planned |
 | Date | 2026-09-01 |
 | Design authority | `Documents/system/Databento-Market-Data-Service-Resiliency-System-Design-v0.1.md` |
+| Stage 1/2 as-built authority | `Documents/system/Market-Data-Resiliency-As-Built-Specification-v1.0.md` |
 | Stage 1 | Local Market Outlook update processor |
 | Stage 2 | Databento lifecycle and resiliency refactor |
 | Stage 3 | Central market-data operations-health service and dataset process containment |
+| Stage 4 | Resilient option-chain streaming and strategy-owned ticker leases |
+| Stage 3 specification | `Documents/system/Market-Data-Resiliency-Stage-3-Specification-v1.0.md` |
+| Stage 3 implementation plan | `Documents/system/Market-Data-Resiliency-Stage-3-Implementation-Plan-v1.0.md` |
 | Deployment now | API Server hosted |
 | Deployment later | Dedicated Aspire Market Data service |
 
 ## 1. Objective
 
-Implement market-data reliability in three independently reviewable stages. Each stage must be
+Implement market-data reliability in four independently reviewable stages. Each stage must be
 completed, tested and accepted before the next stage begins. The sequence provides immediate Market
 Outlook single-writer correctness, then resilient Databento lifecycle ownership, and finally one
-central end-to-end operational-health view with supervised per-dataset process containment.
+central end-to-end operational-health view with supervised per-dataset process containment, followed
+by resilient option-chain discovery and strategy-owned option ticker lifetimes.
 
 The stages are intentionally ordered:
 
 1. create the local Market Outlook processing boundary without changing Databento lifecycle;
 2. create the authoritative Databento lifecycle, watchdog, persistence and recovery boundary; and
 3. aggregate every stage's already-instrumented measurements into the central operations-health
-   service and UI, then contain hard-reset escalation within the affected dataset worker process.
+   service and UI, then contain hard-reset escalation within the affected dataset worker process;
+   and
+4. make option-chain sessions and individual option ticker leases authoritative, recoverable and
+   suitable for iron-condor composition before order execution is enabled.
 
 ## 2. Binding implementation rules
 
@@ -49,16 +57,22 @@ The stages are intentionally ordered:
 13. Operational metric recording cannot throw into or synchronously block the market-data path.
 14. On-demand refresh delegates to the owning stage. The health service observes and routes refresh;
     it never steals lifecycle or calculation ownership.
-15. Market Outlook and current operational metrics remain process-local and rebuildable. The derived
-    Market Outlook snapshot is not persisted.
+15. Market Outlook inputs and current operational metrics remain process-local and rebuildable.
+    Exactly one latest eligible Market Outlook snapshot per entity is periodically persisted for
+    restart hydration; intermediate display snapshots are neither durable nor replayed.
 16. Existing Market Outlook latest-arrival, unconditional partial-write, OR-composition and
     whole-snapshot-read semantics remain authoritative.
+17. Every transient futures or option ticker is reference-owned. Releasing or expiring one owner's
+    lease never stops the ticker while another valid owner remains.
+18. Option-chain and option-leg intent is owned above replaceable dataset workers and is restored
+    after cooperative reset or supervised process replacement.
 
 ## 3. Execution controls
 
 - Only one stage may be `In progress` at a time.
 - No Stage 2 production change begins until all Stage 1 exit criteria pass.
 - No Stage 3 production change begins until all Stage 2 exit criteria pass.
+- No Stage 4 production change begins until all Stage 3 exit criteria pass.
 - A stage may add compatibility interfaces needed by a later stage, but it must not partially enable
   later-stage runtime behavior.
 - Every gate uses failing-first characterization where behavior is being changed.
@@ -217,7 +231,7 @@ Exit verification:
 
 Deliverables:
 
-- define the shared minimal `IMarketDataOperationsRecorder` contract required by all three stages;
+- define the shared minimal `IMarketDataOperationsRecorder` contract required by all four stages;
 - implement Stage 1 Market Outlook received, enqueued, applied, changed, composed, published, failed
   and coalesced counters by update kind;
 - record last activity, market-data-as-of time, queue depth, queue/processing/publication latency and
@@ -380,6 +394,11 @@ Stage 2 is complete only when:
 - Market Outlook and Databento stages already report through the shared recording contract.
 - Stage/contract/update-kind metric dimensions are known and bounded.
 
+**Entry decision:** Satisfied on 2026-09-04. The owner accepted Stage 2 as working according to
+design and authorized Stage 3 specification and implementation planning. The remaining elapsed
+provider-connected Stage 2 soak is a documented, non-blocking follow-up and is not represented as
+having run.
+
 ### MDOH-01 — Central contracts and status model
 
 - finalize `MarketDataOperationStage`, update-kind, contract/feed identity and refresh-target enums;
@@ -405,8 +424,11 @@ Stage 2 is complete only when:
 ### MDOH-04 — Health evaluation and latency
 
 - calculate freshness, backlog, failure and recovery status per stage and active contract;
-- retain session-aware market-data thresholds;
+- use the authoritative futures session state to select the Stage 3 live-trading, off-trading or
+  closed watchdog policy;
 - distinguish quiet markets from failed transport;
+- keep causal dataset incidents above replaceable generation IDs so an unsuccessful reset cannot
+  erase the incident age or retry count; and
 - expose queue, processing, publication and end-to-end latency distributions.
 
 ### MDOH-05 — Refresh coordinator
@@ -456,6 +478,94 @@ Stage 2 is complete only when:
 - treat later Aspire Market Data Feed extraction as orchestration of this established boundary, not
   as a second lifecycle or reset authority.
 
+#### MDOH-09.1 — Session-aware watchdog policy
+
+The Stage 3 watchdog uses one policy selected from the authoritative `FuturesMarketState`. A
+scheduled probe is lightweight and reads the worker's bounded health snapshot; it does not poll the
+provider, rebuild Market Outlook or reset a healthy dataset.
+
+| Session state | Dataset worker | Scheduled probe | Cooperative dataset reset | Dataset-process escalation |
+| --- | --- | ---: | --- | --- |
+| `LiveTrading` | Running | Every 1 minute | At most once per scheduled unhealthy probe | Terminate and replace the affected worker after five continuously unhealthy minutes or five unsuccessful cooperative attempts, whichever occurs first |
+| `OffTrading` | Running | Every 5 minutes | Only after the same causal unhealthy incident has persisted for 15 elapsed minutes | Terminate and replace the affected worker if the bounded cooperative reset cannot stop and qualify it |
+| `Closed` | Stopped | No recurring dataset probe | None | None; session close owns normal worker shutdown |
+
+Binding timing rules:
+
+- use monotonic elapsed time for the five-minute and 15-minute boundaries; probe counts alone are
+  not elapsed-time evidence;
+- one complete healthy live-trading minute is required to close an incident and clear its attempt
+  count; a replacement that becomes unhealthy before that boundary consumes the next attempt;
+- a generation change never clears the dataset incident. Incident identity and attempt history are
+  owned by the watchdog/supervisor above the worker generation;
+- permit no more than one cooperative reset attempt per scheduled live-trading minute and no more
+  than five attempts in one continuously unhealthy live incident;
+- process exit, native terminal fault and explicit managed-worker terminal notification remain
+  immediate out-of-cycle watchdog triggers. The one-minute and five-minute cadences govern scheduled
+  polling, not known terminal failure delivery;
+- quiet-provider observations with no upstream or buffered work remain healthy. Recovery requires
+  causal evidence such as producer-without-consumer progress, a non-empty ring with a sleeping drain,
+  stopped transport/aggregation, ring overrun, incomplete subscriptions or failed qualification;
+- on `OffTrading` to `LiveTrading`, run an immediate transition probe. If the dataset is unhealthy,
+  attempt cooperative reset and start the live five-minute escalation window; tolerated off-trading
+  time does not cause an immediate process kill at the opening transition; and
+- on `LiveTrading` to `OffTrading`, stop advancing the live escalation window and apply the
+  off-trading 15-minute threshold while retaining the incident diagnostics.
+
+The Stage 3 configuration surface must replace the single Stage 2 poll/stall pair with explicit,
+validated values:
+
+- `LiveTradingPollInterval = 1 minute`;
+- `LiveTradingEscalationWindow = 5 minutes`;
+- `LiveTradingMaximumCooperativeAttempts = 5`;
+- `LiveTradingHealthyQualificationPeriod = 1 minute`;
+- `OffTradingPollInterval = 5 minutes`; and
+- `OffTradingStallTimeout = 15 minutes`.
+
+#### MDOH-09.2 — Cooperative reset and forced replacement boundary
+
+The reset attempted on a scheduled unhealthy probe is the Stage 2 cooperative dataset reset. It
+fences the old generation, stops and disposes its native feed and managed aggregation pipeline,
+clears dataset-scoped runtime values, creates a new generation, restores desired subscription
+ownership and qualifies actual producer-to-consumer progress.
+
+If the live incident reaches its attempt/deadline boundary, or an off-trading cooperative reset
+cannot complete, "reset the whole process" means only the failed dataset worker process:
+
+1. close worker command and publication admission for the failed generation;
+2. persist the dataset incident, attempt count and termination reason in the supervisor;
+3. request bounded graceful worker shutdown and wait for the configured hard-reset deadline;
+4. terminate the worker process tree when it does not exit, using the platform process supervisor
+   on Windows or Linux;
+5. wait for confirmed process exit so the operating system reclaims the native handle, threads,
+   ring, channels and managed heap owned by that worker;
+6. create a new worker process and generation from the authoritative dataset configuration and
+   desired-subscription manifest;
+7. reject publications and hot-cache writes carrying any earlier generation identity; and
+8. admit the replacement only after subscriptions, native/managed health and data-path progress
+   qualify under the current session policy.
+
+The API Server, watchdog, operations-health service, UI and every unaffected dataset worker remain
+running. Restarting the API Server or all dataset processes is not a valid Stage 3 dataset recovery.
+
+#### MDOH-09.3 — Implementation sequence
+
+1. Add validated session-aware timing options and a supervisor-owned per-dataset incident state
+   machine with monotonic timestamps, attempt count, current worker process ID and generation ID.
+2. Extract one console worker host that owns exactly one dataset generation's native feed, managed
+   drain, channels, aggregation, local cancellation and dataset-scoped cache ingress.
+3. Define bounded local supervisor/worker commands and health snapshots for start, cooperative reset,
+   graceful stop, qualification and terminal notification; preserve the watchdog as sole authority.
+4. Move desired ticker/option subscription intent above the worker and add generation fencing at
+   event publication and hot-cache ingress.
+5. Implement the live one-minute/five-attempt/five-minute incident policy, the off-trading
+   five-minute/15-minute policy, immediate terminal triggers and deterministic session transitions.
+6. Implement Windows and Linux process-tree termination and confirm exit before replacement.
+7. Publish process identity, generation, incident age, next scheduled probe, attempt count,
+   graceful-stop result, forced-termination count and qualification result to central health.
+8. Enable one dataset in Development first, complete fault-injection and soak evidence, then enable
+   all datasets and production configuration only after Stage 3 acceptance.
+
 ### MDOH-10 — End-to-end qualification
 
 Required evidence:
@@ -465,14 +575,23 @@ Required evidence:
 - failure injection at every monitored boundary;
 - proof that the health service remains queryable when each worker is independently stopped;
 - saturation, high-cardinality guard, metrics-recorder failure and exporter failure tests;
+- fake-time tests proving one-minute live probes, at most five cooperative attempts in five minutes,
+  one healthy minute to close an incident, five-minute off-trading probes and the 15-minute
+  off-trading reset boundary;
+- transition tests proving generation replacement cannot clear an incident and that
+  `OffTrading`/`LiveTrading` policy changes neither kill a tolerated worker prematurely nor extend a
+  live failure indefinitely;
+- immediate-trigger tests for worker exit, native terminal fault and managed terminal notification;
 - graceful-stop timeout and forced process-termination tests for each dataset, including proof that
   no stale generation publishes after replacement and that unaffected datasets do not restart;
+- Windows and Linux process-tree termination tests proving the old process has exited before the
+  replacement generation is admitted;
 - runtime and UI journeys identifying a deliberately stopped RSI, TDI, aggregation, publication or
   native stage without log reconstruction.
 
-### MDOH-11 — Stage 3 and plan acceptance
+### MDOH-11 — Stage 3 acceptance
 
-The complete plan is accepted only when:
+Stage 3 is accepted only when:
 
 1. one combined immutable snapshot describes native-to-UI operational health;
 2. every composite signal is individually addressable by counters, freshness and latency;
@@ -481,30 +600,130 @@ The complete plan is accepted only when:
 5. every registered stage is refreshable through its authoritative owner;
 6. metric collection cannot block or fail the market-data path;
 7. no loss, saturation, coalescing or recovery is silent;
-8. an unresponsive dataset generation is forcibly terminated and replaced without restarting the
+8. live trading probes once per minute, attempts no more than five cooperative resets over five
+   continuously unhealthy minutes, and then forcibly replaces only the affected dataset process;
+9. off-trading probes once per five minutes and does not reset a causally stalled dataset until 15
+   elapsed unhealthy minutes;
+10. worker exit and terminal faults remain immediate triggers independent of scheduled cadence;
+11. an unresponsive dataset generation is forcibly terminated and replaced without restarting the
    API/Core host or an unaffected dataset;
-9. no old and replacement dataset generations can concurrently publish or mutate current state;
-10. all BDD, unit, integration, verification, runtime, UI and soak suites pass; and
-11. documentation contains final evidence and no partial gates remain.
+12. no old and replacement dataset generations can concurrently publish or mutate current state;
+13. all BDD, unit, integration, verification, runtime, UI and soak suites pass; and
+14. documentation contains final evidence and no partial gates remain.
 
-## 8. Cross-stage verification matrix
+## 8. Stage 4 — Resilient option-chain streaming and strategy-owned ticker leases
 
-| Verification | Stage 1 | Stage 2 | Stage 3 |
-| --- | ---: | ---: | ---: |
-| Unit tests | Required | Required | Required |
-| BDD/behavior tests | Required | Required | Required |
-| Storage integration | Existing regression | Required | Watchdog-summary regression |
-| Actor/NATS integration | Adapter/notification | Lifecycle/readiness/history | Health queries/refresh |
-| Native C++ tests | Baseline only | Required | Regression |
-| Native Rust tests | Baseline only | Required | Regression |
-| C++/Rust parity | Baseline only | Required | Regression |
-| Concurrency/backlog | Required | Required | Required |
-| Failure injection | Required | Required | Required |
-| Runtime/live verification | Required | Required plus soak | Required end-to-end |
-| UI/system verification | Market Outlook refresh | Readiness/history | Operations dashboard |
-| Architecture tests | Sole cache writer | Sole lifecycle owner | Independent health authority |
+### Stage 4 entry criteria
 
-## 9. Stage hand-off evidence
+- Stage 3 dataset process containment, generation fencing and central health are complete and
+  accepted.
+- `StartStreamingFuturesTickDataAsync`, `StartStreamingFuturesOptionTickDataAsync` and
+  `StartStreamingFuturesOptionChainDataAsync` remain the only application admission boundary for
+  transient live routes.
+- Option pricing inputs and the option-chain provider implementation are available for production
+  qualification.
+
+### OCR-01 — Authoritative subscription and lease model
+
+- maintain one service-owned desired-subscription manifest above all replaceable dataset workers;
+- identify every lease by workflow type, workflow ID and leg ID through `TickerStreamOwner`;
+- allow multiple independent owners to acquire the same futures or option ticker idempotently;
+- keep one physical live route per ticker while at least one valid owner lease remains;
+- release the physical route only after the final valid owner releases or expires;
+- distinguish short renewable composer/discovery leases from position-owned leases;
+- never expire an open-position lease solely because the UI or composer disconnected; position
+  closure or authoritative position reconciliation owns its release; and
+- bound and expose lease count, age, renewal, expiry and orphan-reconciliation metrics.
+
+The existing `TickAggregationService` owner set already implements the fundamental reference rule:
+the first owner activates a route, additional owners share it, and only removal of the final owner
+deactivates it. Stage 4 moves the authoritative lease manifest above the dataset process and adds
+expiry/renewal policy; the current `TickerStreamOwner` value itself has no clock or TTL.
+
+### OCR-02 — Option-chain session ownership
+
+- make chain identity provider-neutral: underlying contract, maturity, selected contract universe,
+  value date and dataset;
+- allow compatible workflows to share one physical chain session with independent owner leases;
+- reject conflicting universes deterministically without disturbing an existing session;
+- retain the exact resolved contract set and required pricing inputs needed to reconstruct a chain;
+  and
+- close a chain only after its final owner lease releases or expires.
+
+### OCR-03 — Order Composer market-data workflow
+
+- query option definitions through the Market Data API;
+- acquire a bounded, renewable discovery-chain lease;
+- wait for one coherent and qualified quote/Greeks snapshot;
+- select the four monthly iron-condor legs;
+- acquire strategy-owned individual ticker leases for all four selected contracts before releasing
+  the broader discovery chain; and
+- return a typed, immutable composition snapshot or a bounded unavailable/reset result—never a
+  partial mixture of dataset generations.
+
+### OCR-04 — Dataset reset and process-restart reconstruction
+
+- fence the failed dataset generation and reject new admissions while it is resetting;
+- snapshot desired chain and individual ticker intent from the supervisor-owned manifest;
+- stop every affected option-chain feed and ticker route before destroying the old generation;
+- reconstruct ticker aggregation, option-chain feeds, subscriptions and pricing dependencies in the
+  replacement generation;
+- restore every still-valid owner lease without requiring UI or strategy callbacks;
+- qualify subscriptions, baseline quotes, source generation and required Greeks before admission;
+  and
+- leave unaffected dataset workers, chains and ticker leases running.
+
+### OCR-05 — Lease lifecycle and reconciliation
+
+- make acquire, renew and release operations idempotent;
+- use monotonic expiry for renewable discovery/composer leases;
+- reconcile durable strategy/order/position leases against authoritative workflow state;
+- preserve position-owned leases across API/UI restart, dataset reset and dataset worker death;
+- remove orphaned non-position leases after their bounded expiry; and
+- audit every lease transition with dataset, generation, owner and correlation identity.
+
+### OCR-06 — Stage 4 qualification
+
+Required evidence:
+
+- two workflows opening the same option ticker create one physical route and two owner leases;
+- release or expiry of the first lease leaves the route active, while the final release/expiry stops
+  it exactly once;
+- duplicate acquire/renew/release requests are idempotent;
+- an active discovery chain and four selected iron-condor legs survive a dataset reset;
+- an active discovery chain and four selected legs survive forced Stage 3 worker termination;
+- a reset during composition returns one coherent replacement-generation snapshot or a bounded
+  retryable result;
+- GLBX option recovery does not restart or interrupt an unaffected dataset;
+- open-position leases survive UI/composer disconnection and are removed only after authoritative
+  position closure; and
+- unit, integration, native, process-containment, runtime and accelerated-soak suites pass.
+
+### OCR-07 — Stage 4 acceptance boundary
+
+Stage 4 is complete only when dynamic option-chain discovery and selected option tickers are restored
+from supervisor-owned intent after every supported reset path, reference-owned routes remain active
+until their final valid lease ends, and the Order Composer can obtain a coherent four-leg market-data
+snapshot without depending on UI lifetime.
+
+## 9. Cross-stage verification matrix
+
+| Verification | Stage 1 | Stage 2 | Stage 3 | Stage 4 |
+| --- | ---: | ---: | ---: | ---: |
+| Unit tests | Required | Required | Required | Lease and chain policy |
+| BDD/behavior tests | Required | Required | Required | Composer and position ownership |
+| Storage integration | Existing regression | Required | Watchdog-summary regression | Durable intent reconciliation |
+| Actor/NATS integration | Adapter/notification | Lifecycle/readiness/history | Health queries/refresh | Chain and ticker lease lifecycle |
+| Native C++ tests | Baseline only | Required | Regression | Option-chain reset regression |
+| Native Rust tests | Baseline only | Required | Regression | Option-chain reset regression |
+| C++/Rust parity | Baseline only | Required | Regression | Required |
+| Concurrency/backlog | Required | Required | Required | Shared ticker/chain ownership |
+| Failure injection | Required | Required | Required | Reset during composition/position |
+| Runtime/live verification | Required | Required plus soak | Required end-to-end | Monthly iron-condor data journey |
+| UI/system verification | Market Outlook refresh | Readiness/history | Operations dashboard | Composer market-data status |
+| Architecture tests | Sole cache writer | Sole lifecycle owner | Independent health authority | Supervisor-owned lease manifest |
+
+## 10. Stage hand-off evidence
 
 At each stage boundary record:
 
@@ -519,9 +738,9 @@ At each stage boundary record:
 - documentation changes; and
 - explicit user acceptance before starting the next stage.
 
-## 10. Stage 1 execution record - 2026-09-01
+## 11. Stage 1 execution record - 2026-09-01
 
-### 10.1 Gate status
+### 11.1 Gate status
 
 | Gate | Status | Recorded evidence |
 | --- | --- | --- |
@@ -536,7 +755,7 @@ At each stage boundary record:
 | `MOUP-09` | Complete | Unit, BDD, integration, concurrency, saturation, graceful-shutdown, publication-failure, architecture, UI presentation/system and runtime-host qualification all pass. |
 | `MOUP-10` | Complete | The technical acceptance boundary is satisfied and this evidence is recorded. Databento lifecycle code was not changed. Stage 2 remains unstarted and requires explicit user direction. |
 
-### 10.2 Automated qualification
+### 11.2 Automated qualification
 
 | Suite | Result |
 | --- | --- |
@@ -554,7 +773,7 @@ The first complete Analytics integration attempt exposed a missing Stage 1 regis
 embedded API host. The fixture was corrected to use the same singleton channel, processor, cache,
 publisher, metrics and hosted-service wiring as production; the complete suite then passed 50/50.
 
-### 10.3 Concurrency and resource evidence
+### 11.3 Concurrency and resource evidence
 
 - Two simultaneous producer tasks submitted 1,000 accepted updates; all 1,000 were applied and
   published with sibling state retained.
@@ -565,7 +784,7 @@ publisher, metrics and hosted-service wiring as production; the complete suite t
 - Concurrent lock-free readers observed only complete immutable snapshots during 2,001 sequential
   writes, and the 10,000-live-preview verification retained immutable Daily accumulator state.
 
-### 10.4 Runtime and live evidence
+### 11.4 Runtime and live evidence
 
 At 18:32-18:34 Toronto time, the real Development API Server was started on an isolated port with
 the Synthetic data source and historical acquisition disabled. Readiness was `Healthy`, all 125
@@ -583,9 +802,9 @@ The typed Market Outlook remained valid, its ES close advanced from `7644.25` to
 minutes; the ES live path and the Stage 1 processor were operating. The isolated live host was then
 shut down normally.
 
-## 11. Stage 2 execution record - 2026-09-02
+## 12. Stage 2 execution record - 2026-09-02
 
-### 11.1 Gate status
+### 12.1 Gate status
 
 | Gate | Status | Recorded evidence |
 | --- | --- | --- |
@@ -595,14 +814,14 @@ shut down normally.
 | `DBR-04` | Complete | C++ ABI v3 exposes a bounded one-call process registry snapshot containing lifecycle state, heartbeat/provider activity, subscriptions, terminal state, counters, ring occupancy and bounded failure detail. Registry enumeration and destruction are synchronized. Native tests pass in synthetic and live-enabled builds. |
 | `DBR-05` | Complete | Rust implements the same ABI, export set, layout and behavioral semantics. The capability manifest and managed comparison suite validate the frozen surface, lifecycle, records, historical data, watchdog results and bounded repeated polling/restarts. Synthetic and live-enabled Rust tests pass. |
 | `DBR-06` | Complete | The managed wrapper uses one explicitly configured `Cpp` or `Rust` backend, joins the native registry with committed contract roles and managed epoch/worker/cache state, returns non-throwing typed snapshots, and records distinct native, interop and aggregation stages. |
-| `DBR-07` | Complete | `DatabentoMarketDataWatchdogService` is the sole lifecycle owner. Contracts, native feeds, subscriptions, aggregation workers, configured/running contracts and the last-price cache must qualify before Ready. A hosted one-minute poll runs for active value dates. |
+| `DBR-07` | Complete | `DatabentoMarketDataWatchdogService` is the sole lifecycle owner. Contracts, native feeds, subscriptions, aggregation workers, configured/running contracts and the last-price cache must qualify before Ready. The Stage 2 hosted watchdog currently polls every 15 seconds; the session-aware one-minute live policy belongs to Stage 3. |
 | `DBR-08` | Complete | Resetting is Orange, core recovery is exactly three serialized attempts followed by stop-and-latched Red, optional failures remain isolated Orange, terminal worker completion signals an immediate out-of-cycle probe, and transition observations are retried, persisted and published. |
 | `DBR-09` | Complete | Existing typed lifecycle commands/events are routed into the lifecycle request boundary. New typed readiness, current-contract and history queries work over NATS and REST without native polling. The UI exposes clickable detail, fences navigation to System for unexpected core failure, and preserves planned-closure read-only access. |
 | `DBR-10` | Complete | Refresh performs an immediate serialized probe and managed qualification without an implicit reset, records requested/started/completed/failed outcomes, and remains independent from Market Outlook recompose. |
-| `DBR-11` | Pending elapsed run | All automated, PostgreSQL, native, parity, fault, concurrency, UI and accelerated 24-hour/restart qualifications pass. The repository contains valid C++ and Rust market-close soak launchers, but the checked-in 2026-08-15 artifacts are preflight-only. A real complete active-session/overnight run has not yet elapsed and is not represented as passed. |
-| `DBR-12` | Pending | Technical criteria 1-7 pass. Criterion 8 awaits the real elapsed DBR-11 run, and criterion 9 requires explicit user acceptance. Stage 3 must not begin yet. |
+| `DBR-11` | Accepted waiver; follow-up open | All automated, PostgreSQL, native, parity, fault, concurrency, UI and accelerated 24-hour/restart qualifications pass. The repository contains valid C++ and Rust market-close soak launchers, but the checked-in 2026-08-15 artifacts are preflight-only. The owner accepted the missing real elapsed active-session/overnight run as a non-blocking follow-up on 2026-09-04; it is not represented as passed. |
+| `DBR-12` | Complete | The owner explicitly accepted Stage 2 on 2026-09-04 as working according to design, accepted the documented `DBR-11` waiver, and authorized Stage 3 specification and implementation planning. |
 
-### 11.2 Automated qualification
+### 12.2 Automated qualification
 
 | Suite | Result |
 | --- | --- |
@@ -625,7 +844,7 @@ shut down normally.
 The live-enabled native suites compile and test provider-specific normalization and slow-reader
 semantics; they do not claim that a provider-connected overnight run occurred.
 
-### 11.3 Fault, concurrency and persistence evidence
+### 12.3 Fault, concurrency and persistence evidence
 
 - Connection loss, heartbeat timeout, terminal fault and aggregation-worker completion enter the
   same exactly-three-attempt core recovery policy.
@@ -640,7 +859,7 @@ semantics; they do not claim that a provider-connected overnight run occurred.
   row-version rejection, two-row VX atomicity and rollback, source validation, indexes and JSONB
   detail filtering.
 
-### 11.4 Resource and accelerated-soak evidence
+### 12.4 Resource and accelerated-soak evidence
 
 - The deterministic managed soak executed 1,440 one-minute-equivalent probes and 50 serialized
   restarts in 81.684 ms, allocated 3,943,872 bytes, grew private memory by 4,096 bytes and added no
@@ -654,9 +873,9 @@ semantics; they do not claim that a provider-connected overnight run occurred.
 
 These accelerated tests prove deterministic state-machine, allocation, memory, handle, ring,
 backlog and P/Invoke-latency bounds. They complement rather than replace the real elapsed run
-required by `DBR-11`.
+retained as the non-blocking `DBR-11` follow-up.
 
-### 11.5 Elapsed soak commands
+### 12.5 Elapsed soak commands
 
 Run the provider-connected qualification during a representative session with a clean or explicitly
 acknowledged dirty tree, retaining each generated manifest, console log, TRX, machine result and
@@ -670,8 +889,9 @@ completion record:
 The two implementations should be qualified sequentially unless the Databento entitlement and the
 test machine are intentionally approved for concurrent sessions.
 
-## 12. Next action
+## 13. Next action
 
-Complete and review the two elapsed provider-connected Stage 2 soak runs. If they pass, record the
-artifacts here and explicitly accept Stage 2. Do not begin MDOH Stage 3 before both conditions are
-satisfied.
+Review and approve the Stage 3 specification and implementation plan, then begin the first
+failing-characterization and contract gates. Run the two elapsed provider-connected Stage 2 soak
+commands when operationally convenient and append their artifacts without reopening the accepted
+Stage 2 gate unless they expose a regression.

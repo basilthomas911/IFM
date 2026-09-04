@@ -13,10 +13,13 @@ namespace TomasAI.IFM.Application.ServerManager;
 public sealed class ManagedProcessSupervisor : IAsyncDisposable
 {
     private readonly object _sync = new();
+    private readonly object _notificationSync = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly IReadOnlyList<ManagedProcessDefinition> _definitions;
     private readonly TimeSpan _shutdownTimeout;
     private readonly Action<ManagedProcessLogEntry> _writeLog;
+    private readonly Action<IReadOnlyCollection<ManagedProcessIdentity>>? _runningProcessesChanged;
+    private readonly WindowsKillOnCloseJob? _developmentJob;
     private readonly Dictionary<string, OwnedProcess> _running = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task> _lastCompletions = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
@@ -24,7 +27,9 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
     public ManagedProcessSupervisor(
         IEnumerable<ManagedProcessDefinition> definitions,
         TimeSpan shutdownTimeout,
-        Action<ManagedProcessLogEntry> writeLog)
+        Action<ManagedProcessLogEntry> writeLog,
+        bool useDevelopmentKillOnCloseJob = false,
+        Action<IReadOnlyCollection<ManagedProcessIdentity>>? runningProcessesChanged = null)
     {
         ArgumentNullException.ThrowIfNull(definitions);
         ArgumentNullException.ThrowIfNull(writeLog);
@@ -36,6 +41,8 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         _definitions = definitions.Where(definition => definition.Enabled).OrderBy(definition => definition.StartOrder).ToArray();
         _shutdownTimeout = shutdownTimeout;
         _writeLog = writeLog;
+        _runningProcessesChanged = runningProcessesChanged;
+        _developmentJob = useDevelopmentKillOnCloseJob ? new WindowsKillOnCloseJob() : null;
     }
 
     public IReadOnlyCollection<string> RunningProcessKeys
@@ -45,6 +52,19 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
             lock (_sync)
             {
                 return _running.Keys.ToArray();
+            }
+        }
+    }
+
+    public IReadOnlyCollection<ManagedProcessIdentity> RunningProcesses
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _running.Values
+                    .Select(value => value.Identity)
+                    .ToArray();
             }
         }
     }
@@ -138,9 +158,16 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
             return;
         }
 
-        await StopAllAsync().ConfigureAwait(false);
-        _disposed = true;
-        _lifecycle.Dispose();
+        try
+        {
+            await StopAllAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _developmentJob?.Dispose();
+            _disposed = true;
+            _lifecycle.Dispose();
+        }
     }
 
     private Task StartCoreAsync(ManagedProcessDefinition definition)
@@ -180,25 +207,52 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
                 throw new InvalidOperationException("Process.Start returned false.");
             }
 
-            var owned = new OwnedProcess(definition, process);
+            _developmentJob?.Assign(process);
+
+            var owned = new OwnedProcess(
+                definition,
+                process,
+                new ManagedProcessIdentity(
+                    definition.Key,
+                    process.Id,
+                    new DateTimeOffset(process.StartTime.ToUniversalTime()),
+                    definition.ResolveExecutablePath(),
+                    definition.StartOrder));
             lock (_sync)
             {
                 _running.Add(definition.Key, owned);
                 owned.Completion = MonitorAsync(owned);
                 _lastCompletions[definition.Key] = owned.Completion;
             }
-
-            WriteLifecycle(definition, $"Started process {process.Id}.");
         }
         catch (Exception exception)
         {
+            try
+            {
+                if (process.Id != 0 && !process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // The process did not start or exited during startup cleanup.
+            }
+
             process.Dispose();
             WriteLifecycle(definition, $"Start failed: {exception.Message}");
             lock (_sync)
             {
                 _lastCompletions[definition.Key] = Task.CompletedTask;
             }
+
+            return Task.CompletedTask;
         }
+
+        NotifyRunningProcessesChanged();
+
+        WriteLifecycle(definition, $"Started process {process.Id}.");
 
         return Task.CompletedTask;
     }
@@ -254,6 +308,8 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
                     _running.Remove(owned.Definition.Key);
                 }
             }
+
+            NotifyRunningProcessesChanged();
 
             owned.Process.Dispose();
         }
@@ -451,12 +507,49 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
             stream,
             message));
 
-    private sealed class OwnedProcess(ManagedProcessDefinition definition, Process process)
+    private void NotifyRunningProcessesChanged()
+    {
+        if (_runningProcessesChanged is null)
+        {
+            return;
+        }
+
+        lock (_notificationSync)
+        {
+            try
+            {
+                _runningProcessesChanged(RunningProcesses);
+            }
+            catch (Exception exception)
+            {
+                _writeLog(new ManagedProcessLogEntry(
+                    DateTimeOffset.Now,
+                    "manager",
+                    "Server Manager",
+                    ManagedProcessLogStream.Manager,
+                    $"Development process-session record update failed: {exception.Message}"));
+            }
+        }
+    }
+
+    private sealed class OwnedProcess(
+        ManagedProcessDefinition definition,
+        Process process,
+        ManagedProcessIdentity identity)
     {
         public ManagedProcessDefinition Definition { get; } = definition;
 
         public Process Process { get; } = process;
 
+        public ManagedProcessIdentity Identity { get; } = identity;
+
         public Task Completion { get; set; } = Task.CompletedTask;
     }
 }
+
+public sealed record ManagedProcessIdentity(
+    string ProcessKey,
+    int ProcessId,
+    DateTimeOffset StartedAtUtc,
+    string ExecutablePath,
+    int StartOrder);

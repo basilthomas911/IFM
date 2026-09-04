@@ -397,7 +397,11 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                 return new(request.Dataset, request.ExpectedGenerationId, previous.GenerationId, true,
                     "A newer dataset generation already owns the route; stale reset was ignored.");
 
+            var contracts = _catalog!.ResolvedContracts.Where(contract =>
+                    string.Equals(contract.Dataset, request.Dataset, StringComparison.Ordinal))
+                .ToArray();
             var owners = previous.CaptureStreamOwners();
+
             try
             {
                 using var teardown = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -412,17 +416,26 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     $"Dataset teardown did not complete: {exception.Message}");
             }
 
+            // The old generation is now quiescent and can no longer accept work. Remove it
+            // from API admission before clearing its dataset-scoped state and starting the
+            // replacement generation.
             var remainingDatasets = datasets.ToDictionary(StringComparer.Ordinal);
             remainingDatasets.Remove(request.Dataset);
             var remainingContracts = Volatile.Read(ref _aggregationByContractId)
                 .ToDictionary(StringComparer.Ordinal);
-            foreach (var contract in _catalog!.ResolvedContracts.Where(contract =>
-                         string.Equals(contract.Dataset, request.Dataset, StringComparison.Ordinal)))
+            foreach (var contract in contracts)
                 remainingContracts.Remove(contract.Registration.DomainContractId);
             Volatile.Write(ref _aggregationsByDataset,
                 remainingDatasets.ToFrozenDictionary(StringComparer.Ordinal));
             Volatile.Write(ref _aggregationByContractId,
                 remainingContracts.ToFrozenDictionary(StringComparer.Ordinal));
+
+            // A replacement generation starts without any price, session, sequence, buffer,
+            // or aggregation history from the failed generation. Reader identities remain
+            // stable for epoch consumers, but they report no value until the replacement
+            // accepts a new observation.
+            _lastPrices!.ResetContracts(contracts.Select(
+                static contract => contract.Registration.DomainContractId));
 
             TickAggregationService? replacement = null;
             var generation = Guid.CreateVersion7(_timeProvider.GetUtcNow());
@@ -433,14 +446,13 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                 replacement = await CreateDatasetAggregationAsync(
                     request.Dataset, generation, qualification.Token).ConfigureAwait(false);
                 replacement.RestoreStreamOwners(owners);
-                if (!replacement.IsFeedUp())
-                    throw new InvalidOperationException("Replacement feed did not qualify as operational.");
+                await QualifyReplacementAsync(replacement, qualification.Token)
+                    .ConfigureAwait(false);
 
                 var nextDatasets = remainingDatasets;
                 nextDatasets[request.Dataset] = replacement;
                 var nextContracts = remainingContracts;
-                foreach (var contract in _catalog!.ResolvedContracts.Where(contract =>
-                             string.Equals(contract.Dataset, request.Dataset, StringComparison.Ordinal)))
+                foreach (var contract in contracts)
                     nextContracts[contract.Registration.DomainContractId] = replacement;
                 Volatile.Write(ref _aggregationsByDataset,
                     nextDatasets.ToFrozenDictionary(StringComparer.Ordinal));
@@ -462,6 +474,39 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             }
         }
         finally { _lifecycle.Release(); }
+    }
+
+    async Task QualifyReplacementAsync(
+        TickAggregationService replacement,
+        CancellationToken cancellationToken)
+    {
+        const int observationCount = 3;
+        var previous = replacement.GetFeedHealth();
+        if (!replacement.IsFeedUp())
+            throw new InvalidOperationException("Replacement feed did not qualify as operational.");
+
+        var stalledObservations = 0;
+        for (var observation = 1; observation < observationCount; observation++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(50), _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+            if (!replacement.IsFeedUp())
+                throw new InvalidOperationException(
+                    "Replacement feed stopped during data-path qualification.");
+
+            var current = replacement.GetFeedHealth();
+            var drainStalled = current.RingUsedRecords > 0
+                && (current.DrainDiagnostics?.Stage == FeedDrainStage.WaitingForNativeSignal
+                    || current.RecordsProduced > previous.RecordsProduced
+                    && current.RecordsConsumed == previous.RecordsConsumed);
+            stalledObservations = drainStalled ? stalledObservations + 1 : 0;
+            if (stalledObservations >= 2)
+            {
+                throw new InvalidOperationException(
+                    "Replacement feed produced records without native-drain progress.");
+            }
+            previous = current;
+        }
     }
 
     async Task<TickAggregationService> CreateDatasetAggregationAsync(

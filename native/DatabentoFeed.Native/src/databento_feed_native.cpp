@@ -213,6 +213,7 @@ struct dbf_feed {
     std::atomic<bool> stop_requested{false};
     std::atomic<bool> producer_done{false};
     std::atomic<bool> consumer_ready{false};
+    std::atomic<bool> consumer_waiting{false};
     std::atomic<std::uint32_t> state{DBF_STATE_CREATED};
     std::atomic<std::int32_t> terminal_status{DBF_OK};
     monotonic_clock::time_point start_deadline{};
@@ -1029,7 +1030,11 @@ bool publish_record(dbf_feed* feed, const dbf_market_record64& record) noexcept 
     update_high_water(feed, used);
     feed->records_produced.fetch_add(1, std::memory_order_relaxed);
     record_producer_processor_residency(feed);
-    if (was_empty) {
+    // The consumer can empty the ring after the producer sampled tail but before
+    // this record is committed. In that interleaving was_empty is false even
+    // though the consumer is about to sleep. Honor the explicit wait handshake
+    // so an empty-to-non-empty transition can never lose its wake-up.
+    if (was_empty || feed->consumer_waiting.load(std::memory_order_acquire)) {
         notify_signal(feed);
     }
     return true;
@@ -2329,9 +2334,21 @@ dbf_status DBF_CALL dbf_feed_wait(dbf_feed_t* feed,
                      - feed->tail.value.load(std::memory_order_acquire);
     auto state = feed->state.load(std::memory_order_acquire);
     if (available == 0 && state != DBF_STATE_STOPPED && state != DBF_STATE_FAULTED) {
-        const auto status = wait_signal(feed, timeout_ms);
-        if (status != DBF_OK) {
-            return status;
+        feed->consumer_waiting.store(true, std::memory_order_release);
+        // Close the check-to-wait race with the producer. If publication won the
+        // race, the acquired head makes waiting unnecessary; otherwise the
+        // producer observes consumer_waiting and signals after committing data.
+        available = feed->head.value.load(std::memory_order_acquire)
+                    - feed->tail.value.load(std::memory_order_acquire);
+        state = feed->state.load(std::memory_order_acquire);
+        if (available == 0 && state != DBF_STATE_STOPPED && state != DBF_STATE_FAULTED) {
+            const auto status = wait_signal(feed, timeout_ms);
+            feed->consumer_waiting.store(false, std::memory_order_release);
+            if (status != DBF_OK) {
+                return status;
+            }
+        } else {
+            feed->consumer_waiting.store(false, std::memory_order_release);
         }
         available = feed->head.value.load(std::memory_order_acquire)
                     - feed->tail.value.load(std::memory_order_acquire);

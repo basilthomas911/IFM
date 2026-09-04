@@ -672,7 +672,11 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
             services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
-            services.AddSingleton<IMarketOutlookSnapshotCommandWriter, ActorMarketOutlookSnapshotCommandWriter>();
+            services.AddSingleton<LatestMarketOutlookSnapshotPublisher>();
+            services.AddSingleton<IMarketOutlookSnapshotPublisher>(provider =>
+                provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
+            services.AddHostedService(provider =>
+                provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
             services.AddSingleton<MarketOutlookUpdateProcessor>();
             services.AddSingleton<IMarketOutlookOperations>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
