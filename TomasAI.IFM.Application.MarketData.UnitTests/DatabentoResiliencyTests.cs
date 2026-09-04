@@ -5,6 +5,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -12,6 +13,82 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class DatabentoResiliencyTests
 {
+    [Fact]
+    public async Task Dataset_incident_store_is_idempotent_and_returns_only_open_current_incidents()
+    {
+        var store = new InMemoryMarketDataServiceStore();
+        var transitionId = Guid.NewGuid();
+        var snapshot = new DatasetIncidentSnapshot
+        {
+            Dataset = "GLBX.MDP3", ValueDate = ValueDate, IncidentId = Guid.NewGuid(),
+            GenerationId = Guid.NewGuid(), IsOpen = true,
+            FailureReason = DatabentoDatasetFailureReason.NativeDrainStalled,
+            LastAction = DatasetRecoveryAction.CooperativeReset,
+            ObservedOnUtc = DateTime.UtcNow
+        };
+        var transition = new DatasetIncidentTransition(
+            transitionId, Guid.NewGuid(), snapshot);
+
+        var first = await store.PersistDatasetIncidentAsync(transition);
+        var duplicate = await store.PersistDatasetIncidentAsync(transition);
+        var closed = await store.PersistDatasetIncidentAsync(new(
+            Guid.NewGuid(), Guid.NewGuid(), snapshot with { IsOpen = false }));
+
+        first.RowVersion.Should().Be(1);
+        duplicate.RowVersion.Should().Be(1);
+        closed.RowVersion.Should().Be(2);
+        (await store.ListOpenDatasetIncidentsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Stage3_live_policy_retries_once_per_minute_then_replaces_only_the_dataset_process()
+    {
+        var time = new ManualTimeProvider();
+        var runtime = new TestRuntime { Snapshot = Up() with
+        {
+            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)]
+        }, FailDatasetResets = true };
+        var recovery = new TestProcessRecovery(runtime);
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(),
+            stage3: new DatabentoStage3Options { Enabled = true },
+            processRecovery: recovery, timeProvider: time);
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            await service.ProbeAsync();
+            recovery.Count.Should().Be(0);
+            time.Advance(TimeSpan.FromMinutes(1));
+        }
+        await service.ProbeAsync();
+
+        runtime.ResetDatasets.Should().HaveCount(5);
+        recovery.Count.Should().Be(1);
+        service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+    }
+
+    [Fact]
+    public async Task Stage3_off_hours_waits_fifteen_minutes_then_failed_reset_replaces_process()
+    {
+        var time = new ManualTimeProvider();
+        var runtime = new TestRuntime { Snapshot = Up() with
+        {
+            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)]
+        }, FailDatasetResets = true };
+        var recovery = new TestProcessRecovery(runtime);
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(),
+            FuturesMarketState.OffTrading,
+            stage3: new DatabentoStage3Options { Enabled = true },
+            processRecovery: recovery, timeProvider: time);
+
+        await service.ProbeAsync();
+        time.Advance(TimeSpan.FromMinutes(15));
+        await service.ProbeAsync();
+
+        runtime.ResetDatasets.Should().ContainSingle();
+        recovery.Count.Should().Be(1);
+        service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+    }
+
     [Fact]
     public async Task Exhausted_core_failure_runs_exactly_three_serial_recovery_attempts_and_latches_red()
     {
@@ -432,7 +509,10 @@ public sealed class DatabentoResiliencyTests
     static DatabentoMarketDataWatchdogService Create(TestRuntime runtime, IMarketDataServiceStore store,
         FuturesMarketState state = FuturesMarketState.LiveTrading,
         IDatabentoWatchdogPublisher? publisher = null, DatabentoWatchdogMetrics? metrics = null,
-        DatabentoTerminalFaultSignal? signal = null)
+        DatabentoTerminalFaultSignal? signal = null,
+        DatabentoStage3Options? stage3 = null,
+        IDatabentoDatasetProcessRecovery? processRecovery = null,
+        TimeProvider? timeProvider = null)
     {
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
@@ -443,14 +523,17 @@ public sealed class DatabentoResiliencyTests
             SessionEndUtc = DateTime.UtcNow.AddHours(1), NextTransitionUtc = DateTime.UtcNow.AddHours(1),
             AsOfUtc = DateTime.UtcNow
         });
+        var clock = timeProvider ?? TimeProvider.System;
+        var admissions = new DatasetWorkerAdmissionRegistry();
         return new(runtime, store, authority, publisher ?? new NullDatabentoWatchdogPublisher(),
             metrics ?? new DatabentoWatchdogMetrics(),
             new DatabentoWatchdogOptions
             {
                 PollInterval = TimeSpan.FromHours(1), AttemptTwoDelay = TimeSpan.Zero,
                 AttemptThreeDelay = TimeSpan.Zero, PersistenceRetryDelay = TimeSpan.Zero
-            }, signal ?? new DatabentoTerminalFaultSignal(), TimeProvider.System,
-            NullLogger<DatabentoMarketDataWatchdogService>.Instance);
+            }, signal ?? new DatabentoTerminalFaultSignal(), clock,
+            NullLogger<DatabentoMarketDataWatchdogService>.Instance,
+            stage3, processRecovery, new MarketDataOperationsHealthService(admissions));
     }
 
     static DatabentoBulkWatchdogSnapshot Down() => new()
@@ -530,6 +613,7 @@ public sealed class DatabentoResiliencyTests
         public DateOnly? ActiveValueDate { get; private set; } = ValueDate;
         public required DatabentoBulkWatchdogSnapshot Snapshot { get; set; }
         public bool FailStarts { get; init; }
+        public bool FailDatasetResets { get; init; }
         public TimeSpan MutationDelay { get; init; }
         public int StartCount { get; private set; }
         public int StopCount { get; private set; }
@@ -550,6 +634,9 @@ public sealed class DatabentoResiliencyTests
         {
             await Mutate();
             ResetDatasets.Add(request.Dataset);
+            if (FailDatasetResets)
+                return new(request.Dataset, request.ExpectedGenerationId, request.ExpectedGenerationId,
+                    false, "Injected dataset reset failure.");
             var generation = Guid.NewGuid();
             Snapshot = Snapshot with
             {
@@ -573,6 +660,45 @@ public sealed class DatabentoResiliencyTests
             MaximumConcurrentMutations = Math.Max(MaximumConcurrentMutations, current);
             try { if (MutationDelay > TimeSpan.Zero) await Task.Delay(MutationDelay); }
             finally { Interlocked.Decrement(ref _activeMutations); }
+        }
+    }
+
+    sealed class TestProcessRecovery(TestRuntime runtime) : IDatabentoDatasetProcessRecovery
+    {
+        public int Count { get; private set; }
+        public Task<DatabentoDatasetResetResult> ReplaceProcessAsync(
+            DatabentoDatasetResetRequest request, CancellationToken cancellationToken)
+        {
+            Count++;
+            var generation = Guid.NewGuid();
+            runtime.Snapshot = runtime.Snapshot with
+            {
+                ObservedOnUtc = runtime.Snapshot.ObservedOnUtc.AddSeconds(1),
+                Feeds = runtime.Snapshot.Feeds.Select(feed => feed.Dataset == request.Dataset
+                    ? Feed(generation, feed.Criticality, true) with
+                    {
+                        Dataset = feed.Dataset,
+                        FeedInstanceId = feed.FeedInstanceId,
+                        ContractRoles = feed.ContractRoles
+                    }
+                    : feed).ToArray()
+            };
+            return Task.FromResult(new DatabentoDatasetResetResult(request.Dataset,
+                request.ExpectedGenerationId, generation, true, "replaced"));
+        }
+    }
+
+    sealed class ManualTimeProvider : TimeProvider
+    {
+        DateTimeOffset utcNow = new(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
+        long timestamp;
+        public override DateTimeOffset GetUtcNow() => utcNow;
+        public override long GetTimestamp() => timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public void Advance(TimeSpan value)
+        {
+            utcNow += value;
+            timestamp = checked(timestamp + value.Ticks);
         }
     }
 }

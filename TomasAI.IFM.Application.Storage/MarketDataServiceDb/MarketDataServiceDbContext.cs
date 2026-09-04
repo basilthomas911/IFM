@@ -135,6 +135,25 @@ public sealed class MarketDataServiceDbContext(
             .ExecuteQueryAsync(MapObservation, cancellationToken).ConfigureAwait(false)];
     }
 
+    public async Task<DatasetIncidentTransition> PersistDatasetIncidentAsync(
+        DatasetIncidentTransition transition, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        var version = await Database.Use("MarketDataService.PersistDatasetIncident",
+                MarketDataServiceDbSql.PersistDatasetIncident)
+            .SetParameters(new IncidentParameter(transition))
+            .ExecuteScalarAsync(static row => row.GetLong(0), cancellationToken).ConfigureAwait(false);
+        // An idempotent duplicate does not update current and returns no row.  Preserve its known
+        // version for callers; watchdog transition IDs are unique in normal operation.
+        return transition with { RowVersion = version == 0 ? transition.RowVersion : version };
+    }
+
+    public async Task<IReadOnlyList<DatasetIncidentTransition>> ListOpenDatasetIncidentsAsync(
+        CancellationToken cancellationToken = default) =>
+        [.. await Database.Use("MarketDataService.ListOpenDatasetIncidents",
+                MarketDataServiceDbSql.ListOpenDatasetIncidents)
+            .ExecuteQueryAsync(MapIncident, cancellationToken).ConfigureAwait(false)];
+
     Task<DatabentoWatchdogObservation?> GetObservationByIdentityAsync(Guid id, CancellationToken cancellationToken)
         => Database.Use("MarketDataService.GetObservationByIdentity", MarketDataServiceDbSql.GetObservationByIdentity)
             .SetParameters(new IdentityParameter(id)).ExecuteSingleAsync<DatabentoWatchdogObservation?>(MapObservation, cancellationToken);
@@ -178,6 +197,12 @@ public sealed class MarketDataServiceDbContext(
         RowVersion = row.GetLong(16)
     };
 
+    static DatasetIncidentTransition MapIncident(IObjectDataRecord row) => new(
+        row.GetGuid(0), row.GetGuid(1),
+        JsonSerializer.Deserialize<DatasetIncidentSnapshot>(row.GetString(2))
+            ?? throw new InvalidDataException("Persisted dataset incident snapshot is invalid."),
+        row.GetLong(3));
+
     static DateTime Utc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
     readonly record struct RoleParameter(DatabentoContractRole Role) : IBindValue { public object Bind() => Values(Text(Role.ToString())); }
@@ -212,6 +237,13 @@ public sealed class MarketDataServiceDbContext(
             Text(O.DisplayHealth.ToString()), Boolean(O.CoreContractsReady), Integer(O.RecoveryAttempt), Text(O.NativeBackend),
             Integer(O.NativeAbiVersion), Uuid(O.NativeGeneration), Text(O.FailureStage), Text(O.FailureDetail),
             Text(JsonSerializer.Serialize(O.FeedStatusDetails)), Bigint(Expected), Text(ChangedBy));
+    }
+    readonly record struct IncidentParameter(DatasetIncidentTransition T) : IBindValue
+    {
+        public object Bind() => Values(Uuid(T.TransitionId), Uuid(T.Snapshot.IncidentId),
+            Uuid(T.CorrelationId), Text(T.Snapshot.Dataset), Date(T.Snapshot.ValueDate),
+            TimestampTz(T.Snapshot.ObservedOnUtc), Boolean(T.Snapshot.IsOpen),
+            Text(JsonSerializer.Serialize(T.Snapshot)));
     }
 
     static Npgsql.NpgsqlParameter[] BindAssignment(FuturesRolloverContractAssignment a, long expected) => Values(

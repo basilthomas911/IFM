@@ -79,7 +79,18 @@ public enum MarketDataOperationStage : byte
     DatabentoInterop,
     DatabentoAggregation,
     DatabentoLifecycle,
-    DatabentoRefresh
+    DatabentoRefresh,
+    DatabentoWorkerProcess,
+    DatabentoGenerationIngress,
+    RsiAnalytics,
+    TdiAnalytics,
+    ItiAnalytics,
+    EmaAnalytics,
+    BollingerBandAnalytics,
+    VixAnalytics,
+    EodAnalytics,
+    FuturesTradeSignal,
+    UiDelivery
 }
 
 public enum MarketDataOperationOutcome : byte

@@ -149,6 +149,7 @@ public sealed class InMemoryMarketDataServiceStore : IMarketDataServiceStore
     readonly object _sync = new();
     readonly Dictionary<DatabentoContractRole, FuturesRolloverContractAssignment> _assignments = [];
     readonly List<DatabentoWatchdogObservation> _observations = [];
+    readonly Dictionary<string, DatasetIncidentTransition> _incidents = new(StringComparer.Ordinal);
     long _nextObservationId;
 
     public Task<FuturesRolloverContractAssignment?> GetAssignmentAsync(DatabentoContractRole role,
@@ -261,6 +262,29 @@ public sealed class InMemoryMarketDataServiceStore : IMarketDataServiceStore
             _observations.RemoveAt(index);
         }
         return Task.CompletedTask;
+    }
+
+    public Task<DatasetIncidentTransition> PersistDatasetIncidentAsync(
+        DatasetIncidentTransition transition, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        lock (_sync)
+        {
+            var current = _incidents.GetValueOrDefault(transition.Snapshot.Dataset);
+            if (current?.TransitionId == transition.TransitionId)
+                return Task.FromResult(current);
+            var saved = transition with { RowVersion = checked((current?.RowVersion ?? 0) + 1) };
+            _incidents[transition.Snapshot.Dataset] = saved;
+            return Task.FromResult(saved);
+        }
+    }
+
+    public Task<IReadOnlyList<DatasetIncidentTransition>> ListOpenDatasetIncidentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+            return Task.FromResult<IReadOnlyList<DatasetIncidentTransition>>(
+                [.. _incidents.Values.Where(value => value.Snapshot.IsOpen)]);
     }
 
     static void Validate(FuturesRolloverContractAssignment value)

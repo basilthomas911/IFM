@@ -63,4 +63,28 @@ internal static class MarketDataServiceDbSql
         WHERE watchdog_status_log_id=$1 AND observation_id=$2 AND row_version=$17 RETURNING {ObservationColumns};
         """;
     internal const string DeleteObservation = "DELETE FROM market_data_service.watchdog_status_log WHERE watchdog_status_log_id=$1 AND row_version=$2;";
+    internal const string PersistDatasetIncident = """
+        WITH history AS (
+          INSERT INTO market_data_service.dataset_incident_transition
+          (transition_id,incident_id,correlation_id,dataset,value_date,observed_on_utc,is_open,snapshot)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+          ON CONFLICT(transition_id) DO NOTHING
+          RETURNING transition_id
+        )
+        INSERT INTO market_data_service.dataset_incident_current
+        (dataset,value_date,incident_id,transition_id,correlation_id,observed_on_utc,is_open,snapshot,row_version)
+        VALUES($4,$5,$2,$1,$3,$6,$7,$8::jsonb,1)
+        ON CONFLICT(dataset) DO UPDATE SET value_date=EXCLUDED.value_date,
+          incident_id=EXCLUDED.incident_id,transition_id=EXCLUDED.transition_id,
+          correlation_id=EXCLUDED.correlation_id,observed_on_utc=EXCLUDED.observed_on_utc,
+          is_open=EXCLUDED.is_open,snapshot=EXCLUDED.snapshot,
+          row_version=market_data_service.dataset_incident_current.row_version+1
+        WHERE EXISTS(SELECT 1 FROM history)
+        RETURNING row_version;
+        """;
+    internal const string ListOpenDatasetIncidents = """
+        SELECT transition_id,correlation_id,snapshot,row_version
+        FROM market_data_service.dataset_incident_current
+        WHERE is_open=true ORDER BY dataset;
+        """;
 }

@@ -184,6 +184,12 @@ public interface IMarketDataServiceStore
     Task<DatabentoWatchdogObservation?> GetObservationAsync(long id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DatabentoWatchdogObservation>> ListObservationsAsync(DateOnly? valueDate = null, DatabentoMajorStatus? status = null, int pageSize = 100, CancellationToken cancellationToken = default);
     Task DeleteObservationAsync(long id, long expectedRowVersion, string deletedBy, CancellationToken cancellationToken = default);
+    Task<DatasetIncidentTransition> PersistDatasetIncidentAsync(
+        DatasetIncidentTransition transition,
+        CancellationToken cancellationToken = default) => Task.FromResult(transition);
+    Task<IReadOnlyList<DatasetIncidentTransition>> ListOpenDatasetIncidentsAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<DatasetIncidentTransition>>([]);
 }
 
 public interface IDatabentoLifecycleRuntime

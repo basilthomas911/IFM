@@ -15,7 +15,10 @@ public sealed class DatabentoMarketDataWatchdogService(
     DatabentoWatchdogOptions options,
     DatabentoTerminalFaultSignal terminalFaultSignal,
     TimeProvider timeProvider,
-    ILogger<DatabentoMarketDataWatchdogService> logger)
+    ILogger<DatabentoMarketDataWatchdogService> logger,
+    DatabentoStage3Options? stage3Options = null,
+    IDatabentoDatasetProcessRecovery? processRecovery = null,
+    TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? operationsHealth = null)
     : BackgroundService, IMarketDataLifecycleRequests
 {
     const int MaximumRecoveryAttempts = 3;
@@ -23,6 +26,12 @@ public sealed class DatabentoMarketDataWatchdogService(
     readonly object _snapshotSync = new();
     readonly DatabentoDatasetHealthEvaluator _datasetEvaluator =
         new(options.HardStallTimeout);
+    readonly DatabentoStage3Options _stage3 = (stage3Options ?? new()).Validate();
+    readonly IDatabentoDatasetProcessRecovery _processRecovery = processRecovery
+        ?? new UnavailableDatabentoDatasetProcessRecovery();
+    readonly TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? _operationsHealth = operationsHealth;
+    readonly Dictionary<string, DatasetIncidentStateMachine> _incidents = new(StringComparer.Ordinal);
+    int _incidentsHydrated;
     DatabentoLifecycleSnapshot _current = NewSnapshot();
 
     public DatabentoLifecycleSnapshot Current { get { lock (_snapshotSync) return _current; } }
@@ -32,7 +41,11 @@ public sealed class DatabentoMarketDataWatchdogService(
         while (!stoppingToken.IsCancellationRequested)
         {
             using var cycle = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            var interval = Task.Delay(options.PollInterval, timeProvider, cycle.Token);
+            var session = sessionAuthority.Current;
+            var delay = _stage3.Enabled
+                ? ScheduledDelay(session)
+                : options.PollInterval;
+            var interval = Task.Delay(delay, timeProvider, cycle.Token);
             var terminal = terminalFaultSignal.ReadAsync(cycle.Token).AsTask();
             _ = await Task.WhenAny(interval, terminal).ConfigureAwait(false);
             await cycle.CancelAsync().ConfigureAwait(false);
@@ -108,6 +121,8 @@ public sealed class DatabentoMarketDataWatchdogService(
 
     public Task ProbeAsync(CancellationToken cancellationToken = default) => SerializedAsync(async token =>
     {
+        if (_stage3.Enabled)
+            await EnsureIncidentsHydratedAsync(token).ConfigureAwait(false);
         var session = sessionAuthority.Current;
         if (session.ActiveValueDate is null)
         {
@@ -153,6 +168,11 @@ public sealed class DatabentoMarketDataWatchdogService(
             }
         }
         var native = EvaluateDatasets(await SafeProbeAsync(token).ConfigureAwait(false));
+        if (_stage3.Enabled)
+        {
+            await HandleStage3DatasetsAsync(session, valueDate, native, token).ConfigureAwait(false);
+            return;
+        }
         var failedDatasets = native.Feeds
             .Where(feed => feed.FeedKind == "Ticker"
                 && feed.DatasetState == DatabentoDatasetState.Down)
@@ -253,6 +273,157 @@ public sealed class DatabentoMarketDataWatchdogService(
         await RecoverAsync(valueDate, Guid.CreateVersion7(timeProvider.GetUtcNow()),
             DatabentoOperationReason.AutomaticRecovery, token).ConfigureAwait(false);
     }, cancellationToken);
+
+    TimeSpan ScheduledDelay(TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel session)
+    {
+        var interval = _stage3.ScheduledInterval(session.State);
+        if (interval != Timeout.InfiniteTimeSpan)
+            return interval;
+        var now = timeProvider.GetUtcNow();
+        var transition = new DateTimeOffset(DateTime.SpecifyKind(session.NextTransitionUtc, DateTimeKind.Utc));
+        var remaining = transition - now;
+        return remaining <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(100) : remaining;
+    }
+
+    async Task HandleStage3DatasetsAsync(
+        TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel session,
+        DateOnly valueDate,
+        DatabentoBulkWatchdogSnapshot native,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = Guid.CreateVersion7(timeProvider.GetUtcNow());
+        foreach (var feed in native.Feeds.Where(feed => feed.FeedKind == "Ticker"))
+        {
+            var incident = GetIncident(feed.Dataset, valueDate);
+            var healthy = feed.DatasetState == DatabentoDatasetState.Up;
+            // Terminal native conditions wake this service out of cycle through
+            // DatabentoTerminalFaultSignal.  Once serialized here they still obey the same live
+            // five-attempt policy.  Only a confirmed OS process exit skips directly to replacement.
+            var decision = incident.ObserveScheduled(
+                session.State, healthy, feed.FailureReason, feed.GenerationId);
+            await RecordIncidentAsync(decision.Snapshot, correlationId, cancellationToken)
+                .ConfigureAwait(false);
+            if (decision.Action == DatasetRecoveryAction.None)
+                continue;
+            if (decision.Action == DatasetRecoveryAction.StopForClosure)
+                continue;
+
+            var request = new DatabentoDatasetResetRequest(
+                feed.Dataset,
+                feed.GenerationId,
+                valueDate,
+                feed.FailureReason,
+                options.DatasetTeardownTimeout,
+                options.DatasetQualificationTimeout,
+                correlationId);
+            DatabentoDatasetResetResult result;
+            if (decision.Action == DatasetRecoveryAction.CooperativeReset)
+            {
+                try { result = await runtime.ResetDatasetAsync(request, cancellationToken).ConfigureAwait(false); }
+                catch (Exception exception) when (exception is not OperationCanceledException
+                                                   || !cancellationToken.IsCancellationRequested)
+                {
+                    result = new(feed.Dataset, feed.GenerationId, Guid.Empty, false, Bound(exception.Message));
+                }
+                await RecordIncidentAsync(incident.RecordCooperativeResult(
+                    result.Succeeded, result.GenerationId), correlationId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (result.Succeeded)
+                {
+                    _datasetEvaluator.Forget(feed.Dataset);
+                    continue;
+                }
+
+                // During live trading a failed cooperative attempt remains part of the
+                // one-attempt-per-minute incident budget.  The state machine authorizes process
+                // replacement only on the fifth attempt/five-minute boundary.  Off-hours has one
+                // delayed cooperative attempt and then replaces immediately when it fails.
+                if (session.State == FuturesMarketState.LiveTrading)
+                    continue;
+            }
+
+            try
+            {
+                result = await _processRecovery.ReplaceProcessAsync(request, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException
+                                               || !cancellationToken.IsCancellationRequested)
+            {
+                result = new(feed.Dataset, feed.GenerationId, Guid.Empty, false,
+                    Bound(exception.Message));
+            }
+            await RecordIncidentAsync(incident.RecordProcessReplacement(
+                result.Succeeded, result.GenerationId), correlationId, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.Succeeded)
+                _datasetEvaluator.Forget(feed.Dataset);
+        }
+
+        var qualified = EvaluateDatasets(await SafeProbeAsync(cancellationToken).ConfigureAwait(false));
+        var evaluation = Evaluate(qualified, session.IsLiveTrading);
+        Transition(evaluation.CoreReady
+                ? evaluation.Health == DatabentoDisplayHealth.Orange
+                    ? DatabentoLifecycleState.Degraded : DatabentoLifecycleState.Healthy
+                : DatabentoLifecycleState.Failed,
+            valueDate, correlationId, 0, evaluation.Reason, qualified.NativeGeneration);
+        await RecordAsync(DatabentoOperationReason.WatchdogPoll, evaluation.Major,
+            evaluation.Health, evaluation.CoreReady, 0, qualified, correlationId,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    DatasetIncidentStateMachine GetIncident(string dataset, DateOnly valueDate)
+    {
+        if (_incidents.TryGetValue(dataset, out var current)
+            && current.Current.ValueDate == valueDate)
+            return current;
+        current = new DatasetIncidentStateMachine(dataset, valueDate, _stage3, timeProvider);
+        _incidents[dataset] = current;
+        return current;
+    }
+
+    async Task EnsureIncidentsHydratedAsync(CancellationToken cancellationToken)
+    {
+        if (Volatile.Read(ref _incidentsHydrated) != 0) return;
+        try
+        {
+            var persisted = await store.ListOpenDatasetIncidentsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var value in persisted)
+            {
+                var incident = GetIncident(value.Snapshot.Dataset, value.Snapshot.ValueDate);
+                incident.Hydrate(value.Snapshot);
+                _operationsHealth?.RecordIncident(value.Snapshot);
+            }
+            Volatile.Write(ref _incidentsHydrated, 1);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException
+                                           || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(exception,
+                "Stage 3 incident hydration failed; recovery continues conservatively in memory.");
+        }
+    }
+
+    async Task RecordIncidentAsync(DatasetIncidentSnapshot snapshot, Guid correlationId,
+        CancellationToken cancellationToken)
+    {
+        _operationsHealth?.RecordIncident(snapshot);
+        if (snapshot.IncidentId == Guid.Empty)
+            return;
+        try
+        {
+            _ = await store.PersistDatasetIncidentAsync(new(
+                Guid.NewGuid(), correlationId, snapshot), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException
+                                           || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(exception,
+                "Stage 3 incident transition persistence failed for dataset {Dataset}; live recovery remains active.",
+                snapshot.Dataset);
+        }
+    }
 
     public async Task RefreshAsync(Guid correlationId, CancellationToken cancellationToken = default)
     {

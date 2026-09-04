@@ -72,7 +72,7 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
     {
         if (_cleanup is null) return;
         _ = await _cleanup.Use("MarketDataServicePostgresFixture.Cleanup",
-            "TRUNCATE TABLE market_data_service.watchdog_status_log, market_data_service.futures_rollover_contract_assignment;")
+            "TRUNCATE TABLE market_data_service.dataset_incident_transition, market_data_service.dataset_incident_current, market_data_service.watchdog_status_log, market_data_service.futures_rollover_contract_assignment;")
             .ExecuteCommandAsync();
     }
 
@@ -143,6 +143,36 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
             .Should().Be("operator-reviewed");
         await fixture.Store.DeleteObservationAsync(first.WatchdogStatusLogId, 2, "integration-test");
         (await fixture.Store.GetObservationAsync(first.WatchdogStatusLogId)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Dataset_incident_transition_updates_bounded_current_state_and_hydrates_open_incident()
+    {
+        var snapshot = new DatasetIncidentSnapshot
+        {
+            Dataset = "GLBX.MDP3", ValueDate = new(2026, 9, 4),
+            IncidentId = Guid.NewGuid(), GenerationId = Guid.NewGuid(), IsOpen = true,
+            CooperativeAttempts = 2, UnhealthyDuration = TimeSpan.FromMinutes(2),
+            FailureReason = DatabentoDatasetFailureReason.NativeDrainStalled,
+            LastAction = DatasetRecoveryAction.CooperativeReset, ObservedOnUtc = DateTime.UtcNow
+        };
+        var first = await fixture.Store.PersistDatasetIncidentAsync(new(
+            Guid.NewGuid(), Guid.NewGuid(), snapshot));
+        var closed = await fixture.Store.PersistDatasetIncidentAsync(new(
+            Guid.NewGuid(), Guid.NewGuid(), snapshot with { IsOpen = false }));
+
+        first.RowVersion.Should().Be(1);
+        closed.RowVersion.Should().Be(2);
+        (await fixture.Store.ListOpenDatasetIncidentsAsync()).Should().BeEmpty();
+
+        var reopened = await fixture.Store.PersistDatasetIncidentAsync(new(
+            Guid.NewGuid(), Guid.NewGuid(), snapshot with
+            {
+                IncidentId = Guid.NewGuid(), IsOpen = true, CooperativeAttempts = 1
+            }));
+        reopened.RowVersion.Should().Be(3);
+        (await fixture.Store.ListOpenDatasetIncidentsAsync()).Should().ContainSingle(value =>
+            value.Snapshot.Dataset == "GLBX.MDP3" && value.Snapshot.CooperativeAttempts == 1);
     }
 
     static FuturesRolloverContractAssignment Assignment(

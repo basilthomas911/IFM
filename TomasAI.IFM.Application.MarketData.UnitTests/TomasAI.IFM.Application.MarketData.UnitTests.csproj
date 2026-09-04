@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData.Worker\TomasAI.IFM.Application.MarketData.Worker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

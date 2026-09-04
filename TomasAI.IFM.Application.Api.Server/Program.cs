@@ -6,6 +6,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 try
@@ -20,6 +21,8 @@ try
     app.ConfigureRequestPipeline(logger);
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
+    app.MapGet("/api/market-data/operations-health",
+        (MarketDataOperationsHealthService health) => Results.Ok(health.GetSnapshot()));
     if (bootstrapTradeStrategyFamiliesOnly)
     {
         // Deliberately avoid HTTP binding and actor startup. This narrow process mode

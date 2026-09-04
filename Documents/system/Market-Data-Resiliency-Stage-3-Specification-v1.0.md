@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Specification ID | `MDR-S3` |
-| Status | Ready for review; implementation not started |
+| Status | Implemented behind disabled feature flag; operational acceptance pending |
 | Version | 1.0 |
 | Date | 2026-09-04 |
 | Stage | Stage 3 — central operations health and per-dataset process containment |

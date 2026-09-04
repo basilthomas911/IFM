@@ -58,4 +58,33 @@ public static class MarketDataServiceSchemaSql
         CREATE INDEX IF NOT EXISTS ix_watchdog_status_log_major ON market_data_service.watchdog_status_log(major_status,observed_on_utc DESC);
         CREATE INDEX IF NOT EXISTS ix_watchdog_status_log_core_ready ON market_data_service.watchdog_status_log(core_contracts_ready,observed_on_utc DESC);
         """;
+    public const string CreateDatasetIncidents = """
+        CREATE TABLE IF NOT EXISTS market_data_service.dataset_incident_current (
+          dataset text PRIMARY KEY CHECK(length(dataset) BETWEEN 1 AND 64),
+          value_date date NOT NULL,
+          incident_id uuid NOT NULL,
+          transition_id uuid NOT NULL UNIQUE,
+          correlation_id uuid NOT NULL,
+          observed_on_utc timestamptz NOT NULL,
+          is_open boolean NOT NULL,
+          snapshot jsonb NOT NULL,
+          row_version bigint NOT NULL CHECK(row_version>0)
+        );
+        CREATE INDEX IF NOT EXISTS ix_dataset_incident_current_open
+          ON market_data_service.dataset_incident_current(is_open,value_date);
+        CREATE TABLE IF NOT EXISTS market_data_service.dataset_incident_transition (
+          transition_id uuid PRIMARY KEY,
+          incident_id uuid NOT NULL,
+          correlation_id uuid NOT NULL,
+          dataset text NOT NULL CHECK(length(dataset) BETWEEN 1 AND 64),
+          value_date date NOT NULL,
+          observed_on_utc timestamptz NOT NULL,
+          is_open boolean NOT NULL,
+          snapshot jsonb NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS ix_dataset_incident_transition_dataset
+          ON market_data_service.dataset_incident_transition(dataset,value_date,observed_on_utc DESC);
+        CREATE INDEX IF NOT EXISTS ix_dataset_incident_transition_correlation
+          ON market_data_service.dataset_incident_transition(correlation_id);
+        """;
 }

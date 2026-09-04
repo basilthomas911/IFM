@@ -18,9 +18,12 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Application.MarketData.Worker;
 using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
@@ -616,10 +619,28 @@ public static class Startup
                 DatasetTeardownTimeout = config.GetValue("MarketDataRecovery:DatasetTeardownTimeout", TimeSpan.FromSeconds(10)),
                 DatasetQualificationTimeout = config.GetValue("MarketDataRecovery:DatasetQualificationTimeout", TimeSpan.FromSeconds(30))
             }.Validate());
+            var stage3Options = (config.GetSection("MarketDataRecovery:Stage3")
+                .Get<DatabentoStage3Options>() ?? new DatabentoStage3Options()).Validate();
+            if (stage3Options.Enabled && feedOptions.DataSource != FeedDataSourceMode.Synthetic)
+                throw new InvalidOperationException(
+                    "Stage 3 supervised workers are qualified for Synthetic Development only; live-provider enablement is not permitted.");
+            services.AddSingleton(stage3Options);
+            services.AddSingleton(new DatabentoSupervisedWorkerOptions
+            {
+                DotNetHostPath = stage3Options.Enabled
+                    ? ResolveDotNetHostPath() : Environment.ProcessPath!,
+                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+                DeploymentProfile = deploymentProfile,
+                DataSource = feedOptions.DataSource,
+                Synthetic = feedOptions.Synthetic
+            });
             services.AddSingleton<IDatabentoWatchdogPublisher, DatabentoWatchdogStatusConsolePublisher>();
             services.AddSingleton<ICurrentFuturesContractCatalog, SecuritiesCurrentFuturesContractCatalog>();
             services.AddSingleton<IDatabentoContractAuthority, DatabentoContractAuthority>();
-            services.AddSingleton<IDatabentoLifecycleRuntime, DatabentoLifecycleRuntime>();
+            if (stage3Options.Enabled)
+                services.AddSingleton<IDatabentoLifecycleRuntime, SupervisedDatabentoLifecycleRuntime>();
+            else
+                services.AddSingleton<IDatabentoLifecycleRuntime, DatabentoLifecycleRuntime>();
             services.AddSingleton<DatabentoMarketDataWatchdogService>();
             services.AddSingleton<IMarketDataLifecycleRequests>(provider =>
                 provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
@@ -663,10 +684,17 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookHotCache>());
             services.AddSingleton<MarketOutlookProcessorMetrics>();
             services.AddSingleton<DatabentoWatchdogMetrics>();
+            services.AddSingleton<DatasetWorkerAdmissionRegistry>();
+            services.AddSingleton<DatasetPublicationIngress>();
+            services.AddSingleton<DatasetWorkerProcessRecoveryService>();
+            services.AddSingleton<IDatabentoDatasetProcessRecovery>(provider =>
+                provider.GetRequiredService<DatasetWorkerProcessRecoveryService>());
+            services.AddSingleton<MarketDataOperationsHealthService>();
             services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
                 new CompositeMarketDataOperationsRecorder(
                     provider.GetRequiredService<MarketOutlookProcessorMetrics>(),
-                    provider.GetRequiredService<DatabentoWatchdogMetrics>()));
+                    provider.GetRequiredService<DatabentoWatchdogMetrics>(),
+                    provider.GetRequiredService<MarketDataOperationsHealthService>()));
             services.AddSingleton<MarketOutlookUpdateChannel>();
             services.AddSingleton<IMarketOutlookUpdateWriter>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
@@ -864,6 +892,19 @@ public static class Startup
                 Symbols = ["VX.c.1"], Symbology = HistoricalSymbology.Continuous
             }
         ];
+    }
+
+    static string ResolveDotNetHostPath()
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+            return Path.GetFullPath(configured);
+        var process = Environment.ProcessPath;
+        if (process is not null && string.Equals(Path.GetFileNameWithoutExtension(process),
+                "dotnet", StringComparison.OrdinalIgnoreCase))
+            return process;
+        throw new InvalidOperationException(
+            "Stage 3 requires DOTNET_HOST_PATH when the API is launched through an apphost/debugger.");
     }
 
     static ImportDuplicatePolicy ParseImportPolicy(IConfiguration config, string configurationKey)
