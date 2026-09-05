@@ -23,6 +23,8 @@ public sealed class PortfolioAdministrationViewModel(
     readonly IPortfolioFundCommandApi _fundCommands = fundCommands ?? throw new ArgumentNullException(nameof(fundCommands));
     readonly IPortfolioIdentityApi _identities = identities ?? throw new ArgumentNullException(nameof(identities));
     long _loadGeneration;
+    long _portfolioSelectionGeneration;
+    long _fundSelectionGeneration;
     PortfolioUiState _state;
     string _message = string.Empty;
     PortfolioReadModel[] _portfolios = [];
@@ -72,11 +74,17 @@ public sealed class PortfolioAdministrationViewModel(
 
     public async Task SelectPortfolioAsync(PortfolioReadModel portfolio, CancellationToken cancellationToken = default)
     {
-        SelectedPortfolio = portfolio ?? throw new ArgumentNullException(nameof(portfolio));
+        ArgumentNullException.ThrowIfNull(portfolio);
+        var generation = Interlocked.Increment(ref _portfolioSelectionGeneration);
+        Interlocked.Increment(ref _fundSelectionGeneration);
+        SelectedPortfolio = portfolio;
+        State = PortfolioUiState.Loading; Message = string.Empty;
         SelectedFund = null; Funds = []; PortfolioRevision = 0; FundRevision = 0; ClearConfiguration();
-        var result = await _queries.GetFundsAsync(portfolio.PortfolioId, null, 100, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var result = await _queries.GetFundsAsync(portfolio.PortfolioId, null, 100, cancellationToken: cancellationToken);
+        if (generation != Volatile.Read(ref _portfolioSelectionGeneration)) return;
         if (!result.Success) { MapError(result.ErrorCode, result.ErrorMessage); return; }
-        var revision = await _queries.GetPortfolioRevisionAsync(portfolio.PortfolioId, cancellationToken).ConfigureAwait(false);
+        var revision = await _queries.GetPortfolioRevisionAsync(portfolio.PortfolioId, cancellationToken);
+        if (generation != Volatile.Read(ref _portfolioSelectionGeneration)) return;
         if (!revision.Success || revision.Value is not { Revision: > 0 } portfolioRevision) { MapError(revision.ErrorCode, revision.ErrorMessage); return; }
         PortfolioRevision = portfolioRevision.Revision;
         Funds = result.Value?.Items ?? [];
@@ -86,23 +94,44 @@ public sealed class PortfolioAdministrationViewModel(
 
     public async Task SelectFundAsync(FundMandateReadModel fund, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(fund);
         if (SelectedPortfolio is null || fund.PortfolioId != SelectedPortfolio.PortfolioId)
             throw new InvalidOperationException("Fund must belong to the selected Portfolio.");
+        var generation = Interlocked.Increment(ref _fundSelectionGeneration);
         SelectedFund = fund;
+        State = PortfolioUiState.Loading; Message = string.Empty;
         FundRevision = 0; ClearConfiguration();
-        var portfolioRevision = await _queries.GetPortfolioRevisionAsync(fund.PortfolioId, cancellationToken).ConfigureAwait(false);
+        var portfolioRevision = await _queries.GetPortfolioRevisionAsync(fund.PortfolioId, cancellationToken);
+        if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (!portfolioRevision.Success || portfolioRevision.Value is not { Revision: > 0 } currentPortfolio) { MapError(portfolioRevision.ErrorCode, portfolioRevision.ErrorMessage); return; }
         PortfolioRevision = currentPortfolio.Revision;
-        var fundRevision = await _queries.GetFundRevisionAsync(fund.PortfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
+        var fundRevision = await _queries.GetFundRevisionAsync(fund.PortfolioId, fund.FundId, cancellationToken);
+        if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (!fundRevision.Success || fundRevision.Value is not { Revision: > 0 } currentFund) { MapError(fundRevision.ErrorCode, fundRevision.ErrorMessage); return; }
         FundRevision = currentFund.Revision;
-        var allocation = await _queries.GetFundAllocationAsync(fund.PortfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
+        var allocation = await _queries.GetFundAllocationAsync(fund.PortfolioId, fund.FundId, cancellationToken);
+        if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (allocation.Success) Allocation = allocation.Value;
-        var envelope = await _queries.GetFundRiskEnvelopeAsync(fund.PortfolioId, fund.FundId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+        var envelope = await _queries.GetFundRiskEnvelopeAsync(fund.PortfolioId, fund.FundId, DateTime.UtcNow, cancellationToken);
+        if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (envelope.Success) RiskEnvelope = envelope.Value;
-        var assignments = await _queries.GetAssignmentsAsync(fund.PortfolioId, fund.FundId, fund.FundMandateVersion, cancellationToken).ConfigureAwait(false);
+        var assignments = await _queries.GetAssignmentsAsync(fund.PortfolioId, fund.FundId, fund.FundMandateVersion, cancellationToken);
+        if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (assignments.Success) Assignments = assignments.Value ?? [];
         State = PortfolioUiState.Ready;
+    }
+
+    public void ClearSelection()
+    {
+        Interlocked.Increment(ref _portfolioSelectionGeneration);
+        ClearFundSelection();
+        SelectedPortfolio = null; Funds = []; PortfolioRevision = 0;
+    }
+
+    public void ClearFundSelection()
+    {
+        Interlocked.Increment(ref _fundSelectionGeneration);
+        SelectedFund = null; FundRevision = 0; ClearConfiguration();
     }
 
     public async Task<PortfolioIdentityAllocationModel> AllocatePortfolioIdAsync(CancellationToken cancellationToken = default)
@@ -162,7 +191,7 @@ public sealed class PortfolioAdministrationViewModel(
         var id = SelectedPortfolio.PortfolioId;
         var result = await _commands.DeleteDraftPortfolioAsync(new PortfolioId(id), RequirePortfolioRevision(), reason, cancellationToken).ConfigureAwait(false);
         if (!Finish(result, $"Draft Portfolio {id} deleted; its integer ID remains consumed.")) return false;
-        SelectedPortfolio = null; SelectedFund = null; Funds = []; PortfolioRevision = 0; FundRevision = 0; ClearConfiguration();
+        ClearSelection();
         return true;
     }
 

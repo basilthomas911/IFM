@@ -16,9 +16,11 @@ public class ReferenceViewModelTests
     [Fact]
     public async Task LoadOperation_PublishesObservableSelectorState()
     {
-        var definition = Definition("EconomicCalendar", "Economic calendar");
+        var definition = Definition("LookupTypes", "lookup type definitions");
         var (viewModel, api) = CreateSubject(
-            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([ToBackend(definition)])));
+            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([
+                ToBackend(Definition("EconomicCalendar", "economic calendar definitions")),
+                ToBackend(definition)])));
         var changes = new List<string?>();
         viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
 
@@ -27,6 +29,7 @@ public class ReferenceViewModelTests
         viewModel.ReferenceDataDefinitionTypes.Should().Equal(definition);
         viewModel.GetReferenceDataDefinitionType(0).Should().Be(definition);
         viewModel.GetReferenceDataDefinitionType(-1).Should().BeNull();
+        viewModel.GetReferenceDataDefinitionType(1).Should().BeNull();
         changes.Should().Contain(nameof(viewModel.ReferenceDataDefinitionTypes));
         await api.Received(1).GetReferenceDataDefinitionTypesAsync();
     }

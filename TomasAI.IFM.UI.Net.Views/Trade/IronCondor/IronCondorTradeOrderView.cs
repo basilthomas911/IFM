@@ -19,11 +19,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, ITradeOrderControl
 {
-    static readonly Color ReadOnlyInputTextColor = Color.Gray;
     readonly TradeOrderEditorForm _parentControl;
     readonly IronCondorTradeOrderViewModel _viewModel;
     long _lastErrorSequence;
     bool _closed;
+    readonly Panel _initialContent;
+    readonly Label _initialLoading;
+    Task? _initialLoad;
+    bool _preparingInitialContent = true;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IronCondorTradeOrderView"/> class with the specified parent control
@@ -40,11 +43,52 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         IronCondorTradeOrderViewModel viewModel)
     {
         InitializeComponent();
+        // Normalize before measuring: the host must not shrink a revealed 12-point layout.
+        TradeOrderTypography.Apply(this);
         ApplyInputPalette(this);
         ConfigureResponsiveLegLayout();
         _parentControl = parentControl ?? throw new ArgumentNullException(nameof(parentControl));
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
+        Disposed += (_, _) =>
+        {
+            _closed = true;
+            _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+        };
+
+        // Keep the measured editor hidden until both data and initial order action are ready.
+        _initialContent = new Panel
+        {
+            Name = "blotterContent", Dock = DockStyle.Top,
+            Size = new Size(ClientSize.Width, tableLayoutPanel1.Bottom),
+            BackColor = BackColor, Visible = false,
+        };
+        _initialLoading = new Label
+        {
+            Name = "blotterLoading", Text = "Loading trade blotter...",
+            AccessibleName = "Trade blotter loading status",
+            Dock = DockStyle.Top, Height = 32, TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = BackColor, ForeColor = Color.White,
+        };
+        SuspendLayout();
+        _initialContent.SuspendLayout();
+        _initialContent.Controls.AddRange(Controls.Cast<Control>().ToArray());
+        Controls.Add(_initialContent);
+        Controls.Add(_initialLoading);
+        _initialContent.ResumeLayout(true);
+        ResumeLayout(true);
+        // Invisible docked panels are skipped by the normal docking pass.
+        SizeChanged += (_, _) => _initialContent.Width = ClientSize.Width;
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.ExStyle |= 0x02000000; // WS_EX_COMPOSITED includes native child controls.
+            return parameters;
+        }
     }
 
     static void ApplyInputPalette(Control root)
@@ -58,8 +102,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
                     break;
                 case ComboBox comboBox:
                     ApplyBlackInputPalette(comboBox);
-                    comboBox.DrawMode = DrawMode.OwnerDrawFixed;
-                    comboBox.DrawItem += DrawBlackComboBoxItem;
+                    TradeOrderInputPalette.Apply(comboBox);
                     break;
                 case NumericUpDown numericUpDown:
                     ApplyBlackInputPalette(numericUpDown);
@@ -91,29 +134,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
     }
 
     static void DrawBlackComboBoxItem(object? sender, DrawItemEventArgs e)
-    {
-        if (sender is not ComboBox comboBox || e.Bounds.Width <= 0 || e.Bounds.Height <= 0)
-            return;
-
-        using var background = new SolidBrush(Color.Black);
-        e.Graphics.FillRectangle(background, e.Bounds);
-        var text = e.Index >= 0 && e.Index < comboBox.Items.Count
-            ? comboBox.GetItemText(comboBox.Items[e.Index])
-            : comboBox.Text;
-        TextRenderer.DrawText(
-            e.Graphics,
-            text,
-            comboBox.Font,
-            e.Bounds,
-            comboBox.Enabled ? Color.White : ReadOnlyInputTextColor,
-            TextFormatFlags.Left
-            | TextFormatFlags.VerticalCenter
-            | TextFormatFlags.EndEllipsis
-            | TextFormatFlags.NoPrefix);
-
-        if (comboBox.Enabled && (e.State & DrawItemState.Focus) != 0)
-            e.DrawFocusRectangle();
-    }
+        => TradeOrderInputPalette.DrawBlackComboBoxItem(sender, e);
 
     void ConfigureResponsiveLegLayout()
     {
@@ -291,33 +312,66 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
     public bool IsHistoricalReadOnly => _viewModel.IsHistoricalReadOnly;
 
     async void IronCondorTradeOrderControl_Load(object sender, EventArgs e)
+        => await (_initialLoad ??= LoadInitialContentAsync());
+
+    bool CanPresentInitialContent => !_closed && !IsDisposed && Parent is not null && !_parentControl.IsDisposed;
+
+    async Task LoadInitialContentAsync()
     {
         try
         {
             await _viewModel.LoadIronCondorTradeOrders();
+            if (!CanPresentInitialContent) return;
             RenderLoadedState();
             _parentControl.SetTradeDate(_viewModel.TradeDate);
             _parentControl.SetDaysToExpiry(_viewModel.MaturityDate);
             _parentControl.SetOrderAction(_viewModel.OrderActionType);
             await ApplyOrderActionAsync(_viewModel.OrderActionType);
+            if (!CanPresentInitialContent) return;
+            // A synchronous load can finish inside Controls.Add, before the host's layout pass.
+            Parent!.PerformLayout();
+            PrepareInitialLayout(_initialContent);
+            SuspendLayout();
+            try
+            {
+                _preparingInitialContent = false;
+                _initialLoading.Visible = false;
+                _initialContent.Visible = true;
+            }
+            finally { ResumeLayout(true); }
+            Invalidate(true);
         }
-        catch (UiServiceOperationException)
+        catch (UiServiceOperationException exception)
         {
+            if (!CanPresentInitialContent) return;
+            _initialLoading.Text = $"Unable to load trade blotter: {exception.Message}";
             ShowLatestError();
         }
         catch (Exception exception)
         {
+            if (!CanPresentInitialContent) return;
+            _initialLoading.Text = $"Unable to load trade blotter: {exception.Message}";
             this.ShowErrorMessage(exception.Message, "Loading Iron Condor Trade Order Error");
         }
+    }
+
+    static void PrepareInitialLayout(Control control)
+    {
+        // Create the native child handles while their containing panel is still hidden.
+        _ = control.Handle;
+        control.PerformLayout();
+        foreach (Control child in control.Controls) PrepareInitialLayout(child);
+        control.PerformLayout();
     }
 
     void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
         => this.Post(() =>
         {
+            if (_closed || IsDisposed) return;
             switch (eventArgs.PropertyName)
             {
                 case nameof(IronCondorTradeOrderViewModel.LastError):
-                    ShowLatestError();
+                    if (_initialContent.Visible) ShowLatestError();
                     break;
                 case nameof(IronCondorTradeOrderViewModel.AssetPrice):
                     ShowAssetPrice(_viewModel.AssetPrice);
@@ -352,6 +406,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         LoadOptionTypes();
         LoadOrderTypes();
         SetReadOnlyControls();
+        ApplyHistoricalReadOnlyState();
         foreach (var strikeSelector in new[]
                  {
                      ddlLeg1StrikePrice,
@@ -372,7 +427,6 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         ShowIronCondorTradeDetails();
         ShowIronCondorTradePositions();
         ShowAssetPrice(_viewModel.AssetPrice);
-        ApplyHistoricalReadOnlyState();
     }
 
     public DateOnly MaturityDate => DateOnly.FromDateTime(dtmLeg1LastTradeDate.Value);
@@ -813,6 +867,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void dtmLeg1LastTradeDate_ValueChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var maturityDate = DateOnly.FromDateTime(dtmLeg1LastTradeDate.Value);
         _viewModel.SetMaturityDate(maturityDate);
         _parentControl.SetDaysToExpiry(maturityDate);
@@ -831,6 +886,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg1StrikePrice_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade) return;
         var strikePrice = Convert.ToInt32(ddlLeg1StrikePrice.SelectedItem);
         ddlLeg2StrikePrice.SetSelectedIndex(_viewModel.SetPutSpreadStrike(strikePrice));
@@ -847,6 +903,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg2StrikePrice_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade) return;
         var strikePrice = Convert.ToInt32(ddlLeg2StrikePrice.SelectedItem);
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg2Action, OptionType.Put);
@@ -862,6 +919,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg3StrikePrice_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade) return;
         var strikePrice = Convert.ToInt32(ddlLeg3StrikePrice.SelectedItem);
         ddlLeg4StrikePrice.SetSelectedIndex(_viewModel.SetCallSpreadStrike(strikePrice));
@@ -878,6 +936,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg4StrikePrice_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade) return;
         var strikePrice = Convert.ToInt32(ddlLeg4StrikePrice.SelectedItem);
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg4Action, OptionType.Call);
@@ -903,6 +962,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg1OptionType_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg1Action, OptionType.Put);
         optionLeg = optionLeg with { OptionLegType = ParseForOptionType(ddlLeg1OptionType) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg1Action, OptionType.Put, optionLeg);
@@ -910,6 +970,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg2OptionType_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg2Action, OptionType.Put);
         optionLeg = optionLeg with { OptionLegType = ParseForOptionType(ddlLeg2OptionType) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg2Action, OptionType.Put, optionLeg);
@@ -917,6 +978,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg3OptionType_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg3Action, OptionType.Call);
         optionLeg = optionLeg with { OptionLegType = ParseForOptionType(ddlLeg3OptionType) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg3Action, OptionType.Call, optionLeg);
@@ -924,6 +986,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg4OptionType_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg4Action, OptionType.Call);
         optionLeg = optionLeg with { OptionLegType = ParseForOptionType(ddlLeg4OptionType) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg4Action, OptionType.Call, optionLeg);
@@ -931,6 +994,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg1Action_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg1Action, OptionType.Put);
         optionLeg = optionLeg with { OptionLegAction = ParseForOptionLegAction(ddlLeg1Action)};
         _viewModel.SetOptionLeg(_viewModel.OptionLeg1Action, OptionType.Put, optionLeg);
@@ -938,6 +1002,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg2Action_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg2Action, OptionType.Put);
         optionLeg = optionLeg with { OptionLegAction = ParseForOptionLegAction(ddlLeg2Action) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg2Action, OptionType.Put, optionLeg);
@@ -945,6 +1010,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg3Action_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg3Action, OptionType.Call);
         optionLeg = optionLeg with { OptionLegAction = ParseForOptionLegAction(ddlLeg3Action) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg3Action, OptionType.Call, optionLeg);
@@ -952,6 +1018,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void ddlLeg4Action_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg4Action, OptionType.Call);
         optionLeg = optionLeg with { OptionLegAction = ParseForOptionLegAction(ddlLeg4Action) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg4Action, OptionType.Call, optionLeg);
@@ -987,6 +1054,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void nudQuantity_ValueChanged(object sender, EventArgs e)
     {
+        if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade) return;
         var quantity = Convert.ToInt32(nudQuantity.Value);
         for (var index = 0; index < _viewModel.OptionLegs.Length; index++)
@@ -1169,6 +1237,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
             case TradeType.LongIronCondor:
                 if (!await _viewModel.UpdateOrderActionAsync(orderActionType))
                     return;
+                if (_closed || IsDisposed || Parent is null) return;
                 txtRiskMargin.Visible = false;
                 lblRiskMargin.Visible = false;
                 txtMaxLossLimit.Visible = false;

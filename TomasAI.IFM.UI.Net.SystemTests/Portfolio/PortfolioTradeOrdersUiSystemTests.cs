@@ -128,7 +128,9 @@ public sealed class PortfolioTradeOrdersUiSystemTests
             Field<Panel>(form, "pnlTradePosition").ClientSize.Height);
         fund.Width.Should().Be(orders.Width);
         loadOrder.Top.Should().Be(orders.Top);
-        completeOrder.Bottom.Should().Be(orders.Bottom);
+        AssertCompactButtonColumn(form, "btnLoadOrder", "btnCreateOrder", "btnDeleteOrder", "btnCompleteOrder");
+        AssertCompactButtonColumn(form, "btnAddTrade", "btnRemoveTrade", "btnChangeTradeState");
+        Field<Button>(form, "btnAddTrade").Top.Should().Be(trades.Top);
         submitOrder.Top.Should().Be(tradeControl.Top);
         endOfDay.Top.Should().Be(submitOrder.Bottom + 8);
         targetStateLabel.Parent.Should().BeSameAs(tradePositionPanel);
@@ -143,12 +145,22 @@ public sealed class PortfolioTradeOrdersUiSystemTests
             button.Width == 140 && button.Height == 32);
         form.ClientSize = new Size(1300, 800);
         form.PerformLayout();
+        AssertCompactButtonColumn(form, "btnLoadOrder", "btnCreateOrder", "btnDeleteOrder", "btnCompleteOrder");
+        AssertCompactButtonColumn(form, "btnAddTrade", "btnRemoveTrade", "btnChangeTradeState");
         trades.Width.Should().Be(orders.Width);
         tradeControl.Width.Should().Be(orders.Width);
         fund.Width.Should().Be(orders.Width);
         createFund.Visible.Should().BeFalse();
         createFund.Enabled.Should().BeFalse();
         Field<ListView>(form, "lstTradeOrders").Columns.Cast<ColumnHeader>().Select(x => x.Text).Should().Contain("Source");
+    }
+
+    static void AssertCompactButtonColumn(Form form, params string[] names)
+    {
+        var buttons = names.Select(name => Field<Button>(form, name)).ToArray();
+        buttons.Should().OnlyContain(button => button.Left == buttons[0].Left && button.Width == buttons[0].Width);
+        for (var index = 1; index < buttons.Length; index++)
+            buttons[index].Top.Should().Be(buttons[index - 1].Bottom + 4);
     }
 
     static IEnumerable<Control> ControlsAndSelf(Control root)

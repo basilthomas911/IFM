@@ -31,6 +31,7 @@ public partial class TradeOrderEditorForm
     const int CommandButtonWidth = 140;
     const int CommandButtonHeight = 32;
     const int CommandButtonGap = 8;
+    const int ListCommandButtonGap = 4;
     const int DefaultClientHeight = 1080;
     const int EmptyTradeBlotterHeight = 280;
     const int HostedControlBottomPadding = 8;
@@ -65,8 +66,10 @@ public partial class TradeOrderEditorForm
         IReferenceDataService referenceDataService)
     {
         InitializeComponent();
+        DoubleBuffered = true;
         ConfigurePortfolioScope();
         TradeOrderTypography.Apply(this);
+        TradeOrderInputPalette.Apply(this);
         ConfigureCompactLayout();
         ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
@@ -169,12 +172,12 @@ public partial class TradeOrderEditorForm
             button.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         }
 
-        PositionButtonsAcrossContentHeight(pnlTradeOrders, lstTradeOrders,
+        PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
             btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
-        PositionButtonColumn(pnlTrades, 12,
+        PositionButtonColumn(pnlTrades, lstTrades.Top, ListCommandButtonGap,
             btnAddTrade, btnRemoveTrade, btnChangeTradeState);
         btnOpenTrade.Location = btnAddTrade.Location;
-        PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top,
+        PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top, CommandButtonGap,
             btnSubmitOrder, btnEndOfDay);
         AlignTargetStateUnderEndOfDay();
 
@@ -182,13 +185,13 @@ public partial class TradeOrderEditorForm
         pnlTradeOrders.Resize += (_, _) =>
         {
             LayoutMainContent(pnlTradeOrders, lstTradeOrders);
-            PositionButtonsAcrossContentHeight(pnlTradeOrders, lstTradeOrders,
+            PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
                 btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
         };
         pnlTrades.Resize += (_, _) =>
         {
             LayoutMainContent(pnlTrades, lstTrades);
-            PositionButtonColumn(pnlTrades, 12,
+            PositionButtonColumn(pnlTrades, lstTrades.Top, ListCommandButtonGap,
                 btnAddTrade, btnRemoveTrade, btnChangeTradeState);
             btnOpenTrade.Location = btnAddTrade.Location;
         };
@@ -196,7 +199,7 @@ public partial class TradeOrderEditorForm
         {
             LayoutTradeBlotterHeight();
             LayoutMainContent(pnlTradePosition, pnlTradeControl);
-            PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top,
+            PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top, CommandButtonGap,
                 btnSubmitOrder, btnEndOfDay);
             AlignTargetStateUnderEndOfDay();
         };
@@ -208,7 +211,7 @@ public partial class TradeOrderEditorForm
         LayoutMainContent(pnlTrades, lstTrades);
         LayoutMainContent(pnlTradePosition, pnlTradeControl);
         LayoutTradeBlotterHeight();
-        PositionButtonsAcrossContentHeight(pnlTradeOrders, lstTradeOrders,
+        PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
             btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
     }
 
@@ -296,32 +299,13 @@ public partial class TradeOrderEditorForm
             contentBottom + HostedControlBottomPadding);
     }
 
-    static void PositionButtonColumn(Control parent, int top, params Button[] buttons)
+    static void PositionButtonColumn(Control parent, int top, int gap, params Button[] buttons)
     {
         var left = Math.Max(ContentLeft, parent.ClientSize.Width - CommandRightMargin - CommandButtonWidth);
         for (var index = 0; index < buttons.Length; index++)
             buttons[index].Location = new Point(
                 left,
-                top + index * (CommandButtonHeight + CommandButtonGap));
-    }
-
-    static void PositionButtonsAcrossContentHeight(
-        Control parent,
-        Control content,
-        params Button[] buttons)
-    {
-        if (buttons.Length == 0)
-            return;
-
-        var left = Math.Max(ContentLeft, parent.ClientSize.Width - CommandRightMargin - CommandButtonWidth);
-        var verticalRange = Math.Max(0, content.Height - CommandButtonHeight);
-        for (var index = 0; index < buttons.Length; index++)
-        {
-            var top = content.Top + (buttons.Length == 1
-                ? 0
-                : (int)Math.Round((double)verticalRange * index / (buttons.Length - 1)));
-            buttons[index].Location = new Point(left, top);
-        }
+                top + index * (CommandButtonHeight + gap));
     }
 
     static void LayoutMainContent(Control parent, Control content)

@@ -1,14 +1,18 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 /// <summary>
 /// Preserves the native <see cref="DateTimePicker"/> calendar and input behavior while
-/// replacing its system-colored visible face with the Trade Blotter dark palette.
+/// replacing its system-colored visible face with the Trade Orders dark palette.
 /// </summary>
-sealed class DarkDateTimePicker : DateTimePicker
+sealed class DarkDateTimePicker : MarketData.AccessibleDateTimePicker
 {
     const int WmPaint = 0x000F;
+    const int WmPrintClient = 0x0318;
+    const int DtmGetMonthCal = 0x1008;
+    const int McmSetColor = 0x100A;
     const int ArrowAreaWidth = 24;
     static readonly Color ReadOnlyTextColor = Color.Gray;
 
@@ -26,12 +30,42 @@ sealed class DarkDateTimePicker : DateTimePicker
     protected override void WndProc(ref Message message)
     {
         base.WndProc(ref message);
-        if (message.Msg != WmPaint || Width <= 0 || Height <= 0)
+        if (Width <= 0 || Height <= 0)
             return;
 
-        using var graphics = CreateGraphics();
-        DrawDarkSurface(graphics);
+        if (message.Msg == WmPaint)
+        {
+            using var graphics = CreateGraphics();
+            DrawDarkSurface(graphics);
+        }
+        else if (message.Msg == WmPrintClient && message.WParam != IntPtr.Zero)
+        {
+            using var graphics = Graphics.FromHdc(message.WParam);
+            DrawDarkSurface(graphics);
+        }
     }
+
+    protected override void OnDropDown(EventArgs eventargs)
+    {
+        // The themed native calendar ignores most Calendar* colors. Style each new popup.
+        var calendar = SendMessage(Handle, DtmGetMonthCal, IntPtr.Zero, IntPtr.Zero);
+        if (calendar != IntPtr.Zero)
+        {
+            SetWindowTheme(calendar, string.Empty, string.Empty);
+            Color[] colors = [Color.Black, CalendarForeColor, CalendarTitleBackColor,
+                CalendarTitleForeColor, CalendarMonthBackground, CalendarTrailingForeColor];
+            for (var index = 0; index < colors.Length; index++)
+                SendMessage(calendar, McmSetColor, (IntPtr)index,
+                    (IntPtr)ColorTranslator.ToWin32(colors[index]));
+        }
+        base.OnDropDown(eventargs);
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    static extern int SetWindowTheme(IntPtr window, string subAppName, string subIdList);
 
     protected override void OnEnabledChanged(EventArgs e)
     {

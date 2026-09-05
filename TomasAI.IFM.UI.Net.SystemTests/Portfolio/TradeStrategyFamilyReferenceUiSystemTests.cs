@@ -101,13 +101,13 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
     public void Reference_font_applies_to_all_editors_and_dynamically_added_controls()
     {
         var app = Substitute.For<IAppRoot>(); var service = Substitute.For<IReferenceDataService>();
-        using var form = new ReferenceForm(app, service, Substitute.For<IEconomicCalendarService>());
+        using var form = new ReferenceForm(app, service);
         var panel = Field<Panel>(form, "pnlMarketData");
         using var lookup = new LookupTypeEditorView(new LookupTypeEditorViewModel(app, service));
-        using var economic = new EconomicCalendarEditorView(new EconomicCalendarEditorViewModel(app, Substitute.For<IEconomicCalendarService>()));
+        using var families = new TradeStrategyFamilyReferenceView(Queries(Row()));
         panel.Controls.Add(lookup); AssertFont(form); panel.Controls.Remove(lookup);
-        panel.Controls.Add(economic); AssertFont(form);
-        var late = new Label { Font = new Font("Arial", 12F) }; economic.Controls.Add(late); AssertFont(form);
+        panel.Controls.Add(families); AssertFont(form);
+        var late = new Label { Font = new Font("Arial", 12F) }; families.Controls.Add(late); AssertFont(form);
     }
 
     [Fact]
@@ -194,12 +194,13 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
         var app = Substitute.For<IAppRoot>(); app.Services.ReferenceQueries.Returns(queries);
         app.Services.ReferenceCommands.Returns(commands);
         var symbols = Symbols(); app.Services.MarketDataQueries.Returns(symbols);
-        using var form = new ReferenceForm(app, service, Substitute.For<IEconomicCalendarService>());
+        using var form = new ReferenceForm(app, service);
         form.LoadViewModel(model); Invoke(form, "BindReferenceDataDefinitionTypes");
         var selector = Field<ComboBox>(form, "ddlReferenceDataSelector");
-        selector.Items.Cast<string>().Should().Equal("lookup type", "economic calendar definitions", "trade strategy families");
-        model.GetReferenceDataDefinitionType(1)!.ShortCode.Should().Be("EconomicCalendar");
-        selector.SelectedIndex = 2;
+        selector.Items.Cast<string>().Should().Equal("lookup type", "trade strategy families");
+        model.GetReferenceDataDefinitionType(0)!.ShortCode.Should().Be("Placeholder");
+        selector.AccessibleDescription.Should().NotContainEquivalentOf("economic");
+        selector.SelectedIndex = 1;
         var view = (TradeStrategyFamilyReferenceView)Field<Panel>(form, "pnlMarketData").Controls[0];
         PrepareForDisplay(form);
         AssertFont(form);
@@ -270,7 +271,7 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
                 var app = Substitute.For<IAppRoot>(); app.Services.ReferenceQueries.Returns(queries);
                 app.Services.ReferenceCommands.Returns(commands);
                 app.Services.MarketDataQueries.Returns(symbols);
-                using var form = new ReferenceForm(app, service, Substitute.For<IEconomicCalendarService>());
+                using var form = new ReferenceForm(app, service);
                 form.LoadViewModel(model); Invoke(form, "BindReferenceDataDefinitionTypes");
                 form.Load -= (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), form,
                     typeof(ReferenceForm).GetMethod("ReferenceForm_Load", BindingFlags.Instance | BindingFlags.NonPublic)!);

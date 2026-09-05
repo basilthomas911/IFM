@@ -14,6 +14,80 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 public sealed class PortfolioAdministrationUiSystemTests
 {
     [Fact]
+    public async Task Switching_portfolios_clears_old_fund_rows_and_ignores_the_late_fund_list()
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stage = "starting UI thread";
+        var thread = new Thread(() =>
+        {
+            using var context = new ApplicationContext();
+            using var dispatcher = new Control(); _ = dispatcher.Handle;
+            dispatcher.BeginInvoke(async () =>
+            {
+                try
+                {
+                    var queries = Substitute.For<IPortfolioQueryApi>();
+                    var first = Portfolio(); var second = first with { PortfolioId = 7002, Name = "Second" };
+                    var firstFund = new FundMandateReadModel { PortfolioId = 7001, FundId = 8001, FundMandateVersion = 1 };
+                    var secondFund = firstFund with { PortfolioId = 7002, FundId = 8002 };
+                    queries.GetPortfoliosAsync(Arg.Any<PortfolioOperatingState>(), 100, null, Arg.Any<CancellationToken>()).Returns(
+                        new ServiceOk<PortfolioPage<PortfolioReadModel>>(new() { Items = [first, second] }));
+                    queries.GetFundsAsync(7001, null, 100, null, Arg.Any<CancellationToken>()).Returns(
+                        new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [firstFund] }));
+                    var pending = new TaskCompletionSource<ServiceResult<PortfolioPage<FundMandateReadModel>>>();
+                    queries.GetFundsAsync(7002, null, 100, null, Arg.Any<CancellationToken>()).Returns(pending.Task);
+                    queries.GetPortfolioRevisionAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+                        new ServiceOk<PortfolioAggregateRevision>(new() { Revision = 3 }));
+                    queries.GetFundRevisionAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+                        new ServiceOk<PortfolioAggregateRevision>(new() { Revision = 2 }));
+                    queries.GetFundAllocationAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+                        new ServiceFailed<FundAllocationReadModel>(34001, "none"));
+                    queries.GetFundRiskEnvelopeAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(
+                        new ServiceFailed<FundRiskEnvelopeReadModel>(34001, "none"));
+                    queries.GetAssignmentsAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(
+                        new ServiceOk<FundTradeTemplateAssignmentReadModel[]>([]));
+                    using var form = new PortfolioAdministrationForm { ShowInTaskbar = false,
+                        StartPosition = FormStartPosition.Manual, Location = new Point(-3000, -3000) };
+                    // Exercise native grid selection without off-screen SplitContainer painting.
+                    stage = "creating grid handles";
+                    form.BindingContext = new BindingContext();
+                    _ = form.Handle;
+                    _ = Field<DataGridView>(form, "_portfolios").Handle;
+                    _ = Field<DataGridView>(form, "_funds").Handle;
+                    stage = "loading initial Portfolio";
+                    await form.LoadViewModelAsync(queries, Substitute.For<IPortfolioCommandApi>(),
+                        Substitute.For<IPortfolioFundCommandApi>(), Substitute.For<IPortfolioIdentityApi>());
+                    var portfolios = Field<DataGridView>(form, "_portfolios");
+                    var funds = Field<DataGridView>(form, "_funds");
+                    var model = Field<TomasAI.IFM.UI.Net.ViewModels.Portfolio.PortfolioAdministrationViewModel>(form, "_viewModel");
+                    model.SelectedFund.Should().Be(firstFund);
+                    stage = "selecting second Portfolio";
+                    portfolios.CurrentCell = portfolios.Rows[1].Cells[0];
+                    model.SelectedPortfolio.Should().Be(second);
+                    model.SelectedFund.Should().BeNull();
+                    funds.Rows.Count.Should().Be(0, "old Portfolio rows must disappear before the query completes");
+                    await InvokeAsync(form, "SelectFundAsync"); // Any queued fund notification must be harmless.
+                    stage = "returning to first Portfolio";
+                    portfolios.CurrentCell = portfolios.Rows[0].Cells[0];
+                    pending.SetResult(new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [secondFund] }));
+                    await Task.Delay(50);
+                    model.SelectedPortfolio.Should().Be(first);
+                    model.SelectedFund.Should().Be(firstFund);
+                    funds.Rows.Cast<DataGridViewRow>().Select(row => row.DataBoundItem).Should().Equal(firstFund);
+                    Field<Label>(form, "_status").Text.Should().NotContain("Unable to load");
+                    completion.SetResult();
+                }
+                catch (Exception exception) { completion.SetException(exception); }
+                finally { context.ExitThread(); }
+            });
+            System.Windows.Forms.Application.Run(context);
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        try { await completion.Task.WaitAsync(TimeSpan.FromSeconds(20)); }
+        catch (TimeoutException exception) { throw new TimeoutException($"Portfolio selection test stalled while {stage}.", exception); }
+    }
+
+    [Fact]
     [Trait("Gate", "PF-02")]
     [Trait("Gate", "PF-16")]
     [Trait("Gate", "PF-21")]

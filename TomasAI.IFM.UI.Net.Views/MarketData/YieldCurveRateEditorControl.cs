@@ -26,6 +26,8 @@ public partial class YieldCurveRateEditorControl
         MarketDataViewModel marketDataViewModel)
     {
         InitializeComponent();
+        MarketDataTypography.Apply(this);
+        MarketDataInputPalette.Apply(this);
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _marketDataViewModel = marketDataViewModel ?? throw new ArgumentNullException(nameof(marketDataViewModel));
         dtmImportDate.Value = EasternTime.GetNow(TimeProvider.System).Date;

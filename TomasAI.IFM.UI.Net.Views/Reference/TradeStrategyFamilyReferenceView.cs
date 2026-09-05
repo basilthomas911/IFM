@@ -83,7 +83,7 @@ public sealed class TradeStrategyFamilyReferenceView : UserControl, IControlComm
     static ListBox List(string name) => new()
     {
         Name = name.Replace(" ", ""), AccessibleName = name, Dock = DockStyle.Fill,
-        BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White,
+        BackColor = Color.Black, ForeColor = Color.White,
         BorderStyle = BorderStyle.FixedSingle, IntegralHeight = false, HorizontalScrollbar = true, Margin = Padding.Empty
     };
     static Label Header(string caption) => new()

@@ -98,7 +98,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             btnImport.Enabled = false;
             btnImport.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnImport.ForeColor = Color.Black;
-            btnImport.Location = new Point(7, 91);
+            btnImport.Location = new Point(7, 94);
             btnImport.Name = "btnImport";
             btnImport.Size = new Size(99, 26);
             btnImport.TabIndex = 4;
@@ -110,7 +110,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             // 
             btnClose.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnClose.ForeColor = Color.Black;
-            btnClose.Location = new Point(7, 123);
+            btnClose.Location = new Point(7, 124);
             btnClose.Margin = new Padding(2);
             btnClose.Name = "btnClose";
             btnClose.Size = new Size(99, 26);
@@ -124,7 +124,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             btnRemove.Enabled = false;
             btnRemove.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnRemove.ForeColor = Color.Black;
-            btnRemove.Location = new Point(7, 60);
+            btnRemove.Location = new Point(7, 64);
             btnRemove.Margin = new Padding(2);
             btnRemove.Name = "btnRemove";
             btnRemove.Size = new Size(99, 26);
@@ -138,7 +138,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             btnChange.Enabled = false;
             btnChange.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnChange.ForeColor = Color.Black;
-            btnChange.Location = new Point(7, 32);
+            btnChange.Location = new Point(7, 34);
             btnChange.Margin = new Padding(2);
             btnChange.Name = "btnChange";
             btnChange.Size = new Size(99, 26);

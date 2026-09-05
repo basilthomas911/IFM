@@ -32,6 +32,8 @@ public partial class MarketDataForm
             { "YieldCurveRates", ar => new YieldCurveRateEditorControl( new YieldCurveRateEditorViewModel(ar), _viewModel!)}
         };
         InitializeComponent();
+        MarketDataTypography.Apply(this);
+        MarketDataInputPalette.Apply(this);
     }
 
     public void LoadViewModel(MarketDataViewModel viewModel)

@@ -37,6 +37,8 @@ public partial class FuturesContractEditorControl
    public FuturesContractEditorControl(FuturesContractEditorViewModel viewModel, Action refreshAction)
    {
        InitializeComponent();
+       MarketDataTypography.Apply(this);
+       MarketDataInputPalette.Apply(this);
         _viewModel = viewModel;
         _refreshAction = refreshAction;
    }

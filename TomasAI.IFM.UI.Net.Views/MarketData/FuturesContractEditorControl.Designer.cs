@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.UI.Net.Views.MarketData
+namespace TomasAI.IFM.UI.Net.Views.MarketData
 {
     partial class FuturesContractEditorControl
     {
@@ -35,19 +35,19 @@
             tlpFuturesOptionContract = new TableLayoutPanel();
             pnlContractId = new Panel();
             label1 = new Label();
-            txtContractId = new TextBox();
+            txtContractId = new MarketDataTextBox();
             pnlDescription = new Panel();
             lblDescription = new Label();
-            txtDescription = new TextBox();
+            txtDescription = new MarketDataTextBox();
             pnlContractMonth = new Panel();
             lblLastTradeDate = new Label();
-            dtmLastTradeDate = new DateTimePicker();
+            dtmLastTradeDate = new Trade.IronCondor.DarkDateTimePicker();
             pnlSymbol = new Panel();
             lblSymbol = new Label();
             ddlSymbol = new ComboBox();
             pnlLocalSymbol = new Panel();
             lblLocalSymbol = new Label();
-            txtLocalSymbol = new TextBox();
+            txtLocalSymbol = new MarketDataTextBox();
             pnlSecurityType = new Panel();
             lblSecurityType = new Label();
             ddlSecurityType = new ComboBox();

@@ -72,6 +72,11 @@ public sealed class TradeStrategyFamilyEditorControl : UserControl
         foreach (var (caption, control) in fields)
         {
             control.BackColor = Color.Black; control.ForeColor = Color.White;
+            if (control is ComboBox combo)
+            {
+                combo.DrawMode = DrawMode.OwnerDrawFixed;
+                combo.DrawItem += DrawBlackComboBoxItem;
+            }
             var row = body.RowCount++; body.RowStyles.Add(new(SizeType.Absolute, caption == "Description" ? 76 : 36));
             var label = PortfolioUiStyle.Caption(caption);
             label.TextAlign = ContentAlignment.TopRight;
@@ -90,6 +95,26 @@ public sealed class TradeStrategyFamilyEditorControl : UserControl
         _strategy.SelectedIndexChanged += (_, _) => { UpdateSystemKey(); UpdateSave(); };
         _timeFrame.SelectedIndexChanged += (_, _) => UpdateSave();
         _description.TextChanged += (_, _) => UpdateSave();
+    }
+
+    // Match the Trade Orders blotter, including the closed selection and disabled text.
+    static void DrawBlackComboBoxItem(object? sender, DrawItemEventArgs e)
+    {
+        if (sender is not ComboBox combo || e.Bounds.Width <= 0 || e.Bounds.Height <= 0)
+            return;
+
+        var selected = combo.Enabled && (e.State & DrawItemState.Selected) != 0;
+        using var background = new SolidBrush(selected ? SystemColors.Highlight : Color.Black);
+        e.Graphics.FillRectangle(background, e.Bounds);
+        var text = e.Index >= 0 && e.Index < combo.Items.Count
+            ? combo.GetItemText(combo.Items[e.Index])
+            : combo.Text;
+        TextRenderer.DrawText(e.Graphics, text, combo.Font, e.Bounds,
+            combo.Enabled ? Color.White : Color.Gray,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        if (combo.Enabled && (e.State & DrawItemState.Focus) != 0)
+            e.DrawFocusRectangle();
     }
 
     public async Task InitializeChangeAsync(TradeStrategyFamilyReadModel original)

@@ -39,13 +39,13 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             tlpFuturesOptionContract = new TableLayoutPanel();
             pnlContractId = new Panel();
             lblContractId = new Label();
-            txtContractId = new TextBox();
+            txtContractId = new MarketDataTextBox();
             pnlDescription = new Panel();
             lblDescription = new Label();
-            txtDescription = new TextBox();
+            txtDescription = new MarketDataTextBox();
             pnlContractMonth = new Panel();
             lblContractMonth = new Label();
-            dtmContractMonth = new DateTimePicker();
+            dtmContractMonth = new Trade.IronCondor.DarkDateTimePicker();
             pnlStrikePrice = new Panel();
             lblStrikePrice = new Label();
             txtStrikePrice = new MaskedTextBox();
@@ -57,7 +57,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             ddlSymbol = new ComboBox();
             pnlLocalSymbol = new Panel();
             lblLocalSymbol = new Label();
-            txtLocalSymbol = new TextBox();
+            txtLocalSymbol = new MarketDataTextBox();
             pnlSecurityType = new Panel();
             lblSecurityType = new Label();
             ddlSecurityType = new ComboBox();

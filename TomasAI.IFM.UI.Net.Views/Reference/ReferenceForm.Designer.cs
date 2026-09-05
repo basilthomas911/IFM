@@ -28,6 +28,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         /// </summary>
         private void InitializeComponent()
         {
+            pnlContentFrame = new Panel();
             pnlMarketDataSelector = new Panel();
             ddlReferenceDataSelector = new ComboBox();
             lblMarketDataSelector = new Label();
@@ -38,9 +39,23 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             btnChange = new Button();
             btnAdd = new Button();
             pnlMarketData = new Panel();
+            pnlContentFrame.SuspendLayout();
             pnlMarketDataSelector.SuspendLayout();
             pnlCommands.SuspendLayout();
             SuspendLayout();
+            //
+            // pnlContentFrame
+            //
+            pnlContentFrame.BackColor = Color.Gray;
+            pnlContentFrame.Controls.Add(pnlMarketData);
+            pnlContentFrame.Controls.Add(pnlCommands);
+            pnlContentFrame.Controls.Add(pnlMarketDataSelector);
+            pnlContentFrame.Dock = DockStyle.Fill;
+            pnlContentFrame.Location = new Point(0, 0);
+            pnlContentFrame.Name = "pnlContentFrame";
+            pnlContentFrame.Padding = new Padding(3);
+            pnlContentFrame.Size = new Size(1153, 450);
+            pnlContentFrame.TabIndex = 0;
             // 
             // pnlMarketDataSelector
             // 
@@ -48,7 +63,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlMarketDataSelector.Controls.Add(ddlReferenceDataSelector);
             pnlMarketDataSelector.Controls.Add(lblMarketDataSelector);
             pnlMarketDataSelector.Dock = DockStyle.Top;
-            pnlMarketDataSelector.Location = new Point(0, 0);
+            pnlMarketDataSelector.Location = new Point(3, 3);
             pnlMarketDataSelector.Margin = new Padding(2);
             pnlMarketDataSelector.Name = "pnlMarketDataSelector";
             pnlMarketDataSelector.Size = new Size(1147, 37);
@@ -87,7 +102,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlCommands.Controls.Add(btnChange);
             pnlCommands.Controls.Add(btnAdd);
             pnlCommands.Dock = DockStyle.Right;
-            pnlCommands.Location = new Point(1032, 37);
+            pnlCommands.Location = new Point(1035, 40);
             pnlCommands.Margin = new Padding(2);
             pnlCommands.Name = "pnlCommands";
             pnlCommands.Size = new Size(115, 407);
@@ -98,7 +113,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             btnImport.Enabled = false;
             btnImport.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnImport.ForeColor = Color.Black;
-            btnImport.Location = new Point(7, 91);
+            btnImport.Location = new Point(7, 94);
             btnImport.Margin = new Padding(2);
             btnImport.Name = "btnImport";
             btnImport.Size = new Size(99, 26);
@@ -111,7 +126,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             btnClose.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnClose.ForeColor = Color.Black;
-            btnClose.Location = new Point(7, 123);
+            btnClose.Location = new Point(7, 124);
             btnClose.Margin = new Padding(2);
             btnClose.Name = "btnClose";
             btnClose.Size = new Size(99, 26);
@@ -125,7 +140,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             btnRemove.Enabled = false;
             btnRemove.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnRemove.ForeColor = Color.Black;
-            btnRemove.Location = new Point(7, 60);
+            btnRemove.Location = new Point(7, 64);
             btnRemove.Margin = new Padding(2);
             btnRemove.Name = "btnRemove";
             btnRemove.Size = new Size(99, 26);
@@ -139,7 +154,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             btnChange.Enabled = false;
             btnChange.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnChange.ForeColor = Color.Black;
-            btnChange.Location = new Point(7, 32);
+            btnChange.Location = new Point(7, 34);
             btnChange.Margin = new Padding(2);
             btnChange.Name = "btnChange";
             btnChange.Size = new Size(99, 26);
@@ -166,7 +181,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlMarketData.BackColor = Color.FromArgb(64, 64, 64);
             pnlMarketData.BorderStyle = BorderStyle.FixedSingle;
             pnlMarketData.Dock = DockStyle.Fill;
-            pnlMarketData.Location = new Point(0, 37);
+            pnlMarketData.Location = new Point(3, 40);
             pnlMarketData.Margin = new Padding(2);
             pnlMarketData.Name = "pnlMarketData";
             pnlMarketData.Size = new Size(1032, 407);
@@ -177,10 +192,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            ClientSize = new Size(1147, 444);
-            Controls.Add(pnlMarketData);
-            Controls.Add(pnlCommands);
-            Controls.Add(pnlMarketDataSelector);
+            ClientSize = new Size(1153, 450);
+            Controls.Add(pnlContentFrame);
+            DoubleBuffered = true;
             Font = new Font("Microsoft Sans Serif", 7.8F, FontStyle.Regular, GraphicsUnit.Point, 0);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             Margin = new Padding(2);
@@ -192,6 +206,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             Text = "Reference Data Manager";
             FormClosing += ReferenceForm_FormClosing;
             Load += ReferenceForm_Load;
+            pnlContentFrame.ResumeLayout(false);
             pnlMarketDataSelector.ResumeLayout(false);
             pnlMarketDataSelector.PerformLayout();
             pnlCommands.ResumeLayout(false);
@@ -201,6 +216,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
 
         #endregion
 
+        private System.Windows.Forms.Panel pnlContentFrame;
         private System.Windows.Forms.Panel pnlMarketDataSelector;
         private System.Windows.Forms.ComboBox ddlReferenceDataSelector;
         private System.Windows.Forms.Label lblMarketDataSelector;

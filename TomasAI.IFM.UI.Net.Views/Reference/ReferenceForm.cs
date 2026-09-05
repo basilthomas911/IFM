@@ -18,20 +18,29 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     public ReferenceForm(
         IAppRoot appRoot,
-        IReferenceDataService referenceDataService,
-        IEconomicCalendarService economicCalendarService)
+        IReferenceDataService referenceDataService)
     {
         _appRoot = appRoot;
         _controlMap = new Dictionary<string, Func<IAppRoot, Control>>
         {
-            { "EconomicCalendar", ar => new EconomicCalendarEditorView(
-                new EconomicCalendarEditorViewModel(ar, economicCalendarService))},
             { "LookupTypes", ar => new LookupTypeEditorView(
                 new LookupTypeEditorViewModel(ar, referenceDataService))}
         };
         _ctrlCommand = null;
         InitializeComponent();
         ApplyReferenceFont(this);
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            // Composite child windows too: form buffering alone does not cover
+            // the native lists and text boxes replaced when the selector changes.
+            parameters.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+            return parameters;
+        }
     }
 
     // Include all nested editors and controls added later, not only the designer shell.
@@ -232,7 +241,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
             return;
 
         foreach (var definitionType in _viewModel.ReferenceDataDefinitionTypes)
-            ddlReferenceDataSelector.Items.Add(definitionType.ShortCode == "EconomicCalendar" ? "economic calendar definitions" : definitionType.Description);
+            ddlReferenceDataSelector.Items.Add(definitionType.Description);
         ddlReferenceDataSelector.Items.Add(TradeStrategyFamiliesLabel);
         ddlReferenceDataSelector.AccessibleDescription = string.Join(", ",
             ddlReferenceDataSelector.Items.Cast<object>().Select(item => item.ToString()));

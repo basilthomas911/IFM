@@ -79,5 +79,9 @@ public sealed class ReferenceViewModel : ObservableObject
     async Task LoadReferenceDataDefinitionTypesCoreAsync(CancellationToken cancellationToken)
         => ReferenceDataDefinitionTypes =
             (await _referenceDataService.GetReferenceDataDefinitionTypesAsync(cancellationToken))
-            .RequireValue();
+            .RequireValue()
+            // Calendar events are managed by the FMP import workflow, not this editor.
+            // Filter before binding so selector indexes still match the displayed definitions.
+            .Where(definition => definition.ShortCode != "EconomicCalendar")
+            .ToArray();
 }

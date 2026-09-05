@@ -46,7 +46,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             DataGridViewCellStyle dataGridViewCellStyle13 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle14 = new DataGridViewCellStyle();
             pnlTimePeriod = new Panel();
-            dtmImportDate = new AccessibleDateTimePicker();
+            dtmImportDate = new Trade.IronCondor.DarkDateTimePicker();
             lblImportDate = new Label();
             ddlTimePeriod = new ComboBox();
             lblTimePeriod = new Label();

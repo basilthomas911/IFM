@@ -11,6 +11,79 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Portfolio;
 
 public sealed class PortfolioViewModelTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Late_portfolio_selection_cannot_replace_the_current_funds_or_revision(bool delayRevision)
+    {
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var first = ValidPortfolio();
+        var second = first with { PortfolioId = 102 };
+        var oldFunds = new TaskCompletionSource<ServiceResult<PortfolioPage<FundMandateReadModel>>>();
+        var oldRevision = new TaskCompletionSource<ServiceResult<PortfolioAggregateRevision>>();
+        var firstFund = new FundMandateReadModel { PortfolioId = 101, FundId = 201 };
+        var secondFund = new FundMandateReadModel { PortfolioId = 102, FundId = 202 };
+        queries.GetFundsAsync(101, null, 100, null, Arg.Any<CancellationToken>()).Returns(oldFunds.Task);
+        queries.GetPortfolioRevisionAsync(101, Arg.Any<CancellationToken>()).Returns(oldRevision.Task);
+        queries.GetFundsAsync(102, null, 100, null, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [secondFund] }));
+        queries.GetPortfolioRevisionAsync(102, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = 102, Revision = 8 }));
+        if (delayRevision)
+            oldFunds.SetResult(new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [firstFund] }));
+        var vm = new PortfolioAdministrationViewModel(queries, Substitute.For<IPortfolioCommandApi>(),
+            Substitute.For<IPortfolioFundCommandApi>(), Substitute.For<IPortfolioIdentityApi>(), true);
+        var stale = vm.SelectPortfolioAsync(first);
+        await vm.SelectPortfolioAsync(second);
+        oldFunds.TrySetResult(new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [firstFund] }));
+        oldRevision.SetResult(new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = 101, Revision = 3 }));
+        await stale;
+        vm.SelectedPortfolio.Should().Be(second);
+        vm.Funds.Should().Equal(secondFund);
+        vm.PortfolioRevision.Should().Be(8);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Late_fund_configuration_cannot_overwrite_a_new_fund_or_portfolio(bool switchPortfolio)
+    {
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var portfolio = ValidPortfolio();
+        var first = new FundMandateReadModel { PortfolioId = 101, FundId = 201, FundMandateVersion = 1 };
+        var second = first with { FundId = 202 };
+        queries.GetFundsAsync(Arg.Any<int>(), null, 100, null, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [first, second] }));
+        queries.GetPortfolioRevisionAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = 101, Revision = 7 }));
+        queries.GetFundRevisionAsync(101, Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = 101, Revision = 5 }));
+        var pending = new TaskCompletionSource<ServiceResult<FundAllocationReadModel>>();
+        queries.GetFundAllocationAsync(101, 201, Arg.Any<CancellationToken>()).Returns(pending.Task);
+        var allocation = new FundAllocationReadModel { PortfolioId = 101, FundId = 202 };
+        queries.GetFundAllocationAsync(101, 202, Arg.Any<CancellationToken>()).Returns(new ServiceOk<FundAllocationReadModel>(allocation));
+        queries.GetFundRiskEnvelopeAsync(101, 202, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(
+            new ServiceFailed<FundRiskEnvelopeReadModel>(34001, "none"));
+        queries.GetAssignmentsAsync(101, 202, 1, Arg.Any<CancellationToken>()).Returns(new ServiceOk<FundTradeTemplateAssignmentReadModel[]>([]));
+        var vm = new PortfolioAdministrationViewModel(queries, Substitute.For<IPortfolioCommandApi>(),
+            Substitute.For<IPortfolioFundCommandApi>(), Substitute.For<IPortfolioIdentityApi>(), true);
+        await vm.SelectPortfolioAsync(portfolio);
+        var stale = vm.SelectFundAsync(first);
+        if (switchPortfolio) await vm.SelectPortfolioAsync(portfolio with { PortfolioId = 102 });
+        else await vm.SelectFundAsync(second);
+        pending.SetResult(new ServiceOk<FundAllocationReadModel>(new() { PortfolioId = 101, FundId = 201 }));
+        await stale;
+        if (switchPortfolio)
+        {
+            vm.SelectedFund.Should().BeNull(); vm.Allocation.Should().BeNull(); vm.FundRevision.Should().Be(0);
+        }
+        else
+        {
+            vm.SelectedFund.Should().Be(second); vm.Allocation.Should().Be(allocation);
+        }
+        await queries.DidNotReceive().GetFundRiskEnvelopeAsync(101, 201, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     [Trait("Gate", "PF-16")]
     [Trait("Category", "Portfolio")]

@@ -38,6 +38,8 @@ public partial class FuturesOptionContractEditorControl
     public FuturesOptionContractEditorControl(FuturesOptionContractEditorViewModel viewModel, MarketDataViewModel mktDataViewModel)
     {
         InitializeComponent();
+        MarketDataTypography.Apply(this);
+        MarketDataInputPalette.Apply(this);
         _viewModel = viewModel;
         _mktDataViewModel = mktDataViewModel;
         _editMode = EditMode.View;

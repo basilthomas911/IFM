@@ -35,9 +35,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblFundSelector = new Label();
             pnlTradeOrders = new Panel();
             lblTo = new Label();
-            dtpTo = new DateTimePicker();
+            dtpTo = new IronCondor.DarkDateTimePicker();
             lblFrom = new Label();
-            dtpFrom = new DateTimePicker();
+            dtpFrom = new IronCondor.DarkDateTimePicker();
             btnCompleteOrder = new Button();
             btnLoadOrder = new Button();
             btnDeleteOrder = new Button();
@@ -50,13 +50,13 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             columnHeader10 = new ColumnHeader();
             panel1 = new Panel();
             txtStatus = new TextBox();
-            pnlTradePosition = new Panel();
+            pnlTradePosition = new BufferedTradePanel();
             cbLiveFeed = new CheckBox();
             btnEndOfDay = new Button();
             txtTradeType = new TextBox();
             txtDaysToExpiry = new TextBox();
             lblDaysToExpiry = new Label();
-            dtpTradeDate = new DateTimePicker();
+            dtpTradeDate = new IronCondor.DarkDateTimePicker();
             lblTradeDate = new Label();
             pnlTradeControl = new Panel();
             lblOrderAction = new Label();

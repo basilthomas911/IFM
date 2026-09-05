@@ -31,6 +31,10 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     readonly TabControl _graphTabs;
     readonly TableLayoutPanel _primaryTopLayout;
     bool _closed;
+    readonly Label _initialLoading;
+    Task? _initialLoad;
+    Task _historyLoad = Task.CompletedTask;
+    bool _preparingInitialContent = true;
     bool _renderingLiveFeed;
     long _lastErrorSequence;
     int _contractIdsPaneHeight = InitialContractIdsPaneHeight;
@@ -75,7 +79,32 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
             AccessibleName = $"Read-only historical Iron Condor trade {_viewModel.OrderId}:{_viewModel.TradeId}";
         }
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
+        _initialLoading = new Label
+        {
+            Name = "tradeDetailsLoading", Text = "Loading trade details...",
+            Dock = DockStyle.Fill, BackColor = Color.Black, ForeColor = Color.White,
+            TextAlign = ContentAlignment.MiddleCenter,
+        };
+        Controls.Add(_initialLoading);
+        _initialLoading.BringToFront();
+        Disposed += (_, _) =>
+        {
+            _closed = true;
+            _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+        };
     }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.ExStyle |= 0x02000000; // Composite native children as the cover is removed.
+            return parameters;
+        }
+    }
+
+    bool CanPresentInitialContent => !_closed && !IsDisposed && Parent is not null;
 
     TabControl ConfigureGraphTabs()
     {
@@ -305,6 +334,9 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// <param name="sender"></param>
     /// <param name="e"></param>
     async void IronCondorControl_Load(object sender, EventArgs e)
+        => await (_initialLoad ??= LoadInitialContentAsync());
+
+    async Task LoadInitialContentAsync()
     {
         lstTradePlanAction.SetDoubleBuffered(true);
         lstTradeHistory.SetDoubleBuffered(true);
@@ -316,7 +348,9 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         {
             if (!_viewModel.IsHistoricalReadOnly)
                 await _viewModel.EnableMarketDataFeedResetListener();
+            if (!CanPresentInitialContent) return;
             var trade = await _viewModel.LoadIronCondorTrade();
+            if (!CanPresentInitialContent) return;
             if (trade is null)
             {
                 if (_viewModel.LastError is null)
@@ -325,7 +359,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
                         $"No Iron Condor Trade found for orderId: {_viewModel.OrderId} tradeId: {_viewModel.TradeId}",
                         "Loading Trade");
                 }
-                _parentControl.Controls.Clear();
+                _initialLoading.Text = "No trade details are available.";
                 return;
             }
 
@@ -333,9 +367,29 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
                 trade,
                 _viewModel.OrderId,
                 _viewModel.TradeId);
+            if (!CanPresentInitialContent) return;
+            // Apply queued snapshots and finish the initially selected history row before reveal.
+            await InvokeAsync((Action)(() =>
+            {
+                if (CanPresentInitialContent) RenderTradeHistory();
+            }));
+            if (!CanPresentInitialContent) return;
+            await _historyLoad;
+            if (!CanPresentInitialContent) return;
+            await InvokeAsync((Action)(() =>
+            {
+                if (!CanPresentInitialContent) return;
+                ((IFormControl)this).Resize(Parent!);
+                PerformLayout();
+                _preparingInitialContent = false;
+                _initialLoading.Visible = false;
+                Invalidate(true);
+            }));
         }
         catch (Exception exception)
         {
+            if (!CanPresentInitialContent) return;
+            _initialLoading.Text = $"Unable to load trade details: {exception.Message}";
             this.ShowErrorMessage(exception.Message, "Loading Iron Condor Monitor Error");
         }
     }
@@ -398,14 +452,14 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
                 ShowOptionTradeSpreadBarData(_viewModel.SpreadBarData);
                 break;
             case nameof(IronCondorViewModel.TradeHistory):
-                if (!_viewModel.IsLoading)
+                if (!_preparingInitialContent && !_viewModel.IsLoading)
                     RenderTradeHistory();
                 break;
             case nameof(IronCondorViewModel.TradePlans):
                 ShowTradePlans(_viewModel.TradePlans);
                 break;
             case nameof(IronCondorViewModel.IsLoaded):
-                if (_viewModel.IsLoaded)
+                if (!_preparingInitialContent && _viewModel.IsLoaded)
                     RenderTradeHistory();
                 break;
             case nameof(IronCondorViewModel.IsLiveFeedEnabled):
@@ -1041,17 +1095,26 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// <param name="e">The event arguments.</param>
     async void lstTradeHistory_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (lstTradeHistory.SelectedIndices.Count != 1 || !lstTradeHistory.Enabled) return;
+        if (_closed || lstTradeHistory.SelectedIndices.Count != 1 || !lstTradeHistory.Enabled) return;
         var index = lstTradeHistory.SelectedIndices[0];
+        await (_historyLoad = LoadSelectedHistoryAsync(index));
+    }
+
+    async Task LoadSelectedHistoryAsync(int index)
+    {
         try
         {
             await _viewModel.LoadIronCondorTradePosition(index);
+            if (_closed) return;
             await _viewModel.LoadOptionTradeSpreadBarData(index);
+            if (_closed) return;
             await _viewModel.LoadTradePlans(index);
+            if (_closed) return;
             await _viewModel.LoadFuturesEodData(index);
         }
         catch (Exception exception)
         {
+            if (_closed) return;
             this.ShowErrorMessage(exception.Message, "Loading Iron Condor History Error");
         }
     }

@@ -25,6 +25,8 @@ public partial class YieldCurveRateEditForm
     public YieldCurveRateEditForm(YieldCurveRateEditViewModel viewModel)
     {
         InitializeComponent();
+        MarketDataTypography.Apply(this);
+        MarketDataInputPalette.Apply(this);
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
     }
 

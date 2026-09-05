@@ -59,6 +59,9 @@ public sealed class PortfolioAdministrationForm : Form, IForm<PortfolioAdministr
     IPortfolioIdentityApi? _identities;
     IReferenceQueryApi? _referenceQueries;
     CancellationTokenSource? _load;
+    bool _bindingSelection;
+    long _portfolioSelectionGeneration;
+    long _fundSelectionGeneration;
 
     public PortfolioAdministrationForm()
     {
@@ -85,14 +88,16 @@ public sealed class PortfolioAdministrationForm : Form, IForm<PortfolioAdministr
         Controls.Add(_contentFrame);
         SetSelectionButtons();
         _refresh.Click += async (_, _) => await RefreshAsync(); _state.SelectedIndexChanged += async (_, _) => await RefreshAsync();
-        _portfolios.SelectionChanged += async (_, _) => await SelectPortfolioAsync(); _funds.SelectionChanged += async (_, _) => await SelectFundAsync();
+        // SelectionChanged can still expose the previous CurrentRow during a cell change.
+        _portfolios.CurrentCellChanged += async (_, _) => await SelectPortfolioAsync();
+        _funds.CurrentCellChanged += async (_, _) => await SelectFundAsync();
         _portfolioActions.Click += (_, _) => _portfolioActionsMenu.Show(_portfolioActions, new Point(0, _portfolioActions.Height));
         _riskPolicy.Click += (_, _) => ShowRiskPolicy(); _createPortfolio.Click += async (_, _) => await CreatePortfolioAsync();
         _newPortfolioVersion.Click += async (_, _) => await NewPortfolioVersionAsync(); _portfolioState.Click += async (_, _) => await ChangePortfolioStateAsync();
         _deletePortfolio.Click += async (_, _) => await DeleteDraftPortfolioAsync();
         _createFund.Click += async (_, _) => await CreateFundAsync(); _newFundVersion.Click += async (_, _) => await NewFundVersionAsync(); _fundState.Click += async (_, _) => await ChangeFundStateAsync();
         _configureAllocation.Click += async (_, _) => await ConfigureAllocationAsync(); _configureEnvelope.Click += async (_, _) => await ConfigureEnvelopeAsync(); _configureAssignment.Click += async (_, _) => await ConfigureAssignmentAsync();
-        FormClosed += (_, _) => { _load?.Cancel(); _load?.Dispose(); };
+        FormClosed += (_, _) => { _viewModel?.ClearSelection(); _load?.Cancel(); _load?.Dispose(); };
     }
 
     public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true)
@@ -104,22 +109,90 @@ public sealed class PortfolioAdministrationForm : Form, IForm<PortfolioAdministr
     async Task RefreshAsync()
     {
         if (_viewModel is null || _state.SelectedItem is not PortfolioOperatingState state) return;
-        _load?.Cancel(); _load?.Dispose(); _load = new(); _status.Text = "Loading Portfolios...";
-        try { await _viewModel.LoadAsync(state, _load.Token); _portfolios.DataSource = _viewModel.Portfolios; ShowStatus(); }
-        catch (OperationCanceledException) { _status.Text = "Portfolio refresh cancelled."; }
-        SetSelectionButtons();
+        _load?.Cancel(); _load?.Dispose(); var load = _load = new();
+        _portfolioSelectionGeneration++; _fundSelectionGeneration++;
+        _viewModel.ClearSelection();
+        _bindingSelection = true;
+        try { _portfolios.DataSource = null; _funds.DataSource = null; BindConfiguration(); }
+        finally { _bindingSelection = false; }
+        SetSelectionButtons(); _status.Text = "Loading Portfolios...";
+        try
+        {
+            await _viewModel.LoadAsync(state, load.Token);
+            if (IsDisposed || Disposing || load != _load) return;
+            _bindingSelection = true;
+            try { _portfolios.DataSource = _viewModel.Portfolios; }
+            finally { _bindingSelection = false; }
+            ShowStatus();
+            await SelectPortfolioAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            if (!IsDisposed && !Disposing && load == _load) _status.Text = "Portfolio refresh cancelled.";
+        }
     }
 
     async Task SelectPortfolioAsync()
     {
-        if (_viewModel is null || _portfolios.CurrentRow?.DataBoundItem is not PortfolioReadModel portfolio) { SetSelectionButtons(); return; }
-        await _viewModel.SelectPortfolioAsync(portfolio); _funds.DataSource = _viewModel.Funds; BindConfiguration(); ShowStatus($"Portfolio {portfolio.PortfolioId}: {_viewModel.Funds.Length} Fund mandate(s)."); SetSelectionButtons();
+        if (_bindingSelection || _viewModel is null || IsDisposed || Disposing) return;
+        var generation = ++_portfolioSelectionGeneration;
+        _fundSelectionGeneration++;
+        _bindingSelection = true;
+        try { _funds.DataSource = null; }
+        finally { _bindingSelection = false; }
+        if (_portfolios.CurrentRow?.DataBoundItem is not PortfolioReadModel portfolio)
+        {
+            _viewModel.ClearSelection(); BindConfiguration(); SetSelectionButtons(); return;
+        }
+        try
+        {
+            var selection = _viewModel.SelectPortfolioAsync(portfolio, _load?.Token ?? default);
+            BindConfiguration(); SetSelectionButtons();
+            await selection;
+            if (IsDisposed || Disposing || generation != _portfolioSelectionGeneration) return;
+            _bindingSelection = true;
+            try { _funds.DataSource = _viewModel.Funds; }
+            finally { _bindingSelection = false; }
+            BindConfiguration();
+            ShowStatus(_viewModel.State == PortfolioUiState.Ready
+                ? $"Portfolio {portfolio.PortfolioId}: {_viewModel.Funds.Length} Fund mandate(s)." : null);
+            SetSelectionButtons();
+            await SelectFundAsync();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (!IsDisposed && !Disposing && generation == _portfolioSelectionGeneration)
+                ShowStatus($"Unable to load Portfolio {portfolio.PortfolioId}: {exception.Message}");
+        }
     }
 
     async Task SelectFundAsync()
     {
-        if (_viewModel is null || _funds.CurrentRow?.DataBoundItem is not FundMandateReadModel fund) { SetSelectionButtons(); return; }
-        await _viewModel.SelectFundAsync(fund); BindConfiguration(); ShowStatus($"Fund {fund.FundId} version {fund.FundMandateVersion} selected."); SetSelectionButtons();
+        if (_bindingSelection || _viewModel is null || IsDisposed || Disposing) return;
+        var generation = ++_fundSelectionGeneration;
+        if (_funds.CurrentRow?.DataBoundItem is not FundMandateReadModel fund
+            || _viewModel.SelectedPortfolio?.PortfolioId != fund.PortfolioId)
+        {
+            _viewModel.ClearFundSelection(); BindConfiguration(); SetSelectionButtons(); return;
+        }
+        try
+        {
+            var selection = _viewModel.SelectFundAsync(fund, _load?.Token ?? default);
+            BindConfiguration(); SetSelectionButtons();
+            await selection;
+            if (IsDisposed || Disposing || generation != _fundSelectionGeneration) return;
+            BindConfiguration();
+            ShowStatus(_viewModel.State == PortfolioUiState.Ready
+                ? $"Fund {fund.FundId} version {fund.FundMandateVersion} selected." : null);
+            SetSelectionButtons();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (!IsDisposed && !Disposing && generation == _fundSelectionGeneration)
+                ShowStatus($"Unable to load Fund {fund.FundId}: {exception.Message}");
+        }
     }
 
     async Task CreatePortfolioAsync()
@@ -224,7 +297,7 @@ public sealed class PortfolioAdministrationForm : Form, IForm<PortfolioAdministr
     void BindConfiguration() { _allocation.DataSource = _viewModel?.Allocation is null ? Array.Empty<FundAllocationReadModel>() : new[] { _viewModel.Allocation }; _envelope.DataSource = _viewModel?.RiskEnvelope is null ? Array.Empty<FundRiskEnvelopeReadModel>() : new[] { _viewModel.RiskEnvelope }; _assignments.DataSource = _viewModel?.Assignments ?? []; }
     void ShowStatus(string? message = null) { _status.Text = message ?? (_viewModel?.State == PortfolioUiState.Empty ? "No Portfolios match the filter." : _viewModel?.Message) ?? string.Empty; }
     void ShowRiskPolicy() { if (_viewModel?.SelectedPortfolio is not { } portfolio || _queries is null || _identities is null) return; using var form = new PortfolioRiskPolicyForm(portfolio, _queries, _identities, _policyCommands, _referenceQueries, _viewModel.CanMutate); form.ShowDialog(this); }
-    void SetSelectionButtons() { var can = _viewModel?.CanMutate == true; var portfolio = _viewModel?.SelectedPortfolio is not null; var draft = _viewModel?.SelectedPortfolio?.OperatingState == PortfolioOperatingState.Draft; var fund = _viewModel?.SelectedFund is not null; _createPortfolio.Enabled = can; _riskPolicy.Enabled = portfolio; _portfolioActions.Enabled = can && portfolio; _newPortfolioVersion.Enabled = can && portfolio; _portfolioState.Enabled = can && portfolio; _deletePortfolio.Enabled = can && draft; if (_portfolioActionsMenu.Items.Count == 3) _portfolioActionsMenu.Items[2].Enabled = can && draft; _createFund.Enabled = can && portfolio; _newFundVersion.Enabled = can && fund; _fundState.Enabled = can && fund; _configureAllocation.Enabled = can && fund; _configureEnvelope.Enabled = can && fund; _configureAssignment.Enabled = can && fund; }
+    void SetSelectionButtons() { var can = _viewModel?.CanMutate == true && _viewModel.State != PortfolioUiState.Loading; var portfolio = _viewModel?.SelectedPortfolio is not null; var draft = _viewModel?.SelectedPortfolio?.OperatingState == PortfolioOperatingState.Draft; var fund = _viewModel?.SelectedFund is not null; _createPortfolio.Enabled = can; _riskPolicy.Enabled = portfolio; _portfolioActions.Enabled = can && portfolio; _newPortfolioVersion.Enabled = can && portfolio; _portfolioState.Enabled = can && portfolio; _deletePortfolio.Enabled = can && draft; if (_portfolioActionsMenu.Items.Count == 3) _portfolioActionsMenu.Items[2].Enabled = can && draft; _createFund.Enabled = can && portfolio; _newFundVersion.Enabled = can && fund; _fundState.Enabled = can && fund; _configureAllocation.Enabled = can && fund; _configureEnvelope.Enabled = can && fund; _configureAssignment.Enabled = can && fund; }
     static TabPage Page(string title, Control content) { var page = new TabPage(title) { BackColor = PortfolioUiStyle.Surface, ForeColor = PortfolioUiStyle.Foreground }; page.Controls.Add(content); return page; }
 }
 

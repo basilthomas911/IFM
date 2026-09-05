@@ -87,7 +87,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             // lstLookupTypeShortCodes
             // 
-            lstLookupTypeShortCodes.BackColor = Color.FromArgb(64, 64, 64);
+            lstLookupTypeShortCodes.BackColor = Color.Black;
             lstLookupTypeShortCodes.BorderStyle = BorderStyle.FixedSingle;
             lstLookupTypeShortCodes.Dock = DockStyle.Fill;
             lstLookupTypeShortCodes.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -126,7 +126,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             // lstLookupTypeNames
             // 
-            lstLookupTypeNames.BackColor = Color.FromArgb(64, 64, 64);
+            lstLookupTypeNames.BackColor = Color.Black;
             lstLookupTypeNames.BorderStyle = BorderStyle.FixedSingle;
             lstLookupTypeNames.Dock = DockStyle.Top;
             lstLookupTypeNames.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
