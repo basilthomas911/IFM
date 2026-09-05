@@ -15,6 +15,12 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceQueryApi
 {
+    public Task<ServiceResult<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
+    {
+        var query = new GetTradeStrategySymbolsQuery { Family = family, Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, ActorEntityId.Default.Format()) };
+        return RequestAsync<GetTradeStrategySymbolsQuery, TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>(query.Subject, query, cancellationToken).AsTask();
+    }
+
     public async Task<ServiceResult<TradeStrategyFamilyReadModel[]>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default)
     {
         GetTradeStrategyFamiliesQuery query = new()

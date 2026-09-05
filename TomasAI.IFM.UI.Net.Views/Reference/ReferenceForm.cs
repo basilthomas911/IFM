@@ -83,7 +83,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         pnlMarketData.Controls.Clear();
         if (string.Equals(ddlReferenceDataSelector.SelectedItem?.ToString(), "Trade Strategy Families", StringComparison.Ordinal))
         {
-            var catalog = new TradeStrategyFamilyReferenceView(_appRoot.Services.ReferenceQueries) { Dock = DockStyle.Fill };
+            var catalog = new TradeStrategyFamilyReferenceView(_appRoot.Services.ReferenceQueries, _appRoot.Services.ReferenceCommands) { Dock = DockStyle.Fill };
             pnlMarketData.Controls.Add(catalog);
             await catalog.LoadAsync();
             btnAdd.Enabled = btnChange.Enabled = btnRemove.Enabled = btnImport.Enabled = false;

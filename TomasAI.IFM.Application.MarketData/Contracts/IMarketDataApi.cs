@@ -30,6 +30,42 @@ public readonly record struct FuturesTermStructureContracts(
 /// </remarks>
 public interface IMarketDataApi
 {
+    Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
+        TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>>(
+            new TomasAI.IFM.Shared.EventSourcing.ServiceFailed<TradeStrategySymbolReadModel[]>(503, "Trade strategy symbol catalog is not configured."));
+
+    // Additive Stage 4 contract. Until the qualified coordinator is installed, these fail closed
+    // rather than forwarding an owner-aware request to a legacy ownerless/boolean route.
+    Task<SubscriptionLeaseResult> StartStreamingFuturesTickDataAsync(
+        SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+
+    Task<SubscriptionLeaseResult> StartStreamingFuturesOptionTickDataAsync(
+        SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+
+    Task<SubscriptionLeaseResult> StartStreamingFuturesOptionChainDataAsync(
+        SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+
+    Task<SubscriptionLeaseResult> RenewSubscriptionLeaseAsync(
+        SubscriptionRenewRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+
+    Task<SubscriptionLeaseResult> ReleaseSubscriptionLeaseAsync(
+        SubscriptionReleaseRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+
+    Task<SubscriptionLeaseResult> AcquireSelectedSubscriptionLeasesAsync(
+        SubscriptionAcquireBatchRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+
+    Task<SubscriptionLeaseResult> GetSubscriptionLeasesAsync(
+        SubscriptionOwnerQuery request, CancellationToken cancellationToken = default)
+        => Task.FromResult(SubscriptionLeaseResult.Disabled(Guid.Empty));
+
     /// <summary>
     /// Synchronously reports whether every configured Databento transport and its managed
     /// aggregation worker are currently running.

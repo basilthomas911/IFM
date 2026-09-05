@@ -37,6 +37,7 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb
         Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
         Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType, CancellationToken cancellationToken);
         Task<IReadOnlyList<TradeStrategyFamilyReadModel>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<LegacyTradeStrategyFamily>> GetLegacyTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default);
         Task<TradeStrategyFamilyReadModel?> GetTradeStrategyFamilyAsync(int tradeStrategyFamilyId, long definitionVersion, CancellationToken cancellationToken = default);
     }
 }

@@ -74,6 +74,7 @@ public sealed record FundMandateReadModel
     [Key(18)] public string CreatedBy { get; init; } = string.Empty;
     [Key(19)] public string HistoricalSource { get; init; } = string.Empty;
     [Key(20)] public int? HistoricalSourceFundId { get; init; }
+    [Key(21)] public TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference[] PermittedTradeStrategyFamilies { get; init; } = [];
 
     [IgnoreMember]
     public bool IsLegacyHistory => HistoricalSource.Equals("FundLegacyDb", StringComparison.Ordinal)
@@ -97,6 +98,10 @@ public sealed record FundMandateReadModel
         if (UnderlyingUniverse.Length == 0 || UnderlyingUniverse.Any(string.IsNullOrWhiteSpace)) errors.Add("UnderlyingUniverse is required.");
         if (EligibleAssetTypes.Length == 0 || EligibleAssetTypes.Any(string.IsNullOrWhiteSpace)) errors.Add("EligibleAssetTypes is required.");
         if (PermittedTradeFamilies.Length == 0 || PermittedTradeFamilies.Any(string.IsNullOrWhiteSpace)) errors.Add("PermittedTradeFamilies is required.");
+        if (PermittedTradeStrategyFamilies is null || PermittedTradeStrategyFamilies.Any(x => x is null || !x.IsValid) ||
+            PermittedTradeStrategyFamilies.Distinct().Count() != PermittedTradeStrategyFamilies.Length ||
+            (SchemaVersion >= 2 && PermittedTradeStrategyFamilies.Length == 0))
+            errors.Add("Schema v2 requires distinct, exact trade strategy family ID/version references.");
         if (CreatedOnUtc.Kind != DateTimeKind.Utc) errors.Add("CreatedOnUtc must be UTC.");
         if (string.IsNullOrWhiteSpace(CreatedBy)) errors.Add("CreatedBy is required.");
         if (string.IsNullOrWhiteSpace(HistoricalSource) != (HistoricalSourceFundId is null))
@@ -117,5 +122,6 @@ public sealed record FundMandateReadModel
         PermittedDirections = [.. PermittedDirections],
         PermittedConditions = [.. PermittedConditions],
         PermittedTradeFamilies = [.. PermittedTradeFamilies],
+        PermittedTradeStrategyFamilies = [.. PermittedTradeStrategyFamilies],
     };
 }

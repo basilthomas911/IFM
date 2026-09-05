@@ -11,6 +11,8 @@
 **Implementation boundary:** Reference trade-family catalog, Portfolio/Fund and Risk Policy configuration, unified Trade Orders composition view, and composition identity through accepted OrderComposition result references
 **Deferred boundary:** Broker OrderExecution, fills, live positions, and execution-facing TradeDb replacement
 
+**Construction/sizing clarification — 2026-09-05:** The [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md) specifies complete one-unit OrderComposition results with final unit quantity absent. Portfolio Risk Manager determines final units and atomically reserves risk. Recording result references does not implement this sizing engine or authorize execution; existing historical contracts/results are not silently reinterpreted.
+
 ## 1. Purpose
 
 This specification converts the Portfolio/Fund high-level design into repository-specific, testable requirements. It defines the domain types, actor boundaries, commands, events, queries, state transitions, persistence projections, pipeline handoffs, UI contracts, reason codes, gates, and definition of done needed to implement the new Portfolio-centric model.
@@ -20,8 +22,8 @@ The specification preserves the existing conceptual separation:
 - Portfolio owns capital and financial-risk authority;
 - Fund owns mandate, template assignments, selection guidance, and planned composition identities;
 - TradeSelection selects a permitted template;
-- OrderComposition creates an exact non-executable candidate;
-- RiskManagement approves or rejects that candidate; and
+- OrderComposition creates an exact non-executable one-unit candidate with per-unit leg ratios;
+- RiskManagement determines final units, independently validates and reserves/approves risk, or rejects; and
 - future OrderExecution owns broker effects and execution-facing TradeDb records.
 
 ## 2. Normative language
@@ -45,7 +47,7 @@ The HLD controls domain intent. This specification controls the initial reposito
 11. FundOrder and FundOrderTrade are composition records, not broker orders, fills, or live positions.
 12. TradeTemplate and OrderCompositionProfile are reusable versioned definitions; FundOrder is an instantiated plan.
 13. TradeSelection cannot create exact contracts, strikes, quantities, or prices.
-14. OrderComposition cannot contact a broker, create a fill, or create a live position.
+14. OrderComposition constructs one normalization unit and cannot calculate final strategy-unit quantity, reserve risk, contact a broker, create a fill, or create a live position. RiskManagement owns final sizing; accepted references SHALL distinguish the unit-candidate hash from a sized risk-decision/result hash through explicit versioned contracts.
 15. RiskManagement and OrderExecution are separate domains/workflows. This implementation may record their outcome references but cannot perform their work.
 16. The existing Funds UI remains until the new Portfolio UI passes its system gates.
 17. The new Trade composition UI removes Create Fund and filters Fund data through a selected Portfolio.
@@ -191,7 +193,9 @@ The PortfolioFinancialPolicy aggregate owns immutable policy versions, global ca
 
 ### 6.5 TradeStrategyFamily reference catalog
 
-ReferenceDb owns immutable TradeStrategyFamily definitions. V1 bootstrap is the only writer and the public actor/API surface is read-only. Portfolio policy, Fund mandate, template, TradeSelection, OrderComposition, and RiskManagement contracts reference exact TradeStrategyFamilyId/DefinitionVersion values and MUST NOT infer family behavior from display text.
+ReferenceDb owns immutable TradeStrategyFamily definitions. Bootstrap preserves the three legacy seeds; the command API now creates product-linked definitions in an additive catalog. Portfolio policy, Fund mandate, template, TradeSelection, OrderComposition, and RiskManagement contracts reference exact TradeStrategyFamilyId/DefinitionVersion values and MUST NOT infer family behavior from display text.
+
+The [2026-09-05 catalog implementation amendment](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md) supersedes earlier read-only/three-row restrictions in this specification. SystemKey is non-unique classification; the exact reference is ID/version. Existing seeds and historical records are preserved, not bulk-rewritten. Creation does not enable a trading strategy for any Fund.
 
 ## 7. Identity contracts
 
@@ -576,16 +580,24 @@ Stages MUST validate the supplied snapshot and MUST NOT query for a newer versio
 | ---: | --- | --- |
 | 0 | `TradeStrategyFamilyId` | Positive sequence-generated integer |
 | 1 | `DefinitionVersion` | Positive immutable version |
-| 2 | `SchemaVersion` | Initial value 1 |
-| 3 | `SystemKey` | Stable uppercase key |
-| 4 | `DisplayName` | Operator-facing name |
-| 5 | `Description` | Required concise definition |
-| 6 | `State` | V1 value Active |
-| 7 | `DisplayOrder` | Positive deterministic order |
-| 8 | `CreatedOnUtc` | Required UTC |
-| 9 | `CreatedBy` | Required bootstrap principal |
+| 2 | `SystemKey` | Exact `Family-Strategy` enum-name composition |
+| 3 | `Family` | `TradeStrategyFamilyType`, defined and not Unknown |
+| 4 | `Strategy` | `TradeStrategyType`, defined and not Unknown |
+| 5 | `TimeFrame` | `TimeFrameType`: Daily, Weekly or Monthly |
+| 6 | `Symbol` | Required trimmed underlying symbol; initial ES |
+| 7 | `Currency` | Three uppercase letters; initial USD |
+| 8 | `Description` | Required operator-facing description |
+| 9 | `State` | Initial value Active |
+| 10 | `CreatedOnUtc` | Required UTC |
+| 11 | `CreatedBy` | Required server audit principal |
+| 12 | `TradeStrategySymbolId` | Positive provider-product catalog ID for new definitions; zero only on preserved legacy seeds |
+| 13 | `Exchange` | Required provider-derived Exchange for new linked definitions |
 
-V1 contains exactly `FUTURES`/Futures, `VERTICAL_SPREAD`/Vertical Spread, and `IRON_CONDOR`/Iron Condor at DefinitionVersion 1. Long/Short and directional/credit variants are not rows in this table.
+The preserved seed catalog contains `Futures-Futures` (Daily), `FuturesOption-VerticalSpread` (Weekly), and `FuturesOption-IronCondor` (Monthly), all ES/USD at DefinitionVersion 1. New product-linked definitions may share these SystemKeys and have their own exact ID/version. Long/Short and directional/credit variants are not separate families. The complete enum definitions, migration and deployment constraints are in [the typed catalog definition](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Family-Typed-Definition.md).
+
+Fund mandate and template-assignment horizon dropdowns SHALL offer only the names Daily, Weekly and Monthly, mapped to their existing `TimeFrameType` values. Unsupported stored horizons require an explicit selection, not an automatic conversion to Daily. The existing Fund/assignment persistence contracts retain the selected enum name as a string.
+
+Implemented UI wiring: Fund permitted families use an active-catalog multi-select checklist; Trade Assignment uses a non-editable dropdown limited by exact permitted ID/version. Labels include product/timeframe and identity. Updated editors persist SchemaVersion 2 with Fund key 21 PermittedTradeStrategyFamilies and assignment key 22 TradeStrategyFamily; existing strings are classification mirrors. Server validation checks active exact references and assignment membership. Legacy ambiguous names require explicit replacement; catalog errors block editing. Typed mandates cannot downgrade to name-only permissions.
 
 ### 10.10 `TradeFamilyRiskLimitReadModel`
 
@@ -1032,12 +1044,12 @@ Portfolio schema initialization is idempotent and registered with application st
 
 ### 22.6 ReferenceDb TradeStrategyFamily catalog
 
-ReferenceDb SHALL add a query-shaped `trade_strategy_family_v2` table with a fixed catalog partition and a stable `(SystemKey, DefinitionVersion)` clustering identity. Rows contain the complete TradeStrategyFamilyReadModel, including the sequence-generated display/foreign-key identity. The schema/bootstrap path:
+ReferenceDb uses a query-shaped `trade_strategy_family_v3` table with a fixed catalog partition and a stable `(SystemKey, DefinitionVersion)` clustering identity. Rows contain the complete typed TradeStrategyFamilyReadModel, including the sequence-generated display/foreign-key identity. The old `trade_strategy_family_v2` table remains intact as a read-only migration source. The schema/bootstrap path:
 
 1. creates the table idempotently;
 2. queries the fixed catalog partition by stable SystemKey;
-3. allocates `Reference_TradeStrategyFamilyId` only when a required key is absent;
-4. conditionally inserts exactly FUTURES, VERTICAL_SPREAD, and IRON_CONDOR definition version 1 as Active using `IF NOT EXISTS`;
+3. preserves the legacy ID/version/audit for a mapped legacy row, or allocates `Reference_TradeStrategyFamilyId` when both typed and mapped legacy keys are absent;
+4. conditionally inserts exactly Futures-Futures, FuturesOption-VerticalSpread, and FuturesOption-IronCondor definition version 1 as Active using `IF NOT EXISTS`;
 5. verifies duplicate keys/IDs/versions are absent; and
 6. exposes no public write context or command API for family mutation in v1.
 
@@ -1128,7 +1140,7 @@ The existing Funds, Allocation, Risk Envelope, and Trade Assignments detail tabs
 - pending projection, conflict, timeout, authorization, unavailable, and validation states; and
 - no direct database access.
 
-The Reference screen SHALL show exactly the three v1 TradeStrategyFamily definitions in a read-only list/detail view and SHALL expose no Add, Edit, Retire, or Delete controls.
+The Reference screen SHALL show preserved seeds and newly created product-linked definitions. It SHALL expose Create Family using provider-backed symbols, read-only Currency/Exchange and Daily/Weekly/Monthly timeframes. Existing definitions SHALL remain read-only with no Edit, Retire or Delete controls. SystemKey SHALL NOT be used as an exact identity.
 
 ### 27.3 Trade Orders view
 

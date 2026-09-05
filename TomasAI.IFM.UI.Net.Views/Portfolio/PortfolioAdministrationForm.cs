@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Portfolio;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
@@ -153,14 +154,18 @@ public sealed class PortfolioAdministrationForm : Form, IForm<PortfolioAdministr
 
     async Task CreateFundAsync()
     {
-        if (_viewModel?.SelectedPortfolio is not { } portfolio) return; _status.Text = "Allocating Fund ID..."; var id = await _viewModel.AllocateFundIdAsync(); if (id is null) { ShowStatus(); return; }
-        using var editor = new FundMandateEditorForm(portfolio.PortfolioId, id.Value); if (editor.ShowDialog(this) != DialogResult.OK || editor.Value is null) return;
+        if (_viewModel?.SelectedPortfolio is not { } portfolio) return;
+        var catalog = await LoadTradeFamilyCatalogAsync(); if (catalog is null) return;
+        _status.Text = "Allocating Fund ID..."; var id = await _viewModel.AllocateFundIdAsync(); if (id is null) { ShowStatus(); return; }
+        using var editor = new FundMandateEditorForm(portfolio.PortfolioId, id.Value, catalog: catalog); if (editor.ShowDialog(this) != DialogResult.OK || editor.Value is null) return;
         await _viewModel.CreateFundAsync(editor.Value); ShowStatus(); await SelectPortfolioAsync();
     }
 
     async Task NewFundVersionAsync()
     {
-        if (_viewModel?.SelectedFund is not { } selected) return; using var editor = new FundMandateEditorForm(selected.PortfolioId, selected.FundId, selected);
+        if (_viewModel?.SelectedFund is not { } selected) return;
+        var catalog = await LoadTradeFamilyCatalogAsync(); if (catalog is null) return;
+        using var editor = new FundMandateEditorForm(selected.PortfolioId, selected.FundId, selected, catalog);
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Value is not null) { await _viewModel.AddFundVersionAsync(editor.Value, selected.FundMandateVersion); ShowStatus(); await SelectPortfolioAsync(); }
     }
 
@@ -184,8 +189,35 @@ public sealed class PortfolioAdministrationForm : Form, IForm<PortfolioAdministr
 
     async Task ConfigureAssignmentAsync()
     {
-        if (_viewModel?.SelectedPortfolio is not { } portfolio || _viewModel.SelectedFund is not { } fund) return; using var editor = new FundAssignmentEditorForm(portfolio, fund);
+        if (_viewModel?.SelectedPortfolio is not { } portfolio || _viewModel.SelectedFund is not { } fund) return;
+        var catalog = await LoadTradeFamilyCatalogAsync(); if (catalog is null) return;
+        using var editor = new FundAssignmentEditorForm(portfolio, fund, catalog);
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Value is not null) { await _viewModel.AssignTradeTemplateAsync(editor.Value); ShowStatus(); await SelectFundAsync(); }
+    }
+
+    async Task<TradeStrategyFamilyReadModel[]?> LoadTradeFamilyCatalogAsync()
+    {
+        if (_referenceQueries is null) { ShowStatus("Trade strategy family catalog is unavailable: Reference queries are not connected."); return null; }
+        ShowStatus("Loading trade strategy families...");
+        try
+        {
+            var result = await _referenceQueries.GetTradeStrategyFamiliesAsync();
+            if (IsDisposed || Disposing) return null;
+            if (!result.Success || result.Value is null)
+            {
+                ShowStatus($"Unable to load trade strategy families: {result.ErrorMessage ?? "no catalog returned"}");
+                return null;
+            }
+            var active = TradeFamilyCatalogSelection.Active(result.Value);
+            if (active.Length == 0) { ShowStatus("No active trade strategy families are available. Cannot open the editor."); return null; }
+            ShowStatus("Trade strategy family catalog loaded.");
+            return active;
+        }
+        catch (Exception ex)
+        {
+            if (!IsDisposed && !Disposing) ShowStatus($"Unable to load trade strategy families: {ex.Message}");
+            return null;
+        }
     }
 
     async Task RefreshForStateAsync(PortfolioOperatingState state) { _state.SelectedItem = state; await RefreshAsync(); }

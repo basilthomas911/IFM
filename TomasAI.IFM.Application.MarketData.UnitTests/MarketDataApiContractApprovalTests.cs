@@ -11,8 +11,9 @@ public sealed class MarketDataApiContractApprovalTests
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(27);
+        methods.Should().HaveCount(35);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
+            "GetTradeStrategySymbolsAsync",
             "IsDatabentoFeedUp",
             "GetRuntimeStatus",
             "TryGetOnTheRunFuturesContract",
@@ -39,7 +40,15 @@ public sealed class MarketDataApiContractApprovalTests
             "StartStreamingFuturesOptionTickDataAsync",
             "StopStreamingFuturesOptionTickDataAsync",
             "StartStreamingFuturesOptionChainDataAsync",
-            "StopStreamingFuturesOptionChainDataAsync");
+            "StopStreamingFuturesOptionChainDataAsync",
+            // Additive typed Stage 4 methods; legacy signatures remain above unchanged.
+            "StartStreamingFuturesTickDataAsync",
+            "StartStreamingFuturesOptionTickDataAsync",
+            "StartStreamingFuturesOptionChainDataAsync",
+            "RenewSubscriptionLeaseAsync",
+            "ReleaseSubscriptionLeaseAsync",
+            "AcquireSelectedSubscriptionLeasesAsync",
+            "GetSubscriptionLeasesAsync");
         methods.SelectMany(method => method.GetParameters())
             .Should().NotContain(parameter => parameter.ParameterType == typeof(Guid));
     }
@@ -53,6 +62,29 @@ public sealed class MarketDataApiContractApprovalTests
         typeof(IMarketDataApi).Assembly.GetType(
                 $"{typeof(IMarketDataApi).Namespace}.IMarketDataSnapshotApi")
             .Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Typed_lease_methods_fail_closed_without_starting_a_legacy_epoch()
+    {
+        var context = new MarketDataApiTestContext();
+        IMarketDataApi api = context.Api;
+        var request = new SubscriptionAcquireRequest(Guid.CreateVersion7(), Guid.NewGuid(), Guid.NewGuid(),
+            new("test", new("workflow", "one", "leg")),
+            new(new SubscriptionTickerKey("databento", "GLBX.MDP3", "ES", "mbp-1", SubscriptionAssetKind.Futures)),
+            SubscriptionLeasePurpose.Position, DateTimeOffset.UtcNow.AddSeconds(10));
+        (await api.StartStreamingFuturesTickDataAsync(request)).Code.Should().Be(SubscriptionResultCode.Disabled);
+        (await api.StartStreamingFuturesOptionTickDataAsync(request)).Code.Should().Be(SubscriptionResultCode.Disabled);
+        (await api.StartStreamingFuturesOptionChainDataAsync(request)).Code.Should().Be(SubscriptionResultCode.Disabled);
+        (await api.AcquireSelectedSubscriptionLeasesAsync(new(request.OperationId, request.HostEpochId,
+            request.CorrelationId, request.Owner, [new(request.Owner, request.Target)], request.Purpose, request.DeadlineUtc)))
+            .Code.Should().Be(SubscriptionResultCode.Disabled);
+        (await api.RenewSubscriptionLeaseAsync(new(request.OperationId, request.CorrelationId,
+            request.Owner, new(Guid.NewGuid(), Guid.NewGuid(), 1), request.DeadlineUtc))).Code.Should().Be(SubscriptionResultCode.Disabled);
+        (await api.ReleaseSubscriptionLeaseAsync(new(request.OperationId, request.CorrelationId,
+            request.Owner, new(Guid.NewGuid(), Guid.NewGuid(), 1), request.DeadlineUtc))).Code.Should().Be(SubscriptionResultCode.Disabled);
+        (await api.GetSubscriptionLeasesAsync(new(request.Owner))).Code.Should().Be(SubscriptionResultCode.Disabled);
+        context.EpochFactory.Epochs.Should().BeEmpty();
     }
 
     [Fact]

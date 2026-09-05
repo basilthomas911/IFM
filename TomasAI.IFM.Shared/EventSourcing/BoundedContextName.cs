@@ -71,4 +71,6 @@ public enum BoundedContextName
     PortfolioBoundedContext,
     /// <summary>Routes Portfolio-owned Fund aggregate commands.</summary>
     PortfolioFundBoundedContext,
+    /// <summary>Routes audited reference catalog creation commands.</summary>
+    TradeStrategyFamilyBoundedContext,
 }

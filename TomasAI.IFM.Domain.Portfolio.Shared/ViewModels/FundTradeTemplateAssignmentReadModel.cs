@@ -27,6 +27,7 @@ public sealed record FundTradeTemplateAssignmentReadModel
     [Key(19)] public DateTime CreatedOnUtc { get; init; }
     [Key(20)] public string CreatedBy { get; init; } = string.Empty;
     [Key(21)] public int SchemaVersion { get; init; } = 1;
+    [Key(22)] public TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference? TradeStrategyFamily { get; init; }
 
     public IReadOnlyList<string> Validate()
     {
@@ -39,6 +40,8 @@ public sealed record FundTradeTemplateAssignmentReadModel
         if (UnderlyingUniverse.Length == 0 || UnderlyingUniverse.Any(string.IsNullOrWhiteSpace)) errors.Add("UnderlyingUniverse is required.");
         if (string.IsNullOrWhiteSpace(AssetType)) errors.Add("AssetType is required.");
         if (string.IsNullOrWhiteSpace(TradeFamily)) errors.Add("TradeFamily is required.");
+        if ((SchemaVersion >= 2 && TradeStrategyFamily is null) || TradeStrategyFamily is { IsValid: false })
+            errors.Add("An exact trade strategy family ID/version is required.");
         if (Priority < 0) errors.Add("Priority cannot be negative.");
         if (EffectiveFromUtc.Kind != DateTimeKind.Utc) errors.Add("EffectiveFromUtc must be UTC.");
         if (EffectiveUntilUtc is { } until && (until.Kind != DateTimeKind.Utc || until <= EffectiveFromUtc)) errors.Add("EffectiveUntilUtc must be UTC and after EffectiveFromUtc.");

@@ -3,14 +3,17 @@
 | Item | Value |
 | --- | --- |
 | Plan ID | `MDR-S4-IMP` |
-| Status | Implementation requested; audited Stage 3 integration gaps remediated; `S4G-00` still awaits Stage 3 acceptance; Stage 4 runtime not started |
+| Status | Owner-approved offline sequencing exception; disabled Stage 4 development in progress; full acceptance remains open |
 | Date | 2026-09-04 |
 | Scope | Resilient live option-chain and futures streaming with strategy/order/position-owned ticker leases; ES monthly iron condors, weekly vertical spreads and daily outright futures |
 | Requirements authority | [Four-stage roadmap, section 8](Market-Data-Reliability-Three-Stage-Implementation-Plan-v1.0.md#8-stage-4--resilient-option-chain-streaming-and-strategy-owned-ticker-leases) (`OCR-01` through `OCR-07`) |
 | Recovery authority | [Stage 3 specification](Market-Data-Resiliency-Stage-3-Specification-v1.0.md) |
 | Current recovery evidence | [Stage 3 implementation record](Market-Data-Resiliency-Stage-3-Implementation-Record-v1.0.md) |
 | Execution evidence | [Stage 4 implementation record](Market-Data-Resiliency-Stage-4-Implementation-Record-v1.0.md) |
-| Implementation prerequisite | Stage 3 completion and explicit acceptance, plus decision gate `S4G-00` |
+| Pricing rules | [Stage 4 pricing specification](Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md): owner decisions recorded 2026-09-05; implementation/qualification pending |
+| Selection policies | [Order Composition selection specification](Order-Composition-Strategy-Selection-Specification-v1.0.md): owner requested active selection for all three profiles; financial profile proposals remain reviewable |
+| Unit construction | [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md): accepted selected strategy + construction policy + live market snapshot build one unit for each of the three families; Portfolio Risk Manager owns final sizing |
+| Implementation prerequisite | Stage 3 acceptance for rollout; owner-approved exception `S4-EX-01` permits disabled implementation and offline tests before that acceptance |
 | Enablement | Disabled by default; synthetic qualification first; separate live/production approval |
 
 ## 1. What Stage 4 is specifically about
@@ -39,8 +42,11 @@ Daily/weekly/monthly identify workflow horizons, not lease TTLs or permission to
 contracts. Daily futures means outright futures, not daily-expiry options. Weekly maturity must be
 resolved from contract definitions, not assumed to be Friday. The data layer supports call/put and
 debit/credit vertical shapes without selecting a trading direction. Existing approved strategy
-rules supply sides, strikes, quantities and signal timing; this scope does not create new signals
-or execution logic. End of day does not release an open-position lease or automatically close it.
+rules supply direction and signal timing. Following the owner's 2026-09-05 direction, the Trade
+Order Composer selects exact expiry, strikes and per-unit leg ratios through an explicit policy;
+Portfolio Risk Manager determines final strategy-unit quantity and atomically reserves risk.
+MarketData supplies qualified inputs and ownership, not selection decisions. This creates no new
+signal or execution logic. End of day does not release an open-position lease or automatically close it.
 
 This document includes proposed design decisions, contracts, storage, implementation packages and
 acceptance evidence. It is not an as-built claim or authorization to enable live trading. Proposed
@@ -54,13 +60,15 @@ new type names below are implementation targets, not assertions that those types
 - Replacing Stage 3 watchdog timing, process containment or session-calendar authority.
 - Multi-host active/active ownership or distributed consensus; one authoritative API/Core owner is
   the initial deployment. Do not enable multiple writers against the same ownership scope.
-- Choosing strikes, deltas, position sizing or trade-entry rules: consume the approved strategy
-  selection policy, and block its production integration if that policy is not yet implemented.
+- MarketData choosing strikes, deltas, sizing or entry rules on its own. The Trade-domain composer
+  selection policy is now specified in the linked companion document; unapproved financial
+  parameters cannot be invented or activated by infrastructure implementation.
 
 ## 2. Repository evidence and prerequisite gaps
 
-Reviewed baseline: commit `dea86871`. Source remains runtime truth; roadmap intent is not evidence
-of implementation. Recheck this inventory at `S4G-00` because intervening commits may change it.
+Original reviewed baseline: `dea86871`; refreshed for offline entry at `e98c06ce`. Source remains
+runtime truth; roadmap intent is not evidence of implementation. New offline subset evidence is
+recorded separately in the implementation record.
 
 | Existing boundary | Observed behavior | Required Stage 4 work |
 | --- | --- | --- |
@@ -70,16 +78,27 @@ of implementation. Recheck this inventory at `S4G-00` because intervening commit
 | `Application.MarketData/DataBento/DatabentoMarketDataEpoch.cs` | `StartOptionChainAsync` throws `MarketDataPricingInputUnavailableException` for the Treasury session rate | Complete production pricing-input and chain wiring; never replace the guard with a dummy rate |
 | `Framework.MarketData.DataBento/OptionChain/DatabentoOptionChainSessionManager.cs` | Sessions keyed by underlying/maturity; identical selections share start state, different selections conflict; default capacity eight | Add service-owned leases and generation-aware state; separate logical sessions from physical routes |
 | `Application.MarketData/DataBento/DatabentoOptionRouteRegistry.cs` and API contracts | Separate chain/individual ownership and documented route-conflict behavior | Characterize actual callers; replace exclusive ownership with safe shared routing/handoff |
-| `Application.MarketData/DataBento/Workers/DatasetWorkerControlProtocol.cs` | Protocol v1 has lifecycle/control frames, but no dynamic apply-manifest request/ack | Implement versioned bounded manifest transport |
-| `Application.MarketData/DataBento/Workers/SupervisedDatabentoLifecycleRuntime.cs` | Initial contract IDs passed at launch; manifest revision starts at one | Implement dynamic desired state; do not claim an existing complete subscription registry |
+| `Application.MarketData/DataBento/Workers/DatasetWorkerControlProtocol.cs` | Protocol v2 now applies/acknowledges complete bounded core-futures manifests | Extend with negotiated option capabilities and staged/chunked manifests; do not silently reinterpret v2 |
+| `Application.MarketData/DataBento/Workers/SupervisedDatabentoLifecycleRuntime.cs` | Current host-owned core-futures intent is reconciled into replacement workers | Extend the registry with Stage 4 leased option/chain/dependency intent; existing core manifests are not option ownership |
 | `Application.MarketData/DataBento/Workers/DatasetWorkerPublicationProtocol.cs` | Generation/revision envelope with trade, quote, market-price and statistics kinds | Add explicitly typed option/chain snapshots, invalidation and API-side mirrors |
-| Stage 3 implementation record | Synthetic Development evidence; live enablement disabled; platform/provider/UI acceptance outstanding | Close and accept Stage 3 gates separately; Stage 4 must not bypass them |
+| Stage 3 implementation record | Synthetic Development evidence; live enablement disabled; platform/provider/UI acceptance outstanding | Offline implementation may proceed under `S4-EX-01`; rollout still requires closure/acceptance |
 
 Project prefixes above abbreviate `TomasAI.IFM.`. This inventory does not certify all Stage 3
-requirements as implemented. In particular, complete desired-manifest and host query-mirror
-qualification must be reconciled with the Stage 3 specification before its acceptance is recorded.
+requirements as implemented. Core desired manifests and host futures mirrors are implemented;
+the remaining Stage 3 engineering/platform/operational gates remain in its as-built specification.
 
 ## 3. Decisions and owner questions
+
+### S4-EX-01: approved offline sequencing exception
+
+Following commit `e98c06ce`, the owner explicitly approved proceeding with disabled-by-default
+Stage 4 implementation and offline testing while unresolved Stage 3 requirements and live
+acceptance gates remain open. This permits implementation packages to proceed under the draft
+configurable engineering defaults; it does not sign off Stage 3, approve trading thresholds,
+invent missing authority/pricing/strategy policy, or authorize live subscriptions or production
+enablement. The non-Synthetic Stage 3 startup guard remains. `S4G-00` is **conditional for offline
+development**, not fully passed. Its outstanding decisions and all `S4G-11` evidence remain gates
+for rollout. Gate order and honest implemented/tested/accepted distinctions still apply.
 
 Draft defaults make the plan implementable for synthetic tests. They are not approved live settings.
 Unanswered owner decisions remain visible; no lack of response is interpreted as approval.
@@ -89,16 +108,20 @@ Unanswered owner decisions remain visible; no lack of response is interpreted as
 | `D4-01` | First release includes ES monthly four-leg iron condors, weekly two-leg option vertical spreads and daily single-contract outright futures. All three require end-to-end qualification; infrastructure remains reusable | Expanded by owner on 2026-09-04; supersedes monthly-only scope |
 | `D4-02` | Fail closed for new composition on stale/missing quotes, Greeks or recovery. Retain position subscriptions. Optional last-known monitoring display is explicitly non-ready, not a stale composition preview or tradeable result | Accepted by owner on 2026-09-04; no automatic order cancellation or position closure |
 | `D4-03` | Discovery/composer leases: 120-second TTL, renew every 30 seconds, sweep every 15 seconds; server monotonic clock controls expiry | Proposed configurable engineering defaults; review at `S4G-00` |
-| `D4-04` | Durable strategy/order/position leases have no UI-based TTL. Release only from authoritative lifecycle evidence; unknown reconciliation retains the lease and raises an alert | Required by roadmap; approve authoritative source mapping at `S4G-00` |
+| `D4-04` | Durable strategy/order/position leases have no UI-based TTL. Release only from authoritative lifecycle evidence; unknown reconciliation retains the lease and raises an alert | Source mapping approved 2026-09-05: IntrinsicTime workflow → strategy, TradeOrder → working order, TradePosition → position. Versioned/authenticated adapter implementation remains required; see `S4DEP-01/02` |
 | `D4-05` | Initial qualification: option quote age <= 5 seconds, futures/underlying quote age <= 5 seconds, option inter-leg quote-time skew <= 2 seconds, composition wait <= 10 seconds. Inter-leg skew and option pricing checks do not apply to the single futures leg | Synthetic defaults only; owner approval and provider evidence required before live use |
-| `D4-06` | Production rate input is an immutable, versioned application-supplied Treasury curve/session rate, using the existing pricing adapter conventions | Exact accepted rate source, valuation time, tenor interpolation/day count and publication-calendar freshness rules must be frozen at `S4G-00`; no fabricated fallback |
+| `D4-06` | Immutable daily FMP Treasury input; remaining trading days 0–29 → 1 month, 30–59 → 2 months, 60–89 → 3 months, >=90 → Failed; no interpolation. Add continuous annual decimal conversion to `ITreasuryCurve`; Eastern timezone, contract-specific day count; typed failed errors | Owner requirements recorded 2026-09-05 in the pricing specification. Source-series/convention verification, publication deadlines, contract metadata and implementation evidence remain required; existing DateOnly/365 behavior is not blanket approval |
 | `D4-07` | Discovery session limit 8/dataset; 512 contracts/chain; 2,048 unique option contracts/dataset; 256 unique futures contracts/dataset; 10,000 combined leases/dataset; 128 leases/owner. Shared futures/dependency references count once toward unique-contract limits | Synthetic/load-test limits; provider entitlement/capacity validation before live enablement |
 | `D4-08` | Durable current intent plus transactional command result/audit outbox in PostgreSQL; market prices remain latest-only transient state | Proposed architecture decision |
+| `D4-09` | Trade Order Composer selects exact expiry, strikes/deltas and one-unit leg ratios under versioned monthly-condor, weekly-vertical and daily-futures policies | Owner requested 2026-09-05 and subsequently clarified one-unit construction; final sizing follows D4-10. EOM/debit-first choices and numerical profiles remain proposals |
+| `D4-10` | OptionStrategyBuilder inside OrderComposition combines accepted MarketCondition, a versioned construction policy and leg selector to build one complete option unit; Portfolio Risk Manager determines final units and reserves risk | Owner-requested design, 2026-09-05. Builder B1–B5 packages supplement composer C1–C7; one unit is not an approved quantity or a maximum; no runtime implementation/activation is implied |
 
-The owner answered the two immediate questions and accepted release scope (`D4-01`) and stale-data
-behavior (`D4-02`). No further answer is required to complete this draft. Detailed freshness and
-pricing policy approval is a separate live-readiness requirement; implementing
-configurable mechanics does not approve those thresholds for trading.
+The owner accepted release scope (`D4-01`), stale-data behavior (`D4-02`), ownership mappings
+(`D4-04`), the stated pricing requirements (`D4-06`) and active composer selection direction
+(`D4-09`), with one-unit construction/Portfolio-owned sizing clarified in `D4-10`. Do not ask those
+resolved questions again. Remaining profile parameters, publication/
+contract mappings and detailed live freshness qualification are explicit activation requirements;
+implementing configurable mechanics does not approve those settings for trading.
 
 ## 4. Ownership and project boundaries
 
@@ -261,9 +284,12 @@ chain startup before removing the current pricing-input exception. A missing/inv
 return `PricingUnavailable` before provider resources are allocated. Workers receive immutable rate
 inputs and their provenance/version, not credentials or permission to fetch reference data.
 
-Freeze and test: rate source/as-of date, currency, tenor interpolation, day count, expiry instant,
-exchange timezone, option type, multiplier, price scale and solver failure semantics. Reuse existing
-approved pricing conventions; unresolved differences are a gate failure, not a guessed default.
+Apply the [pricing specification](Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md):
+daily FMP observation with publication-calendar freshness; exact trading-day tenor buckets with
+no interpolation; verified source-convention conversion to continuous annual decimal; precise
+expiry, Eastern timezone and contract-specific year fraction. Existing percent/100 and DateOnly/365
+helpers do not implement those requirements. Validate option exercise/model compatibility,
+multiplier, scale and structured failed results. Unresolved mappings fail, never use a dummy rate.
 
 Define a discriminated `QualifiedStrategyMarketDataSnapshot` with an explicit workflow profile and
 asset kind. Its option variant (`QualifiedOptionCompositionSnapshot`) validates four or two legs;
@@ -474,11 +500,11 @@ regression evidence. No unchecked gate may be reported as completed.
 | `S4G-01` Contracts and characterization | Inventory callers; test current chain/individual conflicts; freeze typed APIs, identities, dependency layering and protocol schema | Legacy suites pass; new lease/compatibility tests initially fail for the right reasons; architecture checks |
 | `S4G-02` Host lease coordinator | Serialized bounded commands, immutable manifests, monotonic ephemeral expiry, idempotency/version fences and limits | Fake-time acquire/renew/release/race/capacity tests; one route for shared ownership |
 | `S4G-03` Durable intent | Migrations, transactional operations/outbox, source-watermarked reconciliation, startup and retention | Real PostgreSQL crash-window, duplicate/out-of-order event, rollback and outage tests |
-| `S4G-04` Pricing and production chain prerequisites | Treasury/Black-76 wiring, immutable pricing provenance, date/mapping validation, no dummy fallback | Existing pricer regression and synthetic chain tests; missing input creates no provider resources |
+| `S4G-04` Pricing and production chain prerequisites | Pricing specification P1–P6: Treasury interface conversion, approved tenor buckets, publication cache, exact contract year fraction/model compatibility, coherent production wiring | Converter/calendar/publication tests, managed/native pricer regression/parity, synthetic chain tests; missing input creates no provider resources; daily futures independent of Treasury |
 | `S4G-05` Canonical physical routing | Shared chain/leg source ownership, dependency references, atomic four-/two-leg transfer, direct futures leases and provider removal/rebuild semantics | No subscription gap/duplicate source in handoff; daily release preserves core/option underlying references; conflicting universe leaves active chain unchanged; native C++/Rust parity where changed |
 | `S4G-06` Dynamic worker protocol | Staged manifests, digest/revision acknowledgment, supervisor apply, typed option publication and host mirrors | Fragmentation/oversize/version rejection; stale ack/output rejected; bounded allocation and timeout tests |
 | `S4G-07` Recovery integration | Restore latest intent through cooperative reset, forced replacement, API restart and value-date changes | Process-level kill/hang tests on Windows/Linux; unaffected dataset continuity; no expired/released lease resurrection |
-| `S4G-08` Composer/Trade integration | Versioned authority adapter, four-/two-leg discovery handoffs, direct single-futures workflow, order/position handoffs and profile-specific qualified snapshots | Monthly, weekly and daily workflow tests including partial fill, rejection, cancellation, reset mid-composition and independent UI lifetime |
+| `S4G-08` Composer/Trade integration | Selection C1–C7 and builder B1–B5: actual one-unit policy/builder/actor integration, versioned authorities, four-/two-leg handoffs, separate unit futures path and Portfolio-owned final sizing | Condition-policy/expiry/leg/unit-payoff tests; unsized execution rejection and Portfolio sizing/reservation boundary; monthly/weekly/daily NoTrade vs Failed, partial fill, rejection, cancellation, reset and independent UI lifetime; supplied-leg fixtures alone are insufficient |
 | `S4G-09` Operations and UI | Health/detail queries, non-ready reasons, live refresh, authorization and degraded-storage behavior | API/UI tests show stale/recovering/ready correctly; no bootstrap tokens or unauthorized owner mutations |
 | `S4G-10` Synthetic qualification | Bounded sustained load, fault matrix, database outages, lease churn, both native backends and OS containment | Complete synthetic evidence matrix and measured memory/GC/latency; no assumption that synthetic proves provider behavior |
 | `S4G-11` Live readiness and acceptance | Provider limits and freshness approval, Development canary, session rollover/soak, rollback rehearsal, as-built record | Explicit owner acceptance; live data/provider/platform evidence; separate production enablement approval |

@@ -31,7 +31,8 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
         settings.Add(SequenceIdDbContext.SequenceIdDbConnection, SequenceConnection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new ReferenceSchemaDb(settings, logger);
-        await schema.RecreateAsync(["trade_strategy_family_v2"], timeout.Token);
+        await schema.RecreateAsync(["trade_strategy_family_v2", "trade_strategy_family_v3"], timeout.Token);
+        await schema.CreateAsync(["trade_strategy_family_catalog_v4", "trade_strategy_symbol_v1"], timeout.Token);
         await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
 
         var processRuns = await Task.WhenAll(Enumerable.Range(0, 8)
@@ -46,7 +47,8 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
         rows.Should().HaveCount(3);
         rows.Select(x => (x.SystemKey, x.DefinitionVersion)).Should().OnlyHaveUniqueItems();
         rows.Select(x => x.TradeStrategyFamilyId).Should().OnlyHaveUniqueItems().And.OnlyContain(x => x > 0);
-        rows.Select(x => x.SystemKey).Should().Equal("FUTURES", "VERTICAL_SPREAD", "IRON_CONDOR");
+        rows.Select(x => x.SystemKey).Should().Equal("Futures-Futures", "FuturesOption-VerticalSpread", "FuturesOption-IronCondor");
+        TradeStrategyFamilySeed.Validate(rows);
     }
 
     static async Task<(int ExitCode, string Output)> RunBootstrapProcessAsync(CancellationToken cancellationToken)

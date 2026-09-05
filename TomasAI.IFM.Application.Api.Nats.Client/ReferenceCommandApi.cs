@@ -12,6 +12,17 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceCommandApi
 {
+    public Task<ServiceResult<Guid>> CreateTradeStrategyFamilyAsync(CreateTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        var command = new CreateTradeStrategyFamilyCommand
+        {
+            CommandId = request.OperationId, Request = request,
+            Subject = new ActorSubject(ActorType.Command, CreateTradeStrategyFamilyCommand.Actor, CreateTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format())
+        };
+        return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
+    }
     /// <summary>
     /// add lookup type
     /// </summary>

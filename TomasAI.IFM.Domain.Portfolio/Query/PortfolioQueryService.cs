@@ -177,7 +177,7 @@ public sealed class PortfolioQueryService(
             {
                 PortfolioId = portfolioId, PortfolioVersion = assignment.PortfolioVersion, FundId = fund.FundId, FundMandateVersion = fund.FundMandateVersion,
                 TradingYear = fund.TradingYear, DecisionHorizon = fund.DecisionHorizon, UnderlyingRoot = root, AssetType = assignment.AssetType,
-                TradeFamily = assignment.TradeFamily, TradeTemplateId = assignment.TradeTemplateId, TradeTemplateVersion = assignment.TradeTemplateVersion,
+                TradeFamily = assignment.TradeFamily, TradeStrategyFamily = assignment.TradeStrategyFamily, TradeTemplateId = assignment.TradeTemplateId, TradeTemplateVersion = assignment.TradeTemplateVersion,
                 TradeSelectionHintProfileId = assignment.TradeSelectionHintProfileId, TradeSelectionHintProfileVersion = assignment.TradeSelectionHintProfileVersion,
                 OrderCompositionProfileId = assignment.OrderCompositionProfileId, OrderCompositionProfileVersion = assignment.OrderCompositionProfileVersion,
                 CurrentlyEligible = fund.OperatingState == FundOperatingState.Active && assignment.IsEffectiveAt(asOfUtc),

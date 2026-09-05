@@ -7,6 +7,31 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Command;
 
 public sealed class FundAssignmentTests
 {
+    [Fact]
+    public void Typed_mandate_rejects_same_name_wrong_identity_or_version_and_accepts_exact_reference()
+    {
+        var reference = new TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference(71, 1);
+        var aggregate = CreateFund();
+        aggregate.AddVersion(Guid.NewGuid(), 1, aggregate.Current! with { SchemaVersion = 2, FundMandateVersion = 2, PermittedTradeStrategyFamilies = [reference] }, default, Now, "test");
+        var assignment = Assignment(Guid.NewGuid(), 1, 1) with { SchemaVersion = 2, FundMandateVersion = 2, TradeStrategyFamily = reference };
+        foreach (var wrong in new[] { reference with { TradeStrategyFamilyId = 72 }, reference with { DefinitionVersion = 2 } })
+        {
+            var action = () => aggregate.AssignTradeTemplate(Guid.NewGuid(), 2, assignment with { TradeStrategyFamily = wrong }, Now, "test");
+            action.Should().Throw<ArgumentException>().WithMessage("*trade family*");
+        }
+        aggregate.AssignTradeTemplate(Guid.NewGuid(), 2, assignment, Now, "test");
+        aggregate.Assignments.Single().TradeStrategyFamily.Should().Be(reference);
+        var restoredMandate = MessagePack.MessagePackSerializer.Deserialize<FundMandateReadModel>(MessagePack.MessagePackSerializer.Serialize(aggregate.Current!));
+        restoredMandate.PermittedTradeStrategyFamilies.Should().Equal(reference);
+        var restoredAssignment = MessagePack.MessagePackSerializer.Deserialize<FundTradeTemplateAssignmentReadModel>(MessagePack.MessagePackSerializer.Serialize(assignment));
+        restoredAssignment.TradeStrategyFamily.Should().Be(reference);
+        var restored = new PortfolioFundAggregate(); restored.RestoreSnapshot(aggregate.CaptureSnapshot());
+        restored.Assignments.Single().TradeStrategyFamily.Should().Be(reference);
+        var copy = aggregate.Current!.DefensiveCopy(); copy.PermittedTradeStrategyFamilies[0] = reference with { TradeStrategyFamilyId = 99 };
+        aggregate.Current.PermittedTradeStrategyFamilies[0].Should().Be(reference);
+        var downgrade = () => aggregate.AddVersion(Guid.NewGuid(), 3, aggregate.Current with { FundMandateVersion = 3, SchemaVersion = 1, PermittedTradeStrategyFamilies = [] }, default, Now, "test");
+        downgrade.Should().Throw<ArgumentException>().WithMessage("*downgrade*");
+    }
     static readonly DateTime Now = new(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc);
 
     [Fact]

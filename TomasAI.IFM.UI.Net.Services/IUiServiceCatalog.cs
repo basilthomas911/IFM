@@ -20,6 +20,7 @@ public interface IUiServiceCatalog
     IPortfolioIdentityApi PortfolioIdentities { get; }
     IPortfolioFinancialPolicyCommandApi PortfolioPolicyCommands { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; }
+    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; }
     /// <summary>Gets the shared command-response event service.</summary>
     CommandResponseEventService CommandResponses { get; }
 

@@ -26,6 +26,7 @@ public enum SequenceName
     PortfolioPolicy_PolicyId,
     Reference_TradeStrategyFamilyId,
     MarketDataService_WatchdogStatusLogId,
+    Reference_TradeStrategySymbolId,
 }
 
 public static class SequenceNameExtensions
@@ -56,6 +57,7 @@ public static class SequenceNameExtensions
         SequenceName.PortfolioPolicy_PolicyId => nameof(SequenceName.PortfolioPolicy_PolicyId),
         SequenceName.Reference_TradeStrategyFamilyId => nameof(SequenceName.Reference_TradeStrategyFamilyId),
         SequenceName.MarketDataService_WatchdogStatusLogId => nameof(SequenceName.MarketDataService_WatchdogStatusLogId),
+        SequenceName.Reference_TradeStrategySymbolId => nameof(SequenceName.Reference_TradeStrategySymbolId),
         _ => value.ToString()
     };
 

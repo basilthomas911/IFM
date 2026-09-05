@@ -3,8 +3,9 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
 internal class ReferenceDbCql
 {
-    public const string GetTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,name,state,createdOnUtc,createdBy FROM trade_strategy_family_v2 WHERE catalog = :catalog;";
-    public const string InsertTradeStrategyFamily = "INSERT INTO trade_strategy_family_v2 (catalog,tradeStrategyFamilyId,definitionVersion,systemKey,name,state,createdOnUtc,createdBy) VALUES (:catalog,:tradeStrategyFamilyId,:definitionVersion,:systemKey,:name,:state,:createdOnUtc,:createdBy) IF NOT EXISTS;";
+    public const string GetLegacyTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,name,state,createdOnUtc,createdBy FROM trade_strategy_family_v2 WHERE catalog = :catalog;";
+    public const string GetTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy FROM trade_strategy_family_v3 WHERE catalog = :catalog;";
+    public const string InsertTradeStrategyFamily = "INSERT INTO trade_strategy_family_v3 (catalog,tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy) VALUES (:catalog,:tradeStrategyFamilyId,:definitionVersion,:systemKey,:family,:strategy,:timeFrame,:symbol,:currency,:description,:state,:createdOnUtc,:createdBy) IF NOT EXISTS;";
     public const string DeleteReferenceProjectionStateV3 = """
     DELETE FROM reference_projection_state_v3
     WHERE projectionName = :projectionName;

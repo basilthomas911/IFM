@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 
 public interface IReferenceCommandApi
 {
+    Task<ServiceResult<Guid>> CreateTradeStrategyFamilyAsync(CreateTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Trade strategy family creation is not implemented by this adapter.");
     Task<ServiceResult<Guid>> AddLookupTypeAsync(LookupTypeReadModel lookupType);
     Task<ServiceResult<Guid>> RemoveLookupTypeAsync(LookupTypeId lookupTypeId, bool overwrite);
     Task<ServiceResult<Guid>> ChangeLookupTypeAsync(LookupTypeId lookupTypeId, LookupTypeReadModel lookupType, bool overwrite);

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System.ComponentModel;
 
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
@@ -74,16 +75,32 @@ public sealed class FundAssignmentEditorForm : PortfolioConfigurationEditor<Fund
 {
     readonly PortfolioReadModel _portfolio; readonly FundMandateReadModel _fund;
     readonly TextBox _template = PortfolioUiStyle.TextBox("Trade template ID"); readonly NumericUpDown _templateVersion = Number(1, 1, long.MaxValue, 0);
-    readonly TextBox _horizon = PortfolioUiStyle.TextBox("Assignment decision horizon"); readonly TextBox _underlyings = PortfolioUiStyle.TextBox("Assignment underlyings"); readonly TextBox _asset = PortfolioUiStyle.TextBox("Assignment asset type"); readonly TextBox _family = PortfolioUiStyle.TextBox("Assignment trade family"); readonly NumericUpDown _priority = Number(0, 0, int.MaxValue, 0);
+    readonly ComboBox _horizon = PortfolioUiStyle.StrategyTimeFrameCombo("Assignment decision horizon"); readonly TextBox _underlyings = PortfolioUiStyle.TextBox("Assignment underlyings"); readonly TextBox _asset = PortfolioUiStyle.TextBox("Assignment asset type"); readonly ComboBox _family = PortfolioUiStyle.Combo("Assignment trade family"); readonly NumericUpDown _priority = Number(0, 0, int.MaxValue, 0);
+    readonly HashSet<TradeStrategyFamilyReference> _permittedFamilyReferences;
     readonly TextBox _hint = PortfolioUiStyle.TextBox("Trade selection hint profile ID"); readonly NumericUpDown _hintVersion = Number(1, 1, long.MaxValue, 0); readonly TextBox _composition = PortfolioUiStyle.TextBox("Order composition profile ID"); readonly NumericUpDown _compositionVersion = Number(1, 1, long.MaxValue, 0);
-    public FundAssignmentEditorForm(PortfolioReadModel portfolio, FundMandateReadModel fund) : base("Trade Template Assignment", 720)
+    public FundAssignmentEditorForm(PortfolioReadModel portfolio, FundMandateReadModel fund, IEnumerable<TradeStrategyFamilyReadModel>? catalog = null) : base("Trade Template Assignment", 720)
     {
-        _portfolio = portfolio; _fund = fund; _horizon.Text = fund.DecisionHorizon; _underlyings.Text = string.Join(", ", fund.UnderlyingUniverse); _asset.Text = fund.EligibleAssetTypes.FirstOrDefault() ?? string.Empty; _family.Text = fund.PermittedTradeFamilies.FirstOrDefault() ?? string.Empty;
+        _portfolio = portfolio; _fund = fund; PortfolioUiStyle.SelectStrategyTimeFrame(_horizon, fund.DecisionHorizon); _underlyings.Text = string.Join(", ", fund.UnderlyingUniverse); _asset.Text = fund.EligibleAssetTypes.FirstOrDefault() ?? string.Empty;
+        var active = TradeFamilyCatalogSelection.Active(catalog);
+        var allowed = active.Where(x => fund.PermittedTradeStrategyFamilies.Length > 0
+            ? fund.PermittedTradeStrategyFamilies.Contains(TradeStrategyFamilyReference.From(x))
+            : fund.PermittedTradeFamilies.Contains(x.SystemKey, StringComparer.Ordinal) && active.Count(y => y.SystemKey == x.SystemKey) == 1).ToArray();
+        _permittedFamilyReferences = allowed.Select(TradeStrategyFamilyReference.From).ToHashSet();
+        _family.Items.AddRange(allowed.Select(TradeFamilyCatalogSelection.Choice.From).Cast<object>().ToArray());
+        _family.DropDownWidth = 700;
+        _family.SelectedIndex = allowed.Length == 1 ? 0 : -1;
+        if (allowed.Length == 0) Error.Text = "No active catalog family is permitted by this Fund. Update its mandate before assigning a strategy.";
         Add("Trade Template ID", _template); Add("Template Version", _templateVersion); Add("Decision Horizon", _horizon); Add("Underlyings (CSV)", _underlyings); Add("Asset Type", _asset); Add("Trade Family", _family); Add("Priority", _priority); Add("Selection Hint Profile ID", _hint); Add("Hint Profile Version", _hintVersion); Add("Composition Profile ID", _composition); Add("Composition Version", _compositionVersion); AddError();
     }
     protected override void SaveCore()
     {
-        var now = DateTime.UtcNow; var value = new FundTradeTemplateAssignmentReadModel { PortfolioId = _portfolio.PortfolioId, PortfolioVersion = _portfolio.PortfolioVersion, FundId = _fund.FundId, FundMandateVersion = _fund.FundMandateVersion, AssignmentVersion = 1, TradeTemplateId = Guid.TryParse(_template.Text, out var template) ? template : Guid.Empty, TradeTemplateVersion = (long)_templateVersion.Value, Enabled = true, DecisionHorizon = _horizon.Text.Trim(), UnderlyingUniverse = Csv(_underlyings.Text), AssetType = _asset.Text.Trim(), TradeFamily = _family.Text.Trim(), Priority = (int)_priority.Value, EffectiveFromUtc = now, TradeSelectionHintProfileId = Guid.TryParse(_hint.Text, out var hint) ? hint : Guid.Empty, TradeSelectionHintProfileVersion = (long)_hintVersion.Value, OrderCompositionProfileId = Guid.TryParse(_composition.Text, out var composition) ? composition : Guid.Empty, OrderCompositionProfileVersion = (long)_compositionVersion.Value, CreatedOnUtc = now, CreatedBy = Environment.UserName };
+        if (_family.SelectedItem is not TradeFamilyCatalogSelection.Choice selectedFamily || selectedFamily.Reference is null || !_permittedFamilyReferences.Contains(selectedFamily.Reference))
+        {
+            Error.Text = "Select an active catalog family permitted by this Fund.";
+            return;
+        }
+        var now = DateTime.UtcNow; var value = new FundTradeTemplateAssignmentReadModel { PortfolioId = _portfolio.PortfolioId, PortfolioVersion = _portfolio.PortfolioVersion, FundId = _fund.FundId, FundMandateVersion = _fund.FundMandateVersion, AssignmentVersion = 1, TradeTemplateId = Guid.TryParse(_template.Text, out var template) ? template : Guid.Empty, TradeTemplateVersion = (long)_templateVersion.Value, Enabled = true, DecisionHorizon = PortfolioUiStyle.SelectedStrategyTimeFrameName(_horizon), UnderlyingUniverse = Csv(_underlyings.Text), AssetType = _asset.Text.Trim(), TradeFamily = selectedFamily.SystemKey, Priority = (int)_priority.Value, EffectiveFromUtc = now, TradeSelectionHintProfileId = Guid.TryParse(_hint.Text, out var hint) ? hint : Guid.Empty, TradeSelectionHintProfileVersion = (long)_hintVersion.Value, OrderCompositionProfileId = Guid.TryParse(_composition.Text, out var composition) ? composition : Guid.Empty, OrderCompositionProfileVersion = (long)_compositionVersion.Value, CreatedOnUtc = now, CreatedBy = Environment.UserName };
+        value = value with { SchemaVersion = 2, TradeStrategyFamily = selectedFamily.Reference };
         var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; } Finish(value);
     }
 }

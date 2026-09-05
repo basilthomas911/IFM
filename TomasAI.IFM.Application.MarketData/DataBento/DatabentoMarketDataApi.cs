@@ -16,6 +16,12 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 /// </summary>
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
+    readonly ITradeStrategySymbolCatalog? _symbolCatalog;
+    public Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
+        TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
+        => _symbolCatalog?.GetAsync(family, cancellationToken)
+            ?? Task.FromResult<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>>(
+                new TomasAI.IFM.Shared.EventSourcing.ServiceFailed<TradeStrategySymbolReadModel[]>(503, "Trade strategy symbol catalog is not configured."));
     private static readonly TimeSpan DefaultFeedUpTimeout = TimeSpan.FromSeconds(1);
     /// <inheritdoc />
     public bool TryGetOnTheRunFuturesContract(
@@ -272,7 +278,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         IDatabentoCurrentFuturesContractResolver? currentContractResolver = null,
         IFuturesContractRolloverStore? rolloverStore = null,
         IDatabentoContractRegistrationRegistry? contractRegistry = null,
-        DatasetWorkerCurrentValues? currentValues = null)
+        DatasetWorkerCurrentValues? currentValues = null,
+        ITradeStrategySymbolCatalog? symbolCatalog = null)
     {
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
@@ -284,6 +291,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _rolloverStore = rolloverStore;
         _contractRegistry = contractRegistry;
         _currentValues = currentValues;
+        _symbolCatalog = symbolCatalog;
     }
 
     /// <inheritdoc />

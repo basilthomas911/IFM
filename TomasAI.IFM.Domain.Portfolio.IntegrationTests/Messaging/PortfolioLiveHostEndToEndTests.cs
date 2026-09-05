@@ -36,10 +36,7 @@ public sealed class PortfolioLiveHostEndToEndTests
 
             result.Success.Should().BeTrue(result.ErrorMessage);
             result.Value.Should().NotBeNull();
-            result.Value!.Select(x => (x.SystemKey, x.Name, x.DefinitionVersion, x.State)).Should().Equal(
-                ("FUTURES", "Futures", 1L, TradeStrategyFamilyState.Active),
-                ("VERTICAL_SPREAD", "Vertical Spread", 1L, TradeStrategyFamilyState.Active),
-                ("IRON_CONDOR", "Iron Condor", 1L, TradeStrategyFamilyState.Active));
+            TradeStrategyFamilySeed.Validate(result.Value!);
             result.Value.Should().OnlyContain(x => x.TradeStrategyFamilyId > 0);
         }
         finally

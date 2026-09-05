@@ -129,11 +129,7 @@ public sealed class PortfolioAdministrationUiSystemTests
             Substitute.For<IPortfolioFinancialPolicyCommandApi>(), Substitute.For<IReferenceQueryApi>(), true);
         SetField(form, "_catalog", new[]
         {
-            new TradeStrategyFamilyReadModel
-            {
-                TradeStrategyFamilyId = 2, DefinitionVersion = 1, SystemKey = "VERTICAL_SPREAD", Name = "Vertical Spreads",
-                State = TradeStrategyFamilyState.Active, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test",
-            },
+            TradeStrategyFamilySeed.Definitions[1].Create(2, DateTime.UtcNow, "test"),
         });
         var policy = new PortfolioFinancialPolicyReadModel
         {
@@ -149,7 +145,7 @@ public sealed class PortfolioAdministrationUiSystemTests
         var cell = grid.Rows[0].Cells[column.Index];
 
         column.HeaderText.Should().Be("Trade Family");
-        cell.FormattedValue.Should().Be("Vertical Spreads");
+        cell.FormattedValue.Should().Be("Weekly ES futures option vertical spread");
         cell.Value.Should().Be(2, "the immutable policy contract still stores the reference identity");
     }
 
@@ -189,7 +185,7 @@ public sealed class PortfolioAdministrationUiSystemTests
         var confirmations = 0;
         using var form = new PortfolioRiskPolicyForm(Portfolio(), queries, identities, commands,
             Substitute.For<IReferenceQueryApi>(), true, () => { confirmations++; return false; });
-        SetField(form, "_catalog", new[] { new TradeStrategyFamilyReadModel { TradeStrategyFamilyId = 1, DefinitionVersion = 1, SystemKey = "FUTURES", Name = "Futures", State = TradeStrategyFamilyState.Active, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test" } });
+        SetField(form, "_catalog", new[] { TradeStrategyFamilySeed.Definitions[0].Create(1, DateTime.UtcNow, "test") });
 
         await InvokeAsync(form, "BeginNewPolicyAsync");
         Field<TextBox>(form, "_name").Text = "Operator limits";

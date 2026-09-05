@@ -25,6 +25,22 @@ public sealed class DatasetWorkerApiDependencyInjectionTests
     const string Dataset = "GLBX.MDP3";
 
     [Fact]
+    public async Task Reference_catalog_registration_resolves_with_durable_store_without_starting_feed()
+    {
+        var services = Services(out var factory);
+        services.AddSingleton(Substitute.For<ITradeStrategySymbolStore>());
+        services.AddSingleton(Substitute.For<IDatabentoFeedFactory>());
+        services.AddApplicationMarketDataApi(Options());
+        services.AddTradeStrategySymbolCatalog();
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        var api = provider.GetRequiredService<IMarketDataApi>();
+        Assert.NotNull(provider.GetRequiredService<ITradeStrategySymbolCatalog>());
+        var result = await api.GetTradeStrategySymbolsAsync(TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.Equity);
+        Assert.False(result.Success);
+        Assert.Equal(0, factory.CreateCount);
+    }
+
+    [Fact]
     public async Task Legacy_registration_resolves_one_api_without_mirror_and_retains_epoch_lifecycle()
     {
         var services = Services(out var factory);

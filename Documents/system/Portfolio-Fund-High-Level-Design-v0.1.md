@@ -1,5 +1,7 @@
 # Portfolio and Fund High-Level Design
 
+> **2026-09-05 catalog amendment:** [Product discovery, family creation and exact Fund references](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md) supersedes the earlier read-only/unique-SystemKey restrictions below. References now supports creating immutable product-linked definitions. SystemKey is non-unique classification; updated Fund/assignment editors persist exact catalog ID/version references (SchemaVersion 2). Seed-only acceptance statements describe the earlier baseline, not a current three-row limit. Existing history is preserved and no downstream trading capability is automatically enabled.
+
 **Version:** 0.2
 **Status:** Draft update for review; extends the approved v0.1 baseline with simplified v1 Portfolio financial-policy management
 **Scope:** New Portfolio-centric ownership, simplified financial-policy management, Fund mandates, trade-template assignment, and Fund-to-OrderComposition handoff
@@ -8,14 +10,16 @@
 **Detailed specification:** [Portfolio-Fund-Specification-v1.0.md](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md)
 **Implementation plan:** [Portfolio-Fund-Implementation-Plan-v1.0.md](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Implementation-Plan-v1.0.md)
 
+**Construction/sizing clarification — 2026-09-05:** [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md) defines one-unit composition; Portfolio Risk Manager owns final strategy-unit sizing and atomic risk reservation. This updates design responsibility only; it does not expand the implemented Portfolio configuration phase into a live risk/execution engine.
+
 ## 1. Purpose
 
 This document defines the new authoritative Portfolio and Fund model required by the trade-strategy workflow. It replaces the transitional assumption that a Fund independently owns capital and financial risk, while preserving the useful separation already present in the manual trading application:
 
 - Portfolio and Fund describe investment authority and planned trade composition;
 - TradeSelection chooses a permitted trade template;
-- OrderComposition constructs an exact candidate order;
-- RiskManagement approves, adjusts, or rejects the candidate; and
+- OrderComposition constructs an exact one-unit candidate order;
+- RiskManagement determines final units, independently validates and reserves/approves risk, or rejects; and
 - a later OrderExecution workflow creates and manages broker-facing TradeDb records.
 
 The immediate implementation stops at the Fund-to-OrderComposition boundary. It must not redesign broker execution, fills, live positions, or the existing execution-facing TradeDb tables as part of the Portfolio/Fund work.
@@ -31,7 +35,7 @@ The following decisions are approved and normative:
 5. `FundOrder` and `FundOrderTrade` remain Fund-owned composition records. They are not broker orders, fills, or live positions.
 6. `TradeTemplate` is reusable versioned selection configuration. `FundOrder` is a particular planned composition instance. These concepts must not be conflated.
 7. TradeSelection selects a versioned permitted template or returns `NoTrade`. It does not construct exact contracts, legs, quantities, or prices.
-8. OrderComposition constructs the exact non-executable candidate order. It does not contact a broker or create a live position.
+8. OrderComposition constructs the exact non-executable one-unit candidate order. Portfolio Risk Manager determines final strategy-unit quantity and reserves risk. Composer does not contact a broker or create a live position.
 9. The Fund composition process reserves the integer `OrderId` and `TradeId` values that all downstream stages must retain unchanged.
 10. PostgreSQL `ISequenceIdGenerator` remains the allocator for Portfolio, PortfolioFinancialPolicy, Fund, Order, and Trade business identifiers. Operators never type, choose, or override generated integer IDs; creation allocates the ID before an editor or command can submit the new entity.
 11. Workflow, command, event, trace, and idempotency identities may remain GUID based because they are technical identities, not operator-facing trade identifiers.
@@ -83,8 +87,8 @@ If another document describes Portfolio/Fund as a deferred post-paper-trading re
 | Fund | Mandate, eligible assets, horizon, objectives, template assignments, composition preferences, and planned FundOrder/FundOrderTrade identities | Portfolio-wide capital authority, broker truth, fills, or live positions |
 | Strategy Workflow | Stage sequencing, frozen input/result acceptance, timeouts, terminal semantics, and exactly-once logical progression | Reclassifying stage results or directly contacting a broker |
 | TradeSelection | Select one permitted versioned template or `NoTrade` using accepted market decisions and the frozen Fund mandate | Exact expiration, strike, contract, quantity, price, or risk approval |
-| OrderComposition | Build an exact, immutable candidate from the selected template, composition profile, and permitted fresh market data | Portfolio authorization, broker submission, or fill assumptions |
-| RiskManagement | Apply Portfolio hard limits and delegated FundRiskEnvelope constraints to the exact candidate | Changing upstream market classifications or silently changing economics |
+| OrderComposition | Build an exact, immutable one-unit candidate from the selected template/profile and fresh market data | Final strategy-unit sizing, risk reservation, broker submission or fill assumptions |
+| RiskManagement | Determine final units using Portfolio/family/Fund limits and current capacity; independently validate economics and atomically reserve/approve risk | Changing upstream classifications, silently changing legs/ratios or trusting provisional capacity as reserved |
 | OrderExecution | Future broker submission, acknowledgement, replace/cancel, fill, reconciliation, and execution truth | Selecting a strategy or overriding an approval |
 | TradeDb execution model | Future working orders, broker facts, fills, durable trades, and live-position inputs | Portfolio/Fund configuration authority |
 
@@ -134,7 +138,7 @@ A `PortfolioFinancialPolicy` is one Portfolio's versioned set of capital and har
 
 ### 6.3 TradeStrategyFamily
 
-A `TradeStrategyFamily` is shared reference data identifying a broad constructible strategy family. V1 contains Futures, Vertical Spread, and Iron Condor. It is not a direction, bias, debit/credit choice, exact template, contract, or order. Portfolio policies and templates reference its exact integer identity and definition version.
+A `TradeStrategyFamily` is shared reference data identifying a typed asset-family/strategy pair, with a timeframe, underlying symbol, currency and description. The initial definitions are Daily ES futures, Weekly ES futures-option vertical spreads and Monthly ES futures-option iron condors, all USD. It is not a direction, bias, debit/credit choice, exact template, expiry contract, or order. Portfolio policies and templates reference its exact integer identity and definition version. `SystemKey` is the exact enum-name composition `Family-Strategy`; timeframe and symbol are metadata, not additional key components.
 
 ### 6.4 Fund
 
@@ -146,7 +150,7 @@ A `TradeTemplate` is reusable versioned configuration describing a selectable tr
 
 ### 6.6 OrderCompositionProfile
 
-An `OrderCompositionProfile` is reusable versioned construction policy. It may describe DTE bands, delta or strike-distance targets, width ranges, debit/credit preferences, leg shapes, quantity rules, price rules, liquidity requirements, and calculation versions.
+An `OrderCompositionProfile` is reusable versioned construction policy. It may describe DTE bands, delta or strike-distance targets, width ranges, debit/credit preferences, leg shapes and per-unit ratios, price rules, liquidity requirements, and calculation versions. Final unit sizing belongs to Portfolio Risk Manager, not this construction profile.
 
 ### 6.7 FundOrder
 
@@ -162,9 +166,9 @@ It is not a fill and does not prove that a live position exists. A FundOrder may
 
 ### 6.9 OrderCompositionResult
 
-An `OrderCompositionResult` is the immutable exact candidate produced by OrderComposition. It includes current contracts, expiration, strikes, legs, quantities, prices or price instructions, economics, calculation evidence, and the accepted identity/version chain.
+An `OrderCompositionResult` is the immutable exact one-unit candidate produced by OrderComposition. It includes contracts, expiry, strikes, sides, ContractsPerUnit, UnitCount = 1, unit prices/economics, calculation evidence and the accepted identity/version chain. Final strategy-unit quantity is absent.
 
-It is not executable until RiskManagement approves it and the Strategy Workflow accepts the approval.
+It is non-executable. RiskManagement creates a separately typed sized/approved result bound to its hash, final units, leg quantities and reservation, and the Strategy Workflow must accept that result before execution can proceed.
 
 ### 6.10 TradeDb trade and position
 
@@ -483,7 +487,7 @@ OrderComposition consumes:
 - exact OrderComposition profile;
 - permitted futures/options reference and market data;
 - current liquidity and price evidence;
-- quantity and capacity boundaries supplied by Portfolio/Risk policy; and
+- authenticated one-unit construction constraints supplied by Portfolio/Risk authority, not permission to perform final sizing; and
 - deterministic calculation versions.
 
 OrderComposition may use additional relevant market data required for exact construction. It must record every input identity, source timestamp, freshness decision, and version used.
@@ -497,7 +501,7 @@ The immutable result contains at least:
 - selected template and profile versions;
 - underlying and instrument contracts;
 - expiration and DTE;
-- ordered legs, actions, ratios, and quantities;
+- ordered legs, actions and ContractsPerUnit; UnitCount = 1 and RequiresPortfolioSizing; no final unit quantity;
 - order action and proposed order type;
 - price or price-policy result;
 - expected debit/credit and commissions;
@@ -688,15 +692,17 @@ Existing table shapes may be consulted as design input but do not constrain the 
 
 ### 14.5 ReferenceDb TradeStrategyFamily catalog
 
-ReferenceDb owns a query-shaped `trade_strategy_family_v2` catalog partition containing immutable definition versions. Its database identity is the stable `(SystemKey, DefinitionVersion)` pair; its positive integer `TradeStrategyFamilyId` is allocated by the existing PostgreSQL sequence service. V1 bootstrap conditionally inserts by that stable key, so repeated or concurrent hosts cannot create duplicate definitions. A losing initializer may leave an acceptable sequence gap, but an allocated ID is never hand-entered or reused. The bootstrap seeds:
+ReferenceDb owns a query-shaped `trade_strategy_family_v3` catalog partition containing typed definition versions. Its database identity is the stable `(SystemKey, DefinitionVersion)` pair; its positive integer `TradeStrategyFamilyId` is allocated by the existing PostgreSQL sequence service. Bootstrap preserves mapped legacy IDs/version/audit from the untouched `trade_strategy_family_v2` table and conditionally inserts by the new stable key. A losing fresh initializer may leave an acceptable sequence gap, but an allocated ID is never hand-entered or reused. The bootstrap seeds:
 
-| System key | Display name | Definition version | State |
-| --- | --- | ---: | --- |
-| `FUTURES` | Futures | 1 | Active |
-| `VERTICAL_SPREAD` | Vertical Spread | 1 | Active |
-| `IRON_CONDOR` | Iron Condor | 1 | Active |
+| System key | Timeframe | Symbol / currency | Definition version | State |
+| --- | --- | --- | ---: | --- |
+| `Futures-Futures` | Daily | ES / USD | 1 | Active |
+| `FuturesOption-VerticalSpread` | Weekly | ES / USD | 1 | Active |
+| `FuturesOption-IronCondor` | Monthly | ES / USD | 1 | Active |
 
-The v1 public surface is read-only. ReferenceDb exposes typed point/list queries through the Reference actor/API, and the existing Reference screen shows the three definitions without Add, Edit, Retire, or Delete controls. No Portfolio, policy, pipeline, or UI component reads ReferenceDb directly.
+The [typed catalog definition](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Family-Typed-Definition.md) specifies the 14-key MessagePack contract and coordinated API/UI deployment. Fund mandate and assignment timeframe dropdowns expose only Daily, Weekly and Monthly, mapped to `TimeFrameType`.
+
+The public surface now includes audited creation plus typed point/list queries. References offers Create Family; existing definitions remain immutable with no Edit, Retire or Delete action. New definitions use the additive CAS catalog `trade_strategy_family_catalog_v4`, and stable provider product identities use `trade_strategy_symbol_v1`. Several definitions may share SystemKey. No Portfolio, policy, pipeline, or UI component reads ReferenceDb directly.
 
 ## 15. Query projections
 
@@ -949,7 +955,7 @@ Required UI changes are:
 - use typed NATS queries and commands against the new Portfolio/Fund composition authority rather than direct database access or legacy Fund actors; and
 - preserve the current order/trade selection and detailed trade-control experience where it remains compatible.
 
-Automated OrderComposition remains a pipeline responsibility: it converts a selected template into exact contracts, legs, quantities, prices, and economics. Removing the separate viewer does not remove that actor or its result. It means the actor's committed FundOrder/FundOrderTrade and immutable result are displayed by Trade Orders.
+Automated OrderComposition remains a pipeline responsibility: it converts a selected template into exact contracts, per-unit leg ratios, prices and one-unit economics. Final unit quantity comes from Portfolio Risk Manager. Removing the separate viewer does not remove that actor or its result. The actor's committed FundOrder/FundOrderTrade and immutable result remain displayed by Trade Orders, with unsized composition distinguished from a sized risk approval.
 
 The current Submit Order, live-feed, fill, End-of-Day, and position controls belong to the legacy execution path. They must not become enabled for a new Portfolio-backed composition merely because it appears in Trade Orders. Their integration with an approved Strategy Workflow order is deferred to the OrderExecution/TradeDb design. Until that work is complete, the UI clearly identifies the record as pre-execution and exposes no broker side effect.
 

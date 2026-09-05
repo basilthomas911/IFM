@@ -91,7 +91,7 @@ public sealed class PortfolioRiskPolicyForm : Form
                 || e.Value is not int familyId)
                 return;
 
-            e.Value = _catalog.FirstOrDefault(x => x.TradeStrategyFamilyId == familyId)?.Name ?? "Unknown Trade Family";
+            e.Value = _catalog.FirstOrDefault(x => x.TradeStrategyFamilyId == familyId)?.Description ?? "Unknown Trade Family";
             e.FormattingApplied = true;
         };
         _newPolicy.Click += async (_, _) => await BeginNewPolicyAsync();

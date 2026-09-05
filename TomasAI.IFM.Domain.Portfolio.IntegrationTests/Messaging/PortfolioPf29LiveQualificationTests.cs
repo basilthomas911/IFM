@@ -67,7 +67,7 @@ public sealed class PortfolioPf29LiveQualificationTests(ITestOutputHelper output
         flattened.All(x => x.Value != null &&
             x.Value.Select(family => $"{family.SystemKey}:{family.State}").SequenceEqual(new[]
             {
-                "FUTURES:Active", "VERTICAL_SPREAD:Active", "IRON_CONDOR:Active",
+                "Futures-Futures:Active", "FuturesOption-VerticalSpread:Active", "FuturesOption-IronCondor:Active",
             })).Should().BeTrue("every concurrent response must retain the exact read-only three-family catalog");
         total.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(30), "the bounded load must complete before its 45-second safety timeout");
     }

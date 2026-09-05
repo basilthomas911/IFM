@@ -5,7 +5,7 @@
 | Document ID | `MDR-S3-AB` |
 | Date | 2026-09-04 (America/Toronto) |
 | State | Implemented offline-qualified subset; NOT full Stage 3 acceptance or production approval |
-| Source baseline | Working-tree remediation after `dea86871`; not committed |
+| Source baseline | Remediation committed in `e98c06ce` after `dea86871` |
 | Binding target | [Stage 3 specification](Market-Data-Resiliency-Stage-3-Specification-v1.0.md) |
 | Test evidence | [Implementation record](Market-Data-Resiliency-Stage-3-Implementation-Record-v1.0.md), latest acceptance-work section |
 | Default | `MarketDataRecovery:Stage3:Enabled=false`; non-Synthetic enablement rejected by Startup |
@@ -153,4 +153,6 @@ full running API-to-UI operational journey is not yet qualified.
 | Acceptance / Stage 4 | Explicit owner acceptance or an explicitly approved scoped sequencing exception |
 
 These include remaining engineering, not just missing user sign-off. Keep Stage 3 disabled by
-default and the non-Synthetic Startup guard. Stage 4 runtime implementation remains gated.
+default and the non-Synthetic Startup guard. Owner-approved sequencing exception `S4-EX-01` in
+the Stage 4 plan permits disabled Stage 4 implementation/offline tests; it does not accept Stage 3
+or waive these requirements for rollout.

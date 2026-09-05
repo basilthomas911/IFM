@@ -17,6 +17,7 @@ public sealed class UiServiceCatalog(
     IPortfolioIdentityApi portfolioIdentities,
     IPortfolioFinancialPolicyCommandApi portfolioPolicyCommands,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi referenceQueries,
+    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi referenceCommands,
     CommandResponseEventService commandResponses,
     ApplicationEventService applicationEvents,
     ApplicationQueryService applicationQueries,
@@ -53,6 +54,7 @@ public sealed class UiServiceCatalog(
     public IPortfolioIdentityApi PortfolioIdentities { get; } = portfolioIdentities;
     public IPortfolioFinancialPolicyCommandApi PortfolioPolicyCommands { get; } = portfolioPolicyCommands;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; } = referenceQueries;
+    public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; } = referenceCommands;
     /// <inheritdoc />
     public CommandResponseEventService CommandResponses { get; } = commandResponses;
     /// <inheritdoc />

@@ -34,6 +34,7 @@ public sealed record PortfolioFundStrategyReferenceCombination
     [Key(14)] public long OrderCompositionProfileVersion { get; init; }
     [Key(15)] public bool CurrentlyEligible { get; init; }
     [Key(16)] public string ReasonCode { get; init; } = string.Empty;
+    [Key(17)] public TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference? TradeStrategyFamily { get; init; }
 }
 
 public enum PortfolioBusinessIdentityKind

@@ -40,6 +40,15 @@ public static class MarketDataServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>Opt-in reference discovery; the host must register a durable ITradeStrategySymbolStore.</summary>
+    public static IServiceCollection AddTradeStrategySymbolCatalog(this IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<ITradeStrategySymbolSource, DatabentoTradeStrategySymbolSource>();
+        services.TryAddSingleton<ITradeStrategySymbolCatalog, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.TradeStrategySymbolCatalog>();
+        return services;
+    }
+
     /// <summary>Registers the provider-neutral historical application API and data load orchestration.</summary>
     public static IServiceCollection AddApplicationMarketDataHistoricalApi(
         this IServiceCollection services,

@@ -58,6 +58,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
         [GetFuturesOptionStrikePriceDefinitionsQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionStrikePriceDefinitionsQuery, FuturesOptionStrikePriceReadModel>()!,
         [GetMDIForwardLossRatiosQuery.Verb] = msg => msg.AsQuery<GetMDIForwardLossRatiosQuery, MDIForwardLossRatioReadModel[]>()!
         ,[GetTradeStrategyFamiliesQuery.Verb] = msg => msg.AsQuery<GetTradeStrategyFamiliesQuery, TradeStrategyFamilyReadModel[]>()!
+        ,[GetTradeStrategySymbolsQuery.Verb] = msg => msg.AsQuery<GetTradeStrategySymbolsQuery, TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>()!
     };
 
     /// <summary>
@@ -90,6 +91,14 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
+        [typeof(GetTradeStrategySymbolsQuery)] = async (ctx, q, cancellationToken) =>
+        {
+            var query = (GetTradeStrategySymbolsQuery)q;
+            var result = ctx.MarketDataApi is null
+                ? new ServiceFailed<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>(GetTradeStrategySymbolsQuery.ErrorId, "Market-data API is unavailable.")
+                : await ctx.MarketDataApi.GetTradeStrategySymbolsAsync(query.Family, cancellationToken);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeStrategySymbolsQuery.Verb, result);
+        },
         [typeof(GetCurrentSeedIdQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetCurrentSeedIdQuery);

@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
 static class PortfolioUiStyle
@@ -90,4 +93,21 @@ static class PortfolioUiStyle
         DropDownStyle = ComboBoxStyle.DropDownList,
         Dock = DockStyle.Fill,
     };
+
+    public static ComboBox StrategyTimeFrameCombo(string accessibleName)
+    {
+        var combo = Combo(accessibleName);
+        combo.Items.AddRange(TradeStrategyTimeFrames.Allowed.Cast<object>().ToArray());
+        return combo;
+    }
+
+    public static void SelectStrategyTimeFrame(ComboBox combo, string? name)
+    {
+        combo.SelectedIndex = -1;
+        if (TradeStrategyTimeFrames.TryParseName(name, out var value)) combo.SelectedItem = value;
+    }
+
+    public static string SelectedStrategyTimeFrameName(ComboBox combo) =>
+        combo.SelectedItem is TimeFrameType value && TradeStrategyTimeFrames.IsAllowed(value)
+            ? value.ToString() : string.Empty;
 }

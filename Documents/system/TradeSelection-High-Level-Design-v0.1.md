@@ -1,6 +1,9 @@
 # TradeSelection High-Level Design
 
-**Document version:** 0.4  
+> **2026-09-05 identity clarification:** [The product/family catalog implementation](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md) allows several products/timeframes with the same Family-Strategy SystemKey. Eligible assignments and selected families must retain exact TradeStrategyFamilyId/DefinitionVersion, not resolve by SystemKey alone. TradeStrategySymbolId identifies a product, not an expiring instrument. This reference-catalog expansion does not broaden the accepted three-family ES composition scope or implement downstream strategy stages.
+
+**Document version:** 0.5
+
 **Status:** High-level design  
 **System:** Intrinsic Time Trade Strategy Workflow  
 **Stage:** TradeSelection  
@@ -10,6 +13,10 @@
 
 **Portfolio/Fund implementation contract:** [Portfolio-Fund-Specification-v1.0.md](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md) defines the typed Fund snapshot, identity-reservation, actor/NATS, persistence, and validation contracts that TradeSelection must integrate with after that specification is approved.
 
+**Construction/sizing clarification — 2026-09-05:** [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md) defines complete one-unit construction inside OrderComposition. Portfolio Risk Manager determines final strategy-unit quantity and reserves risk. This supersedes the earlier Composer-sized/RiskManager-reduce-only model; it is a design update, not evidence of implemented sizing.
+
+**Selection-result clarification — 2026-09-05:** Strategy family/template, direction and horizon are mandatory typed fields of every `Selected` TradeSelection result, not information inferred from summary text. Section 12 defines their validation, NoTrade semantics and unchanged handoff to OrderComposition.
+
 ## 1. Purpose
 
 TradeSelection is the third decision stage in the trade strategy workflow. It receives an accepted, valid, `Tradeable` result from MarketCondition and determines whether the trade family assigned to the active Portfolio-owned Fund is compatible with that opportunity. The initial trading universe is restricted to ES futures and ES futures options.
@@ -18,7 +25,7 @@ Its central question is:
 
 > Given this accepted market condition and the fund's permitted strategy catalog, which trade structure is compatible enough to send to OrderComposition?
 
-TradeSelection selects a **trade template**, not an executable trade. It does not choose the exact expiration, strikes, contracts, leg ratios, limit price, broker order fields, or capital allocation. Those values are produced downstream by OrderComposition and approved or rejected by RiskManagement.
+TradeSelection selects a **trade template**, not an executable trade. It does not choose the exact expiration, strikes, contracts, leg ratios, limit price, broker order fields, or capital allocation. OrderComposition builds a complete one-unit candidate; Portfolio Risk Manager determines final units and reserves risk; broker fields remain downstream execution concerns.
 
 ## 2. Position in the Strategy Workflow
 
@@ -51,8 +58,8 @@ The Strategy Workflow owns stage sequencing. TradeSelection cannot invoke OrderC
 | RegimeDiscovery | What broader market regime exists? | Trend, volatility, structure, scores, and horizon context |
 | MarketCondition | Is a tradeable opportunity present now? | Tradeability, condition, direction, phase, strength, confidence, evidence, and blockers |
 | TradeSelection | Which permitted trade structure best fits? | Selected template or `NoTrade`, with compatibility evidence and composition constraints |
-| OrderComposition | What exact order expresses the selected structure? | Instrument contracts, expiration, strikes, legs, quantities, prices, and candidate order |
-| RiskManagement | May the fund and portfolio accept the candidate? | Risk approval, rejection, or permitted adjustment |
+| OrderComposition | What exact one-unit structure expresses the selected template? | Contracts, expiration, strikes, per-unit leg ratios, prices and unit economics; final units absent |
+| RiskManagement | How many units may the fund and portfolio accept? | Final unit quantity, independently validated sized order and risk reservation/approval, or rejection/failure |
 | OrderExecution | Can the approved order be submitted and worked? | Broker submission and execution result |
 
 The most important boundary is:
@@ -333,7 +340,7 @@ The initial implementation does not perform broad asset-class ranking. The activ
 - selection-result validity lifetime;
 - stable reason-code and summary-template versions.
 
-DTE, delta, strike, spread width, credit/debit style, price, and quantity belong to the referenced OrderComposition profile rather than the minimum TradeSelection input.
+DTE, delta, strike, spread width, credit/debit style, price and per-unit leg ratios belong to the referenced OrderComposition profile rather than the minimum TradeSelection input. Final strategy-unit quantity belongs to Portfolio Risk Manager.
 
 ### 9.4 Simplified V1 TradeSelection decision
 
@@ -357,7 +364,7 @@ There is no initial cross-asset optimizer, unrestricted multi-template ranking, 
 | Portfolio/Fund snapshot | Portfolio and Fund identities, versions, active states, mandate, policy, template, and profile references |
 | FundRiskEnvelope | Portfolio-delegated capital, per-trade and aggregate risk, margin/notional, position/contract caps, capacity state, and validity |
 | Accepted TradeSelection result | Selected family, direction or bias, and template identity |
-| Candidate order | Exact ES contract or option legs, quantities, entry prices, multiplier, fees, slippage reserve, and expiry |
+| Candidate order | Complete one-unit ES future or option strategy, ContractsPerUnit, entry prices, multiplier, unit fees/slippage, expiry and immutable candidate hash; final units absent |
 | Candidate risk summary | Maximum loss or futures loss-at-exit, stress loss, gross notional, initial-margin estimate, and calculator version |
 | Current Portfolio/Fund risk snapshot | Portfolio and Fund open risk, working-order reserved risk, exposures, positions, current contracts, and snapshot timestamp |
 | Broker/account safety snapshot | Account connected and tradeable, sufficient broker-reported funds/margin, and reconciliation freshness |
@@ -365,6 +372,11 @@ There is no initial cross-asset optimizer, unrestricted multi-template ranking, 
 The candidate and current-risk snapshots must be point-in-time, source-timestamped, and versioned. Broker/account checks remain mandatory. Broad cross-asset optimization may be deferred, but Portfolio ownership and delegated Fund limits are not deferred.
 
 ### 9.6 Initial delegated Fund gross-risk definition
+
+OrderComposition supplies one-unit economics. RiskManagement determines integer strategy-unit
+quantity and recalculates the following full-order risk values before atomic reservation. In these
+formulas `Quantity` means the RiskManager-selected strategy-unit count, not a Composer-approved
+quantity. Nonlinear costs/margin require calculation at actual size, not blind unit multiplication.
 
 The initial Portfolio-owned FundRiskEnvelope may use a deliberately simple additive Fund-risk ledger:
 
@@ -463,7 +475,7 @@ RiskManager returns `Approved` or `Rejected` with:
 - approval expiry;
 - stable decision and rejection reasons.
 
-RiskManagement may reject or reduce the proposed quantity only through a deterministic, explicit rule. It may never increase quantity. Any quantity change must produce a candidate representation whose gross-risk values are recalculated and bound to the approval.
+RiskManagement owns initial final sizing of the unit candidate and may approve more than one unit within current Portfolio/family/Fund, liquidity and account constraints. It independently validates economics and atomically reserves risk. The sized order binds the original unit-candidate hash, final units/leg quantities, recalculated costs/risk, reservation identity and approval expiry. One unit is a normalization basis, not a maximum. Later changes to approved size require valid reapproval; changed strikes/ratios require a new candidate.
 
 `Rejected` is a successful business result. `Failed` is reserved for inability to evaluate reliably, such as corrupt candidate economics, missing fund/risk configuration, stale broker truth, or a calculator invariant violation. Neither outcome causes an automatic retry.
 
@@ -564,24 +576,76 @@ TradeSelection does not assume that every `Tradeable` MarketCondition must produ
 
 ## 12. TradeSelection Result
 
-`TradeSelectionResult` is an immutable, self-contained result envelope.
+`TradeSelectionResult` is an immutable, self-contained result envelope. It is the authoritative
+selected-trade-strategy input to downstream OrderComposition, not merely a score, family hint or
+template ID. The requirements below are normative design requirements; the existing opaque
+`StrategyStageResultEnvelope` transport is not evidence that this typed payload is implemented.
 
 ### 12.1 Core result
 
-| Field | Recommended values or purpose |
+| Field | Required contract semantics |
 | --- | --- |
-| `SelectionOutcome` | `Selected` or `NoTrade` |
-| `TradeTemplateId` | Selected stable template identity; absent for `NoTrade` |
-| `TradeTemplateVersion` | Frozen selected template version |
-| `TradeFamily` | `Future`, `OptionVertical`, `IronCondor`, or `None` |
-| `InstrumentClass` | `Futures`, `FuturesOptions`, or `None` |
-| `DirectionalBias` | `Long`, `Short`, `Bullish`, `Bearish`, `Neutral`, or `Undefined` |
-| `DecisionHorizon` | Daily, Weekly, or Monthly |
+| `SelectionOutcome` | Required: `Selected` or `NoTrade`; operational failure uses the Failed event |
+| `TradeTemplateId` | Required non-empty selected template identity for `Selected`; absent for `NoTrade` |
+| `TradeTemplateVersion` | Required positive frozen template version for `Selected`; absent for `NoTrade` |
+| `TradeFamily` | Required selected family: `Future`, `OptionVertical` or `IronCondor`; `None` only for `NoTrade`. Bind to the exact versioned ReferenceDb family identity, not a display-name lookup |
+| `TradeFamilyReference` | Required for `Selected`: `TradeStrategyFamilyId` and `DefinitionVersion` matching the selected template and frozen Fund assignment; absent for `NoTrade` |
+| `InstrumentClass` | Required `Futures` or `FuturesOptions`, consistent with selected family; `None` for `NoTrade` |
+| `DirectionalBias` | Required explicit permitted direction for `Selected`: `Long`/`Short` for the initial futures profile, `Bullish`/`Bearish` or explicitly permitted `Neutral` for options; `Undefined` only for `NoTrade` |
+| `DecisionHorizon` | Required typed Daily, Weekly or Monthly on both outcomes; must equal the invocation/Fund mandate and accepted MarketCondition target horizon |
 | `CompatibilityScore` | Normalized 0 to 100 score; optional when a single-template binary policy is used |
 | `SelectionConfidence` | Deterministic 0.00 to 1.00 confidence in template compatibility |
-| `PrimaryReasonCode` | Stable reason for selection or no selection |
-| `CompositionPolicyId` | Policy that OrderComposition must use |
-| `ValidUntilUtc` | Latest time at which the workflow may accept this result |
+| `PrimaryReasonCode` | Required stable reason for selection or no selection |
+| `CompositionPolicyId` / `CompositionPolicyVersion` | Required frozen construction-policy reference for `Selected`; absent for `NoTrade`. Resolve explicitly to the assigned OrderCompositionProfile ID/version, not an independent mutable policy |
+| `DecisionContext` | Required immutable accepted RegimeDiscovery and MarketCondition results with their identities, hashes, schema/parameter versions and validity; same workflow and accepted input revision chain |
+| `ValidUntilUtc` | Required result expiry, no later than the validity of the required accepted upstream inputs; never extended by downstream handoff |
+
+### 12.1.1 Required selected-result invariants
+
+Every `SelectionOutcome = Selected` result MUST identify **which strategy family/template, which
+direction and which horizon** were selected. The workflow validates those fields before accepting
+the result; OrderComposition validates them again before construction.
+
+- Family, template/version, instrument class and construction-policy reference must agree with
+  each other and the frozen authorized Fund assignment. A known template with a conflicting family
+  is invalid, not an instruction to switch builder types.
+- Direction must be compatible with the accepted MarketCondition and template's permitted
+  directions. For futures, an explicit versioned mapping may translate Bullish to Long and Bearish
+  to Short. No sign inference from names, summaries or an old ITI row is permitted.
+- Horizon identifies the selected workflow horizon, not option expiry or a lease TTL. It cannot
+  be replaced by another horizon because a contract is unavailable. Broader regime context may
+  have its own horizon; it is preserved, not incorrectly forced to equal the target horizon.
+- The selected template and decision context are immutable. No downstream lookup of a newer
+  template, regime or MarketCondition may silently replace the accepted versions.
+- Missing, unknown, default or contradictory required fields produce a contract failure and
+  block OrderComposition. Consumers must not reconstruct missing selection fields from hints.
+
+For `NoTrade`, no strategy is selected: template/family-reference/policy identities are absent,
+family and instrument class are `None`, and selected direction is `Undefined`. Retain the requested
+horizon, accepted upstream context, workflow attribution and reason. An observed bullish market
+condition in that context does not become a selected bullish strategy. NoTrade never invokes
+OrderComposition and must not be encoded as a partially populated Selected result.
+
+### 12.1.2 Downstream selected-trade-strategy parameter
+
+OrderComposition receives the accepted result as its selected-trade-strategy parameter, including
+the frozen regime and MarketCondition context. It does not independently select a strategy or
+reclassify those inputs. Fresh live chain/futures snapshots and authenticated Portfolio construction
+constraints are separate inputs; they do not overwrite the selected decision context.
+
+Use one canonical result contract. If an internal adapter calls its parameter
+`SelectedTradeStrategy`, it is a validated Selected-only view of this result, preserving the
+result ID/hash and versions, not a second independently mutable strategy object.
+
+The selected family routes construction to the appropriate one-unit builder: monthly condor
+(four option legs), weekly vertical (two option legs), or daily outright futures (one futures leg),
+subject to the exact template/profile. The result does not yet contain chosen contracts, strikes,
+prices or final quantity. OrderComposition supplies complete one-unit construction; Portfolio
+Risk Manager determines final units and reserves risk.
+
+Typed payload serialization and validation must be versioned explicitly inside the existing stage
+envelope. Preserve prior schema meanings; an old payload lacking mandatory selection fields cannot
+be treated as qualified input to the new builder. No runtime contract is modified by this document.
 
 ### 12.2 Composition constraints
 
@@ -605,7 +669,7 @@ The result also contains:
 - ordered `SelectionEvidenceItems`;
 - ordered `ConflictingEvidenceItems`;
 - `RejectedAlternatives`, each with template identity, eligibility status, score if calculated, and stable reason codes;
-- accepted upstream result identities and hashes;
+- the accepted immutable RegimeDiscovery and MarketCondition `DecisionContext` and their identities/hashes (not merely latest-result lookup keys);
 - catalog and parameter-set identities and versions;
 - evaluated and validity timestamps;
 - deterministic `SummaryText`.
@@ -616,7 +680,7 @@ Evidence is machine-readable authority. Summary text is an operator projection a
 
 Selected:
 
-> Monthly ES TradeSelection completed: selected the bullish-biased Iron Condor template with compatibility score 78 and confidence 0.84. The accepted MarketCondition was bullish directional continuation with healthy liquidity. Exact expiration, strikes, quantity, and price remain for OrderComposition.
+> Monthly ES TradeSelection completed: selected the bullish-biased Iron Condor template with compatibility score 78 and confidence 0.84. The accepted MarketCondition was bullish directional continuation with healthy liquidity. Exact expiry, strikes and one-unit prices remain for OrderComposition; final units remain for Portfolio Risk Manager.
 
 NoTrade:
 
@@ -695,7 +759,8 @@ The Intrinsic Time Strategy Workflow actor is the sole continuation authority.
 After receiving a terminal event it:
 
 1. validates workflow, entity, fund, horizon, invocation, stage, and revision;
-2. validates upstream, catalog, template, and parameter versions;
+2. validates required selected family/template, direction and horizon, upstream context, catalog,
+   construction-policy and parameter versions using section 12;
 3. records the terminal event and accepted result;
 4. advances the workflow revision once for the logical transition;
 5. applies the versioned continuation rule.
@@ -708,7 +773,10 @@ After receiving a terminal event it:
 | `Completed + invalid result envelope` | Stop as a workflow contract failure |
 | `Failed` | Stop immediately as failed |
 
-The workflow creates a new `StageInvocationId` when it invokes OrderComposition and passes the accepted TradeSelection result unchanged.
+The workflow creates a new `StageInvocationId` when it invokes OrderComposition and passes the
+accepted TradeSelection result unchanged, including family/template, direction, horizon and frozen
+DecisionContext. The new invocation identity must not rewrite the selection's identity/hash or
+extend its validity. Only a validated `Selected` result can reach this handoff.
 
 ## 15. Validity and Time Semantics
 
@@ -897,11 +965,25 @@ Timeout or cancellation must race atomically with normal completion. Exactly one
 - `NoTrade` is never published as `Failed`;
 - a calculation or invariant failure is never disguised as `NoTrade`.
 
+Required selection-result contract tests:
+
+- Selected results for all three initial profiles contain exact family/reference, template/version,
+  instrument class, explicit direction, target horizon and construction-policy ID/version;
+- every missing/unknown required field and family/template/profile mismatch fails closed;
+- direction mapping is versioned and template-compatible; Undefined cannot pass as Selected;
+- missing/mismatched target horizon fails; legitimate broader regime horizons remain preserved;
+- NoTrade carries horizon/context/reasons but no selected template, family reference or policy;
+- typed serialization round trips preserve all required fields, versions and decision-context hashes;
+- old or unsupported payload schemas cannot silently default into a qualified Selected result.
+
 ### 23.4 Workflow integration tests
 
 - MarketCondition `Tradeable` invokes TradeSelection once;
 - MarketCondition `NotTradeable` never invokes TradeSelection;
 - `Selected` continues to OrderComposition;
+- the accepted family/template, direction, horizon, regime and MarketCondition context arrive
+  unchanged at OrderComposition, with the same selection identity/hash;
+- an incomplete/contradictory Selected result cannot dispatch any one-unit builder;
 - `NoTrade` stops normally;
 - `Failed` stops immediately;
 - expired selection stops without redispatch;
@@ -934,7 +1016,7 @@ Production remains realtime and has no business replay requirement. Replayable f
 - rejected and cancelled orders release reservations;
 - broker-confirmed fills convert reservations into open risk;
 - concurrent candidates cannot consume the same remaining delegated Fund risk;
-- RiskManager never increases candidate quantity;
+- Composer emits one normalized unit without final sizing; RiskManager may approve multiple units, with final size and recalculated risk bound to its reservation/approval;
 - broker/account safety failure rejects new exposure.
 
 ## 24. Authoritative Portfolio/Fund Prerequisite
@@ -952,7 +1034,7 @@ Financial constraints may still apply to a specific fund, but Portfolio creates 
 | Fund | Mandate, eligible assets, horizon, objectives, payoff preferences, strategy hints, and performance attribution |
 | Portfolio | Capital allocation, reserves, all financial limits, aggregate exposure, cross-fund correlation, risk states, and compounding |
 | TradeSelection | Select the market-fit asset vehicle and payoff/strategy family within Fund mandate and Portfolio permissions |
-| OrderComposition | Construct exact contracts, expirations, strikes, legs, quantities, and prices within the selected intent |
+| OrderComposition | Construct exact contracts, expirations, strikes, per-unit leg ratios, prices and unit economics within the selected intent; Portfolio Risk Manager supplies final sizing |
 | RiskManagement | Enforce Portfolio hard limits and delegated fund envelopes; approve, reduce, or reject |
 | OrderExecution | Communicate only approved economics to the broker and preserve broker truth |
 

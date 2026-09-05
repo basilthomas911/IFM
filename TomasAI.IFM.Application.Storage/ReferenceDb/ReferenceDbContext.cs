@@ -81,10 +81,15 @@ public class ReferenceDbContext(
         TradeStrategyFamilyId = e.GetInt(0),
         DefinitionVersion = e.GetLong(1),
         SystemKey = e.GetString(2),
-        Name = e.GetString(3),
-        State = e.GetEnum<TradeStrategyFamilyState>(4),
-        CreatedOnUtc = e.GetDateTime(5),
-        CreatedBy = e.GetString(6),
+        Family = e.GetEnum<TradeStrategyFamilyType>(3),
+        Strategy = e.GetEnum<TradeStrategyType>(4),
+        TimeFrame = e.GetEnum<TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType>(5),
+        Symbol = e.GetString(6),
+        Currency = e.GetString(7),
+        Description = e.GetString(8),
+        State = e.GetEnum<TradeStrategyFamilyState>(9),
+        CreatedOnUtc = e.GetDateTime(10),
+        CreatedBy = e.GetString(11),
     };
 
     static ScheduledJobReadModel MapToScheduledJob<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -1947,11 +1952,19 @@ public class ReferenceDbContext(
             tokenlessScheduledJobReservations);
     }
 
+    public async Task<IReadOnlyList<LegacyTradeStrategyFamily>> GetLegacyTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default) =>
+        [.. await _dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLegacyTradeStrategyFamilies)}", ReferenceDbCql.GetLegacyTradeStrategyFamilies)
+            .SetParameters(new GetTradeStrategyFamilies("V1"))
+            .ExecuteQueryAsync(e => new LegacyTradeStrategyFamily(e.GetInt(0), e.GetLong(1), e.GetString(2), e.GetString(3),
+                e.GetEnum<TradeStrategyFamilyState>(4), e.GetDateTime(5), e.GetString(6)), cancellationToken)];
+
     public async Task<IReadOnlyList<TradeStrategyFamilyReadModel>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default) =>
         [.. (await _dbFactory.ReferenceDb
             .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetTradeStrategyFamilies)}", ReferenceDbCql.GetTradeStrategyFamilies)
             .SetParameters(new GetTradeStrategyFamilies("V1"))
-            .ExecuteQueryAsync(MapToTradeStrategyFamily, cancellationToken)).OrderBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion)];
+            .ExecuteQueryAsync(MapToTradeStrategyFamily, cancellationToken)).Concat(await TradeStrategyFamilyCatalogStore.ReadDefinitionsAsync(_dbFactory, cancellationToken))
+            .OrderBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion)];
 
     public async Task<TradeStrategyFamilyReadModel?> GetTradeStrategyFamilyAsync(int tradeStrategyFamilyId, long definitionVersion, CancellationToken cancellationToken = default) =>
         (await GetTradeStrategyFamiliesAsync(cancellationToken).ConfigureAwait(false))
@@ -1964,7 +1977,7 @@ public class ReferenceDbContext(
         if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors), nameof(family));
         await _dbFactory.ReferenceDb
             .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertTradeStrategyFamily)}", ReferenceDbCql.InsertTradeStrategyFamily)
-            .SetParameters(new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Name, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy))
+            .SetParameters(new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Family.ToString(), family.Strategy.ToString(), family.TimeFrame.ToString(), family.Symbol, family.Currency, family.Description, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy))
             .ExecuteCommandAsync(cancellationToken);
     }
 

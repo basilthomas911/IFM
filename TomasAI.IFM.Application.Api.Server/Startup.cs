@@ -477,6 +477,10 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
             services.AddSingleton<TradeStrategyFamilyBootstrapper>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.ITradeStrategySymbolStore, TradeStrategySymbolStore>();
+            services.AddTradeStrategySymbolCatalog();
+            services.AddSingleton<ITradeStrategyFamilyCatalogStore, TradeStrategyFamilyCatalogStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
@@ -596,7 +600,9 @@ public static class Startup
             var runtimeOptions = new DatabentoMarketDataRuntimeOptions
             {
                 FeedOptions = feedOptions,
-                Contracts = contracts
+                Contracts = contracts,
+                TradeStrategyProducts = config.GetSection("AppSettings:Databento:TradeStrategyProducts")
+                    .Get<DatabentoTradeStrategyProductConfiguration[]>() ?? []
             };
             services.AddDatabentoMarketDataServices();
             services.AddSingleton<FuturesMarketSessionAuthority>();
@@ -621,6 +627,10 @@ public static class Startup
             }.Validate());
             var stage3Options = (config.GetSection("MarketDataRecovery:Stage3")
                 .Get<DatabentoStage3Options>() ?? new DatabentoStage3Options()).Validate();
+            services.AddSingleton((config.GetSection("MarketDataRecovery:Stage4")
+                .Get<TomasAI.IFM.Application.MarketData.Subscriptions.Stage4SubscriptionOptions>()
+                ?? new TomasAI.IFM.Application.MarketData.Subscriptions.Stage4SubscriptionOptions())
+                .ValidateForApplicationStartup());
             if (stage3Options.Enabled && feedOptions.DataSource != FeedDataSourceMode.Synthetic)
                 throw new InvalidOperationException(
                     "Stage 3 supervised workers are qualified for Synthetic Development only; live-provider enablement is not permitted.");

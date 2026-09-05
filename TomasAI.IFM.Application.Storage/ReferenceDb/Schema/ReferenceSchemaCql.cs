@@ -3,6 +3,14 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 internal static class ReferenceSchemaCql
 {
     public const string CreateTradeStrategyFamilyTable = """
+    CREATE TABLE IF NOT EXISTS trade_strategy_family_v3 (
+    catalog text, tradeStrategyFamilyId int, definitionVersion bigint,
+    systemKey text, family text, strategy text, timeFrame text, symbol text, currency text,
+    description text, state text, createdOnUtc timestamp, createdBy text,
+    PRIMARY KEY ((catalog), systemKey, definitionVersion)
+    ) WITH CLUSTERING ORDER BY (systemKey ASC, definitionVersion DESC);
+    """;
+    public const string CreateLegacyTradeStrategyFamilyTable = """
     CREATE TABLE IF NOT EXISTS trade_strategy_family_v2 (
     catalog text, tradeStrategyFamilyId int, definitionVersion bigint,
     systemKey text, name text, state text, createdOnUtc timestamp, createdBy text,

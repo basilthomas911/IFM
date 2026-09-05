@@ -52,6 +52,8 @@ public sealed class PortfolioFundAggregate
         if (replacement.PortfolioId != Current.PortfolioId || replacement.FundId != Current.FundId)
             throw new ArgumentException("Portfolio/Fund parent identity cannot change.", nameof(replacement));
         if (replacement.FundCode != Current.FundCode) throw new ArgumentException("FundCode cannot change.", nameof(replacement));
+        if (Current.PermittedTradeStrategyFamilies.Length > 0 && (replacement.SchemaVersion < 2 || replacement.PermittedTradeStrategyFamilies.Length == 0))
+            throw new ArgumentException("An exact-reference Fund mandate cannot downgrade to legacy family names.", nameof(replacement));
         if (replacement.FundMandateVersion != Current.FundMandateVersion + 1)
             throw new ArgumentException("FundMandateVersion must increment by one.", nameof(replacement));
         if (replacement.OperatingState != Current.OperatingState &&
@@ -136,7 +138,9 @@ public sealed class PortfolioFundAggregate
             throw new ArgumentException("Assignment underlying is incompatible with the Fund mandate.", nameof(assignment));
         if (!Current.EligibleAssetTypes.Contains(assignment.AssetType, StringComparer.Ordinal))
             throw new ArgumentException("Assignment asset type is incompatible with the Fund mandate.", nameof(assignment));
-        if (!Current.PermittedTradeFamilies.Contains(assignment.TradeFamily, StringComparer.Ordinal))
+        if (Current.PermittedTradeStrategyFamilies.Length > 0
+            ? assignment.TradeStrategyFamily is null || !Current.PermittedTradeStrategyFamilies.Contains(assignment.TradeStrategyFamily)
+            : !Current.PermittedTradeFamilies.Contains(assignment.TradeFamily, StringComparer.Ordinal))
             throw new ArgumentException("Assignment trade family is incompatible with the Fund mandate.", nameof(assignment));
         ThrowIfInvalid(assignment.Validate());
         var latestVersion = _assignments.Count == 0 ? 0 : _assignments.Max(x => x.AssignmentVersion);

@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi
 {
     public interface IReferenceQueryApi
     {
+        Task<ServiceResult<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Trade strategy symbol queries are not implemented by this adapter.");
         Task<ServiceResult<LookupTypeCollection>> GetMarketDataDefinitionTypesAsync();
         Task<ServiceResult<LookupTypeCollection>> GetReferenceDataDefinitionTypesAsync();
         Task<ServiceResult<LookupTypeCollection>> GetSystemAdminFunctionTypesAsync();

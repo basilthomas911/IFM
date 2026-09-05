@@ -36,7 +36,8 @@ public sealed class PortfolioFundCommandActor(
     IPortfolioBusinessIdAllocator allocator,
     IEventProjector<PortfolioFundCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFundCommandActor> logger)
+    ILogger<PortfolioFundCommandActor> logger,
+    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? referenceQueries = null)
     : BaseEventSourceCommandActor<PortfolioFundCommandActor>(context, logger)
 {
     public const string ActorName = PortfolioCommandSubjects.FundActor;
@@ -273,6 +274,7 @@ public sealed class PortfolioFundCommandActor(
         }
         var now = DateTime.UtcNow;
         var aggregate = state.Aggregate;
+        await ValidateFamilyReferencesAsync(command, cancellationToken).ConfigureAwait(false);
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         var domainEvent = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
         if (domainEvent is not null)
@@ -289,6 +291,32 @@ public sealed class PortfolioFundCommandActor(
             new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
             new KeyValuePair<string, object?>("portfolio.outcome", domainEvent is null ? "replayed" : "committed"));
         return new ServiceOk<GuidResult>(new(command.CommandId));
+    }
+
+    async Task ValidateFamilyReferencesAsync(ICommand command, CancellationToken cancellationToken)
+    {
+        var mandate = command switch
+        {
+            CreateFundMandateCommand create => create.Payload.Mandate,
+            AddFundMandateVersionCommand change => change.Payload.Mandate,
+            _ => null
+        };
+        var assignment = command is AssignTradeTemplateCommand assign ? assign.Payload.Assignment : null;
+        var references = mandate?.PermittedTradeStrategyFamilies ?? (assignment?.TradeStrategyFamily is { } family ? [family] : []);
+        if (references.Length == 0) return; // Read/replay compatibility for pre-v2 clients; never resolve ambiguous names here.
+        if (referenceQueries is null) throw new InvalidOperationException("Reference catalog validation is unavailable.");
+        var result = await referenceQueries.GetTradeStrategyFamiliesAsync(cancellationToken).ConfigureAwait(false);
+        if (!result.Success || result.Value is null) throw new InvalidOperationException(result.ErrorMessage ?? "Reference catalog unavailable.");
+        foreach (var reference in references)
+        {
+            var row = result.Value.SingleOrDefault(x => x.TradeStrategyFamilyId == reference.TradeStrategyFamilyId && x.DefinitionVersion == reference.DefinitionVersion);
+            if (row is null || row.State != TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyState.Active)
+                throw new ArgumentException("An exact referenced family is missing or inactive.");
+            if (mandate is not null && !mandate.PermittedTradeFamilies.Contains(row.SystemKey, StringComparer.Ordinal))
+                throw new ArgumentException("Fund family classification does not match its exact reference.");
+            if (assignment is not null && assignment.TradeFamily != row.SystemKey)
+                throw new ArgumentException("Assignment family classification does not match its exact reference.");
+        }
     }
 
     async ValueTask<PortfolioFundDomainEvent?> AddVersionAsync(

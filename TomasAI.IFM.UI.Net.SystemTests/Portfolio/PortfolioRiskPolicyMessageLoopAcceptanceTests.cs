@@ -107,18 +107,12 @@ public sealed class PortfolioRiskPolicyMessageLoopAcceptanceTests
         references.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(
             new ServiceOk<TradeStrategyFamilyReadModel[]>(
             [
-                Family(1, "FUTURES", "Futures"),
-                Family(2, "VERTICAL_SPREAD", "Vertical Spread"),
-                Family(3, "IRON_CONDOR", "Iron Condor"),
+                TradeStrategyFamilySeed.Definitions[0].Create(1, DateTime.UtcNow, "PF-27 acceptance"),
+                TradeStrategyFamilySeed.Definitions[1].Create(2, DateTime.UtcNow, "PF-27 acceptance"),
+                TradeStrategyFamilySeed.Definitions[2].Create(3, DateTime.UtcNow, "PF-27 acceptance"),
             ]));
         return references;
     }
-
-    static TradeStrategyFamilyReadModel Family(int id, string key, string name) => new()
-    {
-        TradeStrategyFamilyId = id, DefinitionVersion = 1, SystemKey = key, Name = name,
-        State = TradeStrategyFamilyState.Active, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "PF-27 acceptance",
-    };
 
     static PortfolioReadModel Portfolio() => new()
     {
