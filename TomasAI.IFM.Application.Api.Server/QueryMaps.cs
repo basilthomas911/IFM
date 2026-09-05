@@ -433,6 +433,15 @@ public static class MarketDataQueries
             return await e.RequestAsync<ScalarReadModel<DateOnly>, GetValueDateQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataQueryUriPath.GetTradeStrategySymbols, async (IActorService e,
+            TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken) =>
+        {
+            var query = new TomasAI.IFM.Domain.MarketData.Shared.Queries.GetTradeStrategySymbolsQuery { Family = family };
+            query.Subject = new ActorSubject(ActorType.Query, TomasAI.IFM.Domain.MarketData.Shared.Queries.GetTradeStrategySymbolsQuery.Actor,
+                TomasAI.IFM.Domain.MarketData.Shared.Queries.GetTradeStrategySymbolsQuery.Verb, query.EntityId.Format());
+            return await e.RequestAsync<TradeStrategySymbolReadModel[], TomasAI.IFM.Domain.MarketData.Shared.Queries.GetTradeStrategySymbolsQuery>(query, cancellationToken);
+        });
+
         endpoints.MapGet(MarketDataQueryUriPath.GetMarketSession, async (IActorService e) =>
         {
             var query = new GetMarketSessionQuery();

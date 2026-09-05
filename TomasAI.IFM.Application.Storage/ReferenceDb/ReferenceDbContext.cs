@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -44,6 +44,8 @@ public class ReferenceDbContext(
     /// Gets the database context.
     /// </summary>
     public override ReferenceDbContext Database => this;
+
+    public InstrumentDefinitionStore InstrumentDefinitions => new(this, new TradeStrategySymbolStore(_dbFactory, _sequenceIdGenerator));
 
     static bool MapToBoolean(IObjectDataRecord e)
         => e.GetBool(0);

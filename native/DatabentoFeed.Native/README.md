@@ -19,6 +19,14 @@ The default ring holds 131,072 fixed 64-byte records (8 MiB).
 
 ## Offline synthetic build
 
+Contract-definition query kind `DBF_CONTRACT_QUERY_DATASET` (4) requests `ALL_SYMBOLS`
+with RawSymbol symbology over the latest available definition interval. It returns
+supported futures/call/put definitions, preserving publisher-qualified symbol
+identity. The existing ABI layout and earlier query values are unchanged; managed
+callers require a rebuilt matching native library. The Rust mirror supports the
+same appended query kind. This is historical metadata discovery, not a live feed
+subscription; non-live builds return `DBF_NOT_SUPPORTED`.
+
 `IFM_DATABENTO_ENABLE_LIVE` defaults to `OFF`, so configuration does not fetch or link the Databento SDK:
 
 ```text

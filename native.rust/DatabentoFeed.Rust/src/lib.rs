@@ -830,7 +830,10 @@ mod exports {
                 || query.reserved.iter().any(|&v| v != 0)
                 || !matches!(
                     query.query_kind,
-                    CONTRACT_QUERY_EXACT | CONTRACT_QUERY_TICKER | CONTRACT_QUERY_INSTRUMENT_ID
+                    CONTRACT_QUERY_EXACT
+                        | CONTRACT_QUERY_TICKER
+                        | CONTRACT_QUERY_INSTRUMENT_ID
+                        | CONTRACT_QUERY_DATASET
                 )
                 || query.timeout_ms == 0
                 || query.timeout_ms == WAIT_INFINITE
@@ -840,7 +843,8 @@ mod exports {
                 || !valid_range(query.dataset_offset, query.dataset_length, utf8_blob_bytes)
                 || query.dataset_length == 0
                 || ((query.query_kind == CONTRACT_QUERY_TICKER
-                    || query.query_kind == CONTRACT_QUERY_INSTRUMENT_ID)
+                    || query.query_kind == CONTRACT_QUERY_INSTRUMENT_ID
+                    || query.query_kind == CONTRACT_QUERY_DATASET)
                     && query.symbol_count != 1)
             {
                 return INVALID_ARGUMENT;

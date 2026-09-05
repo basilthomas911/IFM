@@ -385,6 +385,24 @@ fn non_live_operations_match_cpp_status_and_error_contracts() {
         assert!(required > 1);
         assert_eq!(dbf_contract_details_result_destroy(result), OK);
 
+        let dataset_query = ContractQueryV1 {
+            query_kind: CONTRACT_QUERY_DATASET,
+            ..query
+        };
+        result = ptr::null_mut();
+        assert_eq!(
+            dbf_contract_details_query(
+                &dataset_query,
+                &symbol,
+                blob.as_ptr(),
+                blob.len() as u32,
+                &mut result
+            ),
+            NOT_SUPPORTED
+        );
+        assert!(!result.is_null());
+        assert_eq!(dbf_contract_details_result_destroy(result), OK);
+
         let request = LatestPriceRequestV1 {
             struct_size: size_of::<LatestPriceRequestV1>() as u32,
             abi_version: ABI_VERSION,

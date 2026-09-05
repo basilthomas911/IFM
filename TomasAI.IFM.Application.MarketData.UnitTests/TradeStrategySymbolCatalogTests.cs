@@ -86,8 +86,8 @@ public sealed class TradeStrategySymbolCatalogTests
     {
         var factory = Substitute.For<IDatabentoFeedFactory>(); var queries = Substitute.For<IDatabentoMarketDataQueries>();
         factory.CreateMarketDataQueries(Arg.Any<DatabentoFeedOptions>()).Returns(queries);
-        queries.GetContractDetails("ES.FUT", Arg.Any<TimeSpan?>()).Returns([Future(), Future() with { RawSymbol = "ESZ6", Instrument = new(1, 2) }]);
-        queries.GetContractDetails("EW1.OPT", Arg.Any<TimeSpan?>()).Returns([Future() with { RawSymbol = "EW1-call", Ticker = "EW1", ContractKind = ContractKind.CallOption, UnderlyingInstrumentId = 1 }]);
+        queries.GetDatasetDefinitions(Arg.Any<TimeSpan?>()).Returns([Future(), Future() with { RawSymbol = "ESZ6", Instrument = new(1, 2) },
+            Future() with { RawSymbol = "EW1-call", Ticker = "EW1", ContractKind = ContractKind.CallOption, UnderlyingInstrumentId = 1 }]);
         var source = new DatabentoTradeStrategySymbolSource(factory, Options(), new Clock());
         var result = await source.DiscoverAsync(TradeStrategyFamilyType.FuturesOption, CancellationToken.None);
         result.Should().ContainSingle().Which.Should().Be(Es with { Family = TradeStrategyFamilyType.FuturesOption });
@@ -99,9 +99,9 @@ public sealed class TradeStrategySymbolCatalogTests
     {
         var factory = Substitute.For<IDatabentoFeedFactory>(); var queries = Substitute.For<IDatabentoMarketDataQueries>();
         factory.CreateMarketDataQueries(Arg.Any<DatabentoFeedOptions>()).Returns(queries);
-        queries.GetContractDetails("ES.FUT", Arg.Any<TimeSpan?>()).Returns([Future() with { Currency = "", SettlementCurrency = "USD" }]);
+        queries.GetDatasetDefinitions(Arg.Any<TimeSpan?>()).Returns([Future() with { Currency = "", SettlementCurrency = "USD" }]);
         var call = () => new DatabentoTradeStrategySymbolSource(factory, Options(), new Clock()).DiscoverAsync(Es.Family, CancellationToken.None);
-        await call.Should().ThrowAsync<ArgumentException>().WithMessage("*Currency*");
+        await call.Should().ThrowAsync<InvalidOperationException>().WithMessage("*No eligible*Currency*");
     }
 
     [Fact]
@@ -113,17 +113,17 @@ public sealed class TradeStrategySymbolCatalogTests
     }
 
     [Fact]
-    public async Task Missing_options_for_one_configured_product_rejects_partial_discovery()
+    public async Task Futures_without_options_are_not_included_in_the_option_product_catalog()
     {
         var factory = Substitute.For<IDatabentoFeedFactory>(); var queries = Substitute.For<IDatabentoMarketDataQueries>();
         factory.CreateMarketDataQueries(Arg.Any<DatabentoFeedOptions>()).Returns(queries);
-        queries.GetContractDetails("ES.FUT", Arg.Any<TimeSpan?>()).Returns([Future()]);
-        queries.GetContractDetails("EW1.OPT", Arg.Any<TimeSpan?>()).Returns([Future() with { ContractKind = ContractKind.CallOption, UnderlyingInstrumentId = 1 }]);
-        queries.GetContractDetails("NQ.FUT", Arg.Any<TimeSpan?>()).Returns([Future() with { Ticker = "NQ", RawSymbol = "NQU6" }]);
-        queries.GetContractDetails("NQ.OPT", Arg.Any<TimeSpan?>()).Returns([]);
-        var options = Options() with { TradeStrategyProducts = [new("ES", "GLBX.MDP3", ["EW1"]), new("NQ", "GLBX.MDP3", ["NQ"])] };
-        var call = () => new DatabentoTradeStrategySymbolSource(factory, options, new Clock()).DiscoverAsync(TradeStrategyFamilyType.FuturesOption, CancellationToken.None);
-        await call.Should().ThrowAsync<InvalidOperationException>().WithMessage("*No current option*NQ*");
+        queries.GetDatasetDefinitions(Arg.Any<TimeSpan?>()).Returns([Future(),
+            Future() with { RawSymbol = "EW1-call", ContractKind = ContractKind.CallOption, UnderlyingInstrumentId = 1 },
+            Future() with { Ticker = "NQ", RawSymbol = "NQU6", Instrument = new(1, 2) }]);
+        var source = new DatabentoTradeStrategySymbolSource(factory, Options(), new Clock());
+        (await source.DiscoverAsync(TradeStrategyFamilyType.FuturesOption, CancellationToken.None)).Select(x => x.Symbol).Should().Equal("ES");
+        (await source.DiscoverAsync(TradeStrategyFamilyType.Futures, CancellationToken.None)).Select(x => x.Symbol).Should().BeEquivalentTo("ES", "NQ");
+        queries.Received(1).GetDatasetDefinitions(Arg.Any<TimeSpan?>());
     }
 
     [Fact]
@@ -131,11 +131,11 @@ public sealed class TradeStrategySymbolCatalogTests
     {
         var factory = Substitute.For<IDatabentoFeedFactory>(); var queries = Substitute.For<IDatabentoMarketDataQueries>();
         factory.CreateMarketDataQueries(Arg.Any<DatabentoFeedOptions>()).Returns(queries);
-        queries.GetContractDetails("ES.FUT", Arg.Any<TimeSpan?>()).Returns([Future()]);
-        queries.GetContractDetails("EW1.OPT", Arg.Any<TimeSpan?>()).Returns([Future() with { ContractKind = ContractKind.CallOption, UnderlyingInstrumentId = 999, Underlying = "ESU6" }]);
-        var call = () => new DatabentoTradeStrategySymbolSource(factory, Options(), new Clock()).DiscoverAsync(TradeStrategyFamilyType.FuturesOption, CancellationToken.None);
-        await call.Should().ThrowAsync<InvalidOperationException>().WithMessage("*unresolved*underlying*");
+        queries.GetDatasetDefinitions(Arg.Any<TimeSpan?>()).Returns([Future(),
+            Future() with { ContractKind = ContractKind.CallOption, UnderlyingInstrumentId = 999, Underlying = "ESU6" }]);
+        var source = new DatabentoTradeStrategySymbolSource(factory, Options(), new Clock());
+        (await source.DiscoverAsync(TradeStrategyFamilyType.FuturesOption, CancellationToken.None)).Should().BeEmpty();
     }
-    static DatabentoMarketDataRuntimeOptions Options() => new() { Contracts = [], FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive }, TradeStrategyProducts = [new("ES", "GLBX.MDP3", ["EW1"])] };
+    static DatabentoMarketDataRuntimeOptions Options() => new() { Contracts = [], FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive }, TradeStrategySymbolDatasets = ["GLBX.MDP3"] };
     static ContractDetail Future() => new() { Dataset = "GLBX.MDP3", RawSymbol = "ESU6", Ticker = "ES", Underlying = "", Instrument = new(1, 1), ContractKind = ContractKind.Future, MaturityDate = new(2026, 9, 18), Currency = "USD", SettlementCurrency = "", Exchange = "XCME", SecurityType = "FUT", Cfi = "", UnitOfMeasure = "" };
 }

@@ -125,7 +125,14 @@ public sealed class ScyllaDbDataRecord : IObjectDataRecord
     public DateTime GetDateTime(int index)
     {
         if (_row.IsNull(index)) return default;
-        try { return _row.GetValue<DateTime>(index); }
+        try
+        {
+            // CQL timestamps are instants. The driver's DateTime conversion can
+            // discard Kind, causing valid persisted UTC audit fields to fail validation.
+            return _columns[index].TypeCode == ColumnTypeCode.Timestamp
+                ? _row.GetValue<DateTimeOffset>(index).UtcDateTime
+                : _row.GetValue<DateTime>(index);
+        }
         catch
         {
             try
@@ -133,7 +140,7 @@ public sealed class ScyllaDbDataRecord : IObjectDataRecord
                 var value = _row.GetValue(_columns[index].Type, index);
                 return value switch
                 {
-                    DateTimeOffset dto => dto.DateTime,
+                    DateTimeOffset dto => _columns[index].TypeCode == ColumnTypeCode.Timestamp ? dto.UtcDateTime : dto.DateTime,
                     long l => new DateTime(l),
                     string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
                     _ => default

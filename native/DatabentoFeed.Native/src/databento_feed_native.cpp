@@ -805,7 +805,7 @@ std::vector<contract_result_entry> fetch_definitions(
         }
         auto entry = make_contract_entry(*definition);
         const auto [position, inserted] = by_symbol.emplace(
-            entry.raw_symbol, entries.size());
+            std::to_string(entry.detail.publisher_id) + ":" + entry.raw_symbol, entries.size());
         if (inserted) {
             entries.push_back(std::move(entry));
         } else {
@@ -2629,13 +2629,15 @@ dbf_status DBF_CALL dbf_contract_details_query(
                        [](std::uint64_t value) { return value != 0; })
         || (query->query_kind != DBF_CONTRACT_QUERY_EXACT
             && query->query_kind != DBF_CONTRACT_QUERY_TICKER
-            && query->query_kind != DBF_CONTRACT_QUERY_INSTRUMENT_ID)
+            && query->query_kind != DBF_CONTRACT_QUERY_INSTRUMENT_ID
+            && query->query_kind != DBF_CONTRACT_QUERY_DATASET)
         || query->timeout_ms == 0 || query->timeout_ms == DBF_WAIT_INFINITE
         || query->symbol_count == 0 || symbols == nullptr || utf8_blob == nullptr
         || !valid_blob_range(query->dataset_offset, query->dataset_length, utf8_blob_bytes)
         || query->dataset_length == 0
         || ((query->query_kind == DBF_CONTRACT_QUERY_TICKER
-             || query->query_kind == DBF_CONTRACT_QUERY_INSTRUMENT_ID)
+             || query->query_kind == DBF_CONTRACT_QUERY_INSTRUMENT_ID
+             || query->query_kind == DBF_CONTRACT_QUERY_DATASET)
             && query->symbol_count != 1)) {
         return DBF_INVALID_ARGUMENT;
     }
@@ -2679,6 +2681,9 @@ dbf_status DBF_CALL dbf_contract_details_query(
                     result->entries.push_back(found->second);
                 }
             }
+        } else if (query->query_kind == DBF_CONTRACT_QUERY_DATASET) {
+            result->entries = fetch_definitions(
+                dataset, {"ALL_SYMBOLS"}, databento::SType::RawSymbol, query->timeout_ms);
         } else if (query->query_kind == DBF_CONTRACT_QUERY_TICKER) {
             const auto& ticker = requested.front();
             const auto is_parent = ticker.ends_with(".FUT")

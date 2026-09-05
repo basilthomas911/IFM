@@ -24,7 +24,7 @@ public sealed class TradeStrategyFamilyBootstrapper(IReferenceDbContext db, ISeq
             foreach (var definition in TradeStrategyFamilySeed.Definitions)
             {
                 var old = legacy.SingleOrDefault(x => x.SystemKey == definition.LegacySystemKey);
-                var current = existing.SingleOrDefault(x => x.TradeStrategySymbolId == 0 && x.SystemKey == definition.SystemKey);
+                var current = existing.SingleOrDefault(x => x.TradeStrategySymbolId == 0 && x.DefinitionVersion == 1 && x.SystemKey == definition.SystemKey);
                 if (current is not null)
                 {
                     if (old is not null && (current.TradeStrategyFamilyId != old.TradeStrategyFamilyId || current.DefinitionVersion != old.DefinitionVersion))
@@ -37,10 +37,10 @@ public sealed class TradeStrategyFamilyBootstrapper(IReferenceDbContext db, ISeq
                 await db.InsertTradeStrategyFamilyAsync(definition.Create(id, old?.CreatedOnUtc ?? DateTime.UtcNow,
                     old?.CreatedBy ?? "ReferenceBootstrap"), cancellationToken).ConfigureAwait(false);
                 existing = await db.GetTradeStrategyFamiliesAsync(cancellationToken).ConfigureAwait(false);
-                if (old is not null && existing.Single(x => x.TradeStrategySymbolId == 0 && x.SystemKey == definition.SystemKey).TradeStrategyFamilyId != old.TradeStrategyFamilyId)
+                if (old is not null && existing.Single(x => x.TradeStrategySymbolId == 0 && x.DefinitionVersion == 1 && x.SystemKey == definition.SystemKey).TradeStrategyFamilyId != old.TradeStrategyFamilyId)
                     throw new InvalidOperationException("Concurrent migration produced a conflicting family identity.");
             }
-            TradeStrategyFamilySeed.Validate(existing.Where(x => x.TradeStrategySymbolId == 0).ToArray());
+            TradeStrategyFamilySeed.Validate(existing.Where(x => x.TradeStrategySymbolId == 0 && x.DefinitionVersion == 1).ToArray());
             return existing.OrderBy(x => x.TradeStrategyFamilyId).ToArray();
         }
         finally { BootstrapLock.Release(); }

@@ -19,6 +19,11 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     readonly IMarketDataQueryApi _queryApi = IsArgumentNull.Set(queryApi);
     readonly IMarketDataFeedQueryApi _queryFeedApi = IsArgumentNull.Set(queryFeedApi);
 
+    /// <summary>Loads provider-backed symbols and their currency/exchange by strategy family.</summary>
+    public Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
+        TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
+        => _queryApi.GetTradeStrategySymbolsAsync(family, cancellationToken);
+
     /// <summary>Executes or exposes a documented UI service operation.</summary>
     public Task LoadEconomicCalendarAsync(
         DateTime todaysDate,

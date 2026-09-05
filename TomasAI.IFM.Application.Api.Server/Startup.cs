@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+﻿using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
 using Microsoft.Extensions.Caching.Distributed;
@@ -478,6 +478,8 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
             services.AddSingleton<TradeStrategyFamilyBootstrapper>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.ITradeStrategySymbolStore, TradeStrategySymbolStore>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.IInstrumentDefinitionStore>(provider =>
+                provider.GetRequiredService<IDbContextFactory>().ReferenceDb.InstrumentDefinitions);
             services.AddTradeStrategySymbolCatalog();
             services.AddSingleton<ITradeStrategyFamilyCatalogStore, TradeStrategyFamilyCatalogStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
@@ -601,8 +603,8 @@ public static class Startup
             {
                 FeedOptions = feedOptions,
                 Contracts = contracts,
-                TradeStrategyProducts = config.GetSection("AppSettings:Databento:TradeStrategyProducts")
-                    .Get<DatabentoTradeStrategyProductConfiguration[]>() ?? []
+                TradeStrategySymbolDatasets = config.GetSection("AppSettings:Databento:TradeStrategySymbolDatasets")
+                    .Get<string[]>() ?? []
             };
             services.AddDatabentoMarketDataServices();
             services.AddSingleton<FuturesMarketSessionAuthority>();
@@ -797,14 +799,8 @@ public static class Startup
         };
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
         assemblies.AddRange(domainAssemblies);
-        var repositoryTypes = assemblies
-            .Distinct()
-            .SelectMany(static assembly => assembly.GetTypes())
-            .Where(static type => type is { IsClass: true, IsAbstract: false }
-                && type != typeof(SystemAdminDbContext)
-                && type.GetInterfaces().Any(static contract => contract.IsGenericType
-                    && contract.GetGenericTypeDefinition() == typeof(IObjectRepository<>)))
-            .Distinct()
+        var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
+            .Where(static type => type != typeof(SystemAdminDbContext))
             .ToArray();
         _siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(_siContainer);

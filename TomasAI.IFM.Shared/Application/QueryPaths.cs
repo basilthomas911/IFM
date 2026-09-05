@@ -114,6 +114,7 @@ public class FuturesBarDataQueryUriPath
     public const string YieldCurveRateExists = "/api/marketdata/yieldcurve/exists";
     public const string GetValueDate = "/api/marketdata/valuedate";
     public const string GetMarketSession = "/api/marketdata/session";
+    public const string GetTradeStrategySymbols = "/api/marketdata/trade-strategy-symbols";
     public const string GetIronCondorMarketData = "/api/marketdata/ironcondor";
     public const string GetFuturesOptionContractIds = "/api/marketdata/futures/option/contractids";
     public const string GetEconomicCalendars = "/api/marketdata/economiccalendar";

@@ -83,7 +83,8 @@ internal enum NativeContractQueryKind : uint
 {
     Exact = 1,
     Ticker = 2,
-    InstrumentId = 3
+    InstrumentId = 3,
+    Dataset = 4
 }
 
 [Flags]

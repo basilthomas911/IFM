@@ -1140,7 +1140,7 @@ The existing Funds, Allocation, Risk Envelope, and Trade Assignments detail tabs
 - pending projection, conflict, timeout, authorization, unavailable, and validation states; and
 - no direct database access.
 
-The Reference screen SHALL show preserved seeds and newly created product-linked definitions. It SHALL expose Create Family using provider-backed symbols, read-only Currency/Exchange and Daily/Weekly/Monthly timeframes. Existing definitions SHALL remain read-only with no Edit, Retire or Delete controls. SystemKey SHALL NOT be used as an exact identity.
+The Reference screen SHALL show preserved seeds and newly created product-linked definitions in a Family master list, a filtered Strategy detail list, and a right-hand exact-definition selector/read-only details. Its `trade strategy families` selector SHALL expose shared Add/Save/Cancel controls for inline creation using provider-backed symbols, read-only Currency/Exchange and Daily/Weekly/Monthly timeframes. Detail inputs SHALL match Lookup Type's black background/white foreground, and all Reference Data controls SHALL use Microsoft Sans Serif 10pt. Existing definitions SHALL remain read-only with Change, Remove and Import disabled. SystemKey SHALL NOT be used as an exact identity.
 
 ### 27.3 Trade Orders view
 

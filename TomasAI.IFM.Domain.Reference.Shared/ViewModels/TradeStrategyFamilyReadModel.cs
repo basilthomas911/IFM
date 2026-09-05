@@ -4,7 +4,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 namespace TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 public enum TradeStrategyFamilyState { Unknown = 0, Active = 1, Retired = 2 }
-public enum TradeStrategyFamilyType { Unknown = 0, Futures = 1, FuturesOption = 2, Equity = 3, EquityOptions = 4, FixedIncome = 5, FixedIncomeOptions = 6 }
 public enum TradeStrategyType { Unknown = 0, Futures = 1, IronCondor = 2, VerticalSpread = 3 }
 
 /// <summary>Typed strategy definition: twelve original keys plus product identity and Exchange.</summary>

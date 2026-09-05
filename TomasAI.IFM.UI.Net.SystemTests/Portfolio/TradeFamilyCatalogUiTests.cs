@@ -100,6 +100,23 @@ public sealed class TradeFamilyCatalogUiTests
         existing.Value.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData(TradeStrategyFamilyState.Active, 1)]
+    [InlineData(TradeStrategyFamilyState.Retired, 0)]
+    public void Only_the_latest_version_can_be_selected_while_historical_permissions_remain_unavailable(TradeStrategyFamilyState state, int offered)
+    {
+        var original = Catalog()[0];
+        var latest = original with { DefinitionVersion = 2, Description = "Updated ES family", State = state };
+        using var fresh = new FundMandateEditorForm(1, 2, catalog: [original, latest]);
+        var choices = Field<CheckedListBox>(fresh, "_families");
+        choices.Items.Count.Should().Be(offered);
+        if (offered > 0) choices.Items[0].ToString().Should().Contain("v2");
+        using var existing = new FundMandateEditorForm(1, 2,
+            Fund(original.SystemKey) with { SchemaVersion = 2, PermittedTradeStrategyFamilies = [TradeStrategyFamilyReference.From(original)] }, [original, latest]);
+        Field<CheckedListBox>(existing, "_families").CheckedItems.Cast<object>().Should().Contain(x => x.ToString()!.Contains("Unavailable"));
+        InvokeSave(existing); existing.Value.Should().BeNull();
+    }
+
     [Fact]
     public void Assignment_is_a_non_editable_dropdown_limited_to_active_permitted_families_and_saves_key()
     {

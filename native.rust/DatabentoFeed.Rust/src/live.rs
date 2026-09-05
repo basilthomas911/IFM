@@ -707,7 +707,9 @@ async fn query_contracts_async(
         })?
         .midnight()
         .assume_utc();
-    let input_symbols = if query_kind == CONTRACT_QUERY_TICKER {
+    let input_symbols = if query_kind == CONTRACT_QUERY_DATASET {
+        vec!["ALL_SYMBOLS".to_string()]
+    } else if query_kind == CONTRACT_QUERY_TICKER {
         let ticker = &requested[0];
         if ticker.ends_with(".FUT") || ticker.ends_with(".OPT") {
             vec![ticker.clone()]
@@ -737,7 +739,7 @@ async fn query_contracts_async(
         .await
         .map_err(LiveFailure::from)?;
     let mut entries = Vec::<ContractData>::new();
-    let mut positions = std::collections::HashMap::<Vec<u8>, usize>::new();
+    let mut positions = std::collections::HashMap::<(u16, Vec<u8>), usize>::new();
     while let Some(definition) = decoder
         .decode_record::<InstrumentDefMsg>()
         .await
@@ -746,7 +748,7 @@ async fn query_contracts_async(
         let Some(entry) = contract_data(definition)? else {
             continue;
         };
-        let symbol = entry.strings[0].clone();
+        let symbol = (entry.detail.publisher_id, entry.strings[0].clone());
         if let Some(&position) = positions.get(&symbol) {
             entries[position] = entry;
         } else {

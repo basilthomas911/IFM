@@ -67,15 +67,42 @@ The startup order in [`Program.cs`](../Program.cs) is significant:
 
 1. `WebApplication.CreateBuilder(args)` creates the host builder and its default configuration sources.
 2. `ConfigureApiServer` configures JSON configuration, Serilog, Kestrel, MVC-related services, Swagger, and Simple Injector.
-3. `RegisterServices` adds infrastructure, public and actor-only APIs, storage, event producers, and hosted services to Microsoft DI.
+3. `RegisterServices` adds infrastructure, public and actor-only APIs, storage, event producers, and hosted services to Microsoft DI, and registers the generic actor/repository implementations in Simple Injector before the host is built.
 4. `Build` creates the `WebApplication`.
-5. `ConfigureRequestPipeline` scans and registers domain generic types in Simple Injector, cross-wires the containers, verifies Simple Injector, and installs middleware.
+5. `ConfigureRequestPipeline` cross-wires the containers, verifies Simple Injector, and installs middleware.
 6. `MapApiCommands` maps the command endpoints.
 7. `MapApiQueries` maps the query endpoints.
-8. `MapEventModelActors` discovers actors, attaches transports, starts consumers, and starts every actor.
-9. `Run` starts Kestrel and the registered ASP.NET Core hosted services.
+8. Normal startup initializes the required additive schemas and reference seeds. The verification-only mode exits before this step; bootstrap-only mode seeds reference families without starting the host.
+9. `StartAsync` starts Kestrel and the registered hosted infrastructure before any actor subscriptions are exposed.
+10. `MapEventModelActorsAsync` discovers actors, attaches transports and starts actors. `WaitForShutdownAsync` waits for shutdown; the supervisor shuts down started actors in `finally`.
 
-The top-level `try/catch` logs fatal startup exceptions and always closes and flushes Serilog. The exception is not rethrown after logging.
+The top-level `try/catch` sets exit code 1 on failure, logs fatal startup exceptions and always closes and flushes Serilog. The exception is not rethrown after logging.
+
+### Repository discovery and startup verification
+
+Both the API composition root and actor integration host use `ObjectRepositoryDiscovery.Discover`. Only exported, concrete, closed repository implementations are eligible for automatic registration. Private/internal implementation helpers, abstract/open generic bases and dynamic assemblies are excluded. The explicit singleton registration of SystemAdminDbContext remains separate.
+
+On 2026-09-05 the old `Assembly.GetTypes()` scan incorrectly registered the private `PostgresDurableSubscriptionIntentStore.Repository` even though Stage 4 was disabled. Simple Injector then failed because the helper's per-operation `IDbConnectionSetting` was not globally registered. This was a composition-root discovery regression, not a missing global connection setting or a Databento outage. The helper remains private and is constructed only by its owning store; do not add a global connection setting or suppress container verification to work around it.
+
+Run a non-operational startup check from the API project directory after building:
+
+```powershell
+$env:DOTNET_ENVIRONMENT = 'Development'
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+dotnet bin/Debug/net10.0/TomasAI.IFM.Application.Api.Server.dll --verify-startup-only
+```
+
+This uses the real configuration, service registrations, container verification and endpoint mappings, then logs `IFM startup verification completed` and exits. It does not initialize schemas/seeds, bind HTTP, start hosted services/actors or subscribe to feeds. Verification takes precedence if bootstrap-only is also supplied. Normal validation guards remain active; Production configuration still requires a valid explicit feed source and may not use synthetic data against shared persistence. This check is not proof of live database/broker/market-data connectivity or successful operational actor startup.
+
+Regression coverage: `StartupRepositoryDiscoveryTests` checks the actual Stage 4 private helper and retained public repositories; `ApiStartupVerificationProcessTests` runs the real API executable in Development and Production (with explicit DatabentoLive configuration), and confirms that invalid synthetic Production configuration still fails safely. The existing `IFM: API + UI (Development)` debugger launch remains unchanged.
+
+### UTC timestamp migration regression (2026-09-05)
+
+After container verification was repaired, normal startup reached family bootstrap and rejected valid persisted v2 rows with `Legacy family catalog is non-canonical`. The Scylla record adapter was converting CQL timestamps to a DateTime with `Kind=Unspecified`, losing the UTC marker required by audit validation. CQL timestamp reads now use the driver's DateTimeOffset value and return UtcDateTime; other column-type conversion behavior is unchanged. Validation is not relaxed and stored timestamps are not rewritten.
+
+The real Scylla catalog integration now seeds persisted v2 rows (including an offset-bearing input timestamp), verifies their UTC instant/Kind, migrates to v3, and repeats bootstrap using fresh repository instances. It checks identity/version/audit preservation, no sequence allocation and unchanged legacy rows. This covers the database conversion boundary that the earlier in-memory migration fixtures missed.
+
+Development verification on 2026-09-05 ran the API's normal `--bootstrap-trade-strategy-families-only` path twice successfully. The first run additively created the typed counterparts of legacy IDs 5901, 5902 and 5903; the second confirmed idempotency. Versions, original UTC audit timestamps and creator values were preserved; legacy rows were not modified. No operational actors, HTTP listeners or market feeds were started.
 
 ## HTTP API implementation
 

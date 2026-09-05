@@ -11,6 +11,22 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Services;
 /// <summary>Verifies Market Data query service mapping and failure behavior.</summary>
 public sealed class MarketDataQueryServiceTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Symbol_lookup_preserves_family_cancellation_and_provider_result(bool success)
+    {
+        var api = Substitute.For<IMarketDataQueryApi>();
+        var service = new MarketDataQueryService(api, Substitute.For<IMarketDataFeedQueryApi>());
+        using var cancellation = new CancellationTokenSource();
+        var family = TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.FuturesOption;
+        ServiceResult<TradeStrategySymbolReadModel[]> expected = success
+            ? new ServiceOk<TradeStrategySymbolReadModel[]>([new() { Id = 101, Symbol = "ES", Currency = "USD", Exchange = "XCME", Description = "ES futures options" }])
+            : new ServiceFailed<TradeStrategySymbolReadModel[]>(503, "metadata unavailable");
+        api.GetTradeStrategySymbolsAsync(family, cancellation.Token).Returns(expected);
+        (await service.GetTradeStrategySymbolsAsync(family, cancellation.Token)).Should().BeSameAs(expected);
+        await api.Received(1).GetTradeStrategySymbolsAsync(family, cancellation.Token);
+    }
     [Fact]
     public async Task GetRolloverFuturesContractsAsync_LoadsBothDashboardSymbols()
     {

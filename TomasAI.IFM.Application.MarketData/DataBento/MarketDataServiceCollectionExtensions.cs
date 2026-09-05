@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
@@ -40,12 +40,15 @@ public static class MarketDataServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Opt-in reference discovery; the host must register a durable ITradeStrategySymbolStore.</summary>
+    /// <summary>ReferenceDb-backed discovery; the host must register a durable IInstrumentDefinitionStore.</summary>
     public static IServiceCollection AddTradeStrategySymbolCatalog(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<ITradeStrategySymbolSource, DatabentoTradeStrategySymbolSource>();
-        services.TryAddSingleton<ITradeStrategySymbolCatalog, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.TradeStrategySymbolCatalog>();
+        services.TryAddSingleton<ITradeStrategySymbolSource, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.StoredInstrumentDefinitionSymbolSource>();
+        services.TryAddSingleton<TomasAI.IFM.Framework.MarketData.DataBento.IInstrumentDefinitionProvider>(_ =>
+            new TomasAI.IFM.Framework.MarketData.DataBento.DatabentoInstrumentDefinitionClient(new HttpClient { Timeout = TimeSpan.FromMinutes(30) }));
+        services.TryAddSingleton<TomasAI.IFM.Application.MarketData.TradeStrategySymbols.InstrumentDefinitionRefresh>();
+        services.TryAddSingleton<ITradeStrategySymbolCatalog, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.StoredInstrumentDefinitionSymbolCatalog>();
         return services;
     }
 

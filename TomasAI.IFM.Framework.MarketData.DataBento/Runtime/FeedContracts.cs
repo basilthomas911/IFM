@@ -176,6 +176,10 @@ public sealed record DatabentoContractDetailsQueryResult(
 
 public interface IDatabentoMarketDataQueries
 {
+    /// <summary>Latest provider definition interval for all supported instruments in this dataset.</summary>
+    IReadOnlyList<ContractDetail> GetDatasetDefinitions(TimeSpan? timeout = null)
+        => throw new NotSupportedException("Dataset-wide definition discovery is not implemented by this provider.");
+
     OptionChainDefinitions GetChainDefinitions(
         OptionChainDefinitionRequest request,
         TimeSpan? timeout = null);

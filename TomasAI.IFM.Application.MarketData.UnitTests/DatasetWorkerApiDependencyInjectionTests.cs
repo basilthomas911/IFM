@@ -28,8 +28,15 @@ public sealed class DatasetWorkerApiDependencyInjectionTests
     public async Task Reference_catalog_registration_resolves_with_durable_store_without_starting_feed()
     {
         var services = Services(out var factory);
-        services.AddSingleton(Substitute.For<ITradeStrategySymbolStore>());
-        services.AddSingleton(Substitute.For<IDatabentoFeedFactory>());
+        var definitions = Substitute.For<IInstrumentDefinitionStore>();
+        var snapshot = new InstrumentDefinitionSnapshot(Guid.NewGuid(), DateTime.UtcNow, 100, [Dataset]);
+        var family = TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.FuturesOption;
+        var symbol = new TradeStrategyProduct(family, "ES", "USD", "XCME").WithId(101);
+        definitions.GetSnapshotAsync(Arg.Any<CancellationToken>()).Returns(snapshot);
+        definitions.GetSymbolsAsync(snapshot.Id, family, Arg.Any<CancellationToken>()).Returns([symbol]);
+        services.AddSingleton(definitions);
+        var feeds = Substitute.For<IDatabentoFeedFactory>();
+        services.AddSingleton(feeds);
         services.AddApplicationMarketDataApi(Options());
         services.AddTradeStrategySymbolCatalog();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -37,6 +44,11 @@ public sealed class DatasetWorkerApiDependencyInjectionTests
         Assert.NotNull(provider.GetRequiredService<ITradeStrategySymbolCatalog>());
         var result = await api.GetTradeStrategySymbolsAsync(TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.Equity);
         Assert.False(result.Success);
+        var options = await api.GetTradeStrategySymbolsAsync(family);
+        Assert.True(options.Success);
+        Assert.Equal(symbol, Assert.Single(options.Value!));
+        await definitions.Received(1).GetSymbolsAsync(snapshot.Id, family, Arg.Any<CancellationToken>());
+        Assert.Empty(feeds.ReceivedCalls());
         Assert.Equal(0, factory.CreateCount);
     }
 

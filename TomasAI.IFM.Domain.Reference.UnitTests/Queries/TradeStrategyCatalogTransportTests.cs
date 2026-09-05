@@ -69,6 +69,58 @@ public sealed class TradeStrategyCatalogTransportTests
         await store.Received(1).CreateAsync(request, Arg.Is<TradeStrategyFamilyReadModel>(x => x.Exchange == "XCME" && x.TradeStrategySymbolId == 10), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Serialized_change_and_remove_dispatch_to_service_with_exact_target(bool remove)
+    {
+        var operation = Guid.NewGuid(); var target = new TradeStrategyFamilyReference(20, 3);
+        var definition = new CreateTradeStrategyFamilyRequest { OperationId = operation, Family = TradeStrategyFamilyType.Futures,
+            Strategy = TradeStrategyType.Futures, TimeFrame = TimeFrameType.Weekly, TradeStrategySymbolId = 10, Description = "Changed weekly ES" };
+        var changeRequest = new ChangeTradeStrategyFamilyRequest { OperationId = operation, Target = target, Definition = definition };
+        var removeRequest = new RemoveTradeStrategyFamilyRequest { OperationId = operation, Target = target };
+        var message = Substitute.For<IActorMessage>();
+        ICommand command;
+        if (remove)
+        {
+            var typed = MessagePackSerializer.Deserialize<RemoveTradeStrategyFamilyCommand>(MessagePackSerializer.Serialize(new RemoveTradeStrategyFamilyCommand
+            {
+                CommandId = operation, Request = removeRequest,
+                Subject = new ActorSubject(ActorType.Command, RemoveTradeStrategyFamilyCommand.Actor, RemoveTradeStrategyFamilyCommand.Verb, "0")
+            }));
+            typed.Request.Should().Be(removeRequest); command = typed;
+            message.Subject.Returns(typed.Subject); message.AsCommand<RemoveTradeStrategyFamilyCommand>().Returns(typed);
+        }
+        else
+        {
+            var typed = MessagePackSerializer.Deserialize<ChangeTradeStrategyFamilyCommand>(MessagePackSerializer.Serialize(new ChangeTradeStrategyFamilyCommand
+            {
+                CommandId = operation, Request = changeRequest,
+                Subject = new ActorSubject(ActorType.Command, ChangeTradeStrategyFamilyCommand.Actor, ChangeTradeStrategyFamilyCommand.Verb, "0")
+            }));
+            typed.Request.Should().Be(changeRequest); command = typed;
+            message.Subject.Returns(typed.Subject); message.AsCommand<ChangeTradeStrategyFamilyCommand>().Returns(typed);
+        }
+        var ctx = Substitute.For<ICommandActorContext<TradeStrategyFamilyCommandActor>>();
+        ctx.ActorId.Returns(new ActorMailboxId(ActorType.Command, CreateTradeStrategyFamilyCommand.Actor));
+        var api = Substitute.For<IMarketDataApi>(); var store = Substitute.For<ITradeStrategyFamilyCatalogStore>();
+        api.GetTradeStrategySymbolsAsync(definition.Family, Arg.Any<CancellationToken>()).Returns(new ServiceOk<TradeStrategySymbolReadModel[]>(
+            [new() { Id = 10, Symbol = "ES", Currency = "USD", Exchange = "XCME", Description = "ES futures" }]));
+        var actor = new TradeStrategyFamilyCommandActor(ctx, new TradeStrategyFamilyCreationService(api, store, TimeProvider.System), Substitute.For<ILogger<TradeStrategyFamilyCommandActor>>());
+        var parse = typeof(TradeStrategyFamilyCommandActor).GetMethod("ParseMessage", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)!;
+        parse.Invoke(actor, [ctx, message]).Should().BeSameAs(command);
+        var receive = typeof(TradeStrategyFamilyCommandActor).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Single(x => x.Name == "ReceiveAsync" && x.DeclaringType == typeof(TradeStrategyFamilyCommandActor) && x.GetParameters().Length == 4);
+        var result = await (ValueTask<ServiceResult<GuidResult>>)receive.Invoke(actor, [ctx, null, command, CancellationToken.None])!;
+        result.Success.Should().BeTrue();
+        if (remove)
+        {
+            await store.Received(1).RemoveAsync(removeRequest, Arg.Is<DateTime>(x => x.Kind == DateTimeKind.Utc), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            api.ReceivedCalls().Should().BeEmpty();
+        }
+        else await store.Received(1).ChangeAsync(changeRequest,
+            Arg.Is<TradeStrategyFamilyReadModel>(x => x.Exchange == "XCME" && x.Symbol == "ES" && x.TimeFrame == TimeFrameType.Weekly), Arg.Any<CancellationToken>());
+    }
+
     sealed class Probe(IReferenceQueryContext ctx) : ReferenceQueryActor(ctx)
     {
         public IQuery Parse(IReferenceQueryContext context, IActorMessage message) => ParseMessage(context, message);

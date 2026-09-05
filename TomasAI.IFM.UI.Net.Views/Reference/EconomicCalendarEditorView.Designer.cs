@@ -28,7 +28,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         /// </summary>
         private void InitializeComponent()
         {
-            splitContainer1 = new SplitContainer();
+            tlpEditor = new TableLayoutPanel();
+            pnlEventList = new Panel();
             lstCalendarEvents = new ListBox();
             pnlEconomicCalendarEvents = new Panel();
             label2 = new Label();
@@ -53,10 +54,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             txtForecast = new TextBox();
             txtPrior = new TextBox();
             lblLastTradeDate = new Label();
-            ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
-            splitContainer1.Panel1.SuspendLayout();
-            splitContainer1.Panel2.SuspendLayout();
-            splitContainer1.SuspendLayout();
+            pnlEventList.SuspendLayout();
+            tlpEditor.SuspendLayout();
             pnlEconomicCalendarEvents.SuspendLayout();
             tlpCalendarEvents.SuspendLayout();
             pnlContractId.SuspendLayout();
@@ -67,24 +66,32 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlPrior.SuspendLayout();
             SuspendLayout();
             // 
-            // splitContainer1
+            // tlpEditor
             // 
-            splitContainer1.Dock = DockStyle.Fill;
-            splitContainer1.Location = new Point(0, 0);
-            splitContainer1.Margin = new Padding(2);
-            splitContainer1.Name = "splitContainer1";
+            tlpEditor.Dock = DockStyle.Fill;
+            tlpEditor.Margin = Padding.Empty;
+            tlpEditor.Name = "tlpEditor";
+            tlpEditor.ColumnCount = 3;
+            tlpEditor.RowCount = 1;
+            tlpEditor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50.73F));
+            tlpEditor.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 4F));
+            tlpEditor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 49.27F));
+            tlpEditor.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             // 
-            // splitContainer1.Panel1
+            // pnlEventList
             // 
-            splitContainer1.Panel1.Controls.Add(lstCalendarEvents);
-            splitContainer1.Panel1.Controls.Add(pnlEconomicCalendarEvents);
+            pnlEventList.Name = "pnlEventList";
+            pnlEventList.Dock = DockStyle.Fill;
+            pnlEventList.Margin = Padding.Empty;
+            pnlEventList.Controls.Add(lstCalendarEvents);
+            pnlEventList.Controls.Add(pnlEconomicCalendarEvents);
             // 
-            // splitContainer1.Panel2
+            // Event list and details use a fixed divider, avoiding SplitContainer's first-paint GDI failure.
             // 
-            splitContainer1.Panel2.Controls.Add(tlpCalendarEvents);
-            splitContainer1.Size = new Size(1031, 468);
-            splitContainer1.SplitterDistance = 521;
-            splitContainer1.TabIndex = 0;
+            tlpEditor.Controls.Add(pnlEventList, 0, 0);
+            tlpEditor.Controls.Add(tlpCalendarEvents, 2, 0);
+            tlpEditor.Size = new Size(1031, 468);
+            tlpEditor.TabIndex = 0;
             // 
             // lstCalendarEvents
             // 
@@ -94,6 +101,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             lstCalendarEvents.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lstCalendarEvents.ForeColor = Color.White;
             lstCalendarEvents.FormattingEnabled = true;
+            lstCalendarEvents.IntegralHeight = false;
             lstCalendarEvents.Location = new Point(0, 30);
             lstCalendarEvents.Margin = new Padding(2);
             lstCalendarEvents.Name = "lstCalendarEvents";
@@ -145,7 +153,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             tlpCalendarEvents.Controls.Add(txtPrior, 1, 5);
             tlpCalendarEvents.Dock = DockStyle.Fill;
             tlpCalendarEvents.Location = new Point(0, 0);
-            tlpCalendarEvents.Margin = new Padding(2);
+            tlpCalendarEvents.Margin = Padding.Empty;
             tlpCalendarEvents.Name = "tlpCalendarEvents";
             tlpCalendarEvents.RowCount = 5;
             tlpCalendarEvents.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
@@ -395,15 +403,13 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            AutoSize = true;
-            Controls.Add(splitContainer1);
+            Dock = DockStyle.Fill;
+            Controls.Add(tlpEditor);
             Margin = new Padding(2);
             Name = "EconomicCalendarEditorView";
             Size = new Size(1031, 468);
-            splitContainer1.Panel1.ResumeLayout(false);
-            splitContainer1.Panel2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)splitContainer1).EndInit();
-            splitContainer1.ResumeLayout(false);
+            pnlEventList.ResumeLayout(false);
+            tlpEditor.ResumeLayout(false);
             pnlEconomicCalendarEvents.ResumeLayout(false);
             pnlEconomicCalendarEvents.PerformLayout();
             tlpCalendarEvents.ResumeLayout(false);
@@ -426,7 +432,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
 
         #endregion
 
-        private System.Windows.Forms.SplitContainer splitContainer1;
+        private System.Windows.Forms.TableLayoutPanel tlpEditor;
+        private System.Windows.Forms.Panel pnlEventList;
         private System.Windows.Forms.TableLayoutPanel tlpCalendarEvents;
         private System.Windows.Forms.Panel pnlContractId;
         private System.Windows.Forms.Label lblEventDate;

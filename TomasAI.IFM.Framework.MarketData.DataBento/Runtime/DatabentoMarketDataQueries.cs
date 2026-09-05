@@ -27,6 +27,9 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         _dataset = dataset;
     }
 
+    public IReadOnlyList<ContractDetail> GetDatasetDefinitions(TimeSpan? timeout = null)
+        => Query(["ALL_SYMBOLS"], NativeContractQueryKind.Dataset, timeout).Select(x => x!).ToArray();
+
     public OptionChainDefinitions GetChainDefinitions(
         OptionChainDefinitionRequest request,
         TimeSpan? timeout = null)

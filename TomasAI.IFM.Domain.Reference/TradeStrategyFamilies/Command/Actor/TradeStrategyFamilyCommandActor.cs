@@ -14,19 +14,29 @@ public sealed class TradeStrategyFamilyCommandActor(ICommandActorContext<TradeSt
     public const string ActorName = CreateTradeStrategyFamilyCommand.Actor;
     protected override ICommand ParseMessage(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorMessage message) =>
         ParseMappedCommand(context, message, new Dictionary<string, Func<IActorMessage, ICommand>>
-        { [CreateTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<CreateTradeStrategyFamilyCommand>()! });
+        {
+            [CreateTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<CreateTradeStrategyFamilyCommand>()!,
+            [ChangeTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<ChangeTradeStrategyFamilyCommand>()!,
+            [RemoveTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<RemoveTradeStrategyFamilyCommand>()!
+        });
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorState state, ICommand command) =>
         ReceiveAsync(context, state, command, CancellationToken.None);
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
     {
-        var create = (CreateTradeStrategyFamilyCommand)command;
-        if (create.CommandId == Guid.Empty || create.Request is null || create.CommandId != create.Request.OperationId)
-            throw new ArgumentException("CommandId must equal the nonempty creation OperationId.");
-        await service.CreateAsync(create.Request, create.OriginatedBy, cancellationToken).ConfigureAwait(false);
-        return new ServiceOk<GuidResult>(new GuidResult(create.CommandId));
+        switch (command)
+        {
+            case CreateTradeStrategyFamilyCommand create when create.CommandId != Guid.Empty && create.Request?.OperationId == create.CommandId:
+                await service.CreateAsync(create.Request, create.OriginatedBy, cancellationToken).ConfigureAwait(false); break;
+            case ChangeTradeStrategyFamilyCommand change when change.CommandId != Guid.Empty && change.Request?.OperationId == change.CommandId:
+                await service.ChangeAsync(change.Request, change.OriginatedBy, cancellationToken).ConfigureAwait(false); break;
+            case RemoveTradeStrategyFamilyCommand remove when remove.CommandId != Guid.Empty && remove.Request?.OperationId == remove.CommandId:
+                await service.RemoveAsync(remove.Request, remove.OriginatedBy, cancellationToken).ConfigureAwait(false); break;
+            default: throw new ArgumentException("CommandId must equal the nonempty OperationId.");
+        }
+        return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
     }
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(CreateTradeStrategyFamilyCommand.ErrorId, ex.Message));
+        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, ex.Message));
 }
 
 public sealed class TradeStrategyFamilyCommandContext(IActorSupervisor supervisor, ILogger<TradeStrategyFamilyCommandActor> logger)

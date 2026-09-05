@@ -16,6 +16,8 @@ public interface IMarketDataQueryContext : IQueryActorContext<MarketDataQueryAct
     ILogger<MarketDataQueryActor> Logger { get; }
     /// <summary>Gets the API process's authoritative futures-session state.</summary>
     IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
+    /// <summary>Gets provider-backed market metadata.</summary>
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="MarketDataQueryActor"/>.</summary>
@@ -26,12 +28,14 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
         ILogger<MarketDataQueryActor> logger,
-        IFuturesMarketSessionAuthority marketSessionAuthority)
+        IFuturesMarketSessionAuthority marketSessionAuthority,
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketDataApi = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, MarketDataQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
         MarketSessionAuthority = IsArgumentNull.Set(marketSessionAuthority);
+        MarketDataApi = marketDataApi;
     }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
@@ -39,4 +43,6 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
     public ILogger<MarketDataQueryActor> Logger { get; }
     /// <inheritdoc/>
     public IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
+    /// <inheritdoc/>
+    public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
 }

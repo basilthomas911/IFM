@@ -117,7 +117,8 @@ typedef enum dbf_config_flags {
 typedef enum dbf_contract_query_kind {
     DBF_CONTRACT_QUERY_EXACT = 1,
     DBF_CONTRACT_QUERY_TICKER = 2,
-    DBF_CONTRACT_QUERY_INSTRUMENT_ID = 3
+    DBF_CONTRACT_QUERY_INSTRUMENT_ID = 3,
+    DBF_CONTRACT_QUERY_DATASET = 4
 } dbf_contract_query_kind;
 
 typedef enum dbf_contract_kind {

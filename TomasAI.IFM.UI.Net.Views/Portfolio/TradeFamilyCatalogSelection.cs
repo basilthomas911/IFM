@@ -10,7 +10,10 @@ static class TradeFamilyCatalogSelection
         var rows = catalog?.ToArray() ?? [];
         if (rows.Any(x => x is null || x.Validate().Count != 0))
             throw new ArgumentException("The trade strategy family catalog contains invalid definitions.");
-        var active = rows.Where(x => x.State == TradeStrategyFamilyState.Active).ToArray();
+        if (rows.Select(TradeStrategyFamilyReference.From).Distinct().Count() != rows.Length)
+            throw new ArgumentException("The trade strategy family catalog contains ambiguous definitions.");
+        var active = rows.GroupBy(x => x.TradeStrategyFamilyId).Select(x => x.MaxBy(v => v.DefinitionVersion)!)
+            .Where(x => x.State == TradeStrategyFamilyState.Active).ToArray();
         if (active.Select(TradeStrategyFamilyReference.From).Distinct().Count() != active.Length)
             throw new ArgumentException("The trade strategy family catalog contains ambiguous active definitions.");
         return active.OrderBy(x => x.SystemKey, StringComparer.Ordinal).ThenBy(x => x.Symbol, StringComparer.Ordinal).ThenBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion).ToArray();

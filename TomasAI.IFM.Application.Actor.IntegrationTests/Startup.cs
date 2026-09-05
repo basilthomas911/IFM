@@ -606,14 +606,8 @@ public static class Startup
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
             .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
-        var repositoryTypes = assemblies
-            .Distinct()
-            .SelectMany(static assembly => assembly.GetTypes())
-            .Where(static type => type is { IsClass: true, IsAbstract: false }
-                && type != typeof(SystemAdminDbContext)
-                && type.GetInterfaces().Any(static contract => contract.IsGenericType
-                    && contract.GetGenericTypeDefinition() == typeof(IObjectRepository<>)))
-            .Distinct()
+        var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
+            .Where(static type => type != typeof(SystemAdminDbContext))
             .ToArray();
         siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(siContainer);

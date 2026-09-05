@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -10,6 +10,9 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("instrument_definition", InstrumentDefinitionStore.CreateTable, "DROP TABLE IF EXISTS instrument_definition;"),
+        new("instrument_definition_product", InstrumentDefinitionStore.CreateProductTable, "DROP TABLE IF EXISTS instrument_definition_product;"),
+        new("instrument_definition_snapshot", InstrumentDefinitionStore.CreateSnapshotTable, "DROP TABLE IF EXISTS instrument_definition_snapshot;"),
         new("trade_strategy_symbol_v1", TradeStrategySymbolStore.CreateTable, "DROP TABLE IF EXISTS trade_strategy_symbol_v1;"),
         new("trade_strategy_family_catalog_v4", TradeStrategyFamilyCatalogStore.CreateTable, "DROP TABLE IF EXISTS trade_strategy_family_catalog_v4;"),
         new("reference_projection_state_v3", ReferenceSchemaCql.CreateReferenceProjectionStateV3Table, "DROP TABLE IF EXISTS reference_projection_state_v3;"),

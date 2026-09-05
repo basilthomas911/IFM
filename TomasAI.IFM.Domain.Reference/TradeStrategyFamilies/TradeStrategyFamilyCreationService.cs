@@ -7,6 +7,24 @@ namespace TomasAI.IFM.Domain.Reference.TradeStrategyFamilies;
 public sealed class TradeStrategyFamilyCreationService(IMarketDataApi marketData, ITradeStrategyFamilyCatalogStore store, TimeProvider timeProvider)
 {
     public async Task<TradeStrategyFamilyReadModel> CreateAsync(CreateTradeStrategyFamilyRequest request, string principal, CancellationToken cancellationToken = default)
+        => await store.CreateAsync(request, await CandidateAsync(request, principal, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+
+    public async Task<TradeStrategyFamilyReadModel> ChangeAsync(ChangeTradeStrategyFamilyRequest request, string principal, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Validate().Count != 0) throw new ArgumentException(string.Join("; ", request.Validate()));
+        return await store.ChangeAsync(request, await CandidateAsync(request.Definition, principal, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<TradeStrategyFamilyReadModel> RemoveAsync(RemoveTradeStrategyFamilyRequest request, string principal, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Validate().Count != 0) throw new ArgumentException(string.Join("; ", request.Validate()));
+        if (string.IsNullOrWhiteSpace(principal)) throw new ArgumentException("Audit principal is required.");
+        return store.RemoveAsync(request, timeProvider.GetUtcNow().UtcDateTime, principal, cancellationToken);
+    }
+
+    async Task<TradeStrategyFamilyReadModel> CandidateAsync(CreateTradeStrategyFamilyRequest request, string principal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var errors = request.Validate();
@@ -24,6 +42,6 @@ public sealed class TradeStrategyFamilyCreationService(IMarketDataApi marketData
             TradeStrategySymbolId = product.Id, Symbol = product.Symbol, Currency = product.Currency, Exchange = product.Exchange,
             Description = request.Description.Trim(), CreatedOnUtc = timeProvider.GetUtcNow().UtcDateTime, CreatedBy = principal
         };
-        return await store.CreateAsync(request, candidate, cancellationToken).ConfigureAwait(false);
+        return candidate;
     }
 }

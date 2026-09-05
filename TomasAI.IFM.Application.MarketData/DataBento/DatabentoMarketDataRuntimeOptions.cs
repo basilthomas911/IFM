@@ -15,7 +15,8 @@ public sealed record DatabentoContractRegistration
 }
 public sealed record DatabentoMarketDataRuntimeOptions
 {
-    public IReadOnlyList<DatabentoTradeStrategyProductConfiguration> TradeStrategyProducts { get; init; } = [];
+    /// <summary>Provider datasets for symbol discovery, independent of seeds/live subscriptions. Empty uses FeedOptions.Dataset.</summary>
+    public IReadOnlyList<string> TradeStrategySymbolDatasets { get; init; } = [];
     public required DatabentoFeedOptions FeedOptions { get; init; }
     public required IReadOnlyList<DatabentoContractRegistration> Contracts { get; init; }
     public IReadOnlyDictionary<string, string> FuturesContractDatasets { get; init; } =

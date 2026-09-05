@@ -4,6 +4,11 @@ This is disabled, unregistered G03 persistence engineering, not a completed Stag
 `Stage4SubscriptionSchemaSql.Create` is additive and is applied explicitly by the dedicated
 integration fixture only. Application startup does not apply it or create the store.
 
+Startup repository discovery must not register the store's private nested `Repository`.
+It requires the owning store's per-operation connection and is deliberately not a global
+DI service. The shared public-repository discovery boundary excludes this helper; a
+regression test exercises the actual type and the real API startup verifier.
+
 The store transactionally maintains one bounded typed current-intent snapshot per scope/dataset,
 operation outcomes, an ownership-audit outbox, independent per-source watermark rows, and immutable
 lease-ID reservations/tombstones. It uses

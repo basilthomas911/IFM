@@ -11,6 +11,10 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     ReferenceViewModel? _viewModel;
     IControlCommand? _ctrlCommand;
     bool _closeComplete;
+    bool _closeInProgress;
+    int _selectionGeneration;
+    const string TradeStrategyFamiliesLabel = "trade strategy families";
+    static readonly Font ReferenceFont = new("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point);
 
     public ReferenceForm(
         IAppRoot appRoot,
@@ -27,6 +31,21 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         };
         _ctrlCommand = null;
         InitializeComponent();
+        ApplyReferenceFont(this);
+    }
+
+    // Include all nested editors and controls added later, not only the designer shell.
+    static void ApplyReferenceFont(Control control)
+    {
+        control.Font = ReferenceFont;
+        control.ControlAdded -= ReferenceControlAdded;
+        control.ControlAdded += ReferenceControlAdded;
+        foreach (Control child in control.Controls) ApplyReferenceFont(child);
+    }
+
+    static void ReferenceControlAdded(object? sender, ControlEventArgs e)
+    {
+        if (e.Control is not null) ApplyReferenceFont(e.Control);
     }
 
     /// <summary>
@@ -68,25 +87,37 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         if (_closeComplete)
             return;
         e.Cancel = true;
+        if (_closeInProgress)
+            return;
+        _closeInProgress = true;
+        ++_selectionGeneration;
         if (_viewModel is not null)
             _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
         await CloseActiveControlAsync();
         ResetButtons(true);
         _closeComplete = true;
-        Close();
+        // ShowDialog resets the close result when this event is canceled. Let the
+        // current event finish before requesting the final close on the UI queue.
+        if (!IsDisposed && IsHandleCreated)
+            BeginInvoke((Action)Close);
     }
 
      async void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
+        var generation = ++_selectionGeneration;
         UpdateSelectorAccessibility();
         await CloseActiveControlAsync();
+        if (generation != _selectionGeneration || IsDisposed) return;
         pnlMarketData.Controls.Clear();
-        if (string.Equals(ddlReferenceDataSelector.SelectedItem?.ToString(), "Trade Strategy Families", StringComparison.Ordinal))
+        if (string.Equals(ddlReferenceDataSelector.SelectedItem?.ToString(), TradeStrategyFamiliesLabel, StringComparison.Ordinal))
         {
-            var catalog = new TradeStrategyFamilyReferenceView(_appRoot.Services.ReferenceQueries, _appRoot.Services.ReferenceCommands) { Dock = DockStyle.Fill };
+            var catalog = new TradeStrategyFamilyReferenceView(_appRoot.Services.ReferenceQueries, _appRoot.Services.ReferenceCommands,
+                _appRoot.Services.MarketDataQueries) { Dock = DockStyle.Fill };
+            _ctrlCommand = catalog;
+            catalog.StateChanged += (_, _) => { if (ReferenceEquals(_ctrlCommand, catalog)) RefreshFamilyButtons(catalog); };
             pnlMarketData.Controls.Add(catalog);
+            RefreshFamilyButtons(catalog);
             await catalog.LoadAsync();
-            btnAdd.Enabled = btnChange.Enabled = btnRemove.Enabled = btnImport.Enabled = false;
             return;
         }
         var mktDataDefType = _viewModel?.GetReferenceDataDefinitionType(ddlReferenceDataSelector.SelectedIndex);
@@ -96,10 +127,12 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
             control.Visible = false;
             pnlMarketData.Controls.Add(control);
             _ctrlCommand = (control as IControlCommand)!;
-            _ctrlCommand.Load(_appRoot, enabled => {
-                btnChange.Enabled = _ctrlCommand.CanChangeRemove;
-                btnRemove.Enabled = _ctrlCommand.CanChangeRemove;
-                btnImport.Enabled = _ctrlCommand.CanImport;
+            var command = _ctrlCommand;
+            command.Load(_appRoot, enabled => {
+                if (!ReferenceEquals(_ctrlCommand, command) || IsDisposed) return;
+                btnChange.Enabled = command.CanChangeRemove;
+                btnRemove.Enabled = command.CanChangeRemove;
+                btnImport.Enabled = command.CanImport;
             });
             control.Visible = true;
         }
@@ -110,10 +143,15 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     {
         if (pnlMarketData.Controls.Count == 0)
             return;
-        if (pnlMarketData.Controls[0] is IAsyncFormControl asyncControl)
+        var control = pnlMarketData.Controls[0];
+        var command = _ctrlCommand;
+        _ctrlCommand = null;
+        if (control is IAsyncFormControl asyncControl)
             await asyncControl.CloseAsync();
         else
-            _ctrlCommand?.Unload();
+            command?.Unload();
+        pnlMarketData.Controls.Remove(control);
+        control.Dispose();
     }
 
     void btnAdd_Click(object sender, EventArgs e) => _ctrlCommand?.Add(enabled => this.Post(() => RefreshAddButton(enabled)));
@@ -124,14 +162,25 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     void btnClose_Click(object sender, EventArgs e)
     {
-        if (_ctrlCommand?.Close(enabled => this.Post(() => ResetButtons(enabled))) ?? false)
-            this.Close();
+        var action = btnClose.Text.Replace("&", string.Empty).Trim();
+        if (string.Equals(action, "Close", StringComparison.OrdinalIgnoreCase))
+        {
+            Close();
+            return;
+        }
+        if (string.Equals(action, "Cancel", StringComparison.OrdinalIgnoreCase))
+        {
+            // Cancel ends the active edit; it must not close the containing dialog.
+            if (_ctrlCommand is null) ResetButtons(true);
+            else _ctrlCommand.Close(enabled => this.Post(() => ResetButtons(enabled)));
+        }
     }
 
     void btnImport_Click(object sender, EventArgs e) => _ctrlCommand?.Import();
 
     void RefreshAddButton(bool enabled)
     {
+        if (_ctrlCommand is TradeStrategyFamilyReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
         btnAdd.Text = !enabled ? "Save" : "Add";
         btnChange.Enabled = enabled;
         btnRemove.Enabled = enabled;
@@ -141,6 +190,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     void RefreshChangeButton(bool enabled)
     {
+        if (_ctrlCommand is TradeStrategyFamilyReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
         btnChange.Text = !enabled ? "Save" : "Change";
         btnAdd.Enabled = enabled;
         btnRemove.Enabled = enabled;
@@ -150,6 +200,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     void ResetButtons(bool enabled)
     {
+        if (_ctrlCommand is TradeStrategyFamilyReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
         btnAdd.Text = @"&Add";
         btnAdd.Enabled = true;
         btnChange.Text = @"C&hange";
@@ -181,10 +232,10 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
             return;
 
         foreach (var definitionType in _viewModel.ReferenceDataDefinitionTypes)
-            ddlReferenceDataSelector.Items.Add(definitionType.Description);
-        ddlReferenceDataSelector.Items.Add("Trade Strategy Families");
+            ddlReferenceDataSelector.Items.Add(definitionType.ShortCode == "EconomicCalendar" ? "economic calendar definitions" : definitionType.Description);
+        ddlReferenceDataSelector.Items.Add(TradeStrategyFamiliesLabel);
         ddlReferenceDataSelector.AccessibleDescription = string.Join(", ",
-            _viewModel.ReferenceDataDefinitionTypes.Select(definition => definition.Description));
+            ddlReferenceDataSelector.Items.Cast<object>().Select(item => item.ToString()));
 
         if (ddlReferenceDataSelector.Items.Count > 0)
             ddlReferenceDataSelector.SelectedIndex = 0;
@@ -195,6 +246,19 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         => ddlReferenceDataSelector.AccessibleName =
             $"Reference data selector; selected={ddlReferenceDataSelector.SelectedItem}; "
             + $"catalog: {ddlReferenceDataSelector.AccessibleDescription}";
+
+    void RefreshFamilyButtons(TradeStrategyFamilyReferenceView catalog)
+    {
+        btnAdd.Text = catalog.IsEditing && !catalog.IsChanging ? "Save" : "&Add";
+        btnAdd.Enabled = catalog.IsEditing ? !catalog.IsChanging && catalog.CanSave : catalog.CanAdd;
+        btnChange.Text = catalog.IsChanging ? "Save" : "C&hange";
+        btnChange.Enabled = catalog.IsChanging ? catalog.CanSave : catalog.CanChangeRemove;
+        btnRemove.Enabled = catalog.CanChangeRemove;
+        btnImport.Enabled = false;
+        btnClose.Text = catalog.IsEditing ? "Cancel" : "Close";
+        btnClose.Enabled = !catalog.IsSaving;
+        ddlReferenceDataSelector.Enabled = !catalog.IsEditing && !catalog.IsSaving;
+    }
 
     public void Open()
     {

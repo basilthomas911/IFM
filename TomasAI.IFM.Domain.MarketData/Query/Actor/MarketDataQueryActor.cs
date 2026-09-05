@@ -41,6 +41,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
+        [GetTradeStrategySymbolsQuery.Verb] = message => message.AsQuery<GetTradeStrategySymbolsQuery, TradeStrategySymbolReadModel[]>()!,
         [GetLastRateOfReturnQuery.Verb] = message =>
             message.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>()!,
         [GetTradingDaysQuery.Verb] = message =>
@@ -77,6 +78,16 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     static readonly IReadOnlyDictionary<Type,
         Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
+        [typeof(GetTradeStrategySymbolsQuery)] = static async (actor, context, query, cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var symbolsQuery = (GetTradeStrategySymbolsQuery)query;
+            var result = context.MarketDataApi is null
+                ? new ServiceFailed<TradeStrategySymbolReadModel[]>(503, "Market-data API is unavailable.")
+                : await context.MarketDataApi.GetTradeStrategySymbolsAsync(symbolsQuery.Family, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(query.Subject.ThreadId, GetTradeStrategySymbolsQuery.Verb, result).ConfigureAwait(false);
+        },
         [typeof(GetLastRateOfReturnQuery)] = static (actor, context, query, cancellationToken) =>
             actor.ReceiveAsync(context, (GetLastRateOfReturnQuery)query, cancellationToken),
         [typeof(GetTradingDaysQuery)] = static (actor, context, query, cancellationToken) =>

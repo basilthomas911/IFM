@@ -246,6 +246,14 @@ void test_contract_query_reports_missing_historical_support() {
             DBF_BUFFER_TOO_SMALL);
     assert(required > 1);
     require(dbf_contract_details_result_destroy(result));
+    // Dataset discovery is a recognized ABI operation, not an invalid ticker query.
+    query.query_kind = DBF_CONTRACT_QUERY_DATASET;
+    result = nullptr;
+    require(dbf_contract_details_query(&query, &symbol,
+                reinterpret_cast<const std::uint8_t*>(blob.data()),
+                static_cast<std::uint32_t>(blob.size()), &result), DBF_NOT_SUPPORTED);
+    assert(result != nullptr);
+    require(dbf_contract_details_result_destroy(result));
 }
 
 void test_latest_price_reports_missing_live_support() {

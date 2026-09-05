@@ -12,6 +12,20 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceCommandApi
 {
+    public Task<ServiceResult<Guid>> ChangeTradeStrategyFamilyAsync(ChangeTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request); cancellationToken.ThrowIfCancellationRequested();
+        var command = new ChangeTradeStrategyFamilyCommand { CommandId = request.OperationId, Request = request,
+            Subject = new ActorSubject(ActorType.Command, ChangeTradeStrategyFamilyCommand.Actor, ChangeTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format()) };
+        return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
+    }
+    public Task<ServiceResult<Guid>> RemoveTradeStrategyFamilyAsync(RemoveTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request); cancellationToken.ThrowIfCancellationRequested();
+        var command = new RemoveTradeStrategyFamilyCommand { CommandId = request.OperationId, Request = request,
+            Subject = new ActorSubject(ActorType.Command, RemoveTradeStrategyFamilyCommand.Actor, RemoveTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format()) };
+        return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
+    }
     public Task<ServiceResult<Guid>> CreateTradeStrategyFamilyAsync(CreateTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

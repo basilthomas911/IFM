@@ -21,6 +21,14 @@ public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketData
 {
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);
 
+    public Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
+        TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return _querySvc.ExecuteQueryAsync<TradeStrategySymbolReadModel[]>(MarketDataQueryUriPath.GetTradeStrategySymbols,
+            new GetTradeStrategySymbolsParameter(family), GetTradeStrategySymbolsQuery.ErrorId).WaitAsync(cancellationToken);
+    }
+
     /// <inheritdoc />
     public async Task<ServiceResult<FuturesContractV3ReadModel>> GetOnTheRunFuturesContractAsync(string symbol)
     {

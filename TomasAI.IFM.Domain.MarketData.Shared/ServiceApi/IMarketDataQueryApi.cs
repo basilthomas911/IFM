@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 public interface IMarketDataQueryApi
 {
+    Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
+        TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default);
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode);
     Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(EconomicCalendarPageRequest request);
     [Obsolete("Use GetEconomicCalendarPageAsync with explicit bounds and countries.")]

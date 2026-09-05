@@ -1,4 +1,4 @@
-using Serilog;
+﻿using Serilog;
 using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -14,7 +14,16 @@ try
     var bootstrapTradeStrategyFamiliesOnly = args.Contains(
         "--bootstrap-trade-strategy-families-only",
         StringComparer.OrdinalIgnoreCase);
+    var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
+    var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
+    if (refreshInstrumentDefinitionsOnly && !verifyStartupOnly)
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+        await InstrumentDefinitionMaintenance.RunAsync(builder.Configuration, cancellation.Token);
+        return;
+    }
     builder.ConfigureApiServer(out var logger);
     builder.Services.RegisterServices(builder.Configuration, logger);
     var app = builder.Build();
@@ -23,7 +32,15 @@ try
     app.MapApiQueries(logger);
     app.MapGet("/api/market-data/operations-health",
         (MarketDataOperationsHealthService health) => Results.Ok(health.GetReadModel()));
-    if (bootstrapTradeStrategyFamiliesOnly)
+    if (verifyStartupOnly)
+    {
+        // Run the real composition root/container checks, then exit before any schema,
+        // seed, HTTP listener, hosted service, actor or feed startup. This takes precedence
+        // over bootstrap mode so a verification request cannot accidentally write data.
+        Log.Information("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
+        await app.DisposeAsync();
+    }
+    else if (bootstrapTradeStrategyFamiliesOnly)
     {
         // Deliberately avoid HTTP binding and actor startup. This narrow process mode
         // lets deployment/startup qualification race independent initializers against
@@ -65,6 +82,8 @@ try
 catch (Exception ex)
 {
     Environment.ExitCode = 1;
+    if (args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase))
+        Console.Error.WriteLine("Instrument definition refresh failed: " + ex.Message);
     Log.Fatal(ex, "IFM WebApiServer: startup failed");
 }
 finally

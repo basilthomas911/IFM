@@ -310,7 +310,8 @@ public sealed class PortfolioFundCommandActor(
         foreach (var reference in references)
         {
             var row = result.Value.SingleOrDefault(x => x.TradeStrategyFamilyId == reference.TradeStrategyFamilyId && x.DefinitionVersion == reference.DefinitionVersion);
-            if (row is null || row.State != TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyState.Active)
+            if (row is null || row.State != TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyState.Active ||
+                result.Value.Any(x => x.TradeStrategyFamilyId == reference.TradeStrategyFamilyId && x.DefinitionVersion > reference.DefinitionVersion))
                 throw new ArgumentException("An exact referenced family is missing or inactive.");
             if (mandate is not null && !mandate.PermittedTradeFamilies.Contains(row.SystemKey, StringComparer.Ordinal))
                 throw new ArgumentException("Fund family classification does not match its exact reference.");
