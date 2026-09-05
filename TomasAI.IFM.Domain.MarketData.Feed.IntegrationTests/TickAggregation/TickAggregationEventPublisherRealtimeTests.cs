@@ -34,7 +34,7 @@ public sealed class TickAggregationEventPublisherRealtimeTests
 
         await realtimeProducer.Received(1).SendAsync<
             FuturesMarketPriceUpdatedRealtimeEvent,
-            TickDataEntityId>(@event.Subject, @event);
+            TickDataEntityId>(@event.Subject, @event, CancellationToken.None);
         await realtimeProducer.DidNotReceive().StartAsync(Arg.Any<ActorMailboxId>());
 
         await publisher.StopAsync();
@@ -55,28 +55,67 @@ public sealed class TickAggregationEventPublisherRealtimeTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         realtimeProducer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
                 Arg.Any<ActorSubject>(),
-                Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>())
+                Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(),
+                Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask(releaseDelivery.Task));
 
         await using var publisher = new TickAggregationEventPublisher(supervisor, capacity: 2);
         await publisher.StartAsync();
-        await publisher.PublishAsync(CreateEvent());
-        Assert.True(SpinWait.SpinUntil(
-            () => realtimeProducer.ReceivedCalls().Any(),
-            TimeSpan.FromSeconds(2)));
-
-        var enqueueBurst = Task.Run(async () =>
+        try
         {
-            for (var index = 0; index < 2_048; index++)
-                await publisher.PublishAsync(CreateEvent());
-        });
-        Assert.Same(enqueueBurst, await Task.WhenAny(
-            enqueueBurst,
-            Task.Delay(TimeSpan.FromSeconds(2))));
-        await enqueueBurst;
+            await publisher.PublishAsync(CreateEvent());
+            Assert.True(SpinWait.SpinUntil(
+                () => realtimeProducer.ReceivedCalls().Any(),
+                TimeSpan.FromSeconds(2)));
 
-        releaseDelivery.TrySetResult();
+            var enqueueBurst = Task.Run(async () =>
+            {
+                for (var index = 0; index < 2_048; index++)
+                    await publisher.PublishAsync(CreateEvent());
+            });
+            Assert.Same(enqueueBurst, await Task.WhenAny(
+                enqueueBurst,
+                Task.Delay(TimeSpan.FromSeconds(2))));
+            await enqueueBurst;
+        }
+        finally { releaseDelivery.TrySetResult(); }
         await publisher.StopAsync();
+    }
+
+    [Fact]
+    public async Task Retiring_a_generation_cancels_queued_sends_without_faulting_current_delivery()
+    {
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IActorProducer>();
+        supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
+        using var generation = new CancellationTokenSource();
+        var first = CreateEvent();
+        var pending = CreateEvent();
+        var unaffected = CreateEvent();
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+            first.Subject, first, Arg.Any<CancellationToken>()).Returns(call =>
+            {
+                deliveryStarted.TrySetResult();
+                return new ValueTask(Task.Delay(Timeout.InfiniteTimeSpan, call.Arg<CancellationToken>()));
+            });
+
+        await using var publisher = new TickAggregationEventPublisher(supervisor);
+        await publisher.StartAsync();
+        try
+        {
+            await publisher.PublishAsync(first, generation.Token);
+            await deliveryStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await publisher.PublishAsync(pending, generation.Token);
+            await publisher.PublishAsync(unaffected, CancellationToken.None);
+        }
+        finally { await generation.CancelAsync(); }
+        await publisher.StopAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        await producer.DidNotReceive().SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+            pending.Subject, pending, Arg.Any<CancellationToken>());
+        await producer.Received(1).SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+            unaffected.Subject, unaffected, CancellationToken.None);
     }
 
     private static FuturesMarketPriceUpdatedRealtimeEvent CreateEvent()

@@ -28,6 +28,12 @@ This document answers four questions:
 It describes implementation truth, not the earlier design target. A feature described only in the
 Stage 3 or Stage 4 roadmap is not current behavior.
 
+Post-baseline shared observability now records Market Outlook cache/composition/publication through
+the composite recorder and exposes a read-only central health panel. This does not change Stage 2
+lifecycle ownership, its publisher policy, or latest-snapshot restart hydration. The new bounded
+publisher is injected only with Stage 3 enabled. See the separate
+[Stage 3 as-built subset and remaining gates](Market-Data-Resiliency-Stage-3-As-Built-Specification-v1.0.md).
+
 ## 2. Authority and document precedence
 
 For Stage 1 and Stage 2 current behavior, use the following precedence:

@@ -283,6 +283,13 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<FundOrderEventService>();
             _container.RegisterSingleton<MarketDataCommandService>();
             _container.RegisterSingleton<MarketDataQueryService>();
+            _container.RegisterSingleton<IMarketDataOperationsHealthQueryService>(() =>
+            {
+                var configured = _config!.GetValue<string>("MarketDataOperationsHealth:Endpoint");
+                var endpoint = Uri.TryCreate(configured, UriKind.Absolute, out var uri) ? uri : null;
+                return new MarketDataOperationsHealthQueryService(
+                    new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }), endpoint, ownsHttpClient: true);
+            });
             _container.RegisterSingleton<MarketDataEventService>();
             _container.RegisterSingleton<OptionTradeSpreadBarDataEventService>();
             _container.RegisterSingleton<MarketDataFeedCommandService>();

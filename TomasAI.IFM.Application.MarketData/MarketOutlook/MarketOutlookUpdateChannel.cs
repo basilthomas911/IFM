@@ -90,7 +90,8 @@ public enum MarketDataOperationStage : byte
     VixAnalytics,
     EodAnalytics,
     FuturesTradeSignal,
-    UiDelivery
+    UiDelivery,
+    DatabentoRealtimePublication
 }
 
 public enum MarketDataOperationOutcome : byte
@@ -384,6 +385,23 @@ public sealed class MarketOutlookUpdateChannel : IMarketOutlookUpdateWriter, IMa
     {
         ArgumentNullException.ThrowIfNull(update);
         var now = DateTime.UtcNow;
+        // Observe each analytic's output separately at the existing local ingress boundary.
+        // This does not pretend to instrument its internal calculation or infer stalls from quiet inputs.
+        MarketDataOperationStage? analytic = update.Kind switch
+        {
+            MarketOutlookUpdateKind.Rsi => MarketDataOperationStage.RsiAnalytics,
+            MarketOutlookUpdateKind.Tdi => MarketDataOperationStage.TdiAnalytics,
+            MarketOutlookUpdateKind.Iti => MarketDataOperationStage.ItiAnalytics,
+            MarketOutlookUpdateKind.Ema => MarketDataOperationStage.EmaAnalytics,
+            MarketOutlookUpdateKind.BollingerBand => MarketDataOperationStage.BollingerBandAnalytics,
+            MarketOutlookUpdateKind.VixPrice => MarketDataOperationStage.VixAnalytics,
+            MarketOutlookUpdateKind.Eod => MarketDataOperationStage.EodAnalytics,
+            MarketOutlookUpdateKind.TradeSignal => MarketDataOperationStage.FuturesTradeSignal,
+            _ => null
+        };
+        if (analytic is { } analyticStage)
+            SafeRecord(new(analyticStage, MarketDataOperationOutcome.Completed, update.Kind,
+                update.UpdateId, now, MarketDataAsOfUtc: update.MarketDataAsOfUtc));
         var accepted = update with { QueueSequence = Interlocked.Increment(ref queueSequence) };
         pendingReceivedTicks[accepted.QueueSequence] = UtcTicks(accepted.ReceivedAtUtc);
         SafeRecord(new(

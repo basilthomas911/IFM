@@ -14,8 +14,12 @@ public sealed class DatasetIncidentStateMachine(
 {
     readonly object gate = new();
     readonly DatabentoStage3Options policy = options.Validate();
-    long openedTimestamp = -1;
-    long healthyTimestamp = -1;
+    long? openedTimestamp;
+    long? healthyTimestamp;
+    long? policyTimestamp;
+    FuturesMarketState? policySession;
+    long? replacementAllowedTimestamp;
+    readonly Queue<long> replacementFailureTimes = new();
     Guid incidentId;
     Guid generationId;
     int attempts;
@@ -41,15 +45,25 @@ public sealed class DatasetIncidentStateMachine(
                 return Decision(lastAction);
             }
 
+            if (policySession is { } prior && prior != marketState)
+            {
+                policyTimestamp = timeProvider.GetTimestamp();
+                healthyTimestamp = null;
+                attempts = 0;
+            }
+            policySession = marketState;
+
             if (healthy)
                 return ObserveHealthy(marketState);
 
             Open(failureReason);
-            healthyTimestamp = -1;
+            healthyTimestamp = null;
             if (Volatile.Read(ref replacementLatched) != 0)
                 return Decision(DatasetRecoveryAction.None);
+            if (ReplacementBackoffRemaining() > TimeSpan.Zero)
+                return Decision(DatasetRecoveryAction.None);
 
-            var unhealthy = Elapsed(openedTimestamp);
+            var unhealthy = Elapsed(policyTimestamp);
             if (marketState == FuturesMarketState.LiveTrading)
             {
                 if (unhealthy >= policy.LiveTradingEscalationWindow
@@ -88,8 +102,10 @@ public sealed class DatasetIncidentStateMachine(
         {
             generationId = currentGeneration;
             Open(failureReason);
-            healthyTimestamp = -1;
+            healthyTimestamp = null;
             if (Volatile.Read(ref replacementLatched) != 0)
+                return Decision(DatasetRecoveryAction.None);
+            if (ReplacementBackoffRemaining() > TimeSpan.Zero)
                 return Decision(DatasetRecoveryAction.None);
             if (processExited || attempts != 0)
             {
@@ -106,7 +122,7 @@ public sealed class DatasetIncidentStateMachine(
     {
         lock (gate)
         {
-            generationId = replacementGeneration;
+            if (replacementGeneration != Guid.Empty) generationId = replacementGeneration;
             lastAction = DatasetRecoveryAction.CooperativeReset;
             return Snapshot();
         }
@@ -117,13 +133,23 @@ public sealed class DatasetIncidentStateMachine(
         lock (gate)
         {
             replacements = checked(replacements + 1);
-            generationId = replacementGeneration;
+            if (replacementGeneration != Guid.Empty) generationId = replacementGeneration;
             if (!succeeded)
             {
-                replacementFailures = checked(replacementFailures + 1);
+                var now = timeProvider.GetTimestamp();
+                while (replacementFailureTimes.TryPeek(out var oldest)
+                       && timeProvider.GetElapsedTime(oldest, now) >= policy.ProcessReplacementWindow)
+                    replacementFailureTimes.Dequeue();
+                replacementFailureTimes.Enqueue(now);
+                while (replacementFailureTimes.Count > policy.MaximumProcessReplacementsPerIncident)
+                    replacementFailureTimes.Dequeue();
+                replacementFailures = replacementFailureTimes.Count;
+                var delay = replacementFailures switch { 1 => TimeSpan.FromSeconds(5), 2 => TimeSpan.FromSeconds(30), _ => TimeSpan.FromMinutes(2) };
+                replacementAllowedTimestamp = checked(now + ToTimestampDelta(delay));
                 if (replacementFailures >= policy.MaximumProcessReplacementsPerIncident)
                     Volatile.Write(ref replacementLatched, 1);
             }
+            else replacementAllowedTimestamp = null;
             lastAction = DatasetRecoveryAction.ReplaceProcess;
             return Snapshot();
         }
@@ -137,6 +163,8 @@ public sealed class DatasetIncidentStateMachine(
             Volatile.Write(ref replacementLatched, 0);
             replacements = 0;
             replacementFailures = 0;
+            replacementFailureTimes.Clear();
+            replacementAllowedTimestamp = null;
             return Snapshot();
         }
     }
@@ -158,13 +186,22 @@ public sealed class DatasetIncidentStateMachine(
             var now = timeProvider.GetTimestamp();
             openedTimestamp = checked(now - ToTimestampDelta(snapshot.UnhealthyDuration));
             healthyTimestamp = snapshot.HealthyDuration > TimeSpan.Zero
-                ? checked(now - ToTimestampDelta(snapshot.HealthyDuration)) : -1;
+                ? checked(now - ToTimestampDelta(snapshot.HealthyDuration)) : null;
+            policySession = snapshot.PolicySession;
+            policyTimestamp = checked(now - ToTimestampDelta(snapshot.PolicySession is null
+                ? snapshot.UnhealthyDuration : snapshot.PolicyUnhealthyDuration));
+            replacementAllowedTimestamp = snapshot.ReplacementBackoffRemaining > TimeSpan.Zero
+                ? checked(now + ToTimestampDelta(snapshot.ReplacementBackoffRemaining)) : null;
+            replacementFailureTimes.Clear();
+            foreach (var age in (snapshot.ReplacementFailureAges ?? []).Where(age => age >= TimeSpan.Zero
+                         && age < policy.ProcessReplacementWindow).Take(policy.MaximumProcessReplacementsPerIncident))
+                replacementFailureTimes.Enqueue(checked(now - ToTimestampDelta(age)));
             incidentId = snapshot.IncidentId;
             generationId = snapshot.GenerationId;
             attempts = snapshot.CooperativeAttempts;
             replacements = snapshot.ProcessReplacements;
             replacementFailures = snapshot.ProcessReplacementLatched
-                ? policy.MaximumProcessReplacementsPerIncident : 0;
+                ? policy.MaximumProcessReplacementsPerIncident : replacementFailureTimes.Count;
             reason = snapshot.FailureReason;
             lastAction = snapshot.LastAction;
             Volatile.Write(ref replacementLatched, snapshot.ProcessReplacementLatched ? 1 : 0);
@@ -173,9 +210,9 @@ public sealed class DatasetIncidentStateMachine(
 
     DatasetIncidentDecision ObserveHealthy(FuturesMarketState marketState)
     {
-        if (openedTimestamp < 0)
+        if (openedTimestamp is null)
             return Decision(DatasetRecoveryAction.None);
-        if (healthyTimestamp < 0)
+        if (healthyTimestamp is null)
             healthyTimestamp = timeProvider.GetTimestamp();
         var required = marketState == FuturesMarketState.LiveTrading
             ? policy.LiveTradingHealthyQualificationPeriod
@@ -187,13 +224,16 @@ public sealed class DatasetIncidentStateMachine(
 
     void Open(DatabentoDatasetFailureReason failureReason)
     {
-        if (openedTimestamp < 0)
+        if (openedTimestamp is null)
         {
             openedTimestamp = timeProvider.GetTimestamp();
+            policyTimestamp = openedTimestamp;
             incidentId = Guid.CreateVersion7(timeProvider.GetUtcNow());
             attempts = 0;
             replacements = 0;
             replacementFailures = 0;
+            replacementFailureTimes.Clear();
+            replacementAllowedTimestamp = null;
             Volatile.Write(ref replacementLatched, 0);
         }
         reason = failureReason;
@@ -201,8 +241,12 @@ public sealed class DatasetIncidentStateMachine(
 
     void Close()
     {
-        openedTimestamp = -1;
-        healthyTimestamp = -1;
+        openedTimestamp = null;
+        healthyTimestamp = null;
+        policyTimestamp = null;
+        policySession = null;
+        replacementAllowedTimestamp = null;
+        replacementFailureTimes.Clear();
         attempts = 0;
         replacements = 0;
         replacementFailures = 0;
@@ -219,20 +263,27 @@ public sealed class DatasetIncidentStateMachine(
         ValueDate = valueDate,
         IncidentId = incidentId,
         GenerationId = generationId,
-        IsOpen = openedTimestamp >= 0,
+        IsOpen = openedTimestamp.HasValue,
         ProcessReplacementLatched = Volatile.Read(ref replacementLatched) != 0,
         CooperativeAttempts = attempts,
         ProcessReplacements = replacements,
         UnhealthyDuration = Elapsed(openedTimestamp),
         HealthyDuration = Elapsed(healthyTimestamp),
+        PolicySession = policySession,
+        PolicyUnhealthyDuration = Elapsed(policyTimestamp),
+        ReplacementBackoffRemaining = ReplacementBackoffRemaining(),
+        ReplacementFailureAges = Array.AsReadOnly(replacementFailureTimes.Select(value => Elapsed(value)).ToArray()),
         FailureReason = reason,
         LastAction = lastAction,
         ObservedOnUtc = timeProvider.GetUtcNow().UtcDateTime
     };
 
-    TimeSpan Elapsed(long timestamp) => timestamp < 0
-        ? TimeSpan.Zero
-        : timeProvider.GetElapsedTime(timestamp, timeProvider.GetTimestamp());
+    TimeSpan Elapsed(long? timestamp) => timestamp is { } value
+        ? timeProvider.GetElapsedTime(value, timeProvider.GetTimestamp()) : TimeSpan.Zero;
+
+    TimeSpan ReplacementBackoffRemaining() => replacementAllowedTimestamp is { } value
+        && value > timeProvider.GetTimestamp()
+            ? timeProvider.GetElapsedTime(timeProvider.GetTimestamp(), value) : TimeSpan.Zero;
 
     long ToTimestampDelta(TimeSpan duration) => checked((long)Math.Round(
         duration.TotalSeconds * timeProvider.TimestampFrequency));

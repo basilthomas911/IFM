@@ -1,10 +1,13 @@
 using MessagePack;
+using System.Runtime.CompilerServices;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+
+[assembly: InternalsVisibleTo("TomasAI.IFM.Application.MarketData.UnitTests")]
 
 namespace TomasAI.IFM.Application.MarketData.Worker;
 
@@ -13,17 +16,19 @@ internal sealed class PipeDatasetWorkerPublisher(
     string dataset,
     DateOnly valueDate,
     Guid workerInstanceId,
-    Guid initialGeneration,
-    long manifestRevision = 1) : ITickAggregationEventPublisher
+    long manifestRevision) : ITickAggregationEventPublisher
 {
     readonly SemaphoreSlim writer = new(1, 1);
-    Guid generation = initialGeneration;
+    Guid generation;
     long sequence;
     int running;
+    int closed;
+    int disposed;
 
     public bool IsRunning => Volatile.Read(ref running) != 0;
     public ValueTask StartAsync()
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref closed) != 0, this);
         Volatile.Write(ref running, 1);
         return ValueTask.CompletedTask;
     }
@@ -33,11 +38,31 @@ internal sealed class PipeDatasetWorkerPublisher(
         return StartAsync();
     }
 
-    public void ChangeGeneration(Guid value)
+    /// <summary>
+    /// Opens publication only after startup has supplied the actual native generation.
+    /// This publisher belongs to exactly one epoch and is never rebound on recovery.
+    /// </summary>
+    public async ValueTask BindGenerationAsync(Guid value, CancellationToken cancellationToken)
     {
         if (value == Guid.Empty) throw new ArgumentException("Generation is required.", nameof(value));
-        generation = value;
-        Interlocked.Exchange(ref sequence, 0);
+        await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref closed) != 0, this);
+            if (generation != Guid.Empty)
+                throw new InvalidOperationException("A dataset publisher cannot change generation.");
+            generation = value;
+        }
+        finally { writer.Release(); }
+    }
+
+    /// <summary>Rejects further events and drains the current write before teardown.</summary>
+    public async ValueTask CloseAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Exchange(ref closed, 1);
+        Volatile.Write(ref running, 0);
+        await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        writer.Release();
     }
 
     public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent value) =>
@@ -75,10 +100,13 @@ internal sealed class PipeDatasetWorkerPublisher(
     async ValueTask WriteAsync(DatasetPublicationKind kind, byte[] payload,
         CancellationToken cancellationToken)
     {
-        if (!IsRunning) throw new InvalidOperationException("Worker publisher is not running.");
+        // Startup events have no qualified native identity yet. Retired epoch events
+        // must be discarded, never stamped with the replacement epoch's generation.
+        if (!IsRunning || Volatile.Read(ref closed) != 0) return;
         await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (!IsRunning || Volatile.Read(ref closed) != 0 || generation == Guid.Empty) return;
             await DatasetPublicationFrameCodec.WriteAsync(stream, new()
             {
                 Dataset = dataset,
@@ -106,7 +134,8 @@ internal sealed class PipeDatasetWorkerPublisher(
     }
     public async ValueTask DisposeAsync()
     {
-        await StopAsync().ConfigureAwait(false);
+        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        await CloseAsync(CancellationToken.None).ConfigureAwait(false);
         writer.Dispose();
     }
 }

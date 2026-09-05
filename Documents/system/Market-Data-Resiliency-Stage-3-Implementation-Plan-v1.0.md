@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Plan ID | `MDR-S3-IMP` |
-| Status | Development synthetic implementation complete; production acceptance evidence pending |
+| Status | Audited integration gaps remediated; synthetic evidence in implementation record; full gate acceptance remains open |
 | Version | 1.0 |
 | Date | 2026-09-04 |
 | Specification | `Documents/system/Market-Data-Resiliency-Stage-3-Specification-v1.0.md` |
@@ -11,6 +11,7 @@
 | Prerequisite | Stage 2 accepted by owner on 2026-09-04 |
 | Rollout | One Development dataset, all Development datasets, production readiness, production enablement |
 | Implementation record | `Documents/system/Market-Data-Resiliency-Stage-3-Implementation-Record-v1.0.md` |
+| Current as-built subset | [Stage 3 as-built specification](Market-Data-Resiliency-Stage-3-As-Built-Specification-v1.0.md); acceptance remains open |
 
 ## 1. Objective
 
@@ -591,6 +592,11 @@ record when implementation establishes them.
 - obtain explicit owner acceptance before production enablement or Stage 4 implementation.
 
 ### Acceptance checklist
+
+Offline evidence and remaining engineering are mapped in the Stage 3 as-built specification.
+Unchecked items below remain full acceptance requirements; partial passing tests do not check an
+entire platform/provider/UI requirement off. The latest implementation record supersedes earlier
+test counts and records the SIGTERM-resistant Linux containment fix.
 
 - [ ] One OS process per active dataset and one admitted generation per dataset.
 - [ ] Exact one-minute/five-minute live policy and healthy qualification pass under fake time.

@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Application.MarketData.Databento.Workers;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -115,6 +116,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         out FuturesMarketPriceSnapshot snapshot)
     {
         ValidateContractId(contractId, nameof(contractId));
+        if (_currentValues is not null)
+            return _currentValues.TryGetLastTickPrice(contractId, out snapshot);
         var active = Volatile.Read(ref _epoch);
         if (active is null)
         {
@@ -132,6 +135,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         out OptionTickerPriceSnapshot snapshot)
     {
         ValidateContractId(contractId, nameof(contractId));
+        if (_currentValues is not null)
+            throw new NotSupportedException("Option current-value readers require Stage 4 supervised integration.");
         var active = Volatile.Read(ref _epoch);
         if (active is null)
         {
@@ -147,6 +152,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         out FuturesSessionStatisticsSnapshot snapshot)
     {
         ValidateContractId(contractId, nameof(contractId));
+        if (_currentValues is not null)
+            return _currentValues.TryGetFuturesSessionStatistics(contractId, out snapshot);
         var active = Volatile.Read(ref _epoch);
         if (active is null)
         {
@@ -160,6 +167,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     public bool IsTickDataStreamActive(string contractId)
     {
         ValidateContractId(contractId, nameof(contractId));
+        if (_currentValues is not null) return false; // Stage 3 has no transient workflow leases.
         return Volatile.Read(ref _epoch)?.IsTickDataStreamActive(contractId) == true;
     }
 
@@ -169,6 +177,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     private readonly IDatabentoCurrentFuturesContractResolver? _currentContractResolver;
     private readonly IFuturesContractRolloverStore? _rolloverStore;
     private readonly IDatabentoContractRegistrationRegistry? _contractRegistry;
+    private readonly DatasetWorkerCurrentValues? _currentValues;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private IDatabentoMarketDataEpoch? _epoch;
     private Func<Guid, int, string, Task>? _errorMessageHandler;
@@ -177,7 +186,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// Gets the value date of the active market-data epoch, or <see langword="null"/>
     /// when the API is stopped.
     /// </summary>
-    public DateOnly? ActiveValueDate => Volatile.Read(ref _epoch)?.ValueDate;
+    public DateOnly? ActiveValueDate => _currentValues is not null
+        ? _currentValues.ActiveValueDate : Volatile.Read(ref _epoch)?.ValueDate;
 
     /// <summary>
     /// Returns a point-in-time health snapshot for the application API and its
@@ -188,6 +198,11 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// </returns>
     public DatabentoMarketDataApiHealth GetHealth()
     {
+        if (_currentValues is not null)
+        {
+            var status = _currentValues.GetStatus();
+            return new DatabentoMarketDataApiHealth(status.IsRunning, status.ActiveValueDate, null);
+        }
         var active = Volatile.Read(ref _epoch);
         return active is null
             ? new DatabentoMarketDataApiHealth(false, null, null)
@@ -201,6 +216,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         var effectiveTimeout = timeout ?? DefaultFeedUpTimeout;
         if (effectiveTimeout <= TimeSpan.Zero)
             return false;
+        if (_currentValues is not null) return _currentValues.IsFeedUp;
         try
         {
             return Volatile.Read(ref _epoch)?.IsFeedUp(effectiveTimeout) == true;
@@ -214,6 +230,16 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// <inheritdoc />
     public MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus()
     {
+        if (_currentValues is not null)
+        {
+            var status = _currentValues.GetStatus();
+            return new MarketDataFeedRuntimeStatusReadModel
+            {
+                IsRunning = status.IsRunning,
+                ActiveValueDate = status.ActiveValueDate,
+                ObservedAtUtc = _timeProvider.GetUtcNow()
+            };
+        }
         var active = Volatile.Read(ref _epoch);
         return new MarketDataFeedRuntimeStatusReadModel
         {
@@ -245,7 +271,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         TimeProvider? timeProvider = null,
         IDatabentoCurrentFuturesContractResolver? currentContractResolver = null,
         IFuturesContractRolloverStore? rolloverStore = null,
-        IDatabentoContractRegistrationRegistry? contractRegistry = null)
+        IDatabentoContractRegistrationRegistry? contractRegistry = null,
+        DatasetWorkerCurrentValues? currentValues = null)
     {
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
@@ -256,6 +283,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _currentContractResolver = currentContractResolver;
         _rolloverStore = rolloverStore;
         _contractRegistry = contractRegistry;
+        _currentValues = currentValues;
     }
 
     /// <inheritdoc />
@@ -348,6 +376,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         Func<Guid, int, string, Task>? errorMessageHandler = null,
         CancellationToken cancellationToken = default)
     {
+        if (_currentValues is not null)
+            throw new NotSupportedException("Supervised dataset lifecycle is owned by the dataset-worker lifecycle runtime.");
         ValidateDate(valueDate, nameof(valueDate));
         cancellationToken.ThrowIfCancellationRequested();
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -390,6 +420,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// </exception>
     public async Task StopAsync(DateOnly valueDate)
     {
+        if (_currentValues is not null)
+            throw new NotSupportedException("Supervised dataset lifecycle is owned by the dataset-worker lifecycle runtime.");
         ValidateDate(valueDate, nameof(valueDate));
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
@@ -437,11 +469,11 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     public Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(
         string futuresContractId)
     {
-        var active = GetRunningEpoch();
+        var catalog = GetRunningCatalog();
         ValidateContractId(futuresContractId, nameof(futuresContractId));
-        if (active.Catalog.FindFuturesOption(futuresContractId) is not null)
+        if (catalog.FindFuturesOption(futuresContractId) is not null)
             throw KindMismatch(futuresContractId, "futures", "futures option");
-        return Task.FromResult(active.Catalog.FindFutures(futuresContractId));
+        return Task.FromResult(catalog.FindFutures(futuresContractId));
     }
 
     /// <summary>
@@ -457,7 +489,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         string[] futuresContractIds)
     {
         ArgumentNullException.ThrowIfNull(futuresContractIds);
-        GetRunningEpoch();
+        GetRunningCatalog();
         if (futuresContractIds.Length == 0) return [];
 
         var results = new FuturesContractV3ReadModel[futuresContractIds.Length];
@@ -484,11 +516,11 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     public Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
         string futuresOptionContractId)
     {
-        var active = GetRunningEpoch();
+        var catalog = GetRunningCatalog();
         ValidateContractId(futuresOptionContractId, nameof(futuresOptionContractId));
-        if (active.Catalog.FindFutures(futuresOptionContractId) is not null)
+        if (catalog.FindFutures(futuresOptionContractId) is not null)
             throw KindMismatch(futuresOptionContractId, "futures option", "futures");
-        return Task.FromResult(active.Catalog.FindFuturesOption(futuresOptionContractId));
+        return Task.FromResult(catalog.FindFuturesOption(futuresOptionContractId));
     }
 
     /// <summary>
@@ -504,7 +536,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         string[] futuresOptionContractIds)
     {
         ArgumentNullException.ThrowIfNull(futuresOptionContractIds);
-        GetRunningEpoch();
+        GetRunningCatalog();
         if (futuresOptionContractIds.Length == 0) return [];
 
         var results = new FuturesOptionContractReadModel[futuresOptionContractIds.Length];
@@ -531,10 +563,16 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         string futuresContractId,
         DateOnly maturityDate)
     {
-        var active = GetRunningEpoch();
-        RequireFutures(active, futuresContractId);
+        var catalog = GetRunningCatalog();
+        ValidateContractId(futuresContractId, nameof(futuresContractId));
+        if (catalog.FindFutures(futuresContractId) is null)
+        {
+            if (catalog.FindFuturesOption(futuresContractId) is not null)
+                throw KindMismatch(futuresContractId, "futures", "futures option");
+            throw new MarketDataContractNotFoundException(futuresContractId);
+        }
         ValidateDate(maturityDate, nameof(maturityDate));
-        return active.Catalog.GetOptionChainAsync(futuresContractId, maturityDate);
+        return catalog.GetOptionChainAsync(futuresContractId, maturityDate);
     }
 
     /// <summary>
@@ -604,6 +642,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// </returns>
     public IFuturesLastPriceReader GetFuturesLastPriceReader(string futuresContractId)
     {
+        if (_currentValues is not null) return _currentValues.GetFuturesReader(futuresContractId);
         var active = GetRunningEpoch();
         RequireFutures(active, futuresContractId);
         return active.LastPrices.GetFuturesReader(futuresContractId, active.ValueDate);
@@ -814,8 +853,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _lifecycle.Dispose();
     }
 
-    private IDatabentoMarketDataEpoch GetRunningEpoch() =>
-        Volatile.Read(ref _epoch) ?? throw new MarketDataApiNotRunningException();
+    private IDatabentoMarketDataEpoch GetRunningEpoch()
+    {
+        if (_currentValues is not null)
+            throw new NotSupportedException("Transient subscription ownership and option readers require Stage 4 supervised integration; dataset lifecycle belongs to the worker runtime.");
+        return Volatile.Read(ref _epoch) ?? throw new MarketDataApiNotRunningException();
+    }
+
+    private IDatabentoMarketDataCatalog GetRunningCatalog() =>
+        _currentValues is not null ? _currentValues.GetCatalog() : GetRunningEpoch().Catalog;
 
     private static TickerStreamOwner CreateDefaultStreamOwner(
         IDatabentoMarketDataEpoch epoch,

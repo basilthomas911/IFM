@@ -13,6 +13,7 @@
 | Stage 4 | Resilient option-chain streaming and strategy-owned ticker leases |
 | Stage 3 specification | `Documents/system/Market-Data-Resiliency-Stage-3-Specification-v1.0.md` |
 | Stage 3 implementation plan | `Documents/system/Market-Data-Resiliency-Stage-3-Implementation-Plan-v1.0.md` |
+| Stage 4 implementation plan | `Documents/system/Market-Data-Resiliency-Stage-4-Implementation-Plan-v1.0.md` (draft for owner review) |
 | Deployment now | API Server hosted |
 | Deployment later | Dedicated Aspire Market Data service |
 
@@ -22,7 +23,7 @@ Implement market-data reliability in four independently reviewable stages. Each 
 completed, tested and accepted before the next stage begins. The sequence provides immediate Market
 Outlook single-writer correctness, then resilient Databento lifecycle ownership, and finally one
 central end-to-end operational-health view with supervised per-dataset process containment, followed
-by resilient option-chain discovery and strategy-owned option ticker lifetimes.
+by resilient option-chain discovery and strategy-owned option/futures ticker lifetimes.
 
 The stages are intentionally ordered:
 
@@ -31,8 +32,9 @@ The stages are intentionally ordered:
 3. aggregate every stage's already-instrumented measurements into the central operations-health
    service and UI, then contain hard-reset escalation within the affected dataset worker process;
    and
-4. make option-chain sessions and individual option ticker leases authoritative, recoverable and
-   suitable for iron-condor composition before order execution is enabled.
+4. make option-chain sessions and individual option/futures ticker leases authoritative, recoverable
+   and suitable for monthly iron condors, weekly vertical spreads and daily outright futures before
+   order execution is enabled.
 
 ## 2. Binding implementation rules
 
@@ -613,6 +615,20 @@ Stage 3 is accepted only when:
 
 ## 8. Stage 4 — Resilient option-chain streaming and strategy-owned ticker leases
 
+Detailed proposed contracts, ownership, persistence, recovery, qualification and execution gates
+are defined in [the Stage 4 implementation plan](Market-Data-Resiliency-Stage-4-Implementation-Plan-v1.0.md).
+That document is a draft and does not imply Stage 3 acceptance or Stage 4 implementation/enablement.
+
+The 2026-09-04 Stage 4 entry audit led to an owner-authorized Stage 3 integration remediation:
+current desired manifests, native-generation acknowledgment, stable host query mirrors and real
+worker diagnostics. See the [Stage 3 implementation record](Market-Data-Resiliency-Stage-3-Implementation-Record-v1.0.md)
+for qualification and remaining acceptance boundaries. Stage 4 runtime work has not started.
+
+First-release workflow scope, expanded by the owner on 2026-09-04: ES monthly four-leg iron condors,
+weekly two-leg option vertical spreads and daily single-contract outright futures. Daily refers to
+the workflow horizon, not daily-expiry options or automatic end-of-day position closure. All three
+share lease/recovery infrastructure and retain open-position monitoring independently of the UI.
+
 ### Stage 4 entry criteria
 
 - Stage 3 dataset process containment, generation fencing and central health are complete and
@@ -652,12 +668,16 @@ expiry/renewal policy; the current `TickerStreamOwner` value itself has no clock
 
 ### OCR-03 — Order Composer market-data workflow
 
-- query option definitions through the Market Data API;
-- acquire a bounded, renewable discovery-chain lease;
-- wait for one coherent and qualified quote/Greeks snapshot;
-- select the four monthly iron-condor legs;
-- acquire strategy-owned individual ticker leases for all four selected contracts before releasing
-  the broader discovery chain; and
+- for options, query definitions through the Market Data API and acquire a bounded, renewable
+  discovery-chain lease for the exact monthly/weekly maturity;
+- wait for one coherent and qualified quote/Greeks snapshot for the selected option profile;
+- select four monthly iron-condor legs or two weekly vertical-spread legs; vertical legs must have
+  the same underlying, expiry and option type, distinct strikes and opposite sides;
+- acquire strategy-owned ticker leases for the complete selected option-leg set before releasing
+  the broader discovery chain;
+- for daily outright futures, resolve and acquire one futures ticker directly, with no option-chain,
+  Greeks or Treasury-rate dependency; preserve core aggregation and shared underlying references;
+- qualify all required inputs for each profile and retain position leases on unavailable data; and
 - return a typed, immutable composition snapshot or a bounded unavailable/reset result—never a
   partial mixture of dataset generations.
 
@@ -690,8 +710,10 @@ Required evidence:
 - release or expiry of the first lease leaves the route active, while the final release/expiry stops
   it exactly once;
 - duplicate acquire/renew/release requests are idempotent;
-- an active discovery chain and four selected iron-condor legs survive a dataset reset;
-- an active discovery chain and four selected legs survive forced Stage 3 worker termination;
+- monthly discovery/four iron-condor legs, weekly discovery/two vertical legs and a daily futures
+  ticker each survive dataset reset, forced Stage 3 worker termination and API restart;
+- concurrent monthly/weekly/daily workflows share underlying ownership without interrupting one
+  another when an owner releases; daily futures readiness does not depend on option pricing;
 - a reset during composition returns one coherent replacement-generation snapshot or a bounded
   retryable result;
 - GLBX option recovery does not restart or interrupt an unaffected dataset;
@@ -701,10 +723,10 @@ Required evidence:
 
 ### OCR-07 — Stage 4 acceptance boundary
 
-Stage 4 is complete only when dynamic option-chain discovery and selected option tickers are restored
+Stage 4 is complete only when dynamic option-chain discovery and selected option/futures tickers are restored
 from supervisor-owned intent after every supported reset path, reference-owned routes remain active
-until their final valid lease ends, and the Order Composer can obtain a coherent four-leg market-data
-snapshot without depending on UI lifetime.
+until their final valid lease ends, and the Order Composer can obtain coherent monthly four-leg,
+weekly two-leg and daily single-futures market-data snapshots without depending on UI lifetime.
 
 ## 9. Cross-stage verification matrix
 
@@ -719,7 +741,7 @@ snapshot without depending on UI lifetime.
 | C++/Rust parity | Baseline only | Required | Regression | Required |
 | Concurrency/backlog | Required | Required | Required | Shared ticker/chain ownership |
 | Failure injection | Required | Required | Required | Reset during composition/position |
-| Runtime/live verification | Required | Required plus soak | Required end-to-end | Monthly iron-condor data journey |
+| Runtime/live verification | Required | Required plus soak | Required end-to-end | Monthly iron-condor, weekly vertical and daily futures data journeys |
 | UI/system verification | Market Outlook refresh | Readiness/history | Operations dashboard | Composer market-data status |
 | Architecture tests | Sole cache writer | Sole lifecycle owner | Independent health authority | Supervisor-owned lease manifest |
 

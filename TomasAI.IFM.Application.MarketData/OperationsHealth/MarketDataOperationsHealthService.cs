@@ -44,7 +44,7 @@ public sealed record MarketDataOperationsHealthSnapshot
 /// Independent bounded central registry. Recording performs only atomic fixed-array updates and can
 /// never throw into a producer. Snapshot readers never invoke native, network, or database code.
 /// </summary>
-public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRecorder
+public sealed partial class MarketDataOperationsHealthService : IMarketDataOperationsRecorder
 {
     sealed class Cell
     {
@@ -60,16 +60,21 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
         internal long LatencyTotalTicks;
         internal long LatencyMaximumTicks;
         internal object? LastDiagnosticId;
+        internal readonly long[] LatencyBuckets = new long[9];
     }
 
     readonly Cell[] cells = Enum.GetValues<MarketDataOperationStage>().Select(_ => new Cell()).ToArray();
     readonly object incidentsGate = new();
     readonly Dictionary<string, DatasetIncidentSnapshot> incidents = new(StringComparer.Ordinal);
     readonly DatasetWorkerAdmissionRegistry admissions;
+    readonly TimeProvider time;
     long revision;
 
-    public MarketDataOperationsHealthService(DatasetWorkerAdmissionRegistry admissions)
-        => this.admissions = admissions ?? throw new ArgumentNullException(nameof(admissions));
+    public MarketDataOperationsHealthService(DatasetWorkerAdmissionRegistry admissions, TimeProvider? timeProvider = null)
+    {
+        this.admissions = admissions ?? throw new ArgumentNullException(nameof(admissions));
+        time = timeProvider ?? TimeProvider.System;
+    }
 
     public void Record(in MarketDataOperationMeasurement measurement)
     {
@@ -97,7 +102,8 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
             else if (measurement.Outcome is MarketDataOperationOutcome.Completed
                      or MarketDataOperationOutcome.Published
                      or MarketDataOperationOutcome.Composed
-                     or MarketDataOperationOutcome.Applied)
+                     or MarketDataOperationOutcome.Applied
+                     or MarketDataOperationOutcome.Changed)
             {
                 Interlocked.Increment(ref cell.Completed);
                 Interlocked.Exchange(ref cell.LastSucceededTicks, occurred);
@@ -115,8 +121,12 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
     public void RecordIncident(DatasetIncidentSnapshot incident)
     {
         ArgumentNullException.ThrowIfNull(incident);
+        if (string.IsNullOrWhiteSpace(incident.Dataset) || incident.Dataset.Length > 64) return;
         lock (incidentsGate)
+        {
+            if (incidents.Count >= 16 && !incidents.ContainsKey(incident.Dataset)) return;
             incidents[incident.Dataset] = incident;
+        }
         Interlocked.Increment(ref revision);
     }
 
@@ -142,10 +152,10 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
         return new()
         {
             Revision = Interlocked.Read(ref revision),
-            ObservedOnUtc = DateTime.UtcNow,
+            ObservedOnUtc = time.GetUtcNow().UtcDateTime,
             OverallStatus = overall,
-            Stages = stages,
-            DatasetIncidents = incidentCopy,
+            Stages = new System.Collections.ObjectModel.ReadOnlyDictionary<MarketDataOperationStage, MarketDataStageHealth>(stages),
+            DatasetIncidents = new System.Collections.ObjectModel.ReadOnlyDictionary<string, DatasetIncidentSnapshot>(incidentCopy),
             RejectedStaleGenerationPublications = admissions.RejectedPublications
         };
     }
@@ -156,13 +166,15 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
         var completed = Interlocked.Read(ref cell.Completed);
         var failed = Interlocked.Read(ref cell.Failed);
         var coalesced = Interlocked.Read(ref cell.Coalesced);
+        var lastFailed = Interlocked.Read(ref cell.LastFailedTicks);
+        var lastSucceeded = Interlocked.Read(ref cell.LastSucceededTicks);
         var status = received == 0
             ? MarketDataOperationsStatus.Inactive
-            : failed > 0 && completed == 0
+            : lastFailed > lastSucceeded && completed == 0
                 ? MarketDataOperationsStatus.Red
-                : failed > 0
+                : lastFailed > lastSucceeded
                     ? MarketDataOperationsStatus.Yellow
-                    : coalesced > 0
+                    : completed == 0
                         ? MarketDataOperationsStatus.Yellow
                         : MarketDataOperationsStatus.Green;
         var count = Interlocked.Read(ref cell.LatencyCount);
@@ -185,8 +197,8 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
             Reason = status switch
             {
                 MarketDataOperationsStatus.Red => "The stage has failed without a recorded success.",
-                MarketDataOperationsStatus.Yellow when failed > 0 => "The stage has recorded one or more failures.",
-                MarketDataOperationsStatus.Yellow => "The stage has coalesced work under load.",
+                MarketDataOperationsStatus.Yellow when lastFailed > lastSucceeded => "The latest failure has no later recorded success.",
+                MarketDataOperationsStatus.Yellow => "Work was observed without completed progress.",
                 MarketDataOperationsStatus.Green => "The stage is recording successful progress.",
                 _ => "The stage has no current-process observations."
             }
@@ -196,6 +208,10 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
     static void RecordLatency(Cell cell, TimeSpan latency)
     {
         var ticks = Math.Max(0, latency.Ticks);
+        var bucket = 0;
+        while (bucket < LatencyUpperMilliseconds.Length - 1
+            && ticks > TimeSpan.FromMilliseconds(LatencyUpperMilliseconds[bucket]).Ticks) bucket++;
+        Interlocked.Increment(ref cell.LatencyBuckets[bucket]);
         Interlocked.Increment(ref cell.LatencyCount);
         Interlocked.Add(ref cell.LatencyTotalTicks, ticks);
         var current = Interlocked.Read(ref cell.LatencyMaximumTicks);
@@ -205,6 +221,29 @@ public sealed class MarketDataOperationsHealthService : IMarketDataOperationsRec
             if (observed == current) break;
             current = observed;
         }
+    }
+
+    static readonly double[] LatencyUpperMilliseconds = [1, 5, 10, 50, 100, 500, 1_000, 5_000, 60_000];
+
+    TimeSpan Percentile(MarketDataOperationStage stage, double percentile)
+    {
+        var cell = cells[(int)stage];
+        var bins = new long[cell.LatencyBuckets.Length];
+        for (var index = 0; index < bins.Length; index++)
+            bins[index] = Interlocked.Read(ref cell.LatencyBuckets[index]);
+        var total = bins.Sum();
+        if (total == 0) return TimeSpan.Zero;
+        var rank = (long)Math.Ceiling(total * percentile);
+        long cumulative = 0;
+        for (var index = 0; index < bins.Length; index++)
+        {
+            cumulative += bins[index];
+            if (cumulative >= rank)
+                return index == bins.Length - 1
+                    ? TimeSpan.FromTicks(Math.Max(TimeSpan.FromSeconds(60).Ticks, Interlocked.Read(ref cell.LatencyMaximumTicks)))
+                    : TimeSpan.FromMilliseconds(LatencyUpperMilliseconds[index]);
+        }
+        return TimeSpan.FromMilliseconds(LatencyUpperMilliseconds[^1]);
     }
 
     static DateTime NormalizeUtc(DateTime value) => value.Kind == DateTimeKind.Utc

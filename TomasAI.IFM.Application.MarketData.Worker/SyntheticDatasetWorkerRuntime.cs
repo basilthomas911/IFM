@@ -1,24 +1,41 @@
 using TomasAI.IFM.Application.MarketData.Databento;
-using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.MarketData.Worker;
 
-/// <summary>A real synthetic native/managed dataset pipeline owned entirely by the worker process.</summary>
+/// <summary>A native/managed dataset generation owned entirely by the worker process.</summary>
 internal sealed class DatasetWorkerRuntime : IAsyncDisposable
 {
     readonly IDatabentoMarketDataEpoch epoch;
+    readonly DatasetSubscriptionManifest manifest;
 
-    DatasetWorkerRuntime(IDatabentoMarketDataEpoch epoch) => this.epoch = epoch;
+    DatasetWorkerRuntime(IDatabentoMarketDataEpoch epoch, DatasetSubscriptionManifest manifest)
+    {
+        this.epoch = epoch;
+        this.manifest = manifest;
+        GenerationId = epoch.GetHealth().DatasetFeedStatuses?.Single().GenerationId ?? Guid.Empty;
+    }
 
-    public Guid GenerationId => epoch.GetHealth().DatasetFeedStatuses?.Single().GenerationId
-        ?? Guid.Empty;
+    public Guid GenerationId { get; }
     public bool IsHealthy => epoch.IsFeedUp(TimeSpan.FromSeconds(1));
+    public DatasetWorkerDiagnostics GetDiagnostics()
+    {
+        var observedOnUtc = DateTime.UtcNow;
+        try
+        {
+            var health = epoch.GetHealth();
+            var available = DatabentoNativeWatchdog.TryRead(out var native, out var failure);
+            return DatasetWorkerDiagnostics.Capture(manifest, health,
+                available ? native : null, failure, observedOnUtc);
+        }
+        catch (Exception exception)
+        {
+            return DatasetWorkerDiagnostics.Unavailable(manifest.Dataset, GenerationId,
+                $"Dataset diagnostics failed: {exception.Message}", observedOnUtc);
+        }
+    }
     public string Detail
     {
         get
@@ -31,18 +48,15 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
     }
 
     public static async Task<DatasetWorkerRuntime> StartAsync(
-        string dataset,
-        IReadOnlyList<string> contractIds,
-        DateOnly valueDate,
+        DatasetSubscriptionManifest manifest,
         FeedDeploymentProfile deploymentProfile,
         FeedDataSourceMode dataSource,
         SyntheticFeedOptions synthetic,
         ITickAggregationEventPublisher publisher,
         CancellationToken cancellationToken)
     {
-        if (contractIds.Count == 0 || contractIds.Any(string.IsNullOrWhiteSpace))
-            throw new ArgumentException("At least one synthetic contract is required.", nameof(contractIds));
-        var feedOptions = DatabentoFeedOptions.ForProfile(deploymentProfile, dataset) with
+        manifest.Validate();
+        var feedOptions = DatabentoFeedOptions.ForProfile(deploymentProfile, manifest.Dataset) with
         {
             DataSource = dataSource,
             Synthetic = synthetic
@@ -50,55 +64,21 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         var options = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = feedOptions,
-            Contracts = contractIds.Select((contractId, index) => new DatabentoContractRegistration
-            {
-                DomainContractId = contractId,
-                ProviderContractName = contractId,
-                AssetTypeId = AssetTypeId.Futures,
-                RootSymbol = Root(contractId),
-                Dataset = dataset,
-                OnTheRun = index == 0,
-                Rollover = true
-            }).ToArray()
+            Contracts = manifest.GetRegistrations()
         };
         var factory = new DatabentoMarketDataEpochFactory(
             new DatabentoFeedFactory(), publisher, options);
-        var epoch = factory.Create(valueDate);
+        var epoch = factory.Create(manifest.ValueDate);
         try
         {
             await epoch.StartAsync(cancellationToken).ConfigureAwait(false);
-            return new(epoch);
+            return new(epoch, manifest);
         }
         catch
         {
             await epoch.DisposeAsync().ConfigureAwait(false);
             throw;
         }
-    }
-
-    static string Root(string contractId)
-    {
-        var root = new string(contractId.TakeWhile(char.IsLetter).ToArray()).ToUpperInvariant();
-        return root.Length == 0
-            ? throw new ArgumentException("Synthetic contract ID must start with a root symbol.", nameof(contractId))
-            : root;
-    }
-
-    public async Task<Guid> ResetAsync(CancellationToken cancellationToken)
-    {
-        var health = epoch.GetHealth().DatasetFeedStatuses?.Single()
-            ?? throw new InvalidOperationException("Synthetic worker dataset is not active.");
-        var result = await epoch.ResetDatasetAsync(new DatabentoDatasetResetRequest(
-            health.Dataset,
-            health.GenerationId,
-            epoch.ValueDate,
-            DatabentoDatasetFailureReason.NativeDrainStalled,
-            TimeSpan.FromSeconds(5),
-            TimeSpan.FromSeconds(10),
-            Guid.NewGuid()), cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded)
-            throw new InvalidOperationException(result.Detail);
-        return result.GenerationId;
     }
 
     public async ValueTask DisposeAsync() => await epoch.DisposeAsync().ConfigureAwait(false);

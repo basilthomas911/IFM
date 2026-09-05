@@ -625,6 +625,14 @@ public static class Startup
                 throw new InvalidOperationException(
                     "Stage 3 supervised workers are qualified for Synthetic Development only; live-provider enablement is not permitted.");
             services.AddSingleton(stage3Options);
+            services.AddSingleton<DatasetDesiredSubscriptionRegistry>();
+            if (stage3Options.Enabled)
+            {
+                services.AddSingleton<DatasetWorkerCurrentValues>();
+                services.AddSingleton((config.GetSection("MarketDataRecovery:Stage3:RealtimePublisher")
+                    .Get<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.RealtimeTickPublisherPolicy>()
+                    ?? new TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.RealtimeTickPublisherPolicy()).Validate());
+            }
             services.AddSingleton(new DatabentoSupervisedWorkerOptions
             {
                 DotNetHostPath = stage3Options.Enabled
@@ -710,6 +718,7 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            services.AddHostedService<MarketDataOperationsHealthObserver>();
             services.AddHostedService<ApplicationStartupCommandDispatcher>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")

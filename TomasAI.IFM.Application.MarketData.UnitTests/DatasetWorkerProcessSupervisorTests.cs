@@ -10,6 +10,19 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class DatasetWorkerProcessSupervisorTests
 {
     [Fact]
+    public async Task Started_worker_reports_realized_native_generation_not_bootstrap_identity()
+    {
+        await using var supervisor = new DatasetWorkerProcessSupervisor(Options());
+        var request = Request(Guid.NewGuid());
+
+        var started = await supervisor.StartAsync(request);
+
+        started.Healthy.Should().BeTrue(started.Detail);
+        started.GenerationId.Should().NotBe(request.GenerationId,
+            "the native epoch creates the realized generation; bootstrap identity is not data admission");
+    }
+
+    [Fact]
     public async Task Worker_handshakes_reports_health_resets_generation_and_stops_gracefully()
     {
         await using var supervisor = new DatasetWorkerProcessSupervisor(Options());
@@ -94,7 +107,8 @@ public sealed class DatasetWorkerProcessSupervisorTests
         await using var recovery = new DatasetWorkerProcessRecoveryService(options, admissions);
         var original = Guid.NewGuid();
         var request = Request(original);
-        await recovery.StartOwnedAsync(request);
+        var started = await recovery.StartOwnedAsync(request);
+        original = started.GenerationId;
 
         var result = await recovery.ReplaceProcessAsync(new DatabentoDatasetResetRequest(
             request.Dataset, original, request.ValueDate,
@@ -128,7 +142,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
         recovery.Current.Should().ContainSingle(snapshot =>
             snapshot.ProcessId == started.ProcessId && snapshot.Running);
         admissions.TryGet(request.Dataset, out var admitted).Should().BeTrue();
-        admitted.GenerationId.Should().Be(request.GenerationId);
+        admitted.GenerationId.Should().Be(started.GenerationId);
     }
 
     [Fact]
@@ -144,13 +158,13 @@ public sealed class DatasetWorkerProcessSupervisorTests
             });
         var request = Request(Guid.NewGuid());
 
-        await supervisor.StartAsync(request);
+        var started = await supervisor.StartAsync(request);
         var publication = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         publication.Dataset.Should().Be(request.Dataset);
         publication.ValueDate.Should().Be(request.ValueDate);
         publication.WorkerInstanceId.Should().Be(request.WorkerInstanceId);
-        publication.GenerationId.Should().Be(request.GenerationId);
+        publication.GenerationId.Should().Be(started.GenerationId);
         publication.PublicationSequence.Should().BePositive();
         publication.Payload.Should().NotBeEmpty();
     }
@@ -179,7 +193,8 @@ public sealed class DatasetWorkerProcessSupervisorTests
                 {
                     RecordCount = 1_000_000, RecordsPerSecond = 100, StartSequence = 1
                 }
-            }, TimeProvider.System);
+            }, TimeProvider.System,
+            Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>());
 
         await runtime.StartAsync(new DateOnly(2026, 9, 4), CancellationToken.None);
         var before = await runtime.GetWatchdogSnapshotAsync(TimeSpan.FromSeconds(1), CancellationToken.None);
@@ -204,12 +219,18 @@ public sealed class DatasetWorkerProcessSupervisorTests
         Dataset = "GLBX.MDP3",
         ValueDate = new(2026, 9, 4),
         WorkerInstanceId = Guid.NewGuid(),
-        GenerationId = generation
+        GenerationId = generation,
+        Manifest = new DatasetDesiredSubscriptionRegistry().Set("GLBX.MDP3", new(2026, 9, 4),
+        [new DatabentoContractRegistration
+        {
+            DomainContractId = "ES20261218", ProviderContractName = "ES20261218",
+            AssetTypeId = Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId.Futures,
+            RootSymbol = "ES", Dataset = "GLBX.MDP3", OnTheRun = true, Rollover = true
+        }])
     };
 
     static string[] WorkerArguments() =>
-        [typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
-            "--synthetic-contract", "ES20261218"];
+        [typeof(DatasetWorkerAssemblyMarker).Assembly.Location];
 
     static string DotNetHost()
     {

@@ -32,6 +32,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     readonly TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? _operationsHealth = operationsHealth;
     readonly Dictionary<string, DatasetIncidentStateMachine> _incidents = new(StringComparer.Ordinal);
     int _incidentsHydrated;
+    long _replacementRetryTimestamp = long.MaxValue;
     DatabentoLifecycleSnapshot _current = NewSnapshot();
 
     public DatabentoLifecycleSnapshot Current { get { lock (_snapshotSync) return _current; } }
@@ -91,6 +92,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         if (runtime.ActiveValueDate is { } active && active != valueDate)
             throw new InvalidOperationException($"Active value date {active:yyyy-MM-dd} does not match stop request {valueDate:yyyy-MM-dd}.");
         await runtime.StopAsync(token).ConfigureAwait(false);
+        await CloseIncidentsAsync(token).ConfigureAwait(false);
         Transition(DatabentoLifecycleState.ScheduledStopped, null, Guid.Empty, 0, "Requested stop completed.");
         await RecordAsync(DatabentoOperationReason.RequestedStop, DatabentoMajorStatus.Down,
             DatabentoDisplayHealth.Inactive, false, 0, EmptyNative(), Guid.Empty, token).ConfigureAwait(false);
@@ -128,6 +130,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         {
             if (runtime.ActiveValueDate is not null)
                 await runtime.StopAsync(token).ConfigureAwait(false);
+            await CloseIncidentsAsync(token).ConfigureAwait(false);
             Transition(DatabentoLifecycleState.ScheduledStopped, null, Guid.Empty, 0, "Planned market closure.");
             await RecordAsync(DatabentoOperationReason.WatchdogPoll, DatabentoMajorStatus.Down,
                 DatabentoDisplayHealth.Inactive, false, 0, EmptyNative(), Guid.Empty, token).ConfigureAwait(false);
@@ -137,6 +140,11 @@ public sealed class DatabentoMarketDataWatchdogService(
         var valueDate = session.ActiveValueDate.Value;
         if (runtime.ActiveValueDate is { } activeValueDate && activeValueDate != valueDate)
         {
+            if (_stage3.Enabled)
+            {
+                await runtime.StopAsync(token).ConfigureAwait(false);
+                await CloseIncidentsAsync(token).ConfigureAwait(false);
+            }
             await RecoverAsync(valueDate, Guid.CreateVersion7(timeProvider.GetUtcNow()),
                 DatabentoOperationReason.ValueDateRollover, token).ConfigureAwait(false);
             return;
@@ -277,12 +285,20 @@ public sealed class DatabentoMarketDataWatchdogService(
     TimeSpan ScheduledDelay(TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel session)
     {
         var interval = _stage3.ScheduledInterval(session.State);
-        if (interval != Timeout.InfiniteTimeSpan)
-            return interval;
         var now = timeProvider.GetUtcNow();
         var transition = new DateTimeOffset(DateTime.SpecifyKind(session.NextTransitionUtc, DateTimeKind.Utc));
         var remaining = transition - now;
-        return remaining <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(100) : remaining;
+        // Wake at authoritative session boundaries even if the previous policy's poll was later.
+        if (remaining <= TimeSpan.Zero) return TimeSpan.FromMilliseconds(100);
+        var delay = interval == Timeout.InfiniteTimeSpan || remaining < interval ? remaining : interval;
+        var retry = Interlocked.Read(ref _replacementRetryTimestamp);
+        if (session.IsMarketOpen && retry != long.MaxValue)
+        {
+            var retryDelay = timeProvider.GetElapsedTime(timeProvider.GetTimestamp(), retry);
+            if (retryDelay <= TimeSpan.Zero) return TimeSpan.FromMilliseconds(100);
+            if (retryDelay < delay) delay = retryDelay;
+        }
+        return delay;
     }
 
     async Task HandleStage3DatasetsAsync(
@@ -296,11 +312,12 @@ public sealed class DatabentoMarketDataWatchdogService(
         {
             var incident = GetIncident(feed.Dataset, valueDate);
             var healthy = feed.DatasetState == DatabentoDatasetState.Up;
-            // Terminal native conditions wake this service out of cycle through
-            // DatabentoTerminalFaultSignal.  Once serialized here they still obey the same live
-            // five-attempt policy.  Only a confirmed OS process exit skips directly to replacement.
-            var decision = incident.ObserveScheduled(
-                session.State, healthy, feed.FailureReason, feed.GenerationId);
+            var exited = _processRecovery.HasExited(feed.Dataset, feed.GenerationId);
+            var terminal = exited || feed.TerminalStatus != 0
+                || feed.FailureReason == DatabentoDatasetFailureReason.NativeTerminalFailure;
+            var decision = terminal
+                ? incident.ObserveTerminal(exited, feed.FailureReason, feed.GenerationId)
+                : incident.ObserveScheduled(session.State, healthy, feed.FailureReason, feed.GenerationId);
             await RecordIncidentAsync(decision.Snapshot, correlationId, cancellationToken)
                 .ConfigureAwait(false);
             if (decision.Action == DatasetRecoveryAction.None)
@@ -334,11 +351,11 @@ public sealed class DatabentoMarketDataWatchdogService(
                     continue;
                 }
 
-                // During live trading a failed cooperative attempt remains part of the
-                // one-attempt-per-minute incident budget.  The state machine authorizes process
-                // replacement only on the fifth attempt/five-minute boundary.  Off-hours has one
-                // delayed cooperative attempt and then replaces immediately when it fails.
-                if (session.State == FuturesMarketState.LiveTrading)
+                // Terminal failure and the fifth unsuccessful live attempt escalate in this
+                // serialized operation, not one extra scheduled probe later.
+                if (!terminal && session.State == FuturesMarketState.LiveTrading
+                    && decision.Snapshot.CooperativeAttempts < _stage3.LiveTradingMaximumCooperativeAttempts
+                    && decision.Snapshot.PolicyUnhealthyDuration < _stage3.LiveTradingEscalationWindow)
                     continue;
             }
 
@@ -382,6 +399,18 @@ public sealed class DatabentoMarketDataWatchdogService(
         return current;
     }
 
+    async Task CloseIncidentsAsync(CancellationToken cancellationToken)
+    {
+        if (!_stage3.Enabled) return;
+        foreach (var incident in _incidents.Values.Where(value => value.Current.IsOpen))
+        {
+            var closed = incident.ObserveScheduled(FuturesMarketState.Closed, true,
+                DatabentoDatasetFailureReason.None, incident.Current.GenerationId);
+            await RecordIncidentAsync(closed.Snapshot, Guid.CreateVersion7(timeProvider.GetUtcNow()), cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
     async Task EnsureIncidentsHydratedAsync(CancellationToken cancellationToken)
     {
         if (Volatile.Read(ref _incidentsHydrated) != 0) return;
@@ -408,6 +437,12 @@ public sealed class DatabentoMarketDataWatchdogService(
     async Task RecordIncidentAsync(DatasetIncidentSnapshot snapshot, Guid correlationId,
         CancellationToken cancellationToken)
     {
+        var retryDelay = _incidents.Values.Select(value => value.Current)
+            .Where(value => value.IsOpen && !value.ProcessReplacementLatched
+                && value.ReplacementBackoffRemaining > TimeSpan.Zero)
+            .Select(value => value.ReplacementBackoffRemaining).DefaultIfEmpty(Timeout.InfiniteTimeSpan).Min();
+        Interlocked.Exchange(ref _replacementRetryTimestamp, retryDelay == Timeout.InfiniteTimeSpan
+            ? long.MaxValue : checked(timeProvider.GetTimestamp() + (long)(retryDelay.TotalSeconds * timeProvider.TimestampFrequency)));
         _operationsHealth?.RecordIncident(snapshot);
         if (snapshot.IncidentId == Guid.Empty)
             return;

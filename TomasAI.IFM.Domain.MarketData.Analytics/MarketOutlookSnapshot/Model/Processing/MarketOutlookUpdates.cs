@@ -182,7 +182,8 @@ public sealed class MarketOutlookUpdateProcessor(
     IMarketOutlookHotCacheWriter cache,
     IMarketOutlookSnapshotPublisher publisher,
     MarketOutlookProcessorMetrics metrics,
-    ILogger<MarketOutlookUpdateProcessor> logger)
+    ILogger<MarketOutlookUpdateProcessor> logger,
+    IMarketDataOperationsRecorder? operationsRecorder = null)
     : BackgroundService, IMarketOutlookOperations
 {
     int processing;
@@ -207,7 +208,7 @@ public sealed class MarketOutlookUpdateProcessor(
                 }
                 catch (Exception exception)
                 {
-                    metrics.Record(new(
+                    Record(new(
                         MarketDataOperationStage.MarketOutlookComposition,
                         MarketDataOperationOutcome.Failed,
                         update.Kind,
@@ -337,7 +338,7 @@ public sealed class MarketOutlookUpdateProcessor(
         var started = Stopwatch.GetTimestamp();
         var queueLatency = DateTime.UtcNow - NormalizeUtc(update.ReceivedAtUtc);
         var result = Apply(update);
-        metrics.Record(new(
+        Record(new(
             MarketDataOperationStage.MarketOutlookChannel,
             MarketDataOperationOutcome.Applied,
             update.Kind,
@@ -346,14 +347,14 @@ public sealed class MarketOutlookUpdateProcessor(
             queueLatency));
         if (update is not RecomposeMarketOutlookUpdate)
         {
-            metrics.Record(new(
+            Record(new(
                 MarketDataOperationStage.MarketOutlookCache,
                 MarketDataOperationOutcome.Changed,
                 update.Kind,
                 update.UpdateId,
                 DateTime.UtcNow));
         }
-        metrics.Record(new(
+        Record(new(
             MarketDataOperationStage.MarketOutlookComposition,
             MarketDataOperationOutcome.Composed,
             update.Kind,
@@ -375,7 +376,7 @@ public sealed class MarketOutlookUpdateProcessor(
         try
         {
             await publisher.PublishAsync(update, result.Snapshot, cancellationToken).ConfigureAwait(false);
-            metrics.Record(new(
+            Record(new(
                 MarketDataOperationStage.MarketOutlookPublication,
                 MarketDataOperationOutcome.Published,
                 update.Kind,
@@ -390,7 +391,7 @@ public sealed class MarketOutlookUpdateProcessor(
         catch (Exception exception)
         {
             cache.RecordNotificationFailure();
-            metrics.Record(new(
+            Record(new(
                 MarketDataOperationStage.MarketOutlookPublication,
                 MarketDataOperationOutcome.Failed,
                 update.Kind,
@@ -403,6 +404,12 @@ public sealed class MarketOutlookUpdateProcessor(
                 update.UpdateId,
                 update.Kind);
         }
+    }
+
+    void Record(in MarketDataOperationMeasurement measurement)
+    {
+        try { (operationsRecorder ?? metrics).Record(measurement); }
+        catch { /* Diagnostics never fail the processor. */ }
     }
 
     MarketOutlookHotCacheWriteResult Apply(MarketOutlookUpdate update)

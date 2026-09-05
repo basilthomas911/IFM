@@ -153,6 +153,10 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
             Dataset = "GLBX.MDP3", ValueDate = new(2026, 9, 4),
             IncidentId = Guid.NewGuid(), GenerationId = Guid.NewGuid(), IsOpen = true,
             CooperativeAttempts = 2, UnhealthyDuration = TimeSpan.FromMinutes(2),
+            PolicySession = TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.LiveTrading,
+            PolicyUnhealthyDuration = TimeSpan.FromMinutes(1),
+            ReplacementBackoffRemaining = TimeSpan.FromSeconds(30),
+            ReplacementFailureAges = [TimeSpan.FromSeconds(6), TimeSpan.Zero],
             FailureReason = DatabentoDatasetFailureReason.NativeDrainStalled,
             LastAction = DatasetRecoveryAction.CooperativeReset, ObservedOnUtc = DateTime.UtcNow
         };
@@ -173,6 +177,11 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
         reopened.RowVersion.Should().Be(3);
         (await fixture.Store.ListOpenDatasetIncidentsAsync()).Should().ContainSingle(value =>
             value.Snapshot.Dataset == "GLBX.MDP3" && value.Snapshot.CooperativeAttempts == 1);
+        var restored = (await fixture.Store.ListOpenDatasetIncidentsAsync()).Single().Snapshot;
+        restored.PolicySession.Should().Be(snapshot.PolicySession);
+        restored.PolicyUnhealthyDuration.Should().Be(snapshot.PolicyUnhealthyDuration);
+        restored.ReplacementBackoffRemaining.Should().Be(snapshot.ReplacementBackoffRemaining);
+        restored.ReplacementFailureAges.Should().Equal(snapshot.ReplacementFailureAges);
     }
 
     static FuturesRolloverContractAssignment Assignment(

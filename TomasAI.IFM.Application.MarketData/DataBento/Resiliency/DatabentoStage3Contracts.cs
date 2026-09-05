@@ -70,6 +70,10 @@ public sealed record DatasetIncidentSnapshot
     public int ProcessReplacements { get; init; }
     public TimeSpan UnhealthyDuration { get; init; }
     public TimeSpan HealthyDuration { get; init; }
+    public FuturesMarketState? PolicySession { get; init; }
+    public TimeSpan PolicyUnhealthyDuration { get; init; }
+    public TimeSpan ReplacementBackoffRemaining { get; init; }
+    public IReadOnlyList<TimeSpan> ReplacementFailureAges { get; init; } = [];
     public DatabentoDatasetFailureReason FailureReason { get; init; }
     public DatasetRecoveryAction LastAction { get; init; }
     public DateTime ObservedOnUtc { get; init; }
@@ -87,6 +91,9 @@ public readonly record struct DatasetIncidentDecision(
 
 public interface IDatabentoDatasetProcessRecovery
 {
+    // Read-only exact-generation evidence; absence is not proof of process exit.
+    bool HasExited(string dataset, Guid expectedGeneration) => false;
+
     Task<DatabentoDatasetResetResult> ReplaceProcessAsync(
         DatabentoDatasetResetRequest request,
         CancellationToken cancellationToken);

@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 
-public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher
+public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher, ITickAggregationPublisherDiagnostics
 {
     private readonly IActorSupervisor _supervisor;
     private IActorProducer? _realtimeProducer;
@@ -18,20 +18,30 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private Task? _worker;
     private int _running;
+    private readonly BoundedRealtimeTickPublisher? _bounded;
 
-    public TickAggregationEventPublisher(IActorSupervisor supervisor, int capacity = 1024)
+    public TickAggregationEventPublisher(IActorSupervisor supervisor, int capacity = 1024,
+        RealtimeTickPublisherPolicy? policy = null, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(supervisor);
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
         _supervisor = supervisor;
+        if (policy is not null)
+            _bounded = new BoundedRealtimeTickPublisher(supervisor, policy.Validate(), timeProvider ?? TimeProvider.System);
     }
 
-    public bool IsRunning => Volatile.Read(ref _running) != 0;
+    public bool IsRunning => _bounded?.IsRunning ?? Volatile.Read(ref _running) != 0;
+
+    public RealtimeTickPublisherSnapshot GetSnapshot() => _bounded?.GetSnapshot()
+        ?? new(false, IsRunning, false, false, false, 0, _channel?.Reader.Count ?? 0, 0,
+            TimeSpan.Zero, TimeSpan.Zero, 0, 0, 0, 0, 0, 0, 0, 0,
+            RealtimeTickPublisherFailure.None, "Legacy publisher; bounded Stage 3 policy is disabled.");
 
     public ValueTask StartAsync() => StartAsync(CancellationToken.None);
 
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
+        if (_bounded is not null) { await _bounded.StartAsync(cancellationToken).ConfigureAwait(false); return; }
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -55,6 +65,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesTickTradeDataChangedEvent @event,
         CancellationToken cancellationToken)
     {
+        if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         return _channel!.Writer.WriteAsync(
             new Publication(@event, null, cancellationToken), cancellationToken);
@@ -67,6 +78,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesMarketPriceUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
+        if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
         return _channel!.Writer.WriteAsync(
@@ -80,6 +92,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesSessionStatisticsUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
+        if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
         return _channel!.Writer.WriteAsync(
@@ -101,6 +114,11 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             lease.Count != @event.QuoteCount ||
             @event.QuoteCount is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
             throw new ArgumentException("The quote event does not describe the supplied active buffer lease.", nameof(@event));
+        if (_bounded is not null)
+        {
+            await _bounded.PublishAsync(@event, lease, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         await _channel!.Writer.WriteAsync(
             new Publication(@event, lease, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
@@ -109,6 +127,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
 
     public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        if (_bounded is not null) { await _bounded.StopAsync(cancellationToken).ConfigureAwait(false); return; }
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -202,6 +221,12 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
 
     public async ValueTask DisposeAsync()
     {
+        if (_bounded is not null)
+        {
+            await _bounded.DisposeAsync().ConfigureAwait(false);
+            _lifecycle.Dispose();
+            return;
+        }
         await StopAsync().ConfigureAwait(false);
         _lifecycle.Dispose();
     }

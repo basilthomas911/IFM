@@ -70,6 +70,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         marketViewSplitter.Paint += DashboardSplitter_Paint;
         marketDataFeedHealthIndicator.IsLink = true;
         marketDataFeedHealthIndicator.Click += MarketDataFeedHealthIndicator_Click;
+        var operationsHealth = new ToolStripButton("Operations health")
+        {
+            Name = "marketDataOperationsHealthButton", DisplayStyle = ToolStripItemDisplayStyle.Text,
+            AccessibleName = "Open read-only market data operations health",
+            ToolTipText = "Read central pipeline and dataset-worker health independently of UI market updates."
+        };
+        operationsHealth.Click += (_, _) => _navigator.ShowModal<MarketDataOperationsHealthForm>();
+        toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(marketDataFeedHealthIndicator) + 1, operationsHealth);
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
     }

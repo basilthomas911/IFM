@@ -8,6 +8,45 @@ public sealed class DatasetIncidentStateMachineTests
 {
     static readonly DateOnly ValueDate = new(2026, 9, 4);
 
+    [Theory]
+    [InlineData(FuturesMarketState.OffTrading, FuturesMarketState.LiveTrading)]
+    [InlineData(FuturesMarketState.LiveTrading, FuturesMarketState.OffTrading)]
+    public void Session_transition_retains_incident_but_starts_new_policy_window(FuturesMarketState before, FuturesMarketState after)
+    {
+        var time = new ManualTimeProvider();
+        var machine = Create(time);
+        var original = machine.ObserveScheduled(before, false, DatabentoDatasetFailureReason.NativeDrainStalled, Guid.NewGuid());
+        time.Advance(TimeSpan.FromMinutes(20));
+        var transition = machine.ObserveScheduled(after, false, DatabentoDatasetFailureReason.NativeDrainStalled, Guid.NewGuid());
+        transition.Snapshot.IncidentId.Should().Be(original.Snapshot.IncidentId);
+        transition.Snapshot.UnhealthyDuration.Should().Be(TimeSpan.FromMinutes(20));
+        transition.Snapshot.PolicyUnhealthyDuration.Should().Be(TimeSpan.Zero);
+        transition.Action.Should().Be(after == FuturesMarketState.LiveTrading
+            ? DatasetRecoveryAction.CooperativeReset : DatasetRecoveryAction.None);
+    }
+
+    [Fact]
+    public void Replacement_backoff_and_rolling_failure_window_are_monotonic_and_survive_hydration()
+    {
+        var time = new ManualTimeProvider();
+        var machine = Create(time);
+        var generation = Guid.NewGuid();
+        machine.ObserveTerminal(true, DatabentoDatasetFailureReason.NativeTerminalFailure, generation);
+        machine.RecordProcessReplacement(false, generation);
+        machine.ObserveTerminal(true, DatabentoDatasetFailureReason.NativeTerminalFailure, generation).Action.Should().Be(DatasetRecoveryAction.None);
+        time.Advance(TimeSpan.FromSeconds(5));
+        machine.ObserveTerminal(true, DatabentoDatasetFailureReason.NativeTerminalFailure, generation).Action.Should().Be(DatasetRecoveryAction.ReplaceProcess);
+        machine.RecordProcessReplacement(false, generation);
+        var restarted = Create(new ManualTimeProvider());
+        restarted.Hydrate(machine.Current);
+        restarted.Current.IsOpen.Should().BeTrue("persisted elapsed time can precede the new process timestamp origin");
+        restarted.Current.ReplacementBackoffRemaining.Should().Be(TimeSpan.FromSeconds(30));
+        restarted.RecordProcessReplacement(false, generation).ProcessReplacementLatched.Should().BeTrue();
+        time.Advance(TimeSpan.FromMinutes(16));
+        machine.RecordProcessReplacement(false, generation).ProcessReplacementLatched.Should().BeFalse();
+        machine.Current.ReplacementFailureAges.Should().ContainSingle();
+    }
+
     [Fact]
     public void Live_trading_attempts_once_per_probe_and_escalates_after_five_attempts()
     {

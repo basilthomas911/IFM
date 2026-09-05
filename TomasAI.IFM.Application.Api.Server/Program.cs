@@ -22,7 +22,7 @@ try
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
     app.MapGet("/api/market-data/operations-health",
-        (MarketDataOperationsHealthService health) => Results.Ok(health.GetSnapshot()));
+        (MarketDataOperationsHealthService health) => Results.Ok(health.GetReadModel()));
     if (bootstrapTradeStrategyFamiliesOnly)
     {
         // Deliberately avoid HTTP binding and actor startup. This narrow process mode

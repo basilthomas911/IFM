@@ -15,13 +15,18 @@ public enum DatasetWorkerMessageKind : byte
     TerminalFault = 8,
     ProtocolError = 9,
     Hang = 10,
-    WorkerReady = 11
+    WorkerReady = 11,
+    StartManifest = 12,
+    StartAccepted = 13,
+    ApplySubscriptionManifest = 14,
+    SubscriptionManifestApplied = 15,
+    ManifestRejected = 16
 }
 
 [MessagePackObject]
 public sealed record DatasetWorkerControlFrame
 {
-    public const int CurrentProtocolMajor = 1;
+    public const int CurrentProtocolMajor = 2;
     [Key(0)] public int ProtocolMajor { get; init; } = CurrentProtocolMajor;
     [Key(1)] public int ProtocolMinor { get; init; }
     [Key(2)] public required DatasetWorkerMessageKind Kind { get; init; }
@@ -35,6 +40,10 @@ public sealed record DatasetWorkerControlFrame
     [Key(10)] public bool Healthy { get; init; }
     [Key(11)] public string Detail { get; init; } = string.Empty;
     [Key(12)] public required string BootstrapToken { get; init; }
+    [Key(13)] public DatasetSubscriptionManifest? Manifest { get; init; }
+    [Key(14)] public long ManifestRevision { get; init; }
+    [Key(15)] public string ManifestFingerprint { get; init; } = string.Empty;
+    [Key(16)] public DatasetWorkerDiagnostics? Diagnostics { get; init; }
 }
 
 public static class DatasetWorkerFrameCodec
@@ -68,7 +77,8 @@ public static class DatasetWorkerFrameCodec
             throw new InvalidDataException($"Worker control frame length {length} is invalid.");
         var payload = GC.AllocateUninitializedArray<byte>(length);
         await stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
-        var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload)
+        var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload,
+            MessagePackSerializerOptions.Standard.WithSecurity(MessagePackSecurity.UntrustedData))
             ?? throw new InvalidDataException("Worker control frame is empty.");
         Validate(frame);
         return frame;
@@ -86,8 +96,33 @@ public static class DatasetWorkerFrameCodec
             || frame.GenerationId == Guid.Empty
             || frame.CorrelationId == Guid.Empty
             || frame.Sequence < 1
-            || frame.Detail.Length > 4096
-            || frame.BootstrapToken.Length != 64)
+            || frame.Detail is null || frame.Detail.Length > 4096
+            || frame.BootstrapToken is null || frame.BootstrapToken.Length != 64
+            || frame.ManifestRevision < 0
+            || frame.ManifestFingerprint is null || frame.ManifestFingerprint.Length > 64)
             throw new InvalidDataException("Worker control frame identity or bounds are invalid.");
+        if (frame.Manifest is { } manifest)
+        {
+            manifest.Validate();
+            if (manifest.Dataset != frame.Dataset || manifest.ValueDate != frame.ValueDate
+                || manifest.Revision != frame.ManifestRevision
+                || manifest.Fingerprint != frame.ManifestFingerprint)
+                throw new InvalidDataException("Worker manifest identity does not match its control frame.");
+        }
+        if (frame.Diagnostics is { } diagnostics)
+        {
+            diagnostics.Validate();
+            if (diagnostics.Dataset != frame.Dataset || diagnostics.GenerationId != frame.GenerationId)
+                throw new InvalidDataException("Worker diagnostics do not match the control-frame dataset/generation.");
+        }
+        if (frame.Kind is DatasetWorkerMessageKind.StartManifest
+            or DatasetWorkerMessageKind.ApplySubscriptionManifest
+            or DatasetWorkerMessageKind.CooperativeReset && frame.Manifest is null)
+            throw new InvalidDataException("This worker command requires a complete subscription manifest.");
+        if (frame.Kind is DatasetWorkerMessageKind.StartAccepted
+            or DatasetWorkerMessageKind.SubscriptionManifestApplied
+            or DatasetWorkerMessageKind.ResetCompleted
+            && (frame.ManifestRevision < 1 || frame.ManifestFingerprint.Length != 64))
+            throw new InvalidDataException("Worker acknowledgment requires the realized revision and fingerprint.");
     }
 }

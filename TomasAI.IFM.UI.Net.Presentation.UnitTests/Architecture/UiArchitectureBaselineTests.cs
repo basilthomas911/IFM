@@ -87,6 +87,8 @@ public class UiArchitectureBaselineTests
         [
             "TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs",
             "TomasAI.IFM.UI.Net.Views/App/MarketEconomicCalendarView.cs",
+            // Only Shown, Click/Timer.Tick, and FormClosing are async-void adapters.
+            "TomasAI.IFM.UI.Net.Views/App/MarketDataOperationsHealthForm.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/AdjustFundTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/FundCashTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/FundTransactionEditor.cs",

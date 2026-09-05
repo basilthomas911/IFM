@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatabentoResiliencyTests
 {
     [Fact]
@@ -46,7 +47,7 @@ public sealed class DatabentoResiliencyTests
         var time = new ManualTimeProvider();
         var runtime = new TestRuntime { Snapshot = Up() with
         {
-            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)]
+            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }]
         }, FailDatasetResets = true };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
@@ -56,7 +57,7 @@ public sealed class DatabentoResiliencyTests
         for (var attempt = 0; attempt < 5; attempt++)
         {
             await service.ProbeAsync();
-            recovery.Count.Should().Be(0);
+            recovery.Count.Should().Be(attempt == 4 ? 1 : 0);
             time.Advance(TimeSpan.FromMinutes(1));
         }
         await service.ProbeAsync();
@@ -72,7 +73,7 @@ public sealed class DatabentoResiliencyTests
         var time = new ManualTimeProvider();
         var runtime = new TestRuntime { Snapshot = Up() with
         {
-            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)]
+            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }]
         }, FailDatasetResets = true };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
@@ -87,6 +88,46 @@ public sealed class DatabentoResiliencyTests
         runtime.ResetDatasets.Should().ContainSingle();
         recovery.Count.Should().Be(1);
         service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+    }
+
+    [Fact]
+    public async Task Stage3_terminal_failure_escalates_failed_cooperative_reset_in_same_probe()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() with
+        { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] }, FailDatasetResets = true };
+        var recovery = new TestProcessRecovery(runtime);
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), FuturesMarketState.OffTrading,
+            stage3: new() { Enabled = true }, processRecovery: recovery);
+        await service.ProbeAsync();
+        runtime.ResetDatasets.Should().ContainSingle();
+        recovery.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Stage3_confirmed_process_exit_skips_cooperative_reset()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() with
+        { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] } };
+        var recovery = new TestProcessRecovery(runtime) { Exited = true };
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(),
+            stage3: new() { Enabled = true }, processRecovery: recovery);
+        await service.ProbeAsync();
+        runtime.ResetDatasets.Should().BeEmpty();
+        recovery.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Stage3_stop_persists_closure_of_open_incident()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() with
+        { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }] },
+            FailDatasetResets = true };
+        var store = new InMemoryMarketDataServiceStore();
+        var service = Create(runtime, store, stage3: new() { Enabled = true });
+        await service.ProbeAsync();
+        (await store.ListOpenDatasetIncidentsAsync()).Should().ContainSingle();
+        await service.StopAsync(ValueDate);
+        (await store.ListOpenDatasetIncidentsAsync()).Should().BeEmpty();
     }
 
     [Fact]
@@ -665,6 +706,8 @@ public sealed class DatabentoResiliencyTests
 
     sealed class TestProcessRecovery(TestRuntime runtime) : IDatabentoDatasetProcessRecovery
     {
+        public bool Exited { get; init; }
+        public bool HasExited(string dataset, Guid expectedGeneration) => Exited;
         public int Count { get; private set; }
         public Task<DatabentoDatasetResetResult> ReplaceProcessAsync(
             DatabentoDatasetResetRequest request, CancellationToken cancellationToken)

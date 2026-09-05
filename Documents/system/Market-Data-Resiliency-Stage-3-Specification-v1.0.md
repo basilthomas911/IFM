@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Specification ID | `MDR-S3` |
-| Status | Implemented behind disabled feature flag; operational acceptance pending |
+| Status | Disabled supervised integration remediated; full requirement/platform/operational acceptance remains open (see implementation record) |
 | Version | 1.0 |
 | Date | 2026-09-04 |
 | Stage | Stage 3 — central operations health and per-dataset process containment |
@@ -12,6 +12,7 @@
 | Implementation plan | `Documents/system/Market-Data-Resiliency-Stage-3-Implementation-Plan-v1.0.md` |
 | Initial deployment | API Server supervisor plus one console worker process per active Databento dataset |
 | Platforms | Windows and Linux |
+| Actual implementation and gaps | [Stage 3 as-built specification](Market-Data-Resiliency-Stage-3-As-Built-Specification-v1.0.md); target requirements below are not waived |
 
 ## 1. Purpose
 

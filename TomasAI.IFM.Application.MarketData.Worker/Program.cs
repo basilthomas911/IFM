@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Channels;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Worker;
 
@@ -14,8 +15,8 @@ var bootstrapToken = Environment.GetEnvironmentVariable("IFM_DATASET_WORKER_BOOT
 if (bootstrapToken is null || bootstrapToken.Length != 64)
     return 7;
 
-if (OperatingSystem.IsLinux())
-    _ = NativeMethods.setpgid(0, 0);
+if (OperatingSystem.IsLinux() && NativeMethods.setpgid(0, 0) != 0)
+    throw new InvalidOperationException("The dataset worker could not establish its owned process group.");
 
 using var input = new AnonymousPipeClientStream(PipeDirection.In, worker.ControlIn);
 using var output = new AnonymousPipeClientStream(PipeDirection.Out, worker.ControlOut);
@@ -23,6 +24,9 @@ using var publications = new AnonymousPipeClientStream(PipeDirection.Out, worker
 var sequence = 0L;
 var supervisorSequence = 0L;
 var generation = worker.GenerationId;
+DatasetSubscriptionManifest? currentManifest = null;
+DatasetWorkerRuntime? datasetRuntime = null;
+PipeDatasetWorkerPublisher? pipePublisher = null;
 using var stopping = new CancellationTokenSource();
 
 await WriteAsync(DatasetWorkerMessageKind.WorkerHello, healthy: false,
@@ -36,68 +40,188 @@ if (supervisor.Kind != DatasetWorkerMessageKind.SupervisorHello
     || !ValidSupervisorFrame(supervisor))
     return 3;
 
-if (worker.Contracts.Count == 0)
+// Read independently of native startup/reset so losing the supervisor cancels
+// cooperative work even while a command is still executing. A bounded channel
+// prevents a malfunctioning supervisor from creating an unbounded command queue.
+var commands = Channel.CreateBounded<DatasetWorkerControlFrame>(new BoundedChannelOptions(8)
 {
-    await WriteAsync(DatasetWorkerMessageKind.ProtocolError, healthy: false,
-        "A dataset contract manifest is required by this worker build.", Guid.NewGuid());
-    return 5;
-}
-
-await using var pipePublisher = new PipeDatasetWorkerPublisher(publications, worker.Dataset,
-    worker.ValueDate, worker.WorkerInstanceId, generation);
-await using var datasetRuntime = await DatasetWorkerRuntime.StartAsync(
-    worker.Dataset, worker.Contracts, worker.ValueDate, worker.DeploymentProfile,
-    worker.DataSource, worker.Synthetic, pipePublisher, stopping.Token);
-await WriteAsync(DatasetWorkerMessageKind.WorkerReady, datasetRuntime.IsHealthy,
-    datasetRuntime.Detail, Guid.NewGuid());
-
-while (!stopping.IsCancellationRequested)
+    SingleReader = true,
+    SingleWriter = true,
+    FullMode = BoundedChannelFullMode.Wait
+});
+var commandReader = ReadCommandsAsync();
+try
 {
-    DatasetWorkerControlFrame command;
-    try
+    while (!stopping.IsCancellationRequested)
     {
-        command = await DatasetWorkerFrameCodec.ReadAsync(input, 256 * 1024, stopping.Token);
-    }
-    catch (EndOfStreamException)
-    {
-        return 0;
-    }
-    if (command.WorkerInstanceId != worker.WorkerInstanceId
-        || command.Dataset != worker.Dataset
-        || command.ValueDate != worker.ValueDate
-        || command.GenerationId != generation
-        || !ValidSupervisorFrame(command))
-        return 4;
+        var command = await commands.Reader.ReadAsync(stopping.Token);
+        if (command.WorkerInstanceId != worker.WorkerInstanceId
+            || command.Dataset != worker.Dataset
+            || command.ValueDate != worker.ValueDate
+            || command.GenerationId != generation
+            || !ValidSupervisorFrame(command))
+            return 4;
 
-    switch (command.Kind)
-    {
-        case DatasetWorkerMessageKind.HealthSnapshot:
-            await WriteAsync(DatasetWorkerMessageKind.HealthSnapshot,
-                datasetRuntime.IsHealthy, datasetRuntime.Detail, command.CorrelationId);
-            break;
-        case DatasetWorkerMessageKind.CooperativeReset:
-            generation = await datasetRuntime.ResetAsync(stopping.Token);
-            pipePublisher.ChangeGeneration(generation);
-            await WriteAsync(DatasetWorkerMessageKind.ResetCompleted,
-                datasetRuntime.IsHealthy, datasetRuntime.Detail,
-                command.CorrelationId);
-            break;
-        case DatasetWorkerMessageKind.GracefulStop:
-            await datasetRuntime.DisposeAsync();
-            await WriteAsync(DatasetWorkerMessageKind.Stopped, false,
-                "Dataset worker stopped gracefully.", command.CorrelationId);
-            return 0;
-        case DatasetWorkerMessageKind.Hang:
-            await Task.Delay(Timeout.InfiniteTimeSpan);
-            return 5;
-        default:
+        if (currentManifest is null && command.Kind != DatasetWorkerMessageKind.StartManifest
+            && command.Kind != DatasetWorkerMessageKind.GracefulStop)
+        {
             await WriteAsync(DatasetWorkerMessageKind.ProtocolError, false,
-                $"Unsupported command {command.Kind}.", command.CorrelationId);
+                "StartManifest must be accepted before dataset commands.", command.CorrelationId);
             return 6;
+        }
+
+        switch (command.Kind)
+        {
+            case DatasetWorkerMessageKind.StartManifest:
+            case DatasetWorkerMessageKind.ApplySubscriptionManifest:
+            case DatasetWorkerMessageKind.CooperativeReset:
+                if (!TryValidateManifest(command, out var manifestError))
+                {
+                    await WriteAsync(DatasetWorkerMessageKind.ManifestRejected, false,
+                        manifestError, command.CorrelationId);
+                    break;
+                }
+                var manifest = command.Manifest!;
+                var acknowledgement = command.Kind switch
+                {
+                    DatasetWorkerMessageKind.StartManifest => DatasetWorkerMessageKind.StartAccepted,
+                    DatasetWorkerMessageKind.CooperativeReset => DatasetWorkerMessageKind.ResetCompleted,
+                    _ => DatasetWorkerMessageKind.SubscriptionManifestApplied
+                };
+                try
+                {
+                    // Duplicate application is idempotent, but an explicit reset
+                    // must reconstruct even if the desired revision is unchanged.
+                    if (currentManifest?.Revision != manifest.Revision
+                        || command.Kind == DatasetWorkerMessageKind.CooperativeReset)
+                        await InstallManifestAsync(manifest);
+                    var healthy = datasetRuntime?.IsHealthy == true;
+                    await WriteAsync(healthy ? acknowledgement : DatasetWorkerMessageKind.ManifestRejected,
+                        healthy, datasetRuntime?.Detail ?? "Dataset runtime is unavailable.",
+                        command.CorrelationId);
+                }
+                catch (Exception exception) when (!stopping.IsCancellationRequested)
+                {
+                    await WriteAsync(DatasetWorkerMessageKind.ManifestRejected, false,
+                        $"Dataset reconstruction failed: {exception.GetType().Name}: {exception.Message}",
+                        command.CorrelationId);
+                    // Do not serve a partially rebuilt generation. The supervisor
+                    // owns the decision to replace this failed dataset process.
+                    return 8;
+                }
+                break;
+            case DatasetWorkerMessageKind.HealthSnapshot:
+                await WriteAsync(DatasetWorkerMessageKind.HealthSnapshot,
+                    datasetRuntime?.IsHealthy == true,
+                    datasetRuntime?.Detail ?? "Dataset runtime is unavailable.", command.CorrelationId);
+                break;
+            case DatasetWorkerMessageKind.GracefulStop:
+                await StopRuntimeAsync();
+                await WriteAsync(DatasetWorkerMessageKind.Stopped, false,
+                    "Dataset worker stopped gracefully.", command.CorrelationId);
+                return 0;
+            case DatasetWorkerMessageKind.Hang:
+                await Task.Delay(Timeout.InfiniteTimeSpan, stopping.Token);
+                return 5;
+            default:
+                await WriteAsync(DatasetWorkerMessageKind.ProtocolError, false,
+                    $"Unsupported command {command.Kind}.", command.CorrelationId);
+                return 6;
+        }
     }
+}
+catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
+catch (ChannelClosedException) { }
+finally
+{
+    await stopping.CancelAsync();
+    try { await commandReader; }
+    finally { await StopRuntimeAsync(); }
 }
 
 return 0;
+
+async Task ReadCommandsAsync()
+{
+    try
+    {
+        while (!stopping.IsCancellationRequested)
+        {
+            var command = await DatasetWorkerFrameCodec.ReadAsync(input, 256 * 1024, stopping.Token);
+            await commands.Writer.WriteAsync(command, stopping.Token);
+        }
+    }
+    catch (Exception exception) when (exception is IOException or OperationCanceledException
+        or InvalidDataException)
+    {
+        commands.Writer.TryComplete(exception);
+    }
+    finally
+    {
+        commands.Writer.TryComplete();
+        await stopping.CancelAsync();
+    }
+}
+
+bool TryValidateManifest(DatasetWorkerControlFrame command, out string error)
+{
+    try
+    {
+        var manifest = command.Manifest
+            ?? throw new InvalidDataException("A complete dataset subscription manifest is required.");
+        manifest.Validate();
+        if (manifest.Dataset != worker.Dataset || manifest.ValueDate != worker.ValueDate
+            || manifest.Revision != command.ManifestRevision
+            || manifest.Fingerprint != command.ManifestFingerprint)
+            throw new InvalidDataException("Manifest identity, revision or fingerprint does not match the command.");
+        if (currentManifest is not null
+            && (manifest.Revision < currentManifest.Revision
+                || manifest.Revision == currentManifest.Revision
+                    && manifest.Fingerprint != currentManifest.Fingerprint))
+            throw new InvalidDataException("Manifest revision is stale or conflicts with its accepted contents.");
+        if (currentManifest is not null && command.Kind == DatasetWorkerMessageKind.StartManifest
+            && manifest.Revision != currentManifest.Revision)
+            throw new InvalidDataException("An already started worker requires ApplySubscriptionManifest.");
+        error = string.Empty;
+        return true;
+    }
+    catch (Exception exception) when (exception is ArgumentException or InvalidDataException
+        or InvalidOperationException)
+    {
+        error = exception.Message;
+        return false;
+    }
+}
+
+async Task InstallManifestAsync(DatasetSubscriptionManifest manifest)
+{
+    await StopRuntimeAsync();
+    pipePublisher = new PipeDatasetWorkerPublisher(publications, worker.Dataset,
+        worker.ValueDate, worker.WorkerInstanceId, manifest.Revision);
+    datasetRuntime = await DatasetWorkerRuntime.StartAsync(manifest, worker.DeploymentProfile,
+        worker.DataSource, worker.Synthetic, pipePublisher, stopping.Token);
+    if (!datasetRuntime.IsHealthy || datasetRuntime.GenerationId == Guid.Empty)
+        throw new InvalidOperationException("The replacement dataset generation is not healthy.");
+    generation = datasetRuntime.GenerationId;
+    await pipePublisher.BindGenerationAsync(generation, stopping.Token);
+    currentManifest = manifest;
+}
+
+async Task StopRuntimeAsync()
+{
+    if (pipePublisher is not null)
+        await pipePublisher.CloseAsync(CancellationToken.None);
+    if (datasetRuntime is not null)
+    {
+        await datasetRuntime.DisposeAsync();
+        datasetRuntime = null;
+    }
+    if (pipePublisher is not null)
+    {
+        await pipePublisher.DisposeAsync();
+        pipePublisher = null;
+    }
+}
 
 async ValueTask WriteAsync(
     DatasetWorkerMessageKind kind,
@@ -105,6 +229,10 @@ async ValueTask WriteAsync(
     string detail,
     Guid correlationId)
 {
+    // A failed reconstruction may own an unaccepted epoch while the control identity
+    // still names its predecessor. Do not attach cross-generation diagnostics.
+    var diagnostics = datasetRuntime is { } activeRuntime && activeRuntime.GenerationId == generation
+        ? activeRuntime.GetDiagnostics() : null;
     await DatasetWorkerFrameCodec.WriteAsync(output, new()
     {
         Kind = kind,
@@ -115,8 +243,11 @@ async ValueTask WriteAsync(
         CorrelationId = correlationId,
         Sequence = Interlocked.Increment(ref sequence),
         ProcessId = Environment.ProcessId,
-        Healthy = healthy,
-        Detail = detail,
+        Healthy = healthy && diagnostics?.Operational == true,
+        Detail = detail.Length <= 4096 ? detail : detail[..4096],
+        ManifestRevision = currentManifest?.Revision ?? 0,
+        ManifestFingerprint = currentManifest?.Fingerprint ?? string.Empty,
+        Diagnostics = diagnostics,
         BootstrapToken = bootstrapToken
     }, 256 * 1024, stopping.Token);
 }
@@ -140,7 +271,6 @@ file sealed record DatasetWorkerArguments(
     DateOnly ValueDate,
     Guid WorkerInstanceId,
     Guid GenerationId,
-    IReadOnlyList<string> Contracts,
     TomasAI.IFM.Framework.MarketData.DataBento.FeedDeploymentProfile DeploymentProfile,
     TomasAI.IFM.Framework.MarketData.DataBento.FeedDataSourceMode DataSource,
     TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions Synthetic)
@@ -173,11 +303,6 @@ file sealed record DatasetWorkerArguments(
             error = "Dataset worker bootstrap arguments are invalid.";
             return false;
         }
-        map.TryGetValue("--contracts", out var contracts);
-        if (contracts is null && map.TryGetValue("--synthetic-contracts", out var syntheticContracts))
-            contracts = syntheticContracts;
-        if (contracts is null && map.TryGetValue("--synthetic-contract", out var legacyContract))
-            contracts = legacyContract;
         var profile = ParseEnum(map, "--deployment-profile",
             TomasAI.IFM.Framework.MarketData.DataBento.FeedDeploymentProfile.SyntheticCi);
         var dataSource = ParseEnum(map, "--data-source",
@@ -189,8 +314,6 @@ file sealed record DatasetWorkerArguments(
             StartSequence = ParseUlong(map, "--synthetic-start-sequence", 1)
         };
         result = new(input!, output!, publication!, dataset!, valueDate, workerId, generationId,
-            string.IsNullOrWhiteSpace(contracts)
-                ? [] : contracts.Split('|', StringSplitOptions.RemoveEmptyEntries),
             profile, dataSource, synthetic);
         error = string.Empty;
         return true;

@@ -2,6 +2,8 @@ using FluentAssertions;
 using NSubstitute;
 using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
@@ -18,6 +20,35 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapsho
 public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
 {
     static readonly MarketOutlookEntityId Id = new("ESZ26", new DateOnly(2026, 9, 1));
+
+    [Fact]
+    public async Task Production_processor_records_analytics_cache_composition_and_publication_in_central_registry_once()
+    {
+        var cache = MarketOutlookHotCache.Shared;
+        cache.Clear();
+        var metrics = new MarketOutlookProcessorMetrics();
+        var health = new MarketDataOperationsHealthService(new());
+        var recorder = new CompositeMarketDataOperationsRecorder(metrics, health);
+        var channel = new MarketOutlookUpdateChannel(recorder);
+        using var processor = new MarketOutlookUpdateProcessor(channel, channel, cache, cache,
+            new CountingPublisher(), metrics,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<MarketOutlookUpdateProcessor>>(), recorder);
+        try
+        {
+            await processor.StartAsync(CancellationToken.None);
+            channel.Submit(Eod());
+            channel.Submit(Vix(25));
+            Assert.True(await processor.WaitForIdleAsync(TimeSpan.FromSeconds(5)));
+            var stages = health.GetSnapshot().Stages;
+            Assert.Equal(1, stages[MarketDataOperationStage.VixAnalytics].Completed);
+            Assert.Equal(1, stages[MarketDataOperationStage.EodAnalytics].Completed);
+            Assert.Equal(2, stages[MarketDataOperationStage.MarketOutlookCache].Completed);
+            Assert.Equal(2, stages[MarketDataOperationStage.MarketOutlookComposition].Completed);
+            Assert.Equal(2, stages[MarketDataOperationStage.MarketOutlookPublication].Completed);
+            Assert.Equal(1, metrics.GetSnapshot(channel).Updates[MarketOutlookUpdateKind.VixPrice].Published);
+        }
+        finally { await processor.StopAsync(CancellationToken.None); cache.Clear(); }
+    }
 
     sealed record UnsupportedMarketOutlookUpdate : MarketOutlookUpdate
     {

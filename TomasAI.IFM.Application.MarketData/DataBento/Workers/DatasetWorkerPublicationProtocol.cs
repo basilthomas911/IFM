@@ -81,45 +81,68 @@ public static class DatasetPublicationFrameCodec
 public sealed class DatasetPublicationIngress(
     DatasetWorkerAdmissionRegistry admissions,
     ITickAggregationEventPublisher publisher,
-    IMarketDataOperationsRecorder recorder)
+    IMarketDataOperationsRecorder recorder,
+    DatasetWorkerCurrentValues? currentValues = null)
 {
     public async ValueTask<bool> AcceptAsync(DatasetPublicationEnvelope envelope,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var identity = new DatasetWorkerAdmission(envelope.Dataset, envelope.ValueDate,
             envelope.WorkerInstanceId, envelope.GenerationId, envelope.ManifestRevision);
         Record(MarketDataOperationOutcome.Received, envelope);
-        if (!admissions.TryAccept(identity, envelope.PublicationSequence))
+        if (!admissions.TryAccept(identity, envelope.PublicationSequence, out var generationCancellation))
+        {
+            Record(MarketDataOperationOutcome.Failed, envelope);
+            return false;
+        }
+        // The mirror also verifies identity under its own reset lock. A publication that passed
+        // admission just before Close cannot repopulate cleared dataset values afterward.
+        if (currentValues is not null && !currentValues.AcceptPublication(envelope))
         {
             Record(MarketDataOperationOutcome.Failed, envelope);
             return false;
         }
 
-        switch (envelope.Kind)
+        try
         {
-            case DatasetPublicationKind.Trade:
-                await publisher.PublishAsync(
-                    MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload),
-                    cancellationToken).ConfigureAwait(false);
-                break;
-            case DatasetPublicationKind.Quote:
-                var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload);
-                await publisher.PublishAsync(quote,
-                    new DeserializedQuoteLease(quote.QuoteData.Buffer, quote.QuoteCount),
-                    cancellationToken).ConfigureAwait(false);
-                break;
-            case DatasetPublicationKind.MarketPrice:
-                await publisher.PublishAsync(
-                    MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload),
-                    cancellationToken).ConfigureAwait(false);
-                break;
-            case DatasetPublicationKind.SessionStatistics:
-                await publisher.PublishAsync(
-                    MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload),
-                    cancellationToken).ConfigureAwait(false);
-                break;
-            default:
-                throw new InvalidDataException("Unknown dataset publication kind.");
+            cancellationToken.ThrowIfCancellationRequested();
+            generationCancellation.ThrowIfCancellationRequested();
+            // The publisher enqueues this token and returns before transmission. A short-lived
+            // linked CTS would disconnect reset cancellation at that return boundary. Ownership
+            // therefore transfers with the lasting generation token, not the caller's read token.
+            switch (envelope.Kind)
+            {
+                case DatasetPublicationKind.Trade:
+                    await publisher.PublishAsync(
+                        MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload),
+                        generationCancellation).ConfigureAwait(false);
+                    break;
+                case DatasetPublicationKind.Quote:
+                    var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload);
+                    await publisher.PublishAsync(quote,
+                        new DeserializedQuoteLease(quote.QuoteData.Buffer, quote.QuoteCount),
+                        generationCancellation).ConfigureAwait(false);
+                    break;
+                case DatasetPublicationKind.MarketPrice:
+                    await publisher.PublishAsync(
+                        MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload),
+                        generationCancellation).ConfigureAwait(false);
+                    break;
+                case DatasetPublicationKind.SessionStatistics:
+                    await publisher.PublishAsync(
+                        MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload),
+                        generationCancellation).ConfigureAwait(false);
+                    break;
+                default:
+                    throw new InvalidDataException("Unknown dataset publication kind.");
+            }
+        }
+        catch (OperationCanceledException) when (generationCancellation.IsCancellationRequested)
+        {
+            // An expected reset must not fault the shared publication reader/data plane.
+            Record(MarketDataOperationOutcome.Failed, envelope);
+            return false;
         }
         Record(MarketDataOperationOutcome.Published, envelope);
         return true;

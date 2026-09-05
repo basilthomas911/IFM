@@ -8,6 +8,32 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class MarketDataOperationsHealthServiceTests
 {
     [Fact]
+    public void Later_success_recovers_current_status_without_erasing_historical_failure()
+    {
+        var service = new MarketDataOperationsHealthService(new());
+        var now = DateTime.UtcNow;
+        service.Record(new(MarketDataOperationStage.DatabentoAggregation, MarketDataOperationOutcome.Failed,
+            MarketOutlookUpdateKind.EsTrade, Guid.NewGuid(), now));
+        service.Record(new(MarketDataOperationStage.DatabentoAggregation, MarketDataOperationOutcome.Completed,
+            MarketOutlookUpdateKind.EsTrade, Guid.NewGuid(), now.AddSeconds(1)));
+
+        var stage = service.GetSnapshot().Stages[MarketDataOperationStage.DatabentoAggregation];
+        stage.Failed.Should().Be(1);
+        stage.Status.Should().Be(MarketDataOperationsStatus.Green);
+    }
+
+    [Fact]
+    public void Receipt_without_completion_is_not_proof_of_successful_progress()
+    {
+        var service = new MarketDataOperationsHealthService(new());
+        service.Record(new(MarketDataOperationStage.MarketOutlookComposition, MarketDataOperationOutcome.Started,
+            MarketOutlookUpdateKind.EsTrade, Guid.NewGuid(), DateTime.UtcNow));
+
+        service.GetSnapshot().Stages[MarketDataOperationStage.MarketOutlookComposition].Status
+            .Should().Be(MarketDataOperationsStatus.Yellow);
+    }
+
+    [Fact]
     public void Empty_snapshot_is_inactive_and_contains_every_bounded_stage()
     {
         var service = new MarketDataOperationsHealthService(new DatasetWorkerAdmissionRegistry());
