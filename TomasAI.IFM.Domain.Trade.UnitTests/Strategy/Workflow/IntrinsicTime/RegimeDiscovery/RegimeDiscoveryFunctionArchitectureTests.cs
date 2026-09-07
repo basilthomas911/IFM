@@ -14,17 +14,22 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Reg
 public sealed class RegimeDiscoveryFunctionArchitectureTests
 {
     [Fact]
-    public void Function_actor_has_parse_validation_and_exact_type_receive_maps()
+    public void Function_actor_has_parse_validation_receive_and_terminal_event_maps()
     {
         var fields = typeof(RegimeDiscoveryFunctionActor)
             .GetFields(BindingFlags.Static | BindingFlags.NonPublic)
             .Select(value => value.Name)
             .ToArray();
 
-        fields.Should().Contain(["_parseMap", "_validationMap", "_receiveMap"]);
+        fields.Should().Contain(["_parseMap", "_validationMap", "_receiveMap", "_eventMap"]);
         ReadMap("_parseMap").Contains(ExecuteRegimeDiscoveryPipelineCommand.Verb).Should().BeTrue();
         ReadMap("_validationMap").Contains(typeof(ExecuteRegimeDiscoveryPipelineCommand)).Should().BeTrue();
         ReadMap("_receiveMap").Contains(typeof(ExecuteRegimeDiscoveryPipelineCommand)).Should().BeTrue();
+        ReadMap("_eventMap").Contains(typeof(RegimeDiscoveryPipelineCompletedEvent)).Should().BeTrue();
+        ReadMap("_eventMap").Contains(typeof(RegimeDiscoveryPipelineFailedEvent)).Should().BeTrue();
+        ReadMap("_eventMap").Count.Should().Be(2);
+        typeof(RegimeDiscoveryFunctionActor).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
+            .Should().NotContain(method => method.Name == "CreateFailedEvent" || method.Name == "CreateConflictFailedEvent");
         RegimeDiscoveryFunctionActor.ActorName.Should().Be(ExecuteRegimeDiscoveryPipelineCommand.Actor);
     }
 

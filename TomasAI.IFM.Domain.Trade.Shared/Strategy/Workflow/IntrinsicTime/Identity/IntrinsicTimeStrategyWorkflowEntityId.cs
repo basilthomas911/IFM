@@ -54,7 +54,7 @@ public readonly record struct IntrinsicTimeStrategyWorkflowEntityId : IActorEnti
 
     /// <summary>Formats the stable actor-routing identity.</summary>
     /// <returns>The workflow definition followed by the complete futures ITI identity.</returns>
-    public string Format() => $"{WorkflowDefinitionId}.{ItiSignalEntityId.Format()}";
+    public string Format() => $"{WorkflowDefinitionId}.{ItiSignalEntityId?.Format()}";
 
     /// <summary>Returns the stable formatted actor-routing identity.</summary>
     public override string ToString() => Format();

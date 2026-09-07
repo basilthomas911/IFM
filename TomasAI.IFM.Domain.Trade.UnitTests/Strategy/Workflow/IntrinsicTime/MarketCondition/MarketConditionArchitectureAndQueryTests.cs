@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using System.Collections;
 using System.Reflection;
 using FluentAssertions;
@@ -14,6 +15,16 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Mar
 
 public sealed class MarketConditionArchitectureAndQueryTests
 {
+    [Fact]
+    public void Function_terminal_map_owns_completion_and_failure_without_factory_overrides()
+    {
+        var actor=typeof(MarketConditionFunctionActor);
+        var map=(System.Collections.IDictionary)actor.GetField("_eventMap",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)!;
+        map.Keys.Cast<Type>().Should().BeEquivalentTo([typeof(MarketConditionAssessmentCompletedEvent),typeof(MarketConditionAssessmentFailedEvent)]);
+        actor.GetMethods(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.DeclaredOnly)
+            .Should().NotContain(method=>method.Name=="CreateFailedEvent" || method.Name=="CreateConflictFailedEvent" || method.Name=="WithinDeadlineAsync");
+    }
+
     [Fact]
     public void Function_maps_have_exact_request_set_and_no_legacy_actor_types_exist()
     {

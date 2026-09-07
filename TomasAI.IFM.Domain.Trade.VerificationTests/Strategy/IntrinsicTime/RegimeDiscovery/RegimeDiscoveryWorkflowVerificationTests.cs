@@ -105,15 +105,15 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFacto
         state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
         state.CurrentView.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
         state.CurrentView.RegimeDiscovery.Result.Should().NotBeNull();
-        state.CurrentView.RegimeDiscovery.Result!.Payload.ToArray().Should()
-            .Equal(projected.ResultPayload.ToArray());
-        state.CurrentView.RegimeDiscovery.Result.PayloadSha256.Should().Be(projected.ResultPayloadSha256);
+        state.CurrentView.RegimeDiscovery.Result!.ReadRegimeResult().Should().BeEquivalentTo(result);
+        state.CurrentView.RegimeDiscovery.Result.Payload.IsEmpty.Should().BeTrue();
+        state.CurrentView.RegimeDiscovery.Result.HasValidPayloadSha256().Should().BeTrue();
 
         var functionState = await fixture.LoadFunctionStateAsync(state.CurrentView);
         functionState.IsCompleted.Should().BeTrue();
         functionState.WorkflowId.Should().Be(advanced.WorkflowId);
         functionState.InputWorkflowRevision.Should().Be(1);
-        functionState.CompletedEvent!.Result.Payload.ToArray().Should().Equal(projected.ResultPayload.ToArray());
+        functionState.CompletedEvent!.Result.ReadRegimeResult().Should().BeEquivalentTo(result);
 
         var queried = await fixture.QueryWorkflowAsync(advanced.WorkflowId, 2);
         queried.Should().NotBeNull();
@@ -126,7 +126,7 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFacto
         command.WorkflowView.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
         command.WorkflowView.WorkflowRevision.Should().Be(2);
         command.WorkflowView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
-        command.WorkflowView.RegimeDiscovery.Result!.PayloadSha256.Should().Be(projected.ResultPayloadSha256);
+        command.WorkflowView.RegimeDiscovery.Result!.HasSameContent(state.CurrentView.RegimeDiscovery.Result).Should().BeTrue();
         command.WorkflowView.RegimeDiscoveryParameterSet.ParameterSetId.Should()
             .Be(result.RegimeDiscoveryParameterSetId);
         command.WorkflowView.RegimeDiscoveryParameterSet.Version.Should()

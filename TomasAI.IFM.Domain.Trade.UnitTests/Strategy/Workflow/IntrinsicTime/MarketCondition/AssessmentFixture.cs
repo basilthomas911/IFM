@@ -51,8 +51,7 @@ internal static class AssessmentFixture
             MarketDataAsOfUtc = at.AddSeconds(-1),
             Decision = upstream.Decision with { StructureClassification = MarketStructureClassification.Trending, VolatilityChange = VolatilityRegimeChange.Stable }
         };
-        var envelope = StrategyStageResultEnvelope.Create(regime.ResultId, nameof(RegimeDiscoveryResult), RegimeDiscoveryResult.CurrentSchemaVersion,
-            MessagePackSerializer.Serialize(regime), regime.MarketDataAsOfUtc, regime.ProducedAtUtc);
+        var envelope = StrategyStageResultEnvelope.CreateRegime(regime);
         var binding = new MarketConditionAssessmentBinding { Parameters = p, PayloadSha256 = MarketConditionAssessmentHash.Parameters(p) };
         var v = new IntrinsicTimeStrategyWorkflowView
         {

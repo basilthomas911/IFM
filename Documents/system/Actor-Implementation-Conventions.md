@@ -1102,7 +1102,7 @@ parity.
 
 ### 13.3 FunctionActor convention
 
-**2026-09-07 alignment:** Market Condition and planned Trade Selection must use the shared `BaseEventSourceFunctionActor` and all three maps below. A custom `IFunctionActor` host that duplicates the lifecycle does not satisfy this convention. Stage-specific load/projection/persistence hooks may preserve deadlines; they must not reorder the lifecycle or add Function event publication.
+**2026-09-07 alignment:** Market Condition and Trade Selection use the shared `BaseEventSourceFunctionActor`. Function actors use the mapped conventions below; Regime Discovery and Market Condition implement the terminal `_eventMap` described here. A custom `IFunctionActor` host that duplicates the lifecycle does not satisfy this convention. Stage-specific load/projection/persistence hooks may preserve deadlines; they must not reorder the lifecycle or add Function event publication.
 
 A FunctionActor executes bounded calculation work as one Core NATS request/reply operation. Its
 request is an ordinary `ICommand<TEntityId>`, but its subject uses `ActorType.Function`. The typed
@@ -1112,7 +1112,7 @@ reply contains exactly one `TCompletedEvent` or `TFailedEvent` in
 `BaseEventSourceFunctionActor` fixes the lifecycle order:
 
 1. parse through `_parseMap` and `ParseMappedFunction`;
-2. validate the exact request type through `_validationMap`;
+2. validate the exact request type through `_validationMap` and `ValidateMappedCommand`;
 3. load completed-only state;
 4. return an existing matching completion without recalculation;
 5. execute the exact-type `_receiveMap` handler;
@@ -1124,6 +1124,53 @@ reply contains exactly one `TCompletedEvent` or `TFailedEvent` in
 The maps follow the same visibility and fail-closed rules as other actors. `_parseMap` is keyed by
 the exact verb. `_validationMap` and `_receiveMap` are keyed by exact concrete CLR `Type`.
 Assignable-type fallback, type-name strings, switches, and unmapped default behavior are forbidden.
+
+Terminal event construction uses an explicit `_eventMap` keyed by the exact completed and failed
+CLR event types. Each entry calls a separate Complete or Fail extension handler. The actor's
+`HandleFunctionEvent` override contains only mapped dispatch through `DispatchMappedFunctionEvent`;
+it must not construct events or contain domain failure messages, result serialization, or metadata
+assembly. Missing mappings and handlers returning null, non-terminal, or wrong-type results fail closed.
+
+`FunctionEventContext<TRequest>` carries the target event type, nullable decoded request, optional
+calculation outcome, exception, stage, and conflict indicator. It is local dispatch data, not a wire
+message or a new durable event. Dispatch uses the target type because the event has not yet been
+constructed. The `_receiveMap` supplies the execution extension with a callback to the same event
+dispatcher, so calculation completion, expected failure, and timeout all use `_eventMap`. The base
+routes parse/validation/load/execution/projection/persistence exceptions and completed-state conflicts
+through `HandleFunctionEvent`. Matching replay returns the original event without rebuilding it.
+
+The base still owns lifecycle sequencing, projection, persistence, and reply delivery.
+Regime Discovery completion carries `StrategyStageResultEnvelope.RegimeResult` as a typed object;
+its Complete extension does not encode an inner payload. The outer transport/event-store serializer
+handles that object. Typed field fingerprints retain content/conflict checks; legacy byte envelopes
+remain readable. The Scylla projection encodes its existing blob column at the storage boundary.
+ Complete/Fail
+extensions build terminal candidates only; they do not publish, project, or save. Regime Discovery
+uses `CompleteRegimeDiscoveryPipeline` and `FailRegimeDiscoveryPipeline`, including workflow transport
+failure conversion through the shared domain event dispatcher. Market Condition follows the same terminal dispatch pattern with Execute/Complete/Fail assessment extensions. Trade Selection failure hooks remain supported by the base compatibility adapter and have not yet migrated to a terminal event map.
+
+
+Market Condition injects `IMarketConditionFunctionContext` directly, including its calculation-model dependency. The domain and generic context interfaces share one singleton registration. Its result uses appended envelope `AssessmentResult` key 9 and an empty legacy `Payload`; canonical assessment JSON is fingerprint input only, never an embedded result payload. Legacy byte envelopes remain readable at the compatibility boundary. Calculation and completion handlers do not serialize messages.
+
+The base exposes a clock and optional per-stage deadline policy. Market Condition supplies those values while the base enforces cancellation, exact-boundary timeout and late-worker observation. Loading has a fresh read budget for expired completed replay. Success telemetry is dispatched through the completed map only after a deadline-fenced append; replay does not record another success. No domain actor deadline helper or parallel lifecycle implementation is needed.
+
+Function `ValidateAsync` performs argument and cancellation checks, calls the inherited
+`ValidateMappedCommand(request, _validationMap)`, and returns `ValueTask.CompletedTask`.
+The Command and Function bases share one implementation of exact-type dispatch and aggregate
+throwing. Function validation maps use the same `Func<ICommand, List<ValidationError>>` contract
+and visible list-extension order specified in section 13.1.3: command ID, intrinsic entity identity,
+each domain payload parameter, then cross-parameter consistency. Extensions append errors and
+return the same list. Structured payloads use FluentValidation rules through list adapters;
+null payloads and nested objects produce validation errors rather than dereference exceptions.
+Do not wrap an exception-throwing private validator in `CaptureCommandValidation` as a substitute
+for these extensions. `ParseMappedFunction` checks the transport and decoded command route,
+including its correspondence with the command entity identity.
+
+Regime Discovery applies this pattern to execution identity, workflow revision/view, trigger,
+correlation/causation IDs, UTC timestamps, parameters, canonical parameter hash, and target horizon.
+Its command-specific workflow/trigger rules accept unrelated upstream stage/provenance fields;
+signal-quality assessment remains execution work. It preserves completed-only persistence and
+rejects invalid commands before loading state, calculating, projecting, or saving.
 
 Function projection owns no actor, queue, route, publication, checkpoint, redelivery, or replay.
 Only a candidate completed event may reach it. A projection exception becomes a typed failed
@@ -1157,6 +1204,8 @@ Reserving a command ID would incorrectly suppress a retry after a non-durable fa
 - [ ] Parsing requires `ActorType.Function`, the exact mailbox name, and a registered verb.
 - [ ] Validation visibly checks `CommandId`, entity ID, payload, and cross-field invariants.
 - [ ] Receive dispatch accepts only exact registered request types.
+- [ ] Terminal dispatch uses exact completed/failed event types and separate extension handlers.
+- [ ] Event-map tests reject missing mappings, null/non-terminal results, and incompatible event types.
 - [ ] Calculation failure performs no projection and no Function-state save.
 - [ ] Timeout returns a typed failed event and performs no projection or save.
 - [ ] Projection failure returns a typed failed event and performs no save.

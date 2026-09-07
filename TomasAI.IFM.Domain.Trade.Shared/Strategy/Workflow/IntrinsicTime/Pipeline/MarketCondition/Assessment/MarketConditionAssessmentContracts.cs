@@ -1,4 +1,3 @@
-using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
@@ -11,29 +10,15 @@ public static class MarketConditionAssessmentContracts
     public static RegimeDiscoveryResult ValidateRequest(ExecuteMarketConditionAssessmentCommand c)
     {
         ArgumentNullException.ThrowIfNull(c);
-        c.ParameterSet.Validate();
-        var v = c.WorkflowView;
-        var binding = v.AssessmentBinding ?? throw Invalid("The workflow has no frozen assessment mode.");
-        binding.Validate();
-        if (c.SchemaVersion != 1 || c.CommandId == Guid.Empty || c.WorkflowId.Value == Guid.Empty ||
-            c.Subject.ActorType != ActorType.Function || c.Subject.Name != ExecuteMarketConditionAssessmentCommand.Actor ||
-            c.Subject.Verb != ExecuteMarketConditionAssessmentCommand.Verb || c.Subject.EntityId != c.EntityId.Format() ||
-            c.WorkflowEntityId != v.EntityId || c.WorkflowId != v.WorkflowId || c.InputWorkflowRevision != v.WorkflowRevision ||
-            v.Status != WorkflowStrategyMachineStatus.Started || v.CurrentStage != StrategyWorkflowStage.MarketCondition ||
-            !Utc(c.RequestedAtUtc) || !Utc(c.ExpiresAtUtc) || c.ExpiresAtUtc <= c.RequestedAtUtc ||
-            c.ExpiresAtUtc > v.ExpiresAtUtc || c.ExpiresAtUtc > c.RequestedAtUtc.AddMilliseconds(c.ParameterSet.MaximumExecutionMilliseconds) ||
-            c.MarketProfileId != c.ParameterSet.MarketProfileId || c.InstrumentRoot != c.ParameterSet.InstrumentRoot ||
-            c.TargetHorizon != c.ParameterSet.TargetHorizon || c.TargetHorizon != c.TriggerEvent.EntityId.TimePeriod ||
-            c.TargetHorizon != v.TriggerEvent.EntityId.TimePeriod || c.TriggerEvent.EntityId != v.TriggerEvent.EntityId ||
-            !MessagePackSerializer.Serialize(c.TriggerEvent).AsSpan().SequenceEqual(MessagePackSerializer.Serialize(v.TriggerEvent)) ||
-            c.ParameterPayloadSha256 != MarketConditionAssessmentHash.Parameters(c.ParameterSet) ||
-            c.ParameterPayloadSha256 != binding.PayloadSha256 || c.ParameterPayloadSha256 != MarketConditionAssessmentHash.Parameters(binding.Parameters) ||
-            v.RegimeDiscovery.ProcessingStatus != StrategyActorProcessingStatus.Completed || v.RegimeDiscovery.CompletedAtUtc is null ||
-            v.RegimeDiscovery.Result is not { } accepted || !accepted.HasValidPayloadSha256() ||
-            accepted.PayloadSha256 != c.RegimePayloadSha256 || accepted.ResultId != c.RegimeResultEnvelope.ResultId ||
-            accepted.ResultType != c.RegimeResultEnvelope.ResultType || accepted.SchemaVersion != c.RegimeResultEnvelope.SchemaVersion ||
-            !accepted.Payload.Span.SequenceEqual(c.RegimeResultEnvelope.Payload.Span))
-            throw Invalid("Assessment request conflicts with its frozen workflow, trigger, profile or accepted regime.");
+        var errors = new List<TomasAI.IFM.Shared.Validation.ValidationError>()
+            .ValidateAssessmentIdentity(c.EntityId).ValidateAssessmentRevision(c.InputWorkflowRevision)
+            .ValidateAssessmentWorkflow(c.WorkflowView).ValidateAssessmentTrigger(c.TriggerEvent)
+            .ValidateAssessmentTraceId(c.CorrelationId, nameof(c.CorrelationId)).ValidateAssessmentTraceId(c.CausationId, nameof(c.CausationId))
+            .ValidateAssessmentTimestamp(c.RequestedAtUtc, nameof(c.RequestedAtUtc)).ValidateAssessmentTimestamp(c.ExpiresAtUtc, nameof(c.ExpiresAtUtc))
+            .ValidateAssessmentParameters(c.ParameterSet).ValidateAssessmentHash(c.ParameterPayloadSha256, nameof(c.ParameterPayloadSha256))
+            .ValidateAssessmentHash(c.RegimePayloadSha256, nameof(c.RegimePayloadSha256)).ValidateAssessmentHorizon(c.TargetHorizon)
+            .ValidateAssessmentUpstream(c.RegimeResultEnvelope, c.WorkflowView).ValidateAssessmentConsistency(c);
+        if (errors.Count != 0) throw Invalid(string.Join(Environment.NewLine, errors.Select(error => error.ErrorMessage)));
         return ReadRegime(c.RegimeResultEnvelope, c.WorkflowView);
     }
 
@@ -41,10 +26,19 @@ public static class MarketConditionAssessmentContracts
     {
         var p = v.AssessmentBinding?.Parameters ?? throw Invalid("Missing assessment profile.");
         if (envelope.ResultType != nameof(RegimeDiscoveryResult) || envelope.SchemaVersion != RegimeDiscoveryResult.CurrentSchemaVersion ||
-            envelope.ContentType != "application/x-msgpack" || !envelope.HasValidPayloadSha256()) throw Invalid("Invalid accepted regime envelope.");
-        var r = MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(envelope.Payload);
+            !envelope.HasValidPayloadSha256()) throw Invalid("Invalid accepted regime envelope.");
+        var r = envelope.ReadRegimeResult();
+        if (!IsRegimeConsistent(r, envelope, v, p)) throw Invalid("Accepted regime lineage or decision is invalid.");
+        return r;
+    }
+
+    /// <summary>Compares typed upstream lineage without exception-based validation dispatch.</summary>
+    internal static bool IsRegimeConsistent(RegimeDiscoveryResult? r, StrategyStageResultEnvelope envelope,
+        IntrinsicTimeStrategyWorkflowView v, MarketConditionAssessmentParameterSet p)
+    {
+        if (r?.Decision is null || v.TriggerEvent?.EntityId is null || v.RegimeDiscoveryParameterSet is null || p.HorizonProfile is null) return false;
         var triggerId = v.TriggerEvent.Id == Guid.Empty ? v.TriggerEvent.CommandId : v.TriggerEvent.Id;
-        if (r.SchemaVersion != RegimeDiscoveryResult.CurrentSchemaVersion || r.ResultId != envelope.ResultId ||
+        return !(r.SchemaVersion != RegimeDiscoveryResult.CurrentSchemaVersion || r.ResultId != envelope.ResultId ||
             r.WorkflowId != v.WorkflowId || r.EntityId != v.EntityId || r.TriggerEventId != triggerId ||
             r.TargetHorizon != v.TriggerEvent.EntityId.TimePeriod || r.TargetHorizon != p.TargetHorizon ||
             r.RegimeDiscoveryParameterSetId != p.HorizonProfile.RegimeProfileId ||
@@ -55,17 +49,15 @@ public static class MarketConditionAssessmentContracts
             envelope.MarketDataAsOfUtc != r.MarketDataAsOfUtc || !r.Decision.IsComplete ||
             r.Decision.Confidence is < 0 or > 1 || !Enum.IsDefined(r.Decision.Direction) || r.Decision.Direction == RegimeDirection.Unknown ||
             !Enum.IsDefined(r.Decision.StructureClassification) || !Enum.IsDefined(r.Decision.VolatilityChange) ||
-            r.Decision.Restrictions is null || r.Decision.Restrictions.Any(x => !Enum.IsDefined(x)))
-            throw Invalid("Accepted regime lineage or decision is invalid.");
-        return r;
+            r.Decision.Restrictions is null || r.Decision.Restrictions.Any(x => !Enum.IsDefined(x)));
     }
 
     public static MarketConditionAssessmentResult ReadResult(StrategyStageResultEnvelope envelope)
     {
         if (envelope.ResultType != nameof(MarketConditionAssessmentResult) || envelope.SchemaVersion != 1 ||
-            envelope.ContentType != "application/x-msgpack" || !envelope.HasValidPayloadSha256())
+            !envelope.HasValidPayloadSha256())
             throw Invalid("Invalid assessment result envelope.");
-        var result = MessagePackSerializer.Deserialize<MarketConditionAssessmentResult>(envelope.Payload);
+        var result = envelope.ReadAssessmentResult();
         ValidateResult(result);
         if (result.ResultId != envelope.ResultId || result.EvaluatedAtUtc != envelope.ProducedAtUtc)
             throw Invalid("Assessment envelope identity or timestamp mismatch.");
@@ -110,7 +102,7 @@ public static class MarketConditionAssessmentContracts
             r.ParameterPayloadSha256 != binding.PayloadSha256 || r.RegimeResultId != regime.ResultId ||
             r.RegimePayloadSha256 != v.RegimeDiscovery.Result.PayloadSha256 ||
             !r.Assessment.InheritedRestrictions.Order().SequenceEqual(regime.Decision.Restrictions.Distinct().Order()) ||
-            r.Assessment.UpstreamContext is { } context && !MessagePackSerializer.Serialize(context).AsSpan().SequenceEqual(MessagePackSerializer.Serialize(regime.Decision)))
+            r.Assessment.UpstreamContext is { } context && RegimeDiscoveryResultContent.DecisionFingerprint(context) != RegimeDiscoveryResultContent.DecisionFingerprint(regime.Decision))
             throw Invalid("Assessment conflicts with the accepted workflow invocation.");
     }
 

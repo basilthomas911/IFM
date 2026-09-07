@@ -1,4 +1,3 @@
-using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -24,7 +23,7 @@ public sealed class MarketAssessmentTestScenario
         var sample=MarketConditionAssessmentReferenceGenerator.CreateScenario(horizon,scenario);
         var c=sample.Command; var at=c.RequestedAtUtc;
         Result=new MarketConditionAssessmentCalculator().Calculate(c,sample.Snapshot,c.CommandId);
-        var envelope=StrategyStageResultEnvelope.Create(Result.ResultId,nameof(MarketConditionAssessmentResult),1,MessagePackSerializer.Serialize(Result),at,at);
+        var envelope=StrategyStageResultEnvelope.CreateAssessment(Result);
         View=c.WorkflowView with { FundId=5001,WorkflowRevision=3,CurrentStage=StrategyWorkflowStage.TradeSelection,
             MarketCondition=new(){InputWorkflowRevision=2,ProcessingStatus=StrategyActorProcessingStatus.Completed,SourceEventId=Result.ResultId,Result=envelope,CompletedAtUtc=at} };
         Projection=new(){Id=Result.ResultId,CommandId=c.CommandId,EntityId=c.WorkflowEntityId,WorkflowId=c.WorkflowId,InputWorkflowRevision=2,

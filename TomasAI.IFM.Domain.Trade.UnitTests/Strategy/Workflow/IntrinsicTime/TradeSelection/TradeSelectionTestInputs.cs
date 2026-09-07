@@ -25,12 +25,12 @@ internal static class TradeSelectionTestInputs
     }
     internal static ExecuteTradeSelectionPipelineCommand Evidence(ExecuteTradeSelectionPipelineCommand c,Action<RegimeDiscoveryDecision>? regimeChange=null,Action<HorizonAssessment>? assessmentChange=null)
     {
-        var regime=MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(c.RegimeResultEnvelope.Payload);var decision=regime.Decision;regimeChange?.Invoke(decision);regime=regime with {Decision=decision};
-        var re=StrategyStageResultEnvelope.Create(regime.ResultId,nameof(RegimeDiscoveryResult),c.RegimeResultEnvelope.SchemaVersion,MessagePackSerializer.Serialize(regime),c.RegimeResultEnvelope.MarketDataAsOfUtc,c.RegimeResultEnvelope.ProducedAtUtc);
+        var regime=c.RegimeResultEnvelope.ReadRegimeResult();var decision=regime.Decision;regimeChange?.Invoke(decision);regime=regime with {Decision=decision};
+        var re=StrategyStageResultEnvelope.CreateRegime(regime);
         var assessment=MarketConditionAssessmentContracts.ReadResult(c.AssessmentResultEnvelope);
         assessment=assessment with {RegimePayloadSha256=re.PayloadSha256,Assessment=assessment.Assessment with {RegimePayloadSha256=re.PayloadSha256,UpstreamContext=regime.Decision,InheritedRestrictions=regime.Decision.Restrictions}};
         assessmentChange?.Invoke(assessment.Assessment);
-        var ae=StrategyStageResultEnvelope.Create(assessment.ResultId,nameof(MarketConditionAssessmentResult),1,MessagePackSerializer.Serialize(assessment),c.AssessmentResultEnvelope.MarketDataAsOfUtc,c.AssessmentResultEnvelope.ProducedAtUtc);
+        var ae=StrategyStageResultEnvelope.CreateAssessment(assessment);
         return c with {RegimeResultEnvelope=re,AssessmentResultEnvelope=ae,WorkflowView=c.WorkflowView with {RegimeDiscovery=c.WorkflowView.RegimeDiscovery with {Result=re},MarketCondition=c.WorkflowView.MarketCondition with {Result=ae}}};
     }
     internal static void Set<T>(T value,string name,object data)=>typeof(T).GetProperty(name)!.SetValue(value,data);

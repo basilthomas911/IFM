@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using System.Security.Cryptography;
 using FluentValidation;
 using MessagePack;
@@ -7,21 +9,132 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
 /// <summary>
-/// Carries one versioned, opaque result produced by a strategy pipeline stage.
+/// Carries a versioned stage result: typed Regime Discovery or Market Condition content, or a legacy opaque payload.
 /// </summary>
 /// <remarks>
-/// The workflow validates and stores the payload but does not interpret its stage-specific contents.
-/// Payload buffers are defensively copied so they cannot be mutated across actor boundaries.
+/// The workflow validates and stores versioned result content without interpreting stage-specific decisions.
+/// Opaque buffers and typed result collections are defensively copied across actor boundaries.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record StrategyStageResultEnvelope
 {
-    /// <summary>Default maximum serialized payload size for one pipeline stage.</summary>
+    /// <summary>Default maximum opaque payload size or canonical typed-content size for one pipeline stage.</summary>
     public const int DefaultMaximumPayloadBytes = 64 * 1024;
 
     [IgnoreMember]
     [JsonProperty(nameof(Payload))]
     byte[] _payload = [];
+    [IgnoreMember, JsonIgnore] RegimeDiscoveryResult? _regimeResult;
+    [IgnoreMember, JsonIgnore] (string Hash, int Size) _regimeFingerprint;
+
+    /// <summary>Identifies the typed Regime Discovery content and its v1 field-fingerprint format.</summary>
+    public const string TypedRegimeContentType = "application/vnd.ifm.regime-result.v1";
+
+    /// <summary>Gets a typed Regime Discovery result; new Regime events leave the legacy byte payload empty.</summary>
+    /// <remarks>Key 8 is appended so persisted envelopes with keys 0 through 7 remain readable.</remarks>
+    [Key(8)]
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RegimeDiscoveryResult? RegimeResult
+    {
+        get => RegimeDiscoveryResultContent.Clone(_regimeResult);
+        init
+        {
+            _regimeResult = RegimeDiscoveryResultContent.Clone(value);
+            _regimeFingerprint = _regimeResult is null ? default : RegimeDiscoveryResultContent.Fingerprint(_regimeResult);
+        }
+    }
+
+    [IgnoreMember, JsonIgnore] MarketConditionAssessmentResult? _assessmentResult;
+    [IgnoreMember, JsonIgnore] (string Hash, int Size) _assessmentFingerprint;
+    public const string TypedAssessmentContentType = "application/vnd.ifm.market-assessment.v1";
+
+    /// <summary>Typed Market Condition content. New completions leave the legacy byte payload empty.</summary>
+    [Key(9)]
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MarketConditionAssessmentResult? AssessmentResult
+    {
+        get => _assessmentResult?.CopyContent();
+        init
+        {
+            _assessmentResult = value?.CopyContent();
+            _assessmentFingerprint = _assessmentResult?.ContentFingerprint() ?? default;
+        }
+    }
+
+    /// <summary>Creates a typed assessment envelope; transport and storage serialize the outer event.</summary>
+    public static StrategyStageResultEnvelope CreateAssessment(MarketConditionAssessmentResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.ResultId == Guid.Empty || result.SchemaVersion <= 0)
+            throw new ArgumentException("A versioned assessment result identity is required.", nameof(result));
+        var envelope = new StrategyStageResultEnvelope
+        {
+            ResultId = result.ResultId, ResultType = nameof(MarketConditionAssessmentResult), SchemaVersion = result.SchemaVersion,
+            ContentType = TypedAssessmentContentType, AssessmentResult = result,
+            MarketDataAsOfUtc = result.EvaluatedAtUtc, ProducedAtUtc = result.EvaluatedAtUtc
+        };
+        if (envelope.ContentSize > DefaultMaximumPayloadBytes)
+            throw new ArgumentOutOfRangeException(nameof(result), "Assessment content exceeds the configured stage limit.");
+        return envelope with { PayloadSha256 = envelope._assessmentFingerprint.Hash };
+    }
+
+    /// <summary>Reads typed assessment content, decoding bytes only for legacy persisted envelopes.</summary>
+    public MarketConditionAssessmentResult ReadAssessmentResult()
+    {
+        if (ResultType != nameof(MarketConditionAssessmentResult) || !HasValidPayloadSha256())
+            throw new ArgumentException("Invalid assessment result envelope.");
+        if (_assessmentResult is not null) return AssessmentResult!;
+        if (ContentType != "application/x-msgpack") throw new ArgumentException("Unsupported legacy assessment encoding.");
+        return MessagePackSerializer.Deserialize<MarketConditionAssessmentResult>(_payload);
+    }
+
+    /// <summary>Gets the canonical typed-content size or legacy encoded payload size used by the stage budget.</summary>
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
+    /// <summary>Gets whether either supported result representation is populated.</summary>
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
+
+    /// <summary>Creates a typed Regime envelope without serializing an inner message payload.</summary>
+    /// <param name="result">The result whose typed fields, metadata and fingerprint are carried by the outer message.</param>
+    /// <returns>A defensively copied typed envelope with an empty legacy payload.</returns>
+    public static StrategyStageResultEnvelope CreateRegime(RegimeDiscoveryResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.ResultId == Guid.Empty || result.SchemaVersion == 0)
+            throw new ArgumentException("A versioned Regime result identity is required.", nameof(result));
+        var envelope = new StrategyStageResultEnvelope
+        {
+            ResultId = result.ResultId, ResultType = nameof(RegimeDiscoveryResult), SchemaVersion = result.SchemaVersion,
+            ContentType = TypedRegimeContentType, RegimeResult = result,
+            MarketDataAsOfUtc = result.MarketDataAsOfUtc, ProducedAtUtc = result.ProducedAtUtc
+        };
+        if (envelope.ContentSize > DefaultMaximumPayloadBytes)
+            throw new ArgumentOutOfRangeException(nameof(result), "Regime content exceeds the configured stage limit.");
+        return envelope with { PayloadSha256 = envelope._regimeFingerprint.Hash };
+    }
+
+    /// <summary>Reads typed Regime content, decoding bytes only for persisted legacy envelopes.</summary>
+    /// <returns>The typed result after envelope integrity checks.</returns>
+    public RegimeDiscoveryResult ReadRegimeResult()
+    {
+        if (ResultType != nameof(RegimeDiscoveryResult) || !HasValidPayloadSha256())
+            throw new ArgumentException("Invalid Regime Discovery result envelope.");
+        if (_regimeResult is not null) return RegimeResult!;
+        if (ContentType != "application/x-msgpack")
+            throw new ArgumentException("Unsupported legacy Regime result encoding.");
+        return MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(_payload);
+    }
+
+    /// <summary>Compares validated content and its envelope metadata without serializing either envelope.</summary>
+    /// <param name="other">The other accepted result envelope.</param>
+    /// <returns>True when both envelopes identify the same complete content.</returns>
+    public bool HasSameContent(StrategyStageResultEnvelope? other) => other is not null &&
+        HasValidPayloadSha256() && other.HasValidPayloadSha256() && ResultId == other.ResultId &&
+        ResultType == other.ResultType && SchemaVersion == other.SchemaVersion && ContentType == other.ContentType &&
+        ProducedAtUtc == other.ProducedAtUtc && MarketDataAsOfUtc == other.MarketDataAsOfUtc &&
+        string.Equals(PayloadSha256, other.PayloadSha256, StringComparison.OrdinalIgnoreCase);
+
 
     /// <summary>Gets the unique result identifier.</summary>
     [Key(0)]
@@ -48,7 +161,7 @@ public sealed record StrategyStageResultEnvelope
         init => _payload = value.ToArray();
     }
 
-    /// <summary>Gets the hexadecimal SHA-256 digest of <see cref="Payload"/>.</summary>
+    /// <summary>Gets the SHA-256 field fingerprint for typed Regime content, or the byte digest for an opaque payload.</summary>
     [Key(5)]
     public string PayloadSha256 { get; init; } = string.Empty;
 
@@ -119,12 +232,29 @@ public sealed record StrategyStageResultEnvelope
     public static string ComputePayloadSha256(ReadOnlySpan<byte> payload)
         => Convert.ToHexString(SHA256.HashData(payload));
 
-    /// <summary>Determines whether the stored digest matches the exact stored payload bytes.</summary>
+    /// <summary>Checks the typed field fingerprint and metadata, or the legacy payload byte digest.</summary>
     /// <returns><see langword="true"/> when the digest is a valid SHA-256 match; otherwise <see langword="false"/>.</returns>
     public bool HasValidPayloadSha256()
     {
-        if (PayloadSha256.Length != SHA256.HashSizeInBytes * 2)
+        if (PayloadSha256 is not { Length: SHA256.HashSizeInBytes * 2 })
             return false;
+        if (_assessmentResult is not null)
+        {
+            if (_regimeResult is not null || _payload.Length != 0 || ContentType != TypedAssessmentContentType ||
+                ResultType != nameof(MarketConditionAssessmentResult) || ResultId != _assessmentResult.ResultId ||
+                SchemaVersion != _assessmentResult.SchemaVersion || ProducedAtUtc != _assessmentResult.EvaluatedAtUtc ||
+                MarketDataAsOfUtc != _assessmentResult.EvaluatedAtUtc) return false;
+            return string.Equals(PayloadSha256, _assessmentFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+        }
+        if (_regimeResult is not null)
+        {
+            if (_payload.Length != 0 || ContentType != TypedRegimeContentType || ResultType != nameof(RegimeDiscoveryResult) ||
+                ResultId != _regimeResult.ResultId || SchemaVersion != _regimeResult.SchemaVersion ||
+                ProducedAtUtc != _regimeResult.ProducedAtUtc || MarketDataAsOfUtc != _regimeResult.MarketDataAsOfUtc)
+                return false;
+            return string.Equals(PayloadSha256, _regimeFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+        }
+        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType) return false;
 
         try
         {
@@ -139,7 +269,7 @@ public sealed record StrategyStageResultEnvelope
     }
 }
 
-/// <summary>Validates the metadata, size, and payload integrity of an opaque stage-result envelope.</summary>
+/// <summary>Validates the metadata, size, and integrity of typed or opaque stage-result content.</summary>
 public sealed class StrategyStageResultEnvelopeValidationRules
     : BaseValidationRules, IValidationRules<StrategyStageResultEnvelope>
 {
@@ -202,9 +332,9 @@ public sealed class StrategyStageResultEnvelopeValidationRules
             RuleFor(x => x.ResultType).NotEmpty().WithMessage(ResultTypeErrorMessage);
             RuleFor(x => x.SchemaVersion).GreaterThan(0).WithMessage(SchemaVersionErrorMessage);
             RuleFor(x => x.ContentType).NotEmpty().WithMessage(ContentTypeErrorMessage);
-            RuleFor(x => x.Payload).Must(static payload => !payload.IsEmpty).WithMessage(PayloadRequiredErrorMessage);
-            RuleFor(x => x.Payload)
-                .Must(payload => payload.Length <= maximumPayloadBytes)
+            RuleFor(x => x).Must(static envelope => envelope.HasContent).WithMessage(PayloadRequiredErrorMessage);
+            RuleFor(x => x.ContentSize)
+                .Must(size => size <= maximumPayloadBytes)
                 .WithMessage(PayloadLimitErrorMessage);
             RuleFor(x => x).Must(static envelope => envelope.HasValidPayloadSha256())
                 .WithMessage(PayloadHashErrorMessage);

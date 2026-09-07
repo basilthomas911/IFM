@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -263,30 +264,23 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             terminal = result.Value;
             if (terminal is null || !terminal.IsTerminal)
             {
-                terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
-                    RegimeDiscoveryPipelineFailedEvent>.Fail(
-                    ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
-                        execute,
-                        result.ErrorCode == 0 ? RegimeDiscoveryPipelineFailedEvent.ErrorId : result.ErrorCode,
-                        string.IsNullOrWhiteSpace(result.ErrorMessage)
-                            ? "Regime Discovery Function returned no terminal result."
-                            : result.ErrorMessage,
-                        "FunctionRequest",
-                        string.Empty,
-                        timeProvider.GetUtcNow().UtcDateTime));
+                terminal = RegimeDiscoveryFunctionActor.MapEvent(
+                    new(typeof(RegimeDiscoveryPipelineFailedEvent), execute,
+                        new RegimeDiscoveryExecutionFailed(timeProvider.GetUtcNow().UtcDateTime,
+                            string.IsNullOrWhiteSpace(result.ErrorMessage)
+                                ? "Regime Discovery Function returned no terminal result." : result.ErrorMessage,
+                            "FunctionRequest",
+                            result.ErrorCode == 0 ? RegimeDiscoveryPipelineFailedEvent.ErrorId : result.ErrorCode,
+                            [], Guid.Empty)), timeProvider);
             }
         }
         catch (Exception exception)
         {
-            terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
-                RegimeDiscoveryPipelineFailedEvent>.Fail(
-                ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
-                    execute,
-                    RegimeDiscoveryPipelineFailedEvent.ErrorId,
-                    "Regime Discovery Function request failed or exceeded its deadline.",
-                    "FunctionRequest",
-                    exception.GetType().Name,
-                    timeProvider.GetUtcNow().UtcDateTime));
+            terminal = RegimeDiscoveryFunctionActor.MapEvent(
+                new(typeof(RegimeDiscoveryPipelineFailedEvent), execute,
+                    new RegimeDiscoveryExecutionFailed(timeProvider.GetUtcNow().UtcDateTime,
+                        "Regime Discovery Function request failed or exceeded its deadline.", "FunctionRequest",
+                        RegimeDiscoveryPipelineFailedEvent.ErrorId, [], Guid.Empty, exception.GetType().Name)), timeProvider);
         }
 
         if (terminal.IsCompleted)

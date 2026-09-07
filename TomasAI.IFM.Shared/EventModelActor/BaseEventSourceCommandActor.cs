@@ -407,24 +407,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     protected void ValidateMappedCommand(
         ICommand command,
         IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> validationMap)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(validationMap);
-
-        if (!validationMap.TryGetValue(command.GetType(), out var validator))
-            throw new InvalidOperationException(
-                $"Unable to validate {Id.Name} commands from message: {command.Subject}");
-
-        var errors = validator(command)
-            ?? throw new InvalidOperationException(
-                $"Validator for {command.GetType().Name} returned no error collection.");
-
-        if (errors.Count > 0)
-            throw new CommandValidationException(
-                command.ErrorCode,
-                string.Join(Environment.NewLine, errors.Select(error => error.ErrorMessage))
-                + Environment.NewLine);
-    }
+        => MappedCommandValidation.Validate(Id.Name, command, validationMap);
 
     /// <summary>
     /// Compatibility entry point for existing command actor tests during the staged mailbox migration.

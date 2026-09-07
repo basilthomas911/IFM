@@ -33,14 +33,14 @@ internal static class TradeSelectionFixture
         var rule=common.VariantRules.Single(x=>x.BuilderCapabilityCode==builder.Code && x.Side==sourceVariant.Side && x.Bias==sourceVariant.Bias && x.PremiumMode==sourceVariant.PremiumMode);
         var decision=new RegimeDiscoveryDecision{IsComplete=true,Direction=rule.AllowedRegimeDirections[0],Confidence=.9m,Quality=RegimeOverallQuality.High,
             TrendPhase=rule.AllowedTrendPhases[0],TrendStrength=rule.AllowedTrendStrengths[0],VolatilityLevel=VolatilityRegimeLevel.Normal,VolatilityChange=VolatilityRegimeChange.Stable,StructureClassification=rule.AllowedStructureClassifications[0]};
-        var upstream=MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(assessmentCommand.RegimeResultEnvelope.Payload) with {Decision=decision};
-        var regimeEnvelope=StrategyStageResultEnvelope.Create(upstream.ResultId,nameof(RegimeDiscoveryResult),RegimeDiscoveryResult.CurrentSchemaVersion,MessagePackSerializer.Serialize(upstream),upstream.MarketDataAsOfUtc,upstream.ProducedAtUtc);
+        var upstream=assessmentCommand.RegimeResultEnvelope.ReadRegimeResult() with {Decision=decision};
+        var regimeEnvelope=StrategyStageResultEnvelope.CreateRegime(upstream);
         assessmentCommand=assessmentCommand with {RegimeResultEnvelope=regimeEnvelope,RegimePayloadSha256=regimeEnvelope.PayloadSha256,WorkflowView=assessmentCommand.WorkflowView with {RegimeDiscovery=assessmentCommand.WorkflowView.RegimeDiscovery with {Result=regimeEnvelope}}};
         var assessment=new MarketConditionAssessmentCalculator().Calculate(assessmentCommand,Snapshot(assessmentCommand).Seal(),assessmentCommand.CommandId);
         assessment=assessment with {Assessment=assessment.Assessment with {Availability=AssessmentAvailability.Available,ConditionType=rule.AllowedAssessmentConditions[0],AssessmentConfidence=.9m,
             LiquidityCondition=AssessmentLiquidity.Healthy,SessionState=MarketSessionStatus.Open,EventRiskState=AssessmentEventContext.Clear,StressState=AssessmentStress.Normal,
             VolatilityBehavior=rule.AllowedVolatilityBehavior[0],TriggerAlignment=AssessmentTriggerAlignment.Aligned,DataQuality=MarketConditionDataQuality.Healthy,ValidUntilUtc=at.AddSeconds(30),UpstreamContext=decision,InheritedRestrictions=[]}};
-        var assessmentEnvelope=StrategyStageResultEnvelope.Create(assessment.ResultId,nameof(MarketConditionAssessmentResult),1,MessagePackSerializer.Serialize(assessment),assessment.EvaluatedAtUtc,assessment.EvaluatedAtUtc);
+        var assessmentEnvelope=StrategyStageResultEnvelope.CreateAssessment(assessment);
         var variant=sourceVariant with {Settings=JsonSerializer.SerializeToElement(new{TargetNetDelta=builder.Code=="Future"?(sourceVariant.Side=="Long"?1m:-1m):sourceVariant.Bias=="Balanced"?0m:sourceVariant.Bias=="Bullish"?.15m:-.15m,
             BalanceTolerance=.05m,SymmetricWings=true,MinimumWingWidth=builder.Code=="Future"?0m:5m,MaximumWingWidth=builder.Code=="Future"?0m:10m,DeltaUnits="UnderlyingEquivalent"})};
         var strategy=examples.Single(x=>x.Key.Kind==StrategyCatalogKind.Strategy) with {Structures=[structure.Key]};

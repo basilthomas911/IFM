@@ -27,7 +27,7 @@ public sealed record RegimeDiscoveryReadModel
     [Key(8)] public Guid SignalSnapshotId { get; init; }
     /// <summary>Gets the complete typed result payload, or an empty buffer on failure.</summary>
     [Key(9)] public ReadOnlyMemory<byte> ResultPayload { get; init; }
-    /// <summary>Gets the deterministic result payload hash.</summary>
+    /// <summary>Gets the SHA-256 digest of the Scylla blob bytes, independently of the typed workflow content fingerprint.</summary>
     [Key(10)] public string ResultPayloadSha256 { get; init; } = string.Empty;
     /// <summary>Gets the stable failure code, or zero on success.</summary>
     [Key(11)] public int FailureCode { get; init; }

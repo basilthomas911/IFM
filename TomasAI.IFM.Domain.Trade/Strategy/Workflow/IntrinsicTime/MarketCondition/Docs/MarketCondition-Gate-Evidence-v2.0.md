@@ -1,5 +1,27 @@
 # Market Condition gate evidence v2.0
 
+
+## Full Regime Discovery convention alignment - 2026-09-07
+
+Completed the strongly typed context/model dependency, standard list-extension validation through `ValidateMappedCommand`, exact `_eventMap`, separate Execute/Complete/Fail extensions, mapped workflow transport failures, and base-owned lifecycle deadlines. New Market Condition completions carry typed `AssessmentResult` content at envelope key 9 with no inner MessagePack payload. Calculation copies and request normalization use typed operations. Storage retains outer-event serialization and legacy-envelope reads.
+
+| Verification | Passed | Scope |
+| --- | ---: | --- |
+| Trade unit suite | 762 | Regime Discovery, Market Condition, Trade Selection and workflow regression; includes 17 new alignment cases for terminal maps, typed outer serialization, genuine old eight-field envelopes, JSON/hash compatibility, malformed/null input aggregation, model injection/failure and load/persistence deadlines |
+| Shared Function lifecycle | 17 | Base lifecycle ordering, completion replay, exact event dispatch and failure compatibility |
+| Trade BDD suite | 31 | Workflow behavior and typed assessment consumption |
+| Registration integration | 2 | Real integration-host registration scan resolves both actors; domain and generic interfaces share their singleton registration; Market Condition exposes its calculation model |
+| Assessment/Trade Selection qualification | 10 | Deterministic reference calculations, one-timeframe qualification, contract checks and downstream selector behavior |
+| **Total** | **822** | All listed tests passed |
+
+Commands: `dotnet test TomasAI.IFM.Domain.Trade.UnitTests --no-restore`; shared tests filtered to `FunctionActorLifecycleTests`; full `TomasAI.IFM.Domain.Trade.BDDTests`; integrated tests filtered to `ContextRegistrationTests`; verification tests filtered to `MarketAssessmentQualificationTests|TradeSelectionQualificationTests`.
+
+`dotnet build TomasAI.IFM.Application.Api.Server --no-restore --verbosity quiet` succeeded with zero warnings and zero errors. `git diff --check` reported no whitespace errors.
+
+Local logs are under `.test-results/typed-regime/market-alignment-*.log`. Registration integration uses the real startup registration method with substituted external services; no live broker, Scylla, PostgreSQL, or combined pipeline workflow was executed for this alignment. Earlier live-runtime evidence below is historical and is not claimed as a rerun of these changes.
+
+The registration check caught and resolved duplicate global validation services: command-specific FluentValidation adapters remain local and do not implement globally scanned `IValidationRules<T>` contracts for shared workflow/trigger types. Fingerprint compatibility tests also cover the historical normalization of nullable trigger strings and UTC default timestamps. Producers and consumers must be upgraded together for typed-only assessment results; existing persisted envelopes remain readable.
+
 ## Function base and mapping qualification - 2026-09-07
 
 MarketConditionFunctionActor now inherits BaseEventSourceFunctionActor and uses immutable ordinal-verb _parseMap plus exact-type _validationMap/_receiveMap. The custom assessment lifecycle host is removed; ExecuteMarketConditionAssessment is the mapped calculation extension. The shared base has default-preserving load/projection/persistence hooks so the assessment can enforce its existing deadline and cancellation semantics. Actor routing and message schemas are unchanged.

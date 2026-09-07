@@ -40,7 +40,7 @@ public sealed record MarketConditionAssessmentParameterSet
     [Key(6)] public string ReferencePolicy { get; init; } = "OnTheRun";
     [Key(7)] public string CalendarBinding { get; init; } = "CME";
     [Key(8)] public MarketConditionAssessmentHorizonProfile HorizonProfile { get; init; } = new();
-    [Key(9)] public AssessmentSourceBinding[] Sources { get => [.. _sources.OrderBy(x => x.SourceId, StringComparer.Ordinal)]; init => _sources = value is null ? [] : [.. value.OrderBy(x => x.SourceId, StringComparer.Ordinal)]; }
+    [Key(9)] public AssessmentSourceBinding[] Sources { get => [.. _sources.OrderBy(x => x?.SourceId, StringComparer.Ordinal)]; init => _sources = value is null ? [] : [.. value.OrderBy(x => x?.SourceId, StringComparer.Ordinal)]; }
     [Key(10)] public int FutureClockSkewSeconds { get; init; } = 2;
     [Key(11)] public int SnapshotCaptureAttempts { get; init; } = 3;
     [Key(12)] public int MaximumExecutionMilliseconds { get; init; } = 5000;
@@ -63,10 +63,17 @@ public sealed record MarketConditionAssessmentParameterSet
     [Key(28)] public string EconomicCalendarScopes { get; init; } = "ALL,US";
     [Key(29)] public string CalendarCoveragePolicy { get; init; } = "FMP.CalendarCoverage.v1";
 
+    /// <summary>Rejects invalid profiles at configuration and calculation boundaries.</summary>
     public void Validate()
     {
+        if (!IsValid()) throw new ArgumentException("Invalid market assessment profile or unsupported source binding.");
+    }
+
+    /// <summary>Checks the complete profile without throwing so actor validation can aggregate errors.</summary>
+    public bool IsValid()
+    {
         var supported = new[] { "ReferenceQuote", "FeedHealth", "SessionCalendar", "EventRiskCalendar", "LastTrade", "NormalizedMovement", "VolatilityChange" };
-        if (SchemaVersion != 1 || ParameterSetId == Guid.Empty || Version <= 0 ||
+        return !(SchemaVersion != 1 || ParameterSetId == Guid.Empty || Version <= 0 ||
             string.IsNullOrWhiteSpace(MarketProfileId) || MarketProfileId.Length > 128 || InstrumentRoot != "ES" ||
             !IsHorizon(TargetHorizon) || ReferencePolicy != "OnTheRun" || CalendarBinding != "CME" ||
             EconomicCalendarDataset != "EconomicCalendar" || EconomicCalendarProvider != "FMP" ||
@@ -81,8 +88,7 @@ public sealed record MarketConditionAssessmentParameterSet
             MaximumExecutionMilliseconds is < 1 or > 60000 || TriggerMaximumAgeSeconds <= 0 || TickSize <= 0 ||
             HealthySpreadTicks < 0 || DegradedSpreadTicks < HealthySpreadTicks || DegradedBestSize < 0 || HealthyBestSize < DegradedBestSize ||
             MovementStressThreshold <= 0 || VolatilityChangeStressThreshold <= 0 || CalendarDownloadMaximumAgeSeconds is < 1 or > 86400 ||
-            new[] { HighImpactBeforeMinutes, HighImpactAfterMinutes, RateDecisionBeforeMinutes, RateDecisionAfterMinutes }.Any(x => x is < 0 or > 1440))
-            throw new ArgumentException("Invalid market assessment profile or unsupported source binding.");
+            new[] { HighImpactBeforeMinutes, HighImpactAfterMinutes, RateDecisionBeforeMinutes, RateDecisionAfterMinutes }.Any(x => x is < 0 or > 1440));
     }
 
     public static bool IsHorizon(TimeFrameType value) => value is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly;

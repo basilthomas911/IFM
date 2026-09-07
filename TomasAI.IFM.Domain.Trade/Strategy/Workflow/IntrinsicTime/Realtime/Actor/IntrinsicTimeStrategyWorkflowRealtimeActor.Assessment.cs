@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -56,14 +58,9 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         catch (Exception ex)
         {
             var now = clock.GetUtcNow().UtcDateTime;
-            terminal = FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Fail(new()
-            {
-                Id = Guid.NewGuid(), CommandId = execute.CommandId, EntityId = execute.WorkflowEntityId, WorkflowId = execute.WorkflowId,
-                InputWorkflowRevision = execute.InputWorkflowRevision, CorrelationId = execute.CorrelationId, CausationId = execute.CausationId,
-                ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId, ErrorDate = now, ReceivedOn = now,
-                ErrorMessage = $"Assessment Function request failed: {ex.GetType().Name}.", ErrorData = "MC.ASSESSMENT.TRANSPORT_FAILED",
-                FailureCategory = now >= execute.ExpiresAtUtc ? MarketConditionFailureCategory.Timeout : MarketConditionFailureCategory.CalculationFailed
-            });
+            terminal = MarketConditionFunctionActor.MapEvent(new(typeof(MarketConditionAssessmentFailedEvent), execute,
+                new MarketConditionExecutionFailed(now >= execute.ExpiresAtUtc ? MarketConditionFailureCategory.Timeout : MarketConditionFailureCategory.CalculationFailed,
+                    "MC.ASSESSMENT.TRANSPORT_FAILED", $"Assessment Function request failed: {ex.GetType().Name}.")), clock);
         }
         if (terminal.IsCompleted)
         {

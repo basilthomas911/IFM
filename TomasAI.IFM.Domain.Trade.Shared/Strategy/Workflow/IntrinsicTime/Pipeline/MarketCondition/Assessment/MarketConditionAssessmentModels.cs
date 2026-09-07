@@ -103,6 +103,26 @@ public sealed record HorizonAssessment
 [MessagePackObject]
 public sealed record MarketConditionAssessmentResult
 {
+    /// <summary>Copies owned collections without a serialization round trip.</summary>
+    public MarketConditionAssessmentResult CopyContent() => this with
+    {
+        Assessment = Assessment is null ? null! : Assessment with
+        {
+            UpstreamContext = RegimeDiscoveryResultContent.Clone(Assessment.UpstreamContext),
+            EvidenceItems = Assessment.EvidenceItems, ConflictingEvidenceItems = Assessment.ConflictingEvidenceItems,
+            LimitationReasons = Assessment.LimitationReasons, InheritedRestrictions = Assessment.InheritedRestrictions
+        },
+        CalendarEvidence = CalendarEvidence is null ? null : CalendarEvidence with { Attempts = CalendarEvidence.Attempts }
+    };
+
+    /// <summary>Fingerprints canonical typed content using the same numeric normalization as assessment snapshots.</summary>
+    /// <remarks>The canonical JSON is used only for hashing and size validation; it is not embedded in the event.</remarks>
+    public (string Hash, int Size) ContentFingerprint()
+    {
+        var content = System.Text.Encoding.UTF8.GetBytes(MarketConditionAssessmentHash.Serialize(this));
+        return (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), content.Length);
+    }
+
     [Key(0)] public short SchemaVersion { get; init; } = 1;
     [Key(1)] public Guid ResultId { get; init; }
     [Key(2)] public StrategyWorkflowId WorkflowId { get; init; }

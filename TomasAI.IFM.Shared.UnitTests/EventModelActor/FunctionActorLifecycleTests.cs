@@ -8,6 +8,8 @@ using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Shared.Validation;
 using Xunit;
 
 namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
@@ -163,6 +165,117 @@ public sealed class FunctionActorLifecycleTests
         message.Reply.Value!.Failed!.ErrorMessage.Should().Be("conflict");
     }
 
+    [Fact]
+    public void Mapped_validation_aggregates_errors_and_preserves_command_error_code()
+    {
+        var actor = ValidationActor();
+        actor.ValidationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(TestRequest)] = _ => [new("first"), new("second")]
+        };
+        Action validate = () => actor.ValidateRequest(new TestRequest());
+        var error = validate.Should().Throw<CommandValidationException>().Which;
+        error.ErrorCode.Should().Be(0);
+        error.Message.Should().Be($"first{Environment.NewLine}second{Environment.NewLine}");
+    }
+
+    [Fact]
+    public void Mapped_validation_rejects_unmapped_types_and_null_error_collections()
+    {
+        var actor = ValidationActor();
+        actor.ValidationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(ICommand)] = _ => []
+        };
+        Action validate = () => actor.ValidateRequest(new TestRequest());
+        validate.Should().Throw<InvalidOperationException>().WithMessage("Unable to validate*");
+        actor.ValidationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(TestRequest)] = _ => null!
+        };
+        validate.Should().Throw<InvalidOperationException>().WithMessage("*returned no error collection*");
+    }
+
+    [Fact]
+    public void Mapped_validation_checks_null_arguments()
+    {
+        var actor = ValidationActor();
+        Action missingCommand = () => actor.ValidateRequest(null!);
+        missingCommand.Should().Throw<ArgumentNullException>();
+        actor.ValidationMap = null!;
+        Action missingMap = () => actor.ValidateRequest(new TestRequest());
+        missingMap.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task Invalid_mapped_request_is_rejected_before_load_execute_project_or_save()
+    {
+        var calls = new List<string>();
+        var repository = new TestRepository(new TestState(), calls);
+        var actor = new TestFunctionActor(repository, new TestProjector(calls), (_, request) =>
+            FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        {
+            ValidationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+            {
+                [typeof(TestRequest)] = _ => [new("invalid request")]
+            }
+        };
+        var message = new TestMessage(new TestRequest());
+        await actor.HandleMessageAsync(message);
+        repository.Loads.Should().Be(0);
+        actor.Executions.Should().Be(0);
+        calls.Should().BeEmpty();
+        message.Reply!.Value!.Failed!.ErrorMessage.Should().Contain("invalid request");
+    }
+
+    [Fact]
+    public void Event_map_dispatches_only_the_exact_requested_event_handler()
+    {
+        var request = new TestRequest();
+        var invoked = 0;
+        var map = new Dictionary<Type, Func<FunctionEventContext<TestRequest>, TimeProvider, FunctionResult<TestCompletedEvent, TestFailedEvent>>>
+        {
+            [typeof(TestCompletedEvent)] = (input, _) =>
+            {
+                invoked++;
+                return FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(input.Request!));
+            },
+            [typeof(TestFailedEvent)] = (_, _) => throw new InvalidOperationException("wrong handler")
+        };
+        var result = TestFunctionActor.DispatchEvent(new(typeof(TestCompletedEvent), request), map);
+        result.Completed!.CommandId.Should().Be(request.CommandId);
+        invoked.Should().Be(1);
+        Action unmapped = () => TestFunctionActor.DispatchEvent(new(typeof(IEvent), request), map);
+        unmapped.Should().Throw<InvalidOperationException>().WithMessage("*exact event type*");
+        invoked.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("empty")]
+    [InlineData("both")]
+    [InlineData("wrong")]
+    public void Event_map_rejects_invalid_or_wrong_kind_terminal_results(string scenario)
+    {
+        var request = new TestRequest();
+        var map = new Dictionary<Type, Func<FunctionEventContext<TestRequest>, TimeProvider, FunctionResult<TestCompletedEvent, TestFailedEvent>>>
+        {
+            [typeof(TestCompletedEvent)] = (_, _) => scenario switch
+            {
+                "null" => null!,
+                "empty" => new(),
+                "both" => new() { Completed = Completed(request), Failed = Failed(request, "failed") },
+                _ => FunctionResult<TestCompletedEvent, TestFailedEvent>.Fail(Failed(request, "failed"))
+            }
+        };
+        Action dispatch = () => TestFunctionActor.DispatchEvent(new(typeof(TestCompletedEvent), request), map);
+        dispatch.Should().Throw<InvalidOperationException>().WithMessage("*incompatible terminal result*");
+    }
+
+    static TestFunctionActor ValidationActor() => new(
+        new TestRepository(new TestState(), []), null, (_, request) =>
+            FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)));
+
     static TestCompletedEvent Completed(TestRequest request) => new()
     {
         Subject = request.Subject,
@@ -207,6 +320,24 @@ public sealed class FunctionActorLifecycleTests
                 projector,
                 NullLogger<TestFunctionActor>.Instance)
     {
+        public IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap { get; set; } =
+            new Dictionary<Type, Func<ICommand, List<ValidationError>>> { [typeof(TestRequest)] = _ => [] };
+
+        public void ValidateRequest(TestRequest request) => ValidateMappedCommand(request, ValidationMap);
+
+        protected override ValueTask ValidateAsync(IFunctionActorContext<TestFunctionActor> context,
+            ActorThreadId threadId, TestRequest request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateRequest(request);
+            return ValueTask.CompletedTask;
+        }
+
+        public static FunctionResult<TestCompletedEvent, TestFailedEvent> DispatchEvent(
+            FunctionEventContext<TestRequest> input,
+            IReadOnlyDictionary<Type, Func<FunctionEventContext<TestRequest>, TimeProvider, FunctionResult<TestCompletedEvent, TestFailedEvent>>> map)
+            => DispatchMappedFunctionEvent(input, TimeProvider.System, map);
+
         public int Executions { get; private set; }
 
         protected override TestRequest ParseMessage(
@@ -242,9 +373,14 @@ public sealed class FunctionActorLifecycleTests
     sealed class TestRepository(TestState state, List<string> calls, Exception? exception = null)
         : IEventSourceFunctionStateRepository<TestState, TestRequest>
     {
+        public int Loads { get; private set; }
         public ValueTask<TestState> LoadStateAsync(
             TestRequest request,
-            CancellationToken cancellationToken = default) => ValueTask.FromResult(state);
+            CancellationToken cancellationToken = default)
+        {
+            Loads++;
+            return ValueTask.FromResult(state);
+        }
 
         public ValueTask SaveCompletedStateAsync(
             IFunctionActorContext context,

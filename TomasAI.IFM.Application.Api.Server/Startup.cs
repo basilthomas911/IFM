@@ -85,7 +85,9 @@ using TomasAI.IFM.Domain.OptionPricer;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
@@ -816,6 +818,13 @@ public static class Startup
         _siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        // Both context contracts share the same singleton registration.
+        _siContainer.AddRegistration<IRegimeDiscoveryFunctionContext>(
+            _siContainer.GetCurrentRegistrations().Single(registration =>
+                registration.ServiceType == typeof(IFunctionActorContext<RegimeDiscoveryFunctionActor>)).Registration);
+        _siContainer.AddRegistration<IMarketConditionFunctionContext>(
+            _siContainer.GetCurrentRegistrations().Single(registration =>
+                registration.ServiceType == typeof(IFunctionActorContext<MarketConditionFunctionActor>)).Registration);
         _siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);

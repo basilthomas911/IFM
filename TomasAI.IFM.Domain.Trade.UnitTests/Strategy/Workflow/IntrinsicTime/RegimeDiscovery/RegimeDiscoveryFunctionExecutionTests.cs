@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -6,7 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.State;
 using TomasAI.IFM.Shared.EventModelActor;
 
@@ -67,14 +68,37 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         var timer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        var dispatched = new List<Type>();
         var execution = ExecuteRegimeDiscoveryPipeline.ExecuteAtomicAsync(
-            command, new MutableTimeProvider(Now), _ => worker.Task, (_, _) => timer.Task);
+            command, new MutableTimeProvider(Now), _ => worker.Task, (_, _) => timer.Task,
+            input =>
+            {
+                dispatched.Add(input.EventType);
+                return RegimeDiscoveryFunctionActor.MapEvent(input, new MutableTimeProvider(Now));
+            });
         timer.SetResult();
         var result = await execution;
         worker.SetResult(Completed(command));
+        await worker.Task;
+        dispatched.Should().Equal(typeof(RegimeDiscoveryPipelineFailedEvent));
 
         result.Failed!.ErrorCode.Should().Be(23103);
         result.Completed.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Completion_at_exact_deadline_maps_only_a_timeout_failure()
+    {
+        var command = Command(Now.AddMinutes(2));
+        var clock = new MutableTimeProvider(Now);
+        var result = await Execute(command, clock, _ =>
+        {
+            clock.Advance(TimeSpan.FromMinutes(2));
+            return Task.FromResult<RegimeDiscoveryExecutionOutcome>(Completed(command));
+        });
+        result.IsFailed.Should().BeTrue();
+        result.Failed!.ErrorCode.Should().Be(23103);
+        result.Failed.ErrorData.Should().Contain("RegimeDiscoveryExecutionTimedOut");
     }
 
     [Fact]
@@ -104,7 +128,8 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
             command,
             clock,
             worker,
-            (_, cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
+            (_, cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken),
+            input => RegimeDiscoveryFunctionActor.MapEvent(input, clock));
 
     static RegimeDiscoveryExecutionCompleted Completed(ExecuteRegimeDiscoveryPipelineCommand command)
         => new(new RegimeDiscoveryResult
@@ -151,5 +176,6 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
     {
         DateTimeOffset _now = new(value);
         public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan elapsed) => _now += elapsed;
     }
 }

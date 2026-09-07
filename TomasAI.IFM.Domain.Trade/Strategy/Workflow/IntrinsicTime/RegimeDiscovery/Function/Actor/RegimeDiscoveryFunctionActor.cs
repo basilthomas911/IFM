@@ -1,21 +1,21 @@
+using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.Validation;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 
 /// <summary>Executes and synchronously returns one completed or failed Regime Discovery pipeline result.</summary>
 public sealed class RegimeDiscoveryFunctionActor(
-    IFunctionActorContext<RegimeDiscoveryFunctionActor> actorContext)
+    IRegimeDiscoveryFunctionContext actorContext)
     : BaseEventSourceFunctionActor<
         RegimeDiscoveryFunctionActor,
         ExecuteRegimeDiscoveryPipelineCommand,
@@ -24,11 +24,13 @@ public sealed class RegimeDiscoveryFunctionActor(
         RegimeDiscoveryFunctionState,
         RegimeDiscoveryPipelineCompletedEvent,
         RegimeDiscoveryPipelineFailedEvent>(
-            actorContext,
-            Typed(actorContext).StateRepository,
-            Typed(actorContext).FunctionProjector,
-            Typed(actorContext).Logger)
+            actorContext ?? throw new ArgumentNullException(nameof(actorContext)),
+            actorContext.StateRepository,
+            actorContext.FunctionProjector,
+            actorContext.Logger)
 {
+    readonly IRegimeDiscoveryFunctionContext _context = actorContext;
+
     public const string ActorName = ExecuteRegimeDiscoveryPipelineCommand.Actor;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ExecuteRegimeDiscoveryPipelineCommand>>
@@ -39,32 +41,54 @@ public sealed class RegimeDiscoveryFunctionActor(
                 message => message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>()!
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<ExecuteRegimeDiscoveryPipelineCommand, List<ValidationError>>>
-        _validationMap = new Dictionary<Type, Func<ExecuteRegimeDiscoveryPipelineCommand, List<ValidationError>>>
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>>
+        _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(ExecuteRegimeDiscoveryPipelineCommand)] = request =>
-                new List<ValidationError>()
+            [typeof(ExecuteRegimeDiscoveryPipelineCommand)] = command =>
+            {
+                var request = (ExecuteRegimeDiscoveryPipelineCommand)command;
+                return new List<ValidationError>()
                     .ValidateCommandId(request.CommandId, request.CommandName)
-                    .ValidateEntityId(request.EntityId, request.CommandName)
-                    .CaptureCommandValidation(() => Validate(request))
+                    .ValidateRegimeDiscoveryExecutionEntityId(request.EntityId)
+                    .ValidateRegimeDiscoveryRevision(request.InputWorkflowRevision)
+                    .ValidateRegimeDiscoveryWorkflowView(request.WorkflowView)
+                    .ValidateRegimeDiscoveryTrigger(request.TriggerEvent)
+                    .ValidateRegimeDiscoveryTraceId(request.CorrelationId, nameof(request.CorrelationId))
+                    .ValidateRegimeDiscoveryTraceId(request.CausationId, nameof(request.CausationId))
+                    .ValidateRegimeDiscoveryTimestamp(request.RequestedAtUtc, nameof(request.RequestedAtUtc))
+                    .ValidateRegimeDiscoveryTimestamp(request.ExpiresAtUtc, nameof(request.ExpiresAtUtc))
+                    .ValidateRegimeDiscoveryParameterSet(request.ParameterSet)
+                    .ValidateRegimeDiscoveryParameterHash(request.ParameterPayloadSha256)
+                    .ValidateRegimeDiscoveryTargetHorizon(request.TargetHorizon)
+                    .ValidateRegimeDiscoveryConsistency(request);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, Func<
         ExecuteRegimeDiscoveryPipelineCommand,
-        IFunctionActorContext<RegimeDiscoveryFunctionActor>,
+        IRegimeDiscoveryFunctionContext,
+        Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>,
         CancellationToken,
         ValueTask<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>>>
         _receiveMap = new Dictionary<Type, Func<
             ExecuteRegimeDiscoveryPipelineCommand,
-            IFunctionActorContext<RegimeDiscoveryFunctionActor>,
+            IRegimeDiscoveryFunctionContext,
+            Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>,
             CancellationToken,
             ValueTask<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>>>
         {
             [typeof(ExecuteRegimeDiscoveryPipelineCommand)] =
-                (request, context, cancellationToken) => request.ExecuteAsync(context, cancellationToken)
+                (request, context, dispatchEvent, cancellationToken) => request.ExecuteAsync(context, dispatchEvent, cancellationToken)
         };
 
-    IRegimeDiscoveryFunctionContext ActorContext => Typed(Context);
+    static readonly IReadOnlyDictionary<Type, Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, TimeProvider,
+        FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>> _eventMap =
+        new Dictionary<Type, Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, TimeProvider,
+            FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>>
+        {
+            [typeof(RegimeDiscoveryPipelineCompletedEvent)] = (input, _) => input.Complete(),
+            [typeof(RegimeDiscoveryPipelineFailedEvent)] = (input, clock) => input.Fail(clock)
+        };
 
     protected override ExecuteRegimeDiscoveryPipelineCommand ParseMessage(
         IFunctionActorContext<RegimeDiscoveryFunctionActor> context,
@@ -77,14 +101,10 @@ public sealed class RegimeDiscoveryFunctionActor(
         ExecuteRegimeDiscoveryPipelineCommand request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_validationMap.TryGetValue(request.GetType(), out var validator))
-            throw new InvalidOperationException($"No validation is registered for {request.GetType().Name}.");
-        var errors = validator(request);
-        if (errors.Count != 0)
-            throw new CommandValidationException(
-                request.ErrorCode,
-                string.Join(Environment.NewLine, errors.Select(error => error.ErrorMessage)));
+        ValidateMappedCommand(request, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -97,98 +117,24 @@ public sealed class RegimeDiscoveryFunctionActor(
         CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        return receive(request, context, cancellationToken);
+        return receive(request, _context, input => HandleFunctionEvent(context, input), cancellationToken);
     }
 
-    protected override RegimeDiscoveryPipelineFailedEvent CreateConflictFailedEvent(
-        ExecuteRegimeDiscoveryPipelineCommand request)
-        => ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
-            request,
-            RegimeDiscoveryPipelineFailedEvent.ErrorId,
-            "A conflicting completed Regime Discovery input already exists for this execution.",
-            "FunctionConflict",
-            string.Empty,
-            ActorContext.TimeProvider.GetUtcNow().UtcDateTime);
+    /// <summary>Routes lifecycle failures and calculation outcomes through the exact-type event map.</summary>
+    /// <param name="context">The framework lifecycle context; the execution clock comes from the injected domain context.</param>
+    /// <param name="input">The target terminal event and the information needed by its extension handler.</param>
+    /// <returns>The completed candidate or non-durable failed response produced by the mapped extension.</returns>
+    protected override FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> HandleFunctionEvent(
+        IFunctionActorContext<RegimeDiscoveryFunctionActor> context,
+        FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand> input)
+        => MapEvent(input, _context.TimeProvider);
 
-    protected override RegimeDiscoveryPipelineFailedEvent CreateFailedEvent(
-        ExecuteRegimeDiscoveryPipelineCommand? request,
-        Exception exception,
-        FunctionFailureStage stage)
-    {
-        var now = ActorContext.TimeProvider.GetUtcNow().UtcDateTime;
-        if (request is null)
-        {
-            return new RegimeDiscoveryPipelineFailedEvent
-            {
-                Subject = new ActorSubject(ActorType.Function, ActorName,
-                    RegimeDiscoveryPipelineFailedEvent.Verb, string.Empty),
-                Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
-                ErrorDate = now,
-                ReceivedOn = now,
-                ErrorCode = RegimeDiscoveryPipelineFailedEvent.ErrorId,
-                ErrorMessage = "Regime Discovery Function request could not be processed.",
-                ErrorType = ErrorType.Command,
-                ErrorData = stage.ToString(),
-                EventSource = $"{ActorName}Actor",
-                CommandName = nameof(ExecuteRegimeDiscoveryPipelineCommand),
-                PipelineStage = Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyWorkflowStage.RegimeDiscovery
-            };
-        }
+    /// <summary>Resolves terminal-event handlers for Function execution and workflow transport failures.</summary>
+    /// <param name="input">The exact event type and its outcome or lifecycle failure details.</param>
+    /// <param name="timeProvider">The clock used by failure handlers.</param>
+    /// <returns>The single terminal value produced by the mapped extension.</returns>
+    internal static FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> MapEvent(
+        FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand> input, TimeProvider timeProvider)
+        => DispatchMappedFunctionEvent(input, timeProvider, _eventMap);
 
-        return ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
-            request,
-            request.ErrorCode,
-            stage == FunctionFailureStage.Projection
-                ? "Regime Discovery result projection failed."
-                : stage == FunctionFailureStage.Persistence
-                    ? "Regime Discovery completed state could not be persisted."
-                    : "Regime Discovery Function execution failed.",
-            stage.ToString(),
-            exception.GetType().Name,
-            now);
-    }
-
-    static IRegimeDiscoveryFunctionContext Typed(
-        IFunctionActorContext<RegimeDiscoveryFunctionActor> context)
-        => context as IRegimeDiscoveryFunctionContext
-           ?? throw new ArgumentException(
-               $"{nameof(context)} must implement {nameof(IRegimeDiscoveryFunctionContext)}.",
-               nameof(context));
-
-    static void Validate(ExecuteRegimeDiscoveryPipelineCommand command)
-    {
-        var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
-            errors.Add("Subject.EntityId is required.");
-        if (command.Subject.ActorType != ActorType.Function)
-            errors.Add("Subject.ActorType must be Function.");
-        if (command.InputWorkflowRevision <= 0)
-            errors.Add("InputWorkflowRevision must be positive.");
-        errors.AddRange(new RegimeDiscoveryExecutionEntityIdValidationRules().Execute(command.EntityId)
-            .Select(value => value.ErrorMessage));
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            errors.Add("Subject.EntityId must match the composite Regime Discovery execution identity.");
-        if (command.WorkflowView.EntityId != command.WorkflowEntityId ||
-            command.WorkflowView.WorkflowId != command.WorkflowId ||
-            command.WorkflowView.WorkflowRevision != command.InputWorkflowRevision)
-            errors.Add("WorkflowView identity and revision must match the Regime Discovery execution.");
-        if (command.ExpiresAtUtc <= command.RequestedAtUtc)
-            errors.Add("ExpiresAtUtc must be later than RequestedAtUtc.");
-        errors.AddRange(new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet)
-            .Select(value => value.ErrorMessage));
-        if (command.TargetHorizon != command.ParameterSet.TargetHorizon ||
-            command.TargetHorizon != command.TriggerEvent.EntityId.TimePeriod ||
-            command.WorkflowEntityId.ItiSignalEntityId != command.TriggerEvent.EntityId)
-            errors.Add("TargetHorizon must match the parameter set and trigger ITI timeframe.");
-        if (!IsSha256(command.ParameterPayloadSha256))
-            errors.Add("ParameterPayloadSha256 must contain exactly 64 hexadecimal characters.");
-        else if (!string.Equals(command.ParameterPayloadSha256,
-                     RegimeDiscoveryParameterPayload.ComputeSha256(command.ParameterSet),
-                     StringComparison.OrdinalIgnoreCase))
-            errors.Add("ParameterPayloadSha256 must match the canonical parameter payload.");
-        if (errors.Count != 0)
-            throw new ArgumentException(string.Join("; ", errors), nameof(command));
-    }
-
-    static bool IsSha256(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 }

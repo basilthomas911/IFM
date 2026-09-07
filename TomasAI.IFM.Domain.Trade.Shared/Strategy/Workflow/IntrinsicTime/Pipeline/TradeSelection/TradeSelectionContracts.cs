@@ -27,7 +27,7 @@ public static partial class TradeSelectionContracts
     public static string CandidateIdentity(SelectionCandidateBinding c)=>$"{c.DeploymentKey.Id:D}.{c.DeploymentKey.Version:D10}.{c.StrategyKey.Id:D}.{c.StrategyKey.Version:D10}.{c.StructureKey.Id:D}.{c.StructureKey.Version:D10}.{c.VariantKey.Id:D}.{c.VariantKey.Version:D10}.{c.Product.ProductId:D10}.{c.AssignmentVersion:D20}";
     public static string WireHash<T>(T value)=>Convert.ToHexStringLower(SHA256.HashData(MessagePackSerializer.Serialize(value)));
     // JSON event storage can normalize decimal scale (1m -> 1.0m). Hash numeric meaning
-    // for typed evidence while envelope PayloadSha256 continues to protect exact wire bytes.
+    // for typed evidence; envelope PayloadSha256 protects typed content or legacy payload bytes.
     public static string EvidenceHash<T>(T value)=>MarketConditionAssessmentHash.Compute(
         MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value))).ToLowerInvariant();
     public static string BindingHash(TradeSelectionBinding b)=>EvidenceHash(b with { PayloadSha256="" });
@@ -146,12 +146,12 @@ public static partial class TradeSelectionContracts
         Require(v.RegimeDiscovery.ProcessingStatus==StrategyActorProcessingStatus.Completed && v.MarketCondition.ProcessingStatus==StrategyActorProcessingStatus.Completed
             && v.TradeSelection.ProcessingStatus==StrategyActorProcessingStatus.Processing && v.TradeSelection.InputWorkflowRevision==c.InputWorkflowRevision,
             "TS.UPSTREAM.INVALID","Upstream results must have been accepted and selection must be processing.");
-        Require(WireHash(c.TriggerEvent)==WireHash(v.TriggerEvent) && WireHash(c.RegimeResultEnvelope)==WireHash(v.RegimeDiscovery.Result) && WireHash(c.AssessmentResultEnvelope)==WireHash(v.MarketCondition.Result),"TS.UPSTREAM.INVALID","Accepted input metadata differs.");
+        Require(WireHash(c.TriggerEvent)==WireHash(v.TriggerEvent) && c.RegimeResultEnvelope.HasSameContent(v.RegimeDiscovery.Result) && c.AssessmentResultEnvelope.HasSameContent(v.MarketCondition.Result),"TS.UPSTREAM.INVALID","Accepted input metadata differs.");
         var assessment=MarketConditionAssessmentContracts.ReadResult(c.AssessmentResultEnvelope);
         MarketConditionAssessmentContracts.ValidateAcceptance(assessment,v,v.MarketCondition.InputWorkflowRevision);
         Require(assessment.Assessment.Availability==AssessmentAvailability.Available && !assessment.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade),"TS.UPSTREAM.NOT_ELIGIBLE","Assessment is unavailable or restricted.");
         Require(c.RegimeResultEnvelope.HasValidPayloadSha256() && c.RegimeResultEnvelope.ResultType==nameof(RegimeDiscoveryResult),"TS.UPSTREAM.INVALID","Invalid regime envelope.");
-        var regime=MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(c.RegimeResultEnvelope.Payload);
+        var regime=c.RegimeResultEnvelope.ReadRegimeResult();
         Require(Utc(c.RequestedAtUtc) && Utc(c.EvaluatedAtUtc) && Utc(c.ExpiresAtUtc) && c.EvaluatedAtUtc>=c.RequestedAtUtc && c.EvaluatedAtUtc<c.ExpiresAtUtc && c.ExpiresAtUtc<=v.ExpiresAtUtc && c.ExpiresAtUtc<=c.SelectionBinding.ValidUntilUtc && c.ExpiresAtUtc<=assessment.Assessment.ValidUntilUtc && c.ExpiresAtUtc<=c.RequestedAtUtc.AddMilliseconds(p.MaximumExecutionMilliseconds),"TS.TIME.EXPIRED","Invalid execution times/deadline.");
         var future=c.EvaluatedAtUtc.AddSeconds(p.FutureClockSkewSeconds);
         Require(c.SelectionBinding.FrozenAtUtc<=c.EvaluatedAtUtc && v.UpdatedAtUtc<=future && v.StartedAtUtc<=future && c.TriggerEvent.CreatedOn<=future

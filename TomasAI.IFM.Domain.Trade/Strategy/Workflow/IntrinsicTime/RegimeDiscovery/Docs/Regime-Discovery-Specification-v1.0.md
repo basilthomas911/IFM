@@ -158,8 +158,10 @@ The detailed sequence is authoritative in section 6.4 of
 12. Private pipeline/specialist state never becomes Strategy Workflow
     state.
 
-13. The typed RegimeDiscoveryResult is serialized into the existing
-    opaque StrategyStageResultEnvelope.
+13. New Regime results are carried as the typed `RegimeResult` field of
+    `StrategyStageResultEnvelope`, with no inner byte payload. Only the outer message is encoded
+    for transport. The canonical typed-field fingerprint preserves content/conflict checks;
+    legacy byte envelopes remain readable. Scylla blob encoding remains a storage-boundary concern.
 
 14. The hard execution deadline and lazy workflow expiry are mandatory and
     never cause retry. Manual cancellation remains optional.
@@ -179,8 +181,12 @@ The detailed sequence is authoritative in section 6.4 of
 
 18. `ExecuteRegimeDiscoveryPipelineCommand` is dispatched by the Function
     actor's explicit `_receiveMap` to the asynchronous
-    `ExecuteRegimeDiscoveryPipeline.ExecuteAsync` Function extension. The
-    direct completed or failed reply is translated by Strategy Workflow
+    `ExecuteRegimeDiscoveryPipeline.ExecuteAsync` Function extension. Calculation outcomes,
+    expected failures, timeouts, lifecycle exceptions, and conflicts construct their terminal
+    events through an exact-type `_eventMap`, delegating to `CompleteRegimeDiscoveryPipeline`
+    or `FailRegimeDiscoveryPipeline`. Actor hooks contain mapped dispatch only. The base retains
+    projection, completed-only persistence, and reply sequencing; matching replay reuses its
+    existing event. The completed or failed reply is translated by Strategy Workflow
     Realtime into `CompleteRegimeDiscoveryCommand` or
     `FailRegimeDiscoveryCommand`. Each Workflow command is then handled by its
     own command-named extension file; the Workflow Command actor contains no
@@ -815,7 +821,7 @@ Projection/persistence failure -> Function failed reply -> FailRegimeDiscoveryCo
 
 Queries are read-only and diagnostic. The Strategy Workflow does not query
 component models or Regime Discovery to reconstruct a continuation result;
-the direct completed Function reply carries the full opaque result envelope.
+the direct completed Function reply carries the complete typed Regime result envelope.
 
 # 17. Mandatory Hard Timeout and Lazy Workflow Expiry
 

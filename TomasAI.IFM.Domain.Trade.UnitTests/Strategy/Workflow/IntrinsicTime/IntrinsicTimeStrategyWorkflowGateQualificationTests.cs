@@ -166,7 +166,7 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         var command = MarketCondition.AssessmentFixture.Command();
         var marketCondition = new WorkflowStrategyStateUpdatedEvent
         {
-            EntityId = command.WorkflowEntityId, WorkflowId = command.WorkflowId, State = command.WorkflowView
+            Id = Guid.NewGuid(), EntityId = command.WorkflowEntityId, WorkflowId = command.WorkflowId, State = command.WorkflowView
         };
 
         var first = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateAssessmentExecute(marketCondition);

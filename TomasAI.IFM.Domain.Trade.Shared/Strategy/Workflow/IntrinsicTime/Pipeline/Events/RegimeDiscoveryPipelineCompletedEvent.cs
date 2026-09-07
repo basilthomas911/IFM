@@ -48,7 +48,7 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the pipeline workflow stage.</summary>
     [Key(12)] public StrategyWorkflowStage PipelineStage { get; init; }
-    /// <summary>Gets the complete opaque pipeline result.</summary>
+    /// <summary>Gets the envelope containing the typed Regime Discovery result; legacy byte envelopes remain readable.</summary>
     [Key(13)] public StrategyStageResultEnvelope Result { get; init; } = new();
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(14)] public DateTime CompletedAtUtc { get; init; }
@@ -83,7 +83,7 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
     /// <param name="correlationId">Workflow correlation identity.</param>
     /// <param name="causationId">Causative command or processing-event identity.</param>
     /// <param name="pipelineStage">Pipeline workflow stage.</param>
-    /// <param name="result">Complete opaque pipeline result.</param>
+    /// <param name="result">Complete typed or legacy pipeline result envelope.</param>
     /// <param name="completedAtUtc">UTC pipeline completion timestamp.</param>
     [SerializationConstructor]
     public RegimeDiscoveryPipelineCompletedEvent(

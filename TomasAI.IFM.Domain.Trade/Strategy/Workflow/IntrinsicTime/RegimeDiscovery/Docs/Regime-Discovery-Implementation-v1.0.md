@@ -310,9 +310,31 @@ range and persisted after six-decimal midpoint-to-even rounding.
 
 `ExecuteRegimeDiscoveryPipelineCommand` appends the typed parameter set,
 parameter payload hash, and target horizon. Existing keys are never reordered.
-`RegimeDiscoveryPipelineCompletedEvent` continues to carry the opaque
-`StrategyStageResultEnvelope`, whose payload is the MessagePack-serialized
-typed RegimeDiscoveryResult.
+`RegimeDiscoveryPipelineCompletedEvent.Result` retains the versioned `StrategyStageResultEnvelope`
+contract. New envelopes carry `RegimeResult` as a typed `RegimeDiscoveryResult` at appended key 8;
+the legacy `Payload` at key 4 is empty. The outer message serializer encodes the nested object.
+There is no inner MessagePack serialization in the Complete extension and no corresponding
+inner deserialization in Market Condition or Trade Selection.
+
+`ContentType=application/vnd.ifm.regime-result.v1` identifies typed content. The existing
+`PayloadSha256` property carries a v1 canonical field fingerprint for this representation.
+`RegimeDiscoveryResultContent` hashes every keyed field, ordered collection, and nested result
+directly with incremental SHA-256; no serialized result buffer is allocated for hashing. Decimal
+scale is normalized so JSON storage does not change numeric identity. The typed result is
+snapshotted with independent arrays; its cached fingerprint cannot be invalidated through a
+getter. Envelope identity/version/timestamps must agree with the typed content. The 64-KiB stage
+budget applies to canonical content size for typed results and encoded bytes for opaque results.
+
+Compatibility: keys 0 through 7 retain their wire types. Old byte envelopes remain readable via
+`ReadRegimeResult`, which decodes only the legacy path and preserves the old byte digest.
+Missing typed content is omitted from canonical JSON to preserve legacy request fingerprints.
+Producers and consumers must be upgraded together: old readers do not understand a typed-only
+result, although new readers accept both representations. No historical event rewrite is required.
+
+Scylla retains its existing `result_payload` blob and `result_payload_sha256` columns. The projector
+encodes typed content at that storage boundary and hashes the actual blob bytes; this storage hash
+is distinct from the workflow's typed content fingerprint. Historical byte envelopes retain their
+original storage bytes. Queries of that blob continue to decode the existing storage format.
 
 ## 6. Function actor and calculation topology
 
@@ -330,6 +352,8 @@ Async Function extension
   -> enforce the immutable ExpiresAtUtc deadline around snapshot and calculation
   -> capture immutable signal snapshot and frozen configuration
   -> run Trend, Volatility, Market Structure, and Fusion as pure models
+  -> pass the outcome to the actor-supplied event dispatcher
+  -> _eventMap -> CompleteRegimeDiscoveryPipeline / FailRegimeDiscoveryPipeline
   -> return FunctionResult<CompletedEvent, FailedEvent>
 Function projector (completed candidate only)
   -> synchronously upsert the completed ScyllaDB read model
@@ -359,7 +383,9 @@ The Function actor follows the system convention documented in
 RegimeDiscovery/
   Function/
     Actor/
-    Extensions/
+    ExecuteRegimeDiscoveryPipeline.cs
+    CompleteRegimeDiscoveryPipeline.cs
+    FailRegimeDiscoveryPipeline.cs
     Projector/
     State/
   Model/
@@ -369,7 +395,7 @@ RegimeDiscovery/
 ```
 
 Its concrete actor remains mechanical and owns explicit `_parseMap`,
-`_validationMap`, and `_receiveMap` dictionaries. Receive dispatch uses the
+`_validationMap`, `_receiveMap`, and `_eventMap` dictionaries. Receive dispatch uses the
 request's exact concrete CLR type; it must not use a type switch or string type
 name. The Execute entry delegates to an asynchronous extension returning:
 
@@ -380,8 +406,26 @@ FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
 
 `BaseEventSourceFunctionActor` owns parse, validation, state load, optional
 projection, completed-only state save, exception conversion, and typed reply.
-The concrete Execute extension owns only snapshot capture, calculation, its
-private hard deadline, and creation of the completed or failed candidate.
+The Execute extension owns snapshot capture, calculation, and its private hard deadline.
+Its actor-supplied callback routes every outcome through `_eventMap`; it never calls Complete/Fail
+extensions directly. `CompleteRegimeDiscoveryPipeline` builds the typed completed envelope.
+`FailRegimeDiscoveryPipeline` builds calculation, timeout, conflict, and lifecycle failure events,
+including parsing failures with no decoded request. The actor's `HandleFunctionEvent` override
+only dispatches the map through the base `DispatchMappedFunctionEvent` helper. The base routes its
+exceptions and conflicts through that hook and retains projection-before-save ordering.
+
+Map keys are the exact target event CLR types. `FunctionEventContext` carries local factory inputs;
+it adds no serialized command/event fields. A matching replay returns the original completed event
+without rerunning the map. Workflow transport failures also use `MapEvent`, preserving the existing
+error category, code, and diagnostic data. No terminal extension publishes events or writes storage.
+
+The actor constructor and `_receiveMap` execution handler require
+`IRegimeDiscoveryFunctionContext` directly. The actor retains this injected context
+for domain services and the execution clock; framework override signatures still
+use `IFunctionActorContext<RegimeDiscoveryFunctionActor>`. No runtime domain-context
+cast is needed in the actor or execution handler. Both API and integration-host
+startup alias the domain interface to the existing generic context singleton
+registration, so both contracts resolve to the same instance.
 
 ### 6.2 Actor-owned calculation models
 
@@ -695,7 +739,7 @@ lazy workflow-expiry backstop are mandatory parts of RD-19.
   workflow. Each asserts that only its own target-horizon result is returned,
   while its supporting observation evidence is preserved.
 - A complete integration cycle verifies direct Completed/Failed Function reply,
-  completed-only ScyllaDB projection, opaque envelope round-trip, direct
+  completed-only ScyllaDB projection, typed/legacy envelope round-trip, direct
   Strategy Workflow command translation, and no terminal publication route.
 - Atomic-flow tests verify timeout precedence at the exact boundary, no Function
   state commit for an unexpected exception, immutable-view accumulation, rejection

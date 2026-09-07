@@ -142,8 +142,7 @@ public sealed class MarketConditionAssessmentCalculationTests
     internal static ExecuteMarketConditionAssessmentCommand WithDecision(ExecuteMarketConditionAssessmentCommand c, RegimeDiscoveryDecision decision)
     {
         var r = MarketConditionAssessmentContracts.ValidateRequest(c) with { Decision = decision };
-        var e = c.RegimeResultEnvelope with { Payload = MessagePackSerializer.Serialize(r) };
-        e = e with { PayloadSha256 = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.ComputePayloadSha256(e.Payload.Span) };
+        var e = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.CreateRegime(r);
         return c with { RegimeResultEnvelope = e, RegimePayloadSha256 = e.PayloadSha256, WorkflowView = c.WorkflowView with { RegimeDiscovery = c.WorkflowView.RegimeDiscovery with { Result = e } } };
     }
 }

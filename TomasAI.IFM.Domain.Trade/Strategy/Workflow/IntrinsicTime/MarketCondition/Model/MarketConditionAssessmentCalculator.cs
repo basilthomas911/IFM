@@ -1,5 +1,4 @@
 using System.Globalization;
-using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
@@ -8,8 +7,16 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 
+/// <summary>Evaluates one market snapshot for the single triggering timeframe.</summary>
+public interface IMarketConditionAssessmentCalculator
+{
+    /// <summary>Produces a deterministic assessment from frozen parameters, upstream evidence, and the captured snapshot.</summary>
+    MarketConditionAssessmentResult Calculate(ExecuteMarketConditionAssessmentCommand command,
+        MarketConditionAssessmentSnapshot snapshot, Guid resultId);
+}
+
 /// <summary>Pure evaluation of one sealed market snapshot and its accepted upstream decision.</summary>
-public sealed class MarketConditionAssessmentCalculator
+public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssessmentCalculator
 {
     public MarketConditionAssessmentResult Calculate(ExecuteMarketConditionAssessmentCommand command,
         MarketConditionAssessmentSnapshot snapshot, Guid resultId)
@@ -116,7 +123,7 @@ public sealed class MarketConditionAssessmentCalculator
         if (movement < 0) throw Invalid("Normalized absolute movement cannot be negative.");
         var stress = crossed || movement > p.MovementStressThreshold || vx > p.VolatilityChangeStressThreshold ? AssessmentStress.Elevated
             : movement is not null && vx is not null ? AssessmentStress.Normal : AssessmentStress.Unknown;
-        var decision = MessagePackSerializer.Deserialize<RegimeDiscoveryDecision>(MessagePackSerializer.Serialize(regime.Decision));
+        var decision = RegimeDiscoveryResultContent.Clone(regime.Decision)!;
         AssessmentCondition? condition = !available ? null : stress == AssessmentStress.Elevated ? AssessmentCondition.Dislocated
             : decision.StructureClassification == MarketStructureClassification.Transitioning || decision.Restrictions.Contains(RegimeRestriction.Transition) ? AssessmentCondition.Transition
             : decision.VolatilityChange == VolatilityRegimeChange.Expanding ? AssessmentCondition.VolatilityExpansion

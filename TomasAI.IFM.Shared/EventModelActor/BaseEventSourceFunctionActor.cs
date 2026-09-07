@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -124,24 +125,21 @@ public abstract class BaseEventSourceFunctionActor<
             await ValidateAsync(_context, threadId, request, cancellationToken).ConfigureAwait(false);
 
             stage = FunctionFailureStage.Loading;
-            var state = await LoadFunctionStateAsync(request, cancellationToken).ConfigureAwait(false);
+            var state = await RunFunctionStageAsync(request, stage, token => LoadFunctionStateAsync(request, token), cancellationToken).ConfigureAwait(false);
             state.Id = threadId;
             if (state.IsCompleted)
             {
                 if (!state.Matches(request) || state.CompletedEvent is null)
-                    terminal = FunctionResult<TCompletedEvent, TFailedEvent>.Fail(
-                        CreateConflictFailedEvent(request));
+                    terminal = HandleFunctionEvent(_context,
+                        new(typeof(TFailedEvent), request, IsConflict: true));
                 else
                     terminal = FunctionResult<TCompletedEvent, TFailedEvent>.Complete(state.CompletedEvent);
             }
             else
             {
                 stage = FunctionFailureStage.Execution;
-                terminal = await ExecuteFunctionAsync(
-                    _context,
-                    state,
-                    request,
-                    cancellationToken).ConfigureAwait(false);
+                terminal = await RunFunctionStageAsync(request, stage,
+                    token => ExecuteFunctionAsync(_context, state, request, token), cancellationToken).ConfigureAwait(false);
                 if (!terminal.IsTerminal)
                 {
                     throw new InvalidOperationException(
@@ -154,17 +152,14 @@ public abstract class BaseEventSourceFunctionActor<
                     try
                     {
                         stage = FunctionFailureStage.Projection;
-                        await ProjectFunctionResultAsync(request, completed, cancellationToken)
+                        await RunFunctionStageAsync(request, stage, token => ProjectFunctionResultAsync(request, completed, token), cancellationToken)
                             .ConfigureAwait(false);
 
                         stage = FunctionFailureStage.Persistence;
-                        await SaveFunctionStateAsync(
-                            _context,
-                            threadId,
-                            state,
-                            request,
-                            completed,
+                        await RunFunctionStageAsync(request, stage,
+                            token => SaveFunctionStateAsync(_context, threadId, state, request, completed, token),
                             cancellationToken).ConfigureAwait(false);
+                        OnFunctionCommitted(request, completed);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
@@ -172,8 +167,8 @@ public abstract class BaseEventSourceFunctionActor<
                     }
                     catch (Exception exception)
                     {
-                        terminal = FunctionResult<TCompletedEvent, TFailedEvent>.Fail(
-                            CreateFailedEvent(request, exception, stage));
+                        terminal = HandleFunctionEvent(_context,
+                            new(typeof(TFailedEvent), request, Exception: exception, Stage: stage));
                     }
                 }
             }
@@ -186,8 +181,8 @@ public abstract class BaseEventSourceFunctionActor<
         {
             _logger.LogError(exception,
                 "Function actor {ActorId} failed during {FailureStage}", Id, stage);
-            terminal = FunctionResult<TCompletedEvent, TFailedEvent>.Fail(
-                CreateFailedEvent(request, exception, stage));
+            terminal = HandleFunctionEvent(_context,
+                new(typeof(TFailedEvent), request, Exception: exception, Stage: stage));
         }
 
         ServiceResult<FunctionResult<TCompletedEvent, TFailedEvent>> reply = terminal.IsCompleted
@@ -197,6 +192,59 @@ public abstract class BaseEventSourceFunctionActor<
                 terminal.Failed.ErrorMessage,
                 terminal);
         await message.ReplyAsync(reply).ConfigureAwait(false);
+    }
+
+    /// <summary>Clock used by the optional lifecycle deadline policy.</summary>
+    protected virtual TimeProvider FunctionTimeProvider => TimeProvider.System;
+
+    /// <summary>Returns the deadline for a lifecycle stage, or null when the actor owns its execution budget.</summary>
+    protected virtual DateTime? GetFunctionDeadline(TRequest request, FunctionFailureStage stage) => null;
+
+    /// <summary>Observes a completion after persistence succeeds within its deadline; replay does not invoke this hook.</summary>
+    protected virtual void OnFunctionCommitted(TRequest request, TCompletedEvent completed) { }
+
+    /// <summary>Enforces stage cancellation and exact-boundary expiry without allowing late work to resume the lifecycle.</summary>
+    async ValueTask<T> RunFunctionStageAsync<T>(TRequest request, FunctionFailureStage stage,
+        Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken)
+    {
+        callerToken.ThrowIfCancellationRequested();
+        var deadline = GetFunctionDeadline(request, stage);
+        if (deadline is null) return await operation(callerToken).ConfigureAwait(false);
+        var clock = FunctionTimeProvider;
+        var remaining = deadline.Value - clock.GetUtcNow().UtcDateTime;
+        if (remaining <= TimeSpan.Zero) throw new TimeoutException();
+        using var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        Task<T>? task = null;
+        try
+        {
+            task = operation(workerCancellation.Token).AsTask();
+            var result = await task.WaitAsync(remaining, clock, callerToken).ConfigureAwait(false);
+            callerToken.ThrowIfCancellationRequested();
+            if (clock.GetUtcNow().UtcDateTime >= deadline.Value) throw new TimeoutException();
+            return result;
+        }
+        catch
+        {
+            workerCancellation.Cancel();
+            if (task is not null) _ = ObserveLateFunctionStageAsync(task);
+            throw;
+        }
+    }
+
+    /// <summary>Applies lifecycle timing to projection and persistence operations.</summary>
+    async ValueTask RunFunctionStageAsync(TRequest request, FunctionFailureStage stage,
+        Func<CancellationToken, ValueTask> operation, CancellationToken callerToken)
+        => await RunFunctionStageAsync(request, stage, async token =>
+        {
+            await operation(token).ConfigureAwait(false);
+            return true;
+        }, callerToken).ConfigureAwait(false);
+
+    /// <summary>Observes exceptions from a dependency that ignores cancellation after the request has ended.</summary>
+    static async Task ObserveLateFunctionStageAsync(Task task)
+    {
+        try { await task.ConfigureAwait(false); }
+        catch { /* The request has already failed or propagated caller cancellation. */ }
     }
 
     /// <summary>Persists the one completed Function event without invoking a denormalizer.</summary>
@@ -241,11 +289,22 @@ public abstract class BaseEventSourceFunctionActor<
         var subject = message.Subject;
         if (subject.ActorType != ActorType.Function ||
             !string.Equals(subject.Name, Id.Name, StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(subject.EntityId) ||
             !parseMap.TryGetValue(subject.Verb, out var parser))
             throw new InvalidOperationException($"Unable to resolve {Id.Name} function from message: {subject}");
-        return parser(message)
+        var request = parser(message)
             ?? throw new InvalidOperationException($"Parser for {Id.Name}.{subject.Verb} returned no request.");
+        if (request.Subject != subject ||
+            !string.Equals(subject.EntityId, request.EntityId.Format(), StringComparison.Ordinal))
+            throw new InvalidOperationException($"Function request routing does not match message: {subject}");
+        return request;
     }
+
+    /// <summary>Dispatches exact-type command validation and throws one aggregate validation error.</summary>
+    protected void ValidateMappedCommand(
+        ICommand command,
+        IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> validationMap)
+        => MappedCommandValidation.Validate(Id.Name, command, validationMap);
 
     protected static THandler ResolveMappedFunctionHandler<THandler>(
         TRequest request,
@@ -258,6 +317,44 @@ public abstract class BaseEventSourceFunctionActor<
             throw new InvalidOperationException(
                 $"No Function handler is registered for exact request type {request.GetType().FullName}.");
         return handler;
+    }
+
+    /// <summary>Resolves exactly one terminal-event handler and rejects missing or incompatible results.</summary>
+    /// <typeparam name="TEventContext">Additional context needed by the domain event factories.</typeparam>
+    /// <param name="input">The target event type and the data from which to construct it.</param>
+    /// <param name="context">The context passed to the mapped handler.</param>
+    /// <param name="eventMap">Exact CLR event types mapped to terminal-event factories.</param>
+    /// <returns>The single terminal value produced by the matching handler.</returns>
+    protected static FunctionResult<TCompletedEvent, TFailedEvent> DispatchMappedFunctionEvent<TEventContext>(
+        FunctionEventContext<TRequest> input,
+        TEventContext context,
+        IReadOnlyDictionary<Type, Func<FunctionEventContext<TRequest>, TEventContext,
+            FunctionResult<TCompletedEvent, TFailedEvent>>> eventMap)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(eventMap);
+        if (input.EventType is null || !eventMap.TryGetValue(input.EventType, out var handler))
+            throw new InvalidOperationException($"No Function event handler is registered for exact event type {input.EventType}.");
+        var result = handler(input, context);
+        if (result is null || !result.IsTerminal ||
+            (result.IsCompleted ? result.Completed!.GetType() : result.Failed!.GetType()) != input.EventType)
+            throw new InvalidOperationException($"Function event handler for {input.EventType.Name} returned an incompatible terminal result.");
+        return result;
+    }
+
+    /// <summary>Dispatches lifecycle failures; mapped actors override this hook to resolve their event map.</summary>
+    /// <param name="context">The current Function actor context.</param>
+    /// <param name="input">The target event type and failure information, including parsing failures without a request.</param>
+    /// <returns>The domain-specific terminal response.</returns>
+    /// <remarks>The default adapter preserves existing Function actors during migration to mapped event factories.</remarks>
+    protected virtual FunctionResult<TCompletedEvent, TFailedEvent> HandleFunctionEvent(
+        IFunctionActorContext<TActor> context, FunctionEventContext<TRequest> input)
+    {
+        if (input.EventType != typeof(TFailedEvent))
+            throw new InvalidOperationException($"No Function event handler is registered for {input.EventType}.");
+        return FunctionResult<TCompletedEvent, TFailedEvent>.Fail(input.IsConflict
+            ? CreateConflictFailedEvent(input.Request!)
+            : CreateFailedEvent(input.Request, input.Exception!, input.Stage));
     }
 
     protected abstract TRequest ParseMessage(
@@ -277,12 +374,16 @@ public abstract class BaseEventSourceFunctionActor<
         TRequest request,
         CancellationToken cancellationToken);
 
-    protected abstract TFailedEvent CreateConflictFailedEvent(TRequest request);
+    /// <summary>Compatibility factory for Function actors not yet using an event map.</summary>
+    protected virtual TFailedEvent CreateConflictFailedEvent(TRequest request)
+        => throw new InvalidOperationException("A mapped Function failure handler is required.");
 
-    protected abstract TFailedEvent CreateFailedEvent(
+    /// <summary>Compatibility factory for Function actors not yet using an event map.</summary>
+    protected virtual TFailedEvent CreateFailedEvent(
         TRequest? request,
         Exception exception,
-        FunctionFailureStage stage);
+        FunctionFailureStage stage)
+        => throw new InvalidOperationException("A mapped Function failure handler is required.");
 
     protected virtual ValueTask OnStartupAsync(
         IFunctionActorContext<TActor> context,

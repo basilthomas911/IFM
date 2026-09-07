@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 
 /// <summary>Reports that the Market Condition pipeline completed successfully.</summary>
 /// <remarks>
+/// New results carry a typed assessment in Result.AssessmentResult; only the outer event is serialized.
 /// The Function projects and stores completed-only state before returning this event directly. It is never published.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]

@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
@@ -45,7 +44,7 @@ public sealed class MarketConditionAssessmentReferenceGenerator
         };
         var regime=new RegimeDiscoveryResult { ResultId=Id("regime"),WorkflowId=workflow,EntityId=entity,TriggerEventId=trigger.Id,TargetHorizon=horizon,
             RegimeDiscoveryParameterSetId=rp.ParameterSetId,RegimeDiscoveryParameterSetVersion=rp.Version,ProducedAtUtc=at.AddSeconds(-1),MarketDataAsOfUtc=at.AddSeconds(-1),Decision=decision };
-        var envelope=StrategyStageResultEnvelope.Create(regime.ResultId,nameof(RegimeDiscoveryResult),RegimeDiscoveryResult.CurrentSchemaVersion,MessagePackSerializer.Serialize(regime),regime.MarketDataAsOfUtc,regime.ProducedAtUtc);
+        var envelope=StrategyStageResultEnvelope.CreateRegime(regime);
         var binding=new MarketConditionAssessmentBinding { Parameters=p,PayloadSha256=MarketConditionAssessmentHash.Parameters(p) };
         var view=new IntrinsicTimeStrategyWorkflowView
         {
@@ -57,6 +56,7 @@ public sealed class MarketConditionAssessmentReferenceGenerator
         var id=new MarketConditionAssessmentExecutionId(entity,workflow);
         var command=new ExecuteMarketConditionAssessmentCommand
         {
+            CorrelationId=Id("correlation"), CausationId=trigger.Id,
             CommandId=Id("command"),EntityId=id,Subject=new(ActorType.Function,ExecuteMarketConditionAssessmentCommand.Actor,ExecuteMarketConditionAssessmentCommand.Verb,id.Format()),
             WorkflowView=view,TriggerEvent=trigger,InputWorkflowRevision=2,RequestedAtUtc=at,ExpiresAtUtc=at.AddSeconds(5),ParameterSet=p,ParameterPayloadSha256=binding.PayloadSha256,
             MarketProfileId=p.MarketProfileId,InstrumentRoot=p.InstrumentRoot,TargetHorizon=horizon,RegimeResultEnvelope=envelope,RegimePayloadSha256=envelope.PayloadSha256

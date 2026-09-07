@@ -267,7 +267,7 @@ Append-only MessagePack keys must be assigned after existing keys. Existing keys
 | `FundId` | Positive fund identity frozen by workflow configuration |
 | `InstrumentRoot` | `ES` for V1 |
 
-The command carries the accepted Regime result indirectly through `WorkflowView.MarketCondition`'s preceding accumulated state. The implementation must deserialize and validate the accepted `RegimeDiscoveryResult` from `WorkflowView.RegimeDiscovery.Result`. It must not query Regime Discovery to reconstruct it.
+The command carries the accepted Regime result indirectly through `WorkflowView.MarketCondition`'s preceding accumulated state. The implementation reads and validates the typed `RegimeDiscoveryResult` from `WorkflowView.RegimeDiscovery.Result.ReadRegimeResult()`. New envelopes carry the object directly; only legacy byte envelopes require inner deserialization. Accepted/request envelopes are compared by validated content fingerprint and metadata. Decision comparisons use canonical typed values, including decimal-scale normalization across JSON storage. It must not query Regime Discovery to reconstruct it.
 
 ### 7.1 Command MessagePack keys
 

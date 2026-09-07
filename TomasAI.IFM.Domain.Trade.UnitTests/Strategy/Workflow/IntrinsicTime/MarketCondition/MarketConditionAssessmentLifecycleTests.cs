@@ -156,6 +156,55 @@ public sealed class MarketConditionAssessmentLifecycleTests
         f.Order.Should().BeEmpty(); f.Saved.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Model_failure_is_mapped_without_projection_or_persistence()
+    {
+        var f=new FunctionFixture();
+        f.Calculator.Calculate(Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<MarketConditionAssessmentSnapshot>(),Arg.Any<Guid>())
+            .Returns(_=>throw new InvalidOperationException("model failure"));
+        var reply=await f.Execute();
+        reply.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.CalculationFailed);
+        f.Order.Should().Equal("capture"); f.Saved.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Expiry_at_load_completion_cannot_start_capture()
+    {
+        var f=new FunctionFixture();
+        f.Repository.LoadStateAsync(Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<CancellationToken>())
+            .Returns(_=>{f.Clock.UtcNow=f.Command.RequestedAtUtc.AddMilliseconds(f.Command.ParameterSet.MaximumExecutionMilliseconds); return ValueTask.FromResult(new MarketConditionAssessmentState());});
+        var reply=await f.Execute();
+        reply.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.Timeout);
+        f.Order.Should().BeEmpty(); f.Saved.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Persistence_finishing_at_the_deadline_returns_failure()
+    {
+        var f=new FunctionFixture();
+        f.Repository.SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(),Arg.Any<MarketConditionAssessmentState>(),Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<CancellationToken>())
+            .Returns(_=>{f.Clock.UtcNow=f.Command.ExpiresAtUtc; return ValueTask.CompletedTask;});
+        var reply=await f.Execute();
+        reply.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.Timeout);
+        f.Order.Should().Equal("capture","project");
+    }
+
+    [Fact]
+    public async Task Late_persistence_is_observed_without_returning_completed_authority()
+    {
+        var f=new FunctionFixture();
+        var late=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken dependencyToken=default;
+        f.Repository.SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(),Arg.Any<MarketConditionAssessmentState>(),Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<CancellationToken>())
+            .Returns(call=>{dependencyToken=call.Arg<CancellationToken>();return new ValueTask(late.Task);});
+        var reply=await f.Execute(f.Command with {ExpiresAtUtc=f.Command.RequestedAtUtc.AddMilliseconds(100)});
+        reply.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.Timeout);
+        dependencyToken.IsCancellationRequested.Should().BeTrue();
+        late.SetException(new InvalidOperationException("late failure"));
+        await Task.Delay(30);
+        reply.IsCompleted.Should().BeFalse();
+    }
+
     sealed class Clock(DateTime at):TimeProvider
     {
         public DateTime UtcNow { get; set; } = at;
@@ -170,11 +219,14 @@ public sealed class MarketConditionAssessmentLifecycleTests
         public bool Saved { get; private set; }
         public Clock Clock { get; }
         public IFunctionProjector<MarketConditionAssessmentCompletedEvent> Projector { get; private set; } = null!;
+        public IEventSourceFunctionStateRepository<MarketConditionAssessmentState,ExecuteMarketConditionAssessmentCommand> Repository {get;private set;} = null!;
+        public IMarketConditionAssessmentCalculator Calculator {get;} = Substitute.For<IMarketConditionAssessmentCalculator>();
         readonly MarketConditionFunctionActor _actor;
         readonly IMarketConditionFunctionContext _context=Substitute.For<IMarketConditionFunctionContext>();
         public FunctionFixture()
         {
             var repo=Substitute.For<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,ExecuteMarketConditionAssessmentCommand>>();
+            Repository=repo;
             var projector=Substitute.For<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>(); Projector=projector;
             var state=new MarketConditionAssessmentState();
             repo.LoadStateAsync(Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<CancellationToken>()).Returns(_=>ValueTask.FromResult(state));
@@ -182,6 +234,9 @@ public sealed class MarketConditionAssessmentLifecycleTests
             { Step("capture"); return ValueTask.FromResult(Snapshot(Command).Seal()); });
             projector.ProjectAsync(Arg.Any<MarketConditionAssessmentCompletedEvent>(),Arg.Any<CancellationToken>()).Returns(_=>{ Step("project"); return ValueTask.CompletedTask; });
             repo.SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(),Arg.Any<MarketConditionAssessmentState>(),Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<CancellationToken>()).Returns(_=>{ Step("persist"); Saved=true; return ValueTask.CompletedTask; });
+            Calculator.Calculate(Arg.Any<ExecuteMarketConditionAssessmentCommand>(),Arg.Any<MarketConditionAssessmentSnapshot>(),Arg.Any<Guid>())
+                .Returns(call=>new MarketConditionAssessmentCalculator().Calculate(call.ArgAt<ExecuteMarketConditionAssessmentCommand>(0),call.ArgAt<MarketConditionAssessmentSnapshot>(1),call.ArgAt<Guid>(2)));
+            _context.CalculationModel.Returns(Calculator);
             _context.ActorId.Returns(new ActorMailboxId(ActorType.Function, MarketConditionFunctionActor.ActorName));
             _context.StateRepository.Returns(repo); _context.FunctionProjector.Returns(projector);
             _context.SnapshotProvider.Returns(Provider); Clock=new(Command.RequestedAtUtc); _context.TimeProvider.Returns(Clock);

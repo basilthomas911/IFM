@@ -21,8 +21,11 @@ public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(completed);
-        var payload = completed.Result.Payload;
-        var result = MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(payload);
+        var result = completed.Result.ReadRegimeResult();
+        // Encoding belongs to the existing Scylla blob column, not the Function message envelope.
+        var payload = completed.Result.ContentType == Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.TypedRegimeContentType
+            ? MessagePackSerializer.Serialize(result)
+            : completed.Result.Payload.ToArray();
         await _dbFactory.TradeDb.UpsertRegimeDiscoveryAsync(new RegimeDiscoveryReadModel
         {
             WorkflowId = completed.WorkflowId,
@@ -36,7 +39,7 @@ public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory
             ParameterPayloadSha256 = completed.ParameterPayloadSha256,
             SignalSnapshotId = completed.SignalSnapshotId,
             ResultPayload = payload,
-            ResultPayloadSha256 = completed.Result.PayloadSha256,
+            ResultPayloadSha256 = Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.ComputePayloadSha256(payload),
             ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons),
             SchemaVersion = completed.Result.SchemaVersion,
             TerminalAtUtc = completed.CompletedAtUtc,

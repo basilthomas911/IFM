@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketConditi
 
 public interface IMarketConditionFunctionContext : IFunctionActorContext<MarketConditionFunctionActor>
 {
+    IMarketConditionAssessmentCalculator CalculationModel { get; }
     TimeProvider TimeProvider { get; }
     ILogger<MarketConditionFunctionActor> Logger { get; }
     IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand> StateRepository { get; }
@@ -33,6 +34,7 @@ public sealed class MarketConditionFunctionContext : FunctionActorContext,
         _projector = new(() => Container.Resolve<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>());
         _snapshots = new(() => Container.Resolve<IMarketConditionAssessmentSnapshotProvider>());
     }
+    public IMarketConditionAssessmentCalculator CalculationModel { get; } = new MarketConditionAssessmentCalculator();
     public ILogger<MarketConditionFunctionActor> Logger { get; }
     public TimeProvider TimeProvider { get; }
     public IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand> StateRepository => _repository.Value;

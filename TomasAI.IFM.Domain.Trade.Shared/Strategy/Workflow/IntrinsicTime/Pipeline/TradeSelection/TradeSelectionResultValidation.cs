@@ -16,7 +16,7 @@ public static partial class TradeSelectionContracts
         var assessment=MarketConditionAssessmentContracts.ReadResult(r.DecisionContext.AssessmentResultEnvelope);
         var regimeEnvelope=r.DecisionContext.RegimeResultEnvelope;
         Require(regimeEnvelope.HasValidPayloadSha256() && regimeEnvelope.ResultType==nameof(RegimeDiscoveryResult),"TS.RESULT.INVALID","Invalid result regime context.");
-        var regime=MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(regimeEnvelope.Payload);
+        var regime=regimeEnvelope.ReadRegimeResult();
         Require(assessment.WorkflowId==r.WorkflowId && assessment.EntityId==r.EntityId && assessment.TargetHorizon==r.DecisionHorizon
             && assessment.RegimePayloadSha256==regimeEnvelope.PayloadSha256 && r.ValidUntilUtc<=assessment.Assessment.ValidUntilUtc
             && r.SelectionConfidence==Math.Round(Math.Min(regime.Decision.Confidence,assessment.Assessment.AssessmentConfidence??-1),6,MidpointRounding.ToEven)

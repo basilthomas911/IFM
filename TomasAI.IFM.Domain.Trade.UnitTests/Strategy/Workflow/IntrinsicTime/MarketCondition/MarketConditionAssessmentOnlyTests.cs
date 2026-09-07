@@ -61,6 +61,7 @@ public sealed class MarketConditionAssessmentOnlyTests
     {
         var command = AssessmentFixture.Command();
         var context = Substitute.For<IMarketConditionFunctionContext>();
+        context.CalculationModel.Returns(new MarketConditionAssessmentCalculator());
         var provider = Substitute.For<IMarketConditionAssessmentSnapshotProvider>();
         var repository = Substitute.For<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>>();
         var projector = Substitute.For<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>();
@@ -146,6 +147,7 @@ public sealed class MarketConditionAssessmentOnlyTests
     public async Task Function_host_starts_and_stops_its_producer_once()
     {
         var context = Substitute.For<IMarketConditionFunctionContext>();
+        context.CalculationModel.Returns(new MarketConditionAssessmentCalculator());
         var id = new ActorMailboxId(ActorType.Function, MarketConditionFunctionActor.ActorName);
         context.ActorId.Returns(id);
         var supervisor = Substitute.For<IActorSupervisor>();

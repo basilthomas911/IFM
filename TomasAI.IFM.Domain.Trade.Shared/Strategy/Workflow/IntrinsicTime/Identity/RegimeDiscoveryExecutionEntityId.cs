@@ -60,3 +60,15 @@ public sealed class RegimeDiscoveryExecutionEntityIdValidationRules
             .Concat(new StrategyWorkflowIdValidationRules().Execute(entityId.WorkflowId))
             .ToArray();
 }
+
+/// <summary>Adapts the intrinsic execution identity rules to actor validation.</summary>
+public static class RegimeDiscoveryExecutionEntityIdValidationExtensions
+{
+    public static List<ValidationError> ValidateRegimeDiscoveryExecutionEntityId(
+        this List<ValidationError> errors, RegimeDiscoveryExecutionEntityId value)
+    {
+        ArgumentNullException.ThrowIfNull(errors);
+        errors.AddRange(new RegimeDiscoveryExecutionEntityIdValidationRules().Execute(value));
+        return errors;
+    }
+}

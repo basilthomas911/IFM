@@ -318,6 +318,12 @@ Proposed new enums: SelectionOutcome Unknown=0/Selected=1/NoTrade=2; SelectionRu
 
 `SelectionCandidateIntent` keys: 0 CandidateHash, 1 AssignmentVersion, 2 DeploymentKey, 3 StrategyKey, 4 StructureKey, 5 VariantKey, 6 Product, 7 Side, 8 Bias, 9 PremiumMode, 10 SelectionPolicyReference, 11 CompositionPolicyReference, 12 SpecializedParameterBindings, 13 FamilyKeys. Every field must match the frozen candidate and complete graph; all parameter and schema versions/hashes remain in context. Product includes positive ID, symbol, exchange, currency; it is not a selected contract.
 
+Regime evidence uses `StrategyStageResultEnvelope.RegimeResult` for new results and
+`ReadRegimeResult()` for typed/legacy compatibility. Validate the content fingerprint and envelope
+metadata without serializing the regime envelope for equality. Preserve this original representation
+in `TradeSelectionDecisionContext`; do not repack typed Regime evidence into an inner byte payload.
+Market Condition now follows the same typed-result boundary: new envelopes carry `AssessmentResult` at appended key 9 and an empty `Payload`. `MarketConditionAssessmentContracts.ReadResult` reads typed content and retains legacy byte decoding. Compare accepted envelopes with `HasSameContent`, preserving their original representation in the decision context. The assessment content fingerprint uses canonical assessment JSON for integrity only; transport and storage serialize the outer message.
+
 `TradeSelectionDecisionContext`: 0 SchemaVersion=1, 1 original RegimeResultEnvelope, 2 original AssessmentResultEnvelope, 3 complete SelectionBinding. `SelectionCandidateDecision`: 0 CandidateHash, 1 Status, 2 RuleEvidence, 3 comparison tuple (typed fields in section 10.2 order), 4 ReasonCodes. `SelectionRuleEvidence`: 0 RuleId, 1 FieldPath, 2 Status, 3 ActualJson, 4 ExpectedJson, 5 ReasonCode. Preserve canonical numeric values and enum strings; each evidence row is at most 4096 UTF-8 bytes. No truncation of authoritative context/evidence is permitted.
 
 Selected requires exactly one Selected candidate decision, zero failed global/selected-candidate rules, the deterministic winning tuple and TS.SELECTED. NoTrade has no SelectedCandidate and no Selected candidate decision; it has global rejection, empty authorized set or all-candidate incompatibility with the corresponding reason. Failed is a lifecycle outcome, never a successful third selector outcome. Observed Neutral remains in context even when no variant qualifies.
