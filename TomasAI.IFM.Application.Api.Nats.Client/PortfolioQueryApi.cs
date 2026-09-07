@@ -39,6 +39,9 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
     public Task<ServiceResult<FundTradeTemplateAssignmentReadModel[]>> GetAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, CancellationToken cancellationToken = default) =>
         Send<GetAssignmentsRequest, FundTradeTemplateAssignmentReadModel[]>(PortfolioQueryVerbs.GetFundTemplateAssignments, $"{portfolioId}.{fundId}", new(portfolioId, fundId, mandateVersion), cancellationToken);
 
+    public Task<ServiceResult<PortfolioFundStrategySnapshot>> ResolveForSelectionAsync(int portfolioId, int? fundId, int tradingYear, string decisionHorizon, string underlyingRoot, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default) =>
+        Send<ResolveForSelectionRequest, PortfolioFundStrategySnapshot>(PortfolioQueryVerbs.ResolveForSelection, portfolioId.ToString(), new(portfolioId, fundId, tradingYear, decisionHorizon, underlyingRoot, asOfUtc, workflowId, workflowRevision, correlationId), cancellationToken);
+
     public Task<ServiceResult<PortfolioFundStrategySnapshot>> GetStrategySnapshotAsync(int portfolioId, int tradingYear, string decisionHorizon, string underlyingRoot, string assetType, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default) =>
         Send<GetStrategySnapshotRequest, PortfolioFundStrategySnapshot>(PortfolioQueryVerbs.GetPortfolioFundStrategySnapshot, portfolioId.ToString(), new(portfolioId, tradingYear, decisionHorizon, underlyingRoot, assetType, asOfUtc, workflowId, workflowRevision, correlationId), cancellationToken);
 

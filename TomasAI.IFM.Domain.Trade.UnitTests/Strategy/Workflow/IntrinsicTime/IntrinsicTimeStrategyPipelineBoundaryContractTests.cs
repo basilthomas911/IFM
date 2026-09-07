@@ -35,6 +35,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(ExecuteMarketConditionAssessmentCommand),
         nameof(ExecuteMarketConditionPipelineCommand),
         nameof(ExecuteRegimeDiscoveryPipelineCommand),
+        nameof(ExecuteTradeSelectionPipelineCommand),
         nameof(StartOrderCompositionPipelineCommand),
         nameof(StartRiskManagementPipelineCommand),
         nameof(StartTradeSelectionPipelineCommand)
@@ -54,6 +55,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(RiskManagementPipelineCompletedEvent),
         nameof(RiskManagementPipelineFailedEvent),
         nameof(RiskManagementPipelineProcessingEvent),
+        nameof(TradeSelectionFunctionCompletedEvent),
+        nameof(TradeSelectionFunctionFailedEvent),
         nameof(TradeSelectionPipelineCompletedEvent),
         nameof(TradeSelectionPipelineFailedEvent),
         nameof(TradeSelectionPipelineProcessingEvent)
@@ -112,7 +115,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [Fact]
     public void Pipeline_events_have_only_the_approved_lifecycle_shapes()
     {
-        EventTypes.Should().OnlyContain(type => (type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
+        EventTypes.Should().OnlyContain(type => (type.Name.StartsWith("TradeSelectionFunction", StringComparison.Ordinal) || type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
         EventTypes.Where(type => type.Name.EndsWith("ProcessingEvent", StringComparison.Ordinal)).Should()
             .OnlyContain(type => typeof(IEvent).IsAssignableFrom(type) && !typeof(ICompleteEvent).IsAssignableFrom(type));
         EventTypes.Where(type => type.Name.EndsWith("CompletedEvent", StringComparison.Ordinal)).Should()
@@ -132,7 +135,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         foreach (var type in CommandTypes)
         {
             if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
-                type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand))
+                type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand) || type == typeof(ExecuteTradeSelectionPipelineCommand))
             {
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
@@ -147,7 +150,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
             var command = Activator.CreateInstance(type).Should().BeAssignableTo<ICommand>().Subject;
             command!.RouteTo.Should().NotBe(BoundedContextName.Undefined, type.Name);
-            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(true, type.Name);
+            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type!=typeof(ExecuteTradeSelectionPipelineCommand), type.Name);
         }
     }
 
@@ -215,6 +218,9 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static object CreatePopulatedContract(Type type)
     {
+        if(type==typeof(ExecuteTradeSelectionPipelineCommand))return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult();
+        if(type==typeof(TradeSelectionFunctionCompletedEvent))return new TradeSelectionFunctionCompletedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid()};
+        if(type==typeof(TradeSelectionFunctionFailedEvent))return new TradeSelectionFunctionFailedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReasonCode="TS.TEST"};
         if (type == typeof(ExecuteMarketConditionAssessmentCommand)) return MessagePackSerializer.Deserialize<ExecuteMarketConditionAssessmentCommand>(MessagePackSerializer.Serialize(MarketCondition.AssessmentFixture.Command()));
         if (type == typeof(MarketConditionAssessmentCompletedEvent)) return new MarketConditionAssessmentCompletedEvent
         { Id = Guid.NewGuid(), WorkflowId = StrategyWorkflowId.New(TimeProvider.System), InputWorkflowRevision = 2 };
@@ -299,6 +305,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
                 new DateTime(2026, 8, 25, 15, 59, 0, DateTimeKind.Utc),
                 new DateTime(2026, 8, 25, 16, 0, 0, DateTimeKind.Utc));
 
+        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding))return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
+        if(type==typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult))return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
         throw new InvalidOperationException(
             $"No ITSW-4 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

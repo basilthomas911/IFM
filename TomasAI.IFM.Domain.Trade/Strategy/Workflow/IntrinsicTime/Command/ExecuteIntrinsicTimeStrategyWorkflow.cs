@@ -81,6 +81,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
             RegimeDiscoveryParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
             FundId = command.FundId,
             AssessmentBinding = command.AssessmentBinding,
+            SelectionBinding = command.SelectionBinding,
             Outcome = StrategyWorkflowOutcome.None,
             TriggerEvent = command.TriggerEvent
         };

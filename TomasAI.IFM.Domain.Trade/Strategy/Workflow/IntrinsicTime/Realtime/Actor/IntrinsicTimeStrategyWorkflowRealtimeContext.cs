@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -26,6 +29,9 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <summary>Gets the immutable strategy-configuration store.</summary>
     IConfigurationDbContext ConfigurationDb { get; }
+    IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
+    IPortfolioQueryApi PortfolioQueries {get;}
+    IPortfolioFundCommandApi PortfolioCommands {get;}
 
     /// <summary>Gets the atomic signal snapshot provider used by the live-readiness gate.</summary>
     IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider { get; }
@@ -37,6 +43,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
       IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>,
       IIntrinsicTimeStrategyWorkflowRealtimeContext
 {
+    public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
+    public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
+    public IPortfolioFundCommandApi PortfolioCommands => Container.Resolve<IPortfolioFundCommandApi>();
     readonly Lazy<IConfigurationDbContext> _configurationDb;
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> _regimeDiscoverySnapshotProvider;
     /// <summary>Initializes the realtime context.</summary>
@@ -92,4 +101,7 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions
 
     /// <summary>Gets or sets the fund used by the configured Intrinsic Time workflow.</summary>
     public int FundId { get; set; } = 1;
+    public WorkflowActivationReference[] Activations {get;set;} = [];
 }
+
+public sealed record WorkflowActivationReference(TimeFrameType Horizon,Guid Id,int Version,string PayloadSha256);

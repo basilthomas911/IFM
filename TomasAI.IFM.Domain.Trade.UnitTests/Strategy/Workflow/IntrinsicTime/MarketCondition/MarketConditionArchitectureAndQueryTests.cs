@@ -18,7 +18,18 @@ public sealed class MarketConditionArchitectureAndQueryTests
     public void Function_maps_have_exact_request_set_and_no_legacy_actor_types_exist()
     {
         typeof(IMarketConditionFunctionContext).GetProperties().Select(x => x.Name)
-            .Should().NotContain(["StateRepository", "FunctionProjector", "SnapshotProvider", "CalculationModel"]);
+            .Should().Contain(["StateRepository", "FunctionProjector", "SnapshotProvider", "TimeProvider", "Logger"]);
+        typeof(MarketConditionFunctionActor).BaseType!.GetGenericTypeDefinition()
+            .Should().Be(typeof(BaseEventSourceFunctionActor<,,,,,,>));
+        foreach (var name in new[] { "_parseMap", "_validationMap", "_receiveMap" })
+        {
+            var field = typeof(MarketConditionFunctionActor).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!;
+            field.IsInitOnly.Should().BeTrue();
+            var map = (IDictionary)field.GetValue(null)!;
+            map.IsReadOnly.Should().BeTrue();
+            if (name == "_parseMap") map.Keys.Cast<string>().Should().Equal(ExecuteMarketConditionAssessmentCommand.Verb);
+            else map.Keys.Cast<Type>().Should().Equal(typeof(ExecuteMarketConditionAssessmentCommand));
+        }
         typeof(MarketConditionFunctionActor).Assembly.GetTypes().Select(x => x.Name).Should()
             .NotContain(["MarketConditionCalculationModel", "MarketConditionFunctionState", "MarketConditionFunctionProjector",
                 "MarketConditionOptionUniverseAdapter", "MarketConditionOperationalHealthAdapter"]);

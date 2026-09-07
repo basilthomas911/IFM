@@ -25,6 +25,7 @@ public static class PortfolioQueryVerbs
     public const string GetFundAllocation = "GetFundAllocation";
     public const string GetFundRiskEnvelope = "GetFundRiskEnvelope";
     public const string GetFundTemplateAssignments = "GetFundTemplateAssignments";
+    public const string ResolveForSelection = "ResolveForSelection";
     public const string GetPortfolioFundStrategySnapshot = "GetPortfolioFundStrategySnapshot";
     public const string GetFundOrderByOrderId = "GetFundOrderByOrderId";
     public const string GetFundOrderTradeByTradeId = "GetFundOrderTradeByTradeId";
@@ -89,3 +90,5 @@ public sealed record AllocatePortfolioBusinessIdRequest(
 [MessagePackObject] public sealed record GetLegacyFundOrderTradesRequest(
     [property: Key(0)] int LegacyFundId,
     [property: Key(1)] int OrderId);
+
+[MessagePackObject] public sealed record ResolveForSelectionRequest([property: Key(0)] int PortfolioId, [property: Key(1)] int? FundId, [property: Key(2)] int TradingYear, [property: Key(3)] string DecisionHorizon, [property: Key(4)] string UnderlyingRoot, [property: Key(5)] DateTime AsOfUtc, [property: Key(6)] Guid WorkflowId, [property: Key(7)] long WorkflowRevision, [property: Key(8)] Guid CorrelationId);

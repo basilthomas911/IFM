@@ -26,6 +26,11 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
             table,
             ConfigurationSchemaSql.CreateTable(table),
             $"DROP TABLE IF EXISTS reference_configuration.{table};")))
+        .Concat(new[] { "trade_selection_parameter_set", "intrinsic_time_strategy_workflow_parameter_set", "order_composition_parameter_set" }
+            .Select(table => new SchemaObjectDefinition(table + "_lifecycle_guard",
+                (ConfigurationSchemaSql.EnsureMarketConditionLifecycleConstraints + ConfigurationSchemaSql.CreateMarketConditionLifecycleGuard)
+                    .Replace("market_condition_parameter_set", table).Replace("MarketCondition", table),
+                $"DROP TRIGGER IF EXISTS trg_guard_{table} ON reference_configuration.{table}; DROP FUNCTION IF EXISTS reference_configuration.guard_{table}();")))
         .Append(new SchemaObjectDefinition("ix_market_condition_parameter_set_effective",
             ConfigurationSchemaSql.CreateMarketConditionEffectiveIndex,
             "DROP INDEX IF EXISTS reference_configuration.ix_market_condition_parameter_set_effective;"))

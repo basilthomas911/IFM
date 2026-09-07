@@ -2,18 +2,18 @@
 
 | Item | Decision |
 | --- | --- |
-| Revised | 2026-09-06 |
-| Status | Catalog storage, Reference UI/APIs and Portfolio deployment references implemented; trading capabilities and TradeSelection remain deferred |
+| Revised | 2026-09-07 |
+| Status | Catalog storage, Reference UI/APIs and Portfolio deployment references implemented; TradeSelection catalog-backed selector implemented; isolated qualification documented |
 | Implementation | [ConfigurationDb catalog implementation](ConfigurationDb-Strategy-Catalog-Implementation.md) |
 | Persistence owner | PostgreSQL `ConfigurationDbContext`, schema `reference_configuration` |
-| TradeSelection | Implementation on hold at the user's request; TS-01 through TS-08 must be realigned before resumption |
+| TradeSelection | Catalog-aligned specification/plan complete; ready to begin TS-01 on implementation instruction |
 | Scope | Reusable trading strategies, structures, variants, parameter definitions and product/timeframe deployments |
 
 ## 1. Purpose and authority
 
 A small group of assets must support many trading approaches without adding a database column or extending `TradeStrategyType` for every new strategy. Separate trading logic from instrument class, payoff structure, variant and deployment. This document is the current authority for that separation and the proposed catalog ownership. It supersedes earlier documentation that treats the existing three strategy shapes as the permanent strategy taxonomy.
 
-ConfigurationDb storage, Reference APIs/UI, draft legacy imports and Portfolio deployment references are implemented; the physical model, limits and verification are documented in the linked implementation document. Imports do not grant Fund permissions or publish executable strategies. TradeSelection remains on hold. Earlier integer-family contracts are historical compatibility records.
+ConfigurationDb storage, Reference APIs/UI, draft legacy imports and Portfolio deployment references are implemented; the physical model, limits and verification are documented in the linked implementation document. Imports do not grant Fund permissions or publish executable strategies. TradeSelection now uses the exact catalog through its implemented Function, binding, evaluator and reservation handoff. Isolated qualification and live activation boundaries are recorded in its implementation evidence. Earlier integer-family contracts are historical compatibility records.
 
 ## 2. Terminology and ownership
 
@@ -115,7 +115,7 @@ A mean-reversion policy needs its own anchor/deviation, entry and invalidation e
 
 Retain the existing pipeline parameter tables as their current authority. `strategy_deployment_parameter_binding` references exact existing kinds/IDs/versions/hashes for workflow, regime, assessment, selection, composition and risk. Do not duplicate those same payloads under new catalog parameter identities. The proposed catalog parameter tables hold specialized settings not already owned by a pipeline profile.
 
-The earlier TradeSelection specification proposed `TradeSelectionTemplateDefinition` and a selector-only `trade_selection_template_definition` table. That proposal is superseded by this reusable catalog direction. Before resuming, map existing `TradeTemplateId`/version, selection hint profile and construction profile references explicitly to the new strategy, structure and deployment graph. Do not create two authoritative template/strategy catalogs or rename existing identities in place.
+The earlier TradeSelection specification proposed `TradeSelectionTemplateDefinition` and a selector-only `trade_selection_template_definition` table. That proposal is superseded by this reusable catalog direction. The catalog-aligned selector specification maps schema-3 `TradeTemplateId`/version to the exact Deployment key, separately carries Strategy/Structure/Variant keys, and preserves the exact selection hint/composition policy references and hashes. Do not create two authoritative template/strategy catalogs or rename existing identities in place.
 
 Required parameter categories include input requirements/freshness, applicability, entry compatibility, permitted side/bias/premium modes, variant preference/tie handling, construction constraints, and exit/management policy references where applicable. TradeSelection only consumes the selection subset; Composer and management stages consume their own settings. Portfolio hard financial limits remain separate and cannot be expanded by a strategy parameter set.
 
@@ -141,22 +141,21 @@ Migration must inventory all existing family references in mandates, assignments
 
 Do not equate a new UUID strategy-family identity with an old integer risk-limit key. Preserve existing risk enforcement until a versioned Portfolio permission/risk model and migration define the replacement. Preserve original snapshots/hashes and historical reads; add new wire fields/schema versions rather than repurposing old ones. Do not delete legacy tables or dual-write competing authorities as part of this documentation change.
 
-The current Reference Data family editor remains the existing product/timeframe catalog editor. A future Configuration UI may author families, definitions, variants and deployments; Portfolio UI remains responsible for Fund assignment. Dark Trading Theme still applies. No new editor is implemented or scheduled by this decision.
+The Reference UI now authors the ConfigurationDb catalog, including families, strategies, structures, variants and deployments. Portfolio UI remains responsible for exact Fund deployment assignments and permissions. Dark Trading Theme applies. Selector alignment does not add another editor or alter the three basic default families.
 
-## 10. TradeSelection hold and subsequent work
+## 10. TradeSelection alignment and subsequent work
 
-All TradeSelection plan gates TS-01 through TS-08 are **on hold**. Do not implement the earlier selector-only template schema, fixed three-variant rule set or provisional wire contracts as written. Existing code remains as-is; the hold does not remove implemented upstream stages.
+The catalog-aligned TradeSelection specification v1.1, implementation plan v1.1 and high-level design revision 0.8 are complete as of 2026-09-07. TS-01 through TS-08 are **not started**; TS-01 is ready to begin on the separate implementation instruction. The earlier selector-only table, fixed timeframe/strategy mapping and one-assignment rule have been replaced throughout the selector documents.
 
-Before a resumed implementation plan can be treated as ready:
+The agreed implementation boundary now includes:
 
-1. Use the implemented catalog persistence schema/context lifecycle and specify the remaining domain commands/queries, actual capability handlers and external-reference adapter registrations.
-2. Define legacy family/template mapping and Portfolio assignment/risk compatibility without implicit permission expansion.
-3. Reconcile the TradeSelection input/result/parameter contracts and shared-assembly dependency plan with exact catalog references.
-4. Update Composer capability contracts for supported long/short futures, all four verticals and long/short condors with independent bias; distinguish desired definitions from implemented builders.
-5. Revise the TradeSelection specification and TS gate plan with bounded candidate/variant selection, fixtures and tests. Preserve durable lifecycle, workflow acceptance and composition reservation requirements.
-6. Resume implementation when the user returns to that work. This documentation update does not resume it automatically.
+1. Exact schema-3 Portfolio assignment/deployment mapping, separate Strategy/Structure/Variant keys, complete pipeline/specialized ParameterSet/ParameterSchema versions and hashes.
+2. One triggering Daily, Weekly or Monthly horizon, with every supported structure available at every horizon through explicit deployments.
+3. Bounded Fund-authorized candidate enumeration, common pinned policy, explicit specialized variant policy and deterministic Fund-priority/preference/identity ordering.
+4. Long/Short futures, all four credit/debit verticals, and Long/Short condors with independent Balanced/Bullish/Bearish bias.
+5. Dependency-safe typed contracts, immutable evidence, persistent actor/durable projector, scoped queries and workflow-owned composition-ID reservation/recovery.
 
-Future verification must cover relational integrity; immutable versions and concurrent publication; schema/semantic/capability rejection; exact product/horizon and Fund restrictions; no implicit permission expansion; deterministic variant choice; snapshot/hash replay; multi-expiry/leg validation; legacy wire compatibility; and end-to-end handoff through composition reservation. Historical pipeline test evidence does not qualify the catalog; the new catalog-specific tests and their limits are documented separately.
+Actual selector code, downstream construction/risk capability implementations, operational publication and live qualification remain engineering work. Fixture capabilities do not make an executable production registry. No current catalog rows or Fund permissions are changed by aligning documents. The implementation plan assigns each missing component and its unit/BDD/database/NATS/verification evidence to a TS gate.
 
 ## 11. Related documentation
 
@@ -166,5 +165,5 @@ Future verification must cover relational integrity; immutable versions and conc
 - [Portfolio/Fund specification](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md)
 - [TradeSelection design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-High-Level-Design-v0.1.md)
 - [TradeSelection specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Specification-v1.0.md)
-- [TradeSelection plan: on hold](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Implementation-Plan-v1.0.md)
+- [TradeSelection plan: ready for TS-01](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Implementation-Plan-v1.0.md)
 - [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md)

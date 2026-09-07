@@ -1,5 +1,24 @@
 # Market Condition gate evidence v2.0
 
+## Function base and mapping qualification - 2026-09-07
+
+MarketConditionFunctionActor now inherits BaseEventSourceFunctionActor and uses immutable ordinal-verb _parseMap plus exact-type _validationMap/_receiveMap. The custom assessment lifecycle host is removed; ExecuteMarketConditionAssessment is the mapped calculation extension. The shared base has default-preserving load/projection/persistence hooks so the assessment can enforce its existing deadline and cancellation semantics. Actor routing and message schemas are unchanged.
+
+| Verification | Passed | Scope |
+| --- | ---: | --- |
+| Trade unit | 199 | MarketCondition, RegimeDiscovery Function and IntrinsicTime workflow filters; includes map immutability/parity, malformed ingress, payload release, completed replay after expiry, duplicate conflict, projection timeout/boundary, late capture and caller cancellation |
+| Shared Function lifecycle | 8 | Default projection/append/reply ordering, optional projection, failure and completed replay regression |
+| Assessment BDD | 4 | One-horizon market description, poor liquidity and inherited restriction behavior |
+| Actual assessment runtime integration | 7 | Daily/Weekly/Monthly upstream Function workflow, known unavailability, capture/projection/append/timeout faults and restart replay |
+| Total | 218 | Zero failed or skipped in final runs; repeated intermediate runs are excluded |
+
+Runtime infrastructure was real PostgreSQL, Scylla and Redis with a temporary isolated JetStream broker at 127.0.0.1:14222. Existing test stores and unique profile identities isolate verification. Market observations were controlled; the real RegimeDiscovery/MarketCondition actors, projection, completed persistence and workflow translation executed. Downstream stage probes establish dispatch only, not completed TradeSelection/Composer implementations. No live feed session or combined five-operator qualification is claimed.
+
+The first integration attempt exposed missing ConfigurationDb catalog service registrations in the shared integration host. Registering the same reference adapter and empty capability registry as production fixed host verification; it grants no new strategy capability. The runtime suite then passed all seven cases. A superseded unit architecture assertion was replaced with actual shared-base/map conformance checks.
+
+Local logs: `.test-results/market-condition-function-test.log`, `market-condition-shared-function-test.log`, `market-condition-function-bdd.log` and `market-condition-function-integration.log` under the same directory. Documentation links and git diff --check passed. Historical evidence below remains unchanged.
+
+
 > **Strategy catalog direction (2026-09-06):** Reusable strategy-family/structure/variant definitions are planned in ConfigurationDb and are downstream TradeSelection concerns. Current MarketCondition remains market-only for the single ITI-triggering Daily, Weekly or Monthly horizon. Historical family hints and family-scoped rules in superseded designs do not return to the assessment path. Recorded gate evidence is unchanged and does not qualify the new catalog. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
 
 

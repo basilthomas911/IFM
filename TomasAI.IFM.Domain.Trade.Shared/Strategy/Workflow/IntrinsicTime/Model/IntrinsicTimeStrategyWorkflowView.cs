@@ -64,4 +64,7 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     /// <summary>Gets the canonical frozen Market Condition parameter hash.</summary>
     [Key(25)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
     [Key(26)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
+    [Key(27)] public Pipeline.TradeSelection.TradeSelectionBinding? SelectionBinding { get; init; }
+    [Key(28)] public Pipeline.TradeSelection.WorkflowCompositionHandoffState? CompositionHandoff { get; init; }
+    [Key(29)] public Pipeline.Commands.ExecuteTradeSelectionPipelineCommand? SelectionDispatch { get; init; }
 }

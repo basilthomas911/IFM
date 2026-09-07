@@ -30,6 +30,7 @@ public interface IPortfolioDbReadContext
     Task<FundMandateReadModel?> GetFundAsync(int fundId, CancellationToken cancellationToken = default);
     Task<PortfolioProjectionRevision?> GetFundRevisionAsync(int fundId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FundMandateReadModel>> GetActiveFundsAsync(int portfolioId, int tradingYear, string decisionHorizon, DateTime effectiveAtUtc, int pageSize, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetSelectionAssignmentsAsync(int portfolioId,int fundId,long mandateVersion,string horizon,string root,DateTime asOfUtc,CancellationToken cancellationToken=default);
     Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, int pageSize, CancellationToken cancellationToken = default);
     Task<FundAllocationReadModel?> GetCurrentAllocationAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default);
     Task<FundRiskEnvelopeReadModel?> GetCurrentRiskEnvelopeAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default);

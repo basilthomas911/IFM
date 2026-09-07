@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -31,6 +33,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
                 message => message.AsCommand<ExecuteIntrinsicTimeStrategyWorkflowCommand>()!,
             [CompleteRegimeDiscoveryCommand.Verb] = message => message.AsCommand<CompleteRegimeDiscoveryCommand>()!,
             [CompleteMarketConditionCommand.Verb] = message => message.AsCommand<CompleteMarketConditionCommand>()!,
+            [RedispatchCurrentStrategyPipelineCommand.Verb] = message => message.AsCommand<RedispatchCurrentStrategyPipelineCommand>()!,
+            [CompleteTradeSelectionReservationCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionReservationCommand>()!,
             [CompleteTradeSelectionCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionCommand>()!,
             [CompleteOrderCompositionCommand.Verb] = message => message.AsCommand<CompleteOrderCompositionCommand>()!,
             [CompleteRiskManagementCommand.Verb] = message => message.AsCommand<CompleteRiskManagementCommand>()!,
@@ -73,6 +77,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
                     .ValidateEntityId(typed.EntityId, typed.CommandName)
                     .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(RedispatchCurrentStrategyPipelineCommand)] = command =>
+            {
+                var c=(RedispatchCurrentStrategyPipelineCommand)command;
+                return new List<ValidationError>().ValidateCommandId(c.CommandId,c.CommandName).ValidateEntityId(c.EntityId,c.CommandName)
+                    .CaptureCommandValidation(()=> { if(c.WorkflowId.Value==Guid.Empty || c.ExpectedWorkflowRevision<=0 || !Enum.IsDefined(c.ExpectedStage) || c.RequestedAtUtc.Kind!=DateTimeKind.Utc || string.IsNullOrWhiteSpace(c.RequestedBy)) throw new ArgumentException("Invalid recovery request."); });
+            },
+            [typeof(CompleteTradeSelectionReservationCommand)] = command =>
+            {
+                var typed=(CompleteTradeSelectionReservationCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId,typed.CommandName).ValidateEntityId(typed.EntityId,typed.CommandName).CaptureCommandValidation(()=>ValidateCommand(typed));
             },
             [typeof(CompleteTradeSelectionCommand)] = command =>
             {
@@ -194,6 +209,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
                 ((CompleteRegimeDiscoveryCommand)command).Execute(context, state),
             [typeof(CompleteMarketConditionCommand)] = static (command, context, state) =>
                 ((CompleteMarketConditionCommand)command).Execute(context, state),
+            [typeof(RedispatchCurrentStrategyPipelineCommand)] = static (command,context,state)=>((RedispatchCurrentStrategyPipelineCommand)command).Execute(context,state),
+            [typeof(CompleteTradeSelectionReservationCommand)] = static (command,context,state)=>((CompleteTradeSelectionReservationCommand)command).Execute(context,state),
             [typeof(CompleteTradeSelectionCommand)] = static (command, context, state) =>
                 ((CompleteTradeSelectionCommand)command).Execute(context, state),
             [typeof(CompleteOrderCompositionCommand)] = static (command, context, state) =>
@@ -322,6 +339,11 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             var binding = execute.AssessmentBinding
                 ?? throw new ArgumentException("Workflow start requires a frozen Market Condition assessment profile.", nameof(command));
             binding.Validate();
+            var selection=execute.SelectionBinding??throw new ArgumentException("Workflow start requires frozen selection authority; reauthor activation and start a new workflow.");
+            var selectionPolicy=TradeSelectionContracts.ValidateBinding(selection);
+            if(selection.PortfolioSnapshot.WorkflowId!=execute.ProposedWorkflowId.Value || selection.PortfolioSnapshot.Fund.FundId!=execute.FundId
+                || selectionPolicy.TargetHorizon!=execute.TriggerEvent.EntityId.TimePeriod || selection.FrozenAtUtc!=execute.RequestedAtUtc)
+                throw new ArgumentException("Selection authority differs from workflow start identity or horizon.");
             if (execute.FundId <= 0 || binding.Parameters.TargetHorizon != execute.TriggerEvent.EntityId.TimePeriod ||
                 binding.Parameters.HorizonProfile.RegimeProfileId != execute.RegimeDiscoveryParameterSet.ParameterSetId ||
                 binding.Parameters.HorizonProfile.RegimeProfileVersion != execute.RegimeDiscoveryParameterSet.Version)
@@ -339,7 +361,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         };
         if (completionResult is not null)
         {
-            var errors = new StrategyStageResultEnvelopeValidationRules().Execute(completionResult);
+            var errors = StrategyStageResultEnvelopeValidationRules.WithMaximumPayloadBytes(command is CompleteTradeSelectionCommand ? 524288 : StrategyStageResultEnvelope.DefaultMaximumPayloadBytes).Execute(completionResult);
             if (errors.Length != 0)
                 throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
                     nameof(command));

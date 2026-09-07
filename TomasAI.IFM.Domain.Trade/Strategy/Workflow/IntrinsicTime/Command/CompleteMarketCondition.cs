@@ -148,16 +148,28 @@ public static class CompleteMarketCondition
     static void AppendSnapshot(IntrinsicTimeStrategyWorkflowCommandState state,
         CompleteMarketConditionCommand command, WorkflowStrategyMachineStatus previousStatus,
         IntrinsicTimeStrategyWorkflowView view, DateTime now)
-        => state.Update(new WorkflowStrategyStateUpdatedEvent
+    {
+        var snapshotId=Guid.CreateVersion7(new DateTimeOffset(now,TimeSpan.Zero));
+        if(view.Status==WorkflowStrategyMachineStatus.Started && view.CurrentStage==StrategyWorkflowStage.TradeSelection)
+        {
+            try { view=view with {SelectionDispatch=TradeSelection.TradeSelectionDispatch.Create(view,snapshotId)}; }
+            catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+            {
+                view=view with {Status=WorkflowStrategyMachineStatus.Failed,Outcome=StrategyWorkflowOutcome.PipelineFailed,TerminalAtUtc=now,StopReasonCode="TS.CONFIG.INVALID",
+                    TradeSelection=view.TradeSelection with {ProcessingStatus=StrategyActorProcessingStatus.Failed,FailedAtUtc=now,Failure=new(){ErrorCode=23023,ErrorType="SelectionBindingInvalid",ErrorMessage=ex.Message,FailedAtUtc=now}}};
+            }
+        }
+        state.Update(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
+            Id = snapshotId, EntityId = command.EntityId,
             CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
             ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
             CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
             State = view, UpdatedAtUtc = now
         }, command);
+    }
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {

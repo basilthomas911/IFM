@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using System.Data;
 using System.Text.Json;
@@ -192,10 +193,17 @@ WHERE kind=$1 AND id=$2 AND version=$3;
             foreach (var parameter in d.PipelineParameters)
             {
                 var table = PipelineTable(parameter.Kind);
-                await using var command = Command(connection, transaction, $"SELECT payload_sha256,status,effective_from_utc FROM reference_configuration.{table} WHERE parameter_set_id=$1 AND version=$2 FOR SHARE;", parameter.Id, parameter.Version);
+                await using var command = Command(connection, transaction, $"SELECT payload_sha256,status,effective_from_utc,payload_json::text,schema_version,retired_at_utc FROM reference_configuration.{table} WHERE parameter_set_id=$1 AND version=$2 FOR SHARE;", parameter.Id, parameter.Version);
                 await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
                 if (!await reader.ReadAsync(ct).ConfigureAwait(false) || reader.GetString(0) != parameter.Hash || reader.GetInt16(1) != 1 || reader.IsDBNull(2) || reader.GetDateTime(2) > at)
                     throw new InvalidOperationException("Pipeline parameter reference is missing, mismatched or not effective and Published.");
+                // These kinds have qualified owning schemas. Other existing pipeline kinds retain their own publication path.
+                if(parameter.Kind is CatalogPipelineParameterKind.TradeSelection or CatalogPipelineParameterKind.OrderComposition or CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow or CatalogPipelineParameterKind.MarketConditionAssessment or CatalogPipelineParameterKind.RegimeDiscovery)
+                    TradeSelectionContracts.ValidatePipelinePolicy(new SelectionPipelinePolicySnapshot
+                    {
+                        Kind=parameter.Kind,Id=parameter.Id,Version=parameter.Version,PayloadSha256=reader.GetString(0),PayloadJson=reader.GetString(3),SchemaVersion=reader.GetInt16(4)
+                    });
+
             }
         }
         void ValidateCapability(CatalogCapability capability, StrategyCatalogDefinition owner)

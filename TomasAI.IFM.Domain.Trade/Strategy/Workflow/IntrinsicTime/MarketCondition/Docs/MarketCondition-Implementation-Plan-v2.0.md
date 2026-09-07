@@ -1,11 +1,20 @@
 # Market Condition Implementation Plan v2.0
 
-> **Strategy catalog direction (2026-09-06):** Reusable strategy-family/structure/variant definitions are planned in ConfigurationDb and are downstream TradeSelection concerns. Current MarketCondition remains market-only for the single ITI-triggering Daily, Weekly or Monthly horizon. Historical family hints and family-scoped rules in superseded designs do not return to the assessment path. Recorded gate evidence is unchanged and does not qualify the new catalog. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+## Function actor alignment - 2026-09-07
+
+**Implemented and verified:** 218 tests passed across unit, shared Function lifecycle, BDD and actual runtime integration. See [qualification evidence](MarketCondition-Gate-Evidence-v2.0.md#function-base-and-mapping-qualification---2026-09-07).
+
+Market Condition SHALL inherit `BaseEventSourceFunctionActor`, with immutable `static readonly` `_parseMap` (ordinal verb), `_validationMap` (exact request type) and `_receiveMap` (exact request type). Parsing uses `ParseMappedFunction`; receive dispatch uses `ResolveMappedFunctionHandler`; validation runs before state loading. The command extension owns snapshot capture/calculation, not transport, state loading, projection, persistence or reply. The typed context provides dependencies. The base owns the completed-only lifecycle and payload release.
+
+Preserve `Assess` routes, request/result wire contracts, fingerprint conflict checks, replay of an existing completion even after market expiry, projection-before-completed-append ordering, typed failure categories, cancellation and deadline fences. Stage hooks bound load/projection/persistence without duplicating the base lifecycle. See the [mapped actor](../Function/Actor/MarketConditionFunctionActor.cs) and [execution extension](../Function/Extensions/ExecuteMarketConditionAssessment.cs). Failed results are returned, never saved as Function state. A synchronous Function projector is not a durable EventProjector; workflow command actors own durable acceptance/failure. Add map-parity and actual actor-ingress tests, including malformed transport, late workers, cancellation and upstream regression checks. Trade Selection now implements the same mapped Function convention; its catalog and single-timeframe design remains unchanged.
+
+
+> **Strategy catalog direction (2026-09-06):** Reusable strategy-family/structure/variant definitions are planned in ConfigurationDb and are downstream TradeSelection concerns. Current MarketCondition remains market-only for the single ITI-triggering Daily, Weekly or Monthly horizon. Historical family hints and family-scoped rules in superseded designs do not return to the assessment path. Recorded gate evidence is unchanged and does not qualify the new catalog. TradeSelection catalog/Function alignment is documented; selector coding has not begun. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
 
 | Item | Value |
 |---|---|
 | Status | Assessment-only code complete; current tests in Gate Evidence v2.0; combined pipeline qualification deferred |
-| Revised | 2026-09-06 |
+| Revised | 2026-09-07 |
 | Source design | [High-Level Design v0.4](MarketCondition-High-Level-Design-v0.4.md) |
 | Authoritative specification | [Specification v2.0](MarketCondition-Specification-v2.0.md) |
 | Historical implementation record | [Plan v1.0, MC-00 through MC-22](MarketCondition-Implementation-Plan-v1.0.md) |

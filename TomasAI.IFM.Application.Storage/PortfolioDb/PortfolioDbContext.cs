@@ -22,6 +22,25 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, IDbContex
     public Task<PortfolioProjectionRevision?> GetFundRevisionAsync(int id, CancellationToken ct = default) =>
         OneValue<PortfolioProjectionRevision>(PortfolioDbCql.GetFundRevision, V(Pos(id)), row => new(row.GetInt(0), id, row.GetLong(1), row.GetLong(2)), ct);
     public Task<IReadOnlyList<FundMandateReadModel>> GetActiveFundsAsync(int p, int y, string h, DateTime at, int n, CancellationToken ct = default) { Utc(at); ArgumentException.ThrowIfNullOrWhiteSpace(h); return Many<FundMandateReadModel>(PortfolioDbCql.GetActiveFunds, V(Pos(p), y, h, at, Page(n)), ct); }
+    public async Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetSelectionAssignmentsAsync(int p,int f,long version,string horizon,string root,DateTime asOfUtc,CancellationToken ct=default)
+    {
+        Utc(asOfUtc);ArgumentException.ThrowIfNullOrWhiteSpace(horizon);ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        const string cql="SELECT payloadJson FROM fund_template_assignment WHERE portfolioId=? AND fundId=? AND fundMandateVersion=?;";
+        List<FundTradeTemplateAssignmentReadModel> result=[];byte[]? cursor=null;
+        for(var pageNumber=0;pageNumber<64;pageNumber++)
+        {
+            var page=await factory.PortfolioDb.Use("PortfolioDb.SelectionAssignments",cql).SetParameters(V(Pos(p),Pos(f),Positive(version)))
+                .ExecutePageAsync(Map<FundTradeTemplateAssignmentReadModel>,64,cursor,ct).ConfigureAwait(false);
+            foreach(var assignment in page.Items)
+                if(assignment.EffectiveFromUtc<=asOfUtc && !(assignment.EffectiveUntilUtc<=asOfUtc) && assignment.DecisionHorizon.Equals(horizon,StringComparison.OrdinalIgnoreCase)
+                    && assignment.UnderlyingUniverse.Contains(root,StringComparer.OrdinalIgnoreCase))
+                {
+                    result.Add(assignment);if(result.Count==17)return result;
+                }
+            cursor=page.PagingState;if(cursor is null || cursor.Length==0)return result;
+        }
+        throw new InvalidOperationException("Selection assignment partition exceeds the 4096-row historical scan budget; no truncated candidates returned.");
+    }
     public Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetAssignmentsAsync(int p, int f, long v, int n, CancellationToken ct = default) => Many<FundTradeTemplateAssignmentReadModel>(PortfolioDbCql.GetAssignments, V(Pos(p), Pos(f), Positive(v), Page(n)), ct);
     public Task<FundAllocationReadModel?> GetCurrentAllocationAsync(int p, int f, CancellationToken ct = default) => One<FundAllocationReadModel>(PortfolioDbCql.GetAllocation, V(Pos(p), Pos(f)), ct);
     public Task<FundRiskEnvelopeReadModel?> GetCurrentRiskEnvelopeAsync(int p, int f, CancellationToken ct = default) => One<FundRiskEnvelopeReadModel>(PortfolioDbCql.GetEnvelope, V(Pos(p), Pos(f)), ct);

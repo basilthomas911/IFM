@@ -1,479 +1,381 @@
-# TradeSelection Detailed Specification v1.0
-
-> **Strategy catalog direction (2026-09-06):** TradeSelection implementation is on hold at the user's request. Reusable strategy definitions, structures, variants and deployments will be owned by PostgreSQL ConfigurationDb; Portfolio owns Fund authorization. The catalog decision supersedes the earlier fixed three-variant scope and selector-only template catalog. Sections below retain the previous baseline where not explicitly updated; their proposed schemas, wire layouts and TS gates must be realigned before implementation. This document update does not resume any gate. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+# TradeSelection Detailed Specification v1.1
 
 | Item | Value |
 | --- | --- |
-| Document version | 1.0 |
-| Revised | 2026-09-06 |
-| Status | On hold; prior implementation baseline requires catalog alignment; numerical defaults remain engineering examples |
-| Authority | [TradeSelection high-level design, revision 0.7](TradeSelection-High-Level-Design-v0.1.md) |
-| Implementation plan | [Implementation Plan v1.0](TradeSelection-Implementation-Plan-v1.0.md) |
-| Stage | `StrategyWorkflowStage.TradeSelection` |
-| Runtime boundary | Command actor, durable event projection/publication, workflow-owned continuation |
-| Initial scope | ES; one assigned template for the triggering Daily, Weekly or Monthly horizon |
-| Implementation status | Existing contracts/helpers remain; prior SHALL requirements are suspended where catalog alignment is pending |
+| Revised | 2026-09-07 |
+| Status | Implemented specification; final qualification in progress |
+| Implementation | TS-01 through TS-08 complete for isolated selector scope |
+| Authority | [High-level design, revision 0.8](TradeSelection-High-Level-Design-v0.1.md) |
+| Work plan | [Implementation plan v1.1](TradeSelection-Implementation-Plan-v1.0.md) |
+| Actor standard | [Shared Function actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md#133-functionactor-convention); RegimeDiscovery and MarketCondition are the implementation references |
+| Scope | Fund-authorized deployment/variant selection for one ES Daily, Weekly or Monthly trigger |
+| Document compatibility | Existing filenames retained to preserve links; earlier proposed selector schemas were never implemented |
 
-This specification fixes the input contract, parameter schema, initial compatibility rules, result, actor behavior and integration requirements. All numerical defaults below are explicit test configuration, not calibrated claims of trading performance. Completing this document does not create database rows, publish profiles, enable workflows or change code. The catalog, legacy mapping, variant rules and candidate policy must now be specified before implementation can resume.
+This revision replaces the suspended single-template specification. It uses the implemented PostgreSQL ConfigurationDb catalog, permits multiple authorized candidates, and covers all twelve initial side/bias/premium combinations. It does not implement actors, create/publish configuration, activate workflows or qualify trading capabilities. Numerical defaults are explicit engineering fixtures, not calibrated trading advice.
 
-## 1. Authorities and boundaries
+## 1. Authorities and ownership
 
-- [MarketCondition specification](../../MarketCondition/Docs/MarketCondition-Specification-v2.0.md) defines the assessment-only upstream boundary.
-- [Portfolio/Fund specification](../../../../../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md) defines Fund authority, composition identity reservation and financial ownership.
-- [Reference catalog implementation](../../../../../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md) defines exact family and product identities.
-- [Trade Strategy Builder design](../../OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md) defines one-unit construction and downstream final sizing.
+- [ConfigurationDb catalog contracts](../../../../../../TomasAI.IFM.Domain.Strategy.Contracts.Shared/Reference/StrategyCatalog/StrategyCatalogContracts.cs), [storage implementation](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) and [catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md) own reusable definitions, relationships and exact versions.
+- [Portfolio assignments](../../../../../../TomasAI.IFM.Domain.Strategy.Contracts.Shared/Portfolio/ViewModels/FundTradeTemplateAssignmentReadModel.cs) and [Portfolio snapshot/reservation contracts](../../../../../../TomasAI.IFM.Domain.Strategy.Contracts.Shared/Portfolio/Contracts/PortfolioWorkflowContracts.cs) own Fund permission, priority, financial policy and composition identity reservation.
+- [MarketCondition specification](../../MarketCondition/Docs/MarketCondition-Specification-v2.0.md) owns market-only upstream assessment. RegimeDiscovery and MarketCondition do not depend on a selected strategy family.
+- [Builder design](../../OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md) owns exact one-unit construction. This specification governs the catalog selection handoff where older builder terminology differs.
 
-For the selector, this specification resolves earlier ambiguous vocabulary: `TradeSelectionParameterSet` is the typed payload referenced by the existing `TradeSelectionHintProfileId` and version. They are one policy identity, not separate profiles. `TradeSelectionTemplateDefinition` is the reusable selected strategy definition identified by the existing `TradeTemplateId` and version. This was the prior V1 identity model. It is now superseded by the reusable ConfigurationDb catalog: map these existing identities explicitly to strategy, structure and deployment versions; do not create a second authoritative selector-only template catalog.
+TradeSelection determines suitability and chooses at most one authorized deployment/structure/variant/product intent. It SHALL NOT fetch new quotes or option chains, recompute upstream results, choose exact contracts/expiries/strikes/prices, calculate final quantities, reserve financial risk or submit orders. Reads of catalog and Portfolio data occur during workflow binding, outside the pure evaluator. Existing accepted upstream evidence remains immutable.
 
-The workflow has five opening decision stages: RegimeDiscovery, MarketCondition, TradeSelection, OrderComposition and RiskManagement. Execution is downstream. IBKR emulator and actual broker integration remain separate. Strategy observation UI changes remain deferred until the five operators are code complete.
-
-TradeSelection SHALL evaluate suitability only. It SHALL NOT fetch new quotes, query option chains, recompute either upstream stage, reserve financial risk, choose exact contracts/strikes/expirations/prices/leg ratios, determine final units or submit orders. Configuration/reference reads occur while freezing the workflow binding, not inside the pure selector.
-
-## Catalog realignment required before implementation
-
-The following baseline tables, enum lists, fixed profile mappings and test fixtures do not yet cover the expanded catalog. Replace the selector-only `trade_selection_template_definition` proposal with the canonical relational catalog; preserve exact existing parameter/profile identities through an explicit mapping. Add exact strategy, structure, variant and deployment versions/hashes to the frozen binding and result. Revisit wire layouts without repurposing existing fields.
-
-Cover Long/Short futures, four credit/debit vertical variants, and Long/Short iron condors with independent Balanced/Bullish/Bearish bias. Add bounded Fund-authorized candidate enumeration, deterministic preference/tie handling, capability/input validation and compatibility fixtures. Unknown unsupported strategy capabilities must fail configuration validation, never fall back to a familiar enum. Future multi-expiry or asymmetric structures require qualified Composer/risk support before activation.
-
-Retain single-trigger-horizon assessment, market-only upstream boundaries, immutable evidence, durable delivery, workflow acceptance and Portfolio-owned composition identity reservation. Full catalog-specific contract and test rewrites remain work for the resumed specification/plan, not completed implementation.
-
-## 2. Decision scope and initial templates
+## 2. One trigger and one timeframe
 
 ```text
-TriggerEvent.EntityId.TimePeriod
-  = accepted RegimeDiscoveryResult.TargetHorizon
-  = accepted MarketConditionAssessmentResult.TargetHorizon
-  = frozen Fund/assignment horizon
-  = TradeSelectionParameterSet.TargetHorizon
-  = TradeSelectionResult.DecisionHorizon
+ITI trigger timeframe = accepted regime target horizon = accepted assessment target horizon
+ = frozen Fund horizon = candidate deployment horizon = selection policy horizon = result horizon
 ```
 
-Only Daily, Weekly and Monthly are valid. Each ITI signal starts at most its own horizon's workflow. Existing supporting regime observations may retain other horizons; do not request additional horizon results.
+Only Daily, Weekly and Monthly are valid. A Daily invocation never waits for Weekly/Monthly results or borrows their candidate configuration. Existing supporting evidence inside the accepted regime context is retained without requesting additional horizon results.
 
-| Profile code | Target horizon | Catalog Family / Strategy | AssetType | Structure variant | Accepted regime direction -> selected direction |
+All supported strategies and variants may be deployed on any of these three horizons. Daily does not imply futures, Weekly does not imply verticals, and Monthly does not imply condors. Horizon belongs to the Deployment; reusable Strategy, Structure and Variant definitions have Horizon=None in the current catalog. The futures ITI trigger identifies the underlying signal source, not the instrument class to trade: do not exclude FuturesOption candidates by passing the trigger's Futures class to the current strict Portfolio resolver.
+
+Initial product scope is ES with authoritative product ID, symbol, exchange and USD currency. Products are roots/product definitions, not expiring contracts. More than one permitted product is possible only through explicitly assigned deployments; exact-product ties use section 10 ordering. Other roots and currencies require a later qualified policy, not symbol guessing.
+
+## 3. Existing implementation and exact identity mapping
+
+| Existing contract | Normative use |
+| --- | --- |
+| `CatalogKey(Kind, Id, Version)` | Kind discriminator, non-empty GUID and positive **int** version; each catalog entity has its own exact key |
+| Deployment.Parent | Exact Strategy key |
+| Strategy.Families / Structures | Exact grouping and allowed Structure keys; family membership is not Fund permission |
+| Deployment.Variants; Variant.Parent | Exact allowed Variant keys and their exact Structure parents; structure must belong to the selected Strategy |
+| Deployment.Products | Exact ProductId/symbol/exchange/currency evidence |
+| Deployment.PipelineParameters | Role + kind + GUID + int version + stored hash; pipeline policy payloads remain in existing parameter tables |
+| Deployment.Parameters; ParameterSet.Parent | Role + exact catalog ParameterSet key, with exact ParameterSchema parent and both content hashes |
+| StoredStrategyCatalogDefinition | Complete definition, original ContentHash, publication and audit evidence |
+| StrategyCatalogSnapshot | Exact deployment dependency graph, AsOfUtc and graph ContentHash; catalog evidence alone grants no Fund permission |
+| Fund assignment schema 3 | `TradeStrategyFamily.CatalogDeployment` is authoritative; legacy integer family fields are zero |
+| Assignment.TradeTemplateId / TradeTemplateVersion | **Deployment** GUID/version for schema 3, not Strategy or Structure identity; must equal CatalogDeployment |
+| AssignmentVersion | Positive long Fund aggregate revision, independently preserved; not a catalog version |
+| SelectionHint / OrderComposition profile fields | Exact deployment pipeline policy identities; assignment long versions convert to int with checked overflow validation |
+
+The existing names `TradeTemplateId`, `TradeTemplateVersion`, `TradeStrategyFamily` and `PermittedTradeStrategyFamilies` retain their wire meanings. New schema-3 interpretation is explicit; do not rename/reuse old keys or map GUIDs by display labels. New selector bindings require assignment schema exactly 3 initially. Legacy schema-1/2 assignments can be replayed historically but cannot start a catalog-qualified selector; an explicit authorized migration creates schema-3 assignments and exact permissions. Never promote an integer family mapping into execution permission automatically.
+
+Current scaffolding includes Start keys 0-13, Processing/Completed/Failed event contracts, workflow transitions, and `MarketAssessmentSelectionConsumer`. There is no complete selector actor, binding, typed evaluator, selector query projection or guarded reservation continuation. The generic completion handler currently proceeds to OrderComposition; section 14 replaces that behavior during implementation.
+
+## 4. Supported variant semantics and capability boundaries
+
+The twelve rows below match [current catalog examples](../../../../../../TomasAI.IFM.Domain.Reference.Shared/StrategyCatalog/StrategyCatalogExamples.cs). Codes locate engineering authoring examples only. Runtime authority is exact keys/hashes plus a trusted capability validating topology and semantics; a code/name alone cannot activate behavior.
+
+| Example code | Structure builder capability v1 | Side | Bias | PremiumMode | Logical intent |
 | --- | --- | --- | --- | --- | --- |
-| `TS.ES.Daily.Test` | Daily | Futures / Futures | Futures | DailyOutright | Up -> Long; Down -> Short |
-| `TS.ES.Weekly.Test` | Weekly | FuturesOption / VerticalSpread | FuturesOptions | WeeklyDebitVertical | Up -> Bullish; Down -> Bearish |
-| `TS.ES.Monthly.Test` | Monthly | FuturesOption / IronCondor | FuturesOptions | MonthlyDirectionalCreditCondor | Up -> Bullish; Down -> Bearish |
+| LongFuture | Future | Long | Bullish | None | Buy future |
+| ShortFuture | Future | Short | Bearish | None | Sell future |
+| BullCallDebit | CallVertical | Long | Bullish | Debit | Buy lower call, sell upper call |
+| BearCallCredit | CallVertical | Short | Bearish | Credit | Sell lower call, buy upper call |
+| BullPutCredit | PutVertical | Short | Bullish | Credit | Buy lower put, sell upper put |
+| BearPutDebit | PutVertical | Long | Bearish | Debit | Sell lower put, buy upper put |
+| ShortBalancedIronCondor | IronCondor | Short | Balanced | Credit | Short put spread plus short call spread; neutral intent |
+| ShortBullishIronCondor | IronCondor | Short | Bullish | Credit | Same short-condor topology; positive net-delta intent |
+| ShortBearishIronCondor | IronCondor | Short | Bearish | Credit | Same short-condor topology; negative net-delta intent |
+| LongBalancedIronCondor | IronCondor | Long | Balanced | Debit | Reverse short-condor legs; neutral intent |
+| LongBullishIronCondor | IronCondor | Long | Bullish | Debit | Long-condor topology; positive net-delta intent |
+| LongBearishIronCondor | IronCondor | Long | Bearish | Debit | Long-condor topology; negative net-delta intent |
 
-The initial weekly variant is a debit vertical: bullish call debit spread or bearish put debit spread. The monthly variant is a defined-risk credit condor whose construction profile must support positive net delta for Bullish and negative net delta for Bearish. Exact deltas, widths, DTE and quotes are OrderComposition parameters. Failure to construct that intent is `NoCandidate`, not an invitation to change the selection.
+Initial option structures require one common expiry group and unit leg ratios. A Short condor buys the outer put/call and sells the inner put/call; Long reverses those sides. Side, directional bias, premium mode and wing symmetry are distinct. Symmetric wing widths do not by themselves imply a delta-balanced position. Composer must verify prices and actual net delta against the exact variant and composition settings; the selector promises intent only. No supported variant may be silently inverted or substituted when construction fails.
 
-These mappings belong to Fund assignments and selected construction policy. Upstream market profiles remain family-independent. Neutral is a valid observed regime direction but produces NoTrade for all three initial templates. Unknown direction is an invalid upstream contract.
+Existing example Settings contain TargetNetDelta 0 or +/-0.15, BalanceTolerance 0.05, SymmetricWings=true, and zero wing-width placeholders. They are draft authoring data. A qualified builder/semantic validator must specify delta units and valid width bounds and reject unfinished placeholders before live publication. This alignment does not certify the examples' construction or risk economics.
 
-The futures trigger identifies the underlying signal source, not the product class to trade. The workflow SHALL resolve its authorized Fund/horizon assignment before choosing Futures versus FuturesOptions for selection. Passing the trigger's Futures asset type as a blanket resolver filter would incorrectly exclude the weekly and monthly assignments.
+Use the current capability registry roles `evaluator`, `data`, `builder`, `risk`, `validator`. Initial selector capability targets are evaluator/RegimeAligned@1 and data/AcceptedMarketAssessment@1, with StructureVariant@1 semantic validation. Future/CallVertical/PutVertical/IronCondor builder and risk capability names exist as requirements, not implementations. API startup currently registers an empty capability registry. TS-02/TS-04 add real selector validators and evaluator registration; actual downstream capabilities remain separate deliverables. Production publication and execution binding SHALL fail on any unavailable required capability. Isolated tests may register explicit fixture validators; they must never be enabled in API production composition or represented as completed builders.
 
-## 3. Existing implementation and required additions
+## 5. Frozen authority, catalog and candidate binding
 
-| Existing component | Use in this specification | Required addition/change |
-| --- | --- | --- |
-| `StartTradeSelectionPipelineCommand`, keys 0-13 | Keep routing, workflow, trigger and correlation contract | Append schema and frozen selection binding |
-| `PortfolioFundStrategySnapshot` | Reuse Portfolio, Fund, allocation, envelope, assignments and hash | Freeze and carry it through workflow; selection-specific permission semantics below |
-| `PortfolioFundStrategyResolver` and query service | Reuse authoritative resolution logic and data sources | Add single-assignment selector resolution without treating a futures trigger as the traded product |
-| `FundTradeTemplateAssignmentReadModel` | Reuse exact template/profile/family references | Require schema >= 2 and exact family for new selector workflows |
-| `MarketAssessmentSelectionConsumer` | Existing mandate/assessment filtering evidence | Replace the runtime selection path with full typed evaluation; no candidate-list result adapter |
-| Assessment `ValidateForSelection` | Reuse accepted lineage, availability and restriction checks | Enforce additional selector contract/clock/authority requirements |
-| Generic `StrategyStageResultEnvelope` | Keep existing keys and payload hash | Add typed TradeSelection payload validation and explicit stage size limit |
-| Processing/Completed/Failed events and routes | Keep Command/Realtime addresses and existing event keys | Implement persistent command actor, projector, realtime delivery and queries |
-| `CompleteTradeSelection` | Workflow continuation boundary | Validate typed outcome, expiry and reservation before builder dispatch |
-| ConfigurationDb TradeSelection kind/table | Store versioned selection policy | Typed payload serializer, validators, exact-version resolver and guarded lifecycle |
+### 5.1 Resolution and authorization
 
-These are source-review findings, not evidence of end-to-end operational qualification.
+Freeze selection configuration when accepting the workflow, together with existing upstream bindings. This does not pass family/variant policy into upstream calculations. Use one captured UTC as-of instant and persist the binding once.
 
-## 4. Common contract rules
+1. Resolve the explicitly configured Portfolio and Fund, trading year, trigger horizon and ES root. If Fund selection is implicit, exactly one structurally eligible effective Fund is required; multiple Funds are a configuration error, not a ranking choice. Validate Portfolio/Fund/version relationships, allocation, exact financial policy and delegated envelope. Preserve valid paused/blocked states as denial evidence; missing/corrupt/expired required authority is a configuration failure.
+2. Add a selector-specific Portfolio resolver/query operation. Keep the existing strict resolver's filtering and hashing behavior intact for existing callers. Obtain the bounded effective assignment set for the exact Fund/mandate/horizon/root before asset-type filtering, including disabled assignments for explanation. This snapshot may have zero assignments. More than one distinct assigned deployment is normal. Duplicate effective assignments for the same deployment key in a Fund/mandate are configuration ambiguity, even if priorities differ; never pick a later assignment silently.
+3. Freeze exact assignment references and priorities plus Fund/Portfolio permission evidence. Only enabled assignments, exact `PermittedTradeStrategyFamilies` deployment permissions, eligible traded asset classes and effective operating authority may yield candidates. Empty permission/assignment sets authorize nothing. Legacy string `TradeFamily` permission remains an additional existing mandate constraint, not a replacement for the exact deployment permission; preserve any current Portfolio financial-policy deployment denial as well.
+4. Resolve only enabled, effective, exactly permitted deployments. Disabled or unpermitted assignment rows are recorded as excluded with reasons and do not require publication of their draft graphs. For an enabled permitted assignment, Draft/Retired/missing graph, invalid hash, unsupported capability, conflicting profile mapping or unknown schema is a **Failed configuration**, not an ordinary rejected candidate to skip in favor of another deployment.
+5. Call `GetPublishedStrategyDeploymentAsync(exactKey, asOfUtc)` and reuse its graph/publication validation. Verify assignment horizon and underlyings, traded instrument class and root/product metadata against the graph. Map catalog FuturesOption to Portfolio FuturesOptions explicitly; Futures maps to Futures. Unknown strings fail. Options are not excluded because the source signal is a future.
+6. Resolve the exact deployment-level TradeSelection and OrderComposition pipeline roles and payloads, and every referenced specialized parameter set/schema. Validate assignment legacy-named profile fields agree; freeze existing hashes unchanged. Other required pipeline kinds and graph capability requirements remain exact evidence. Regime/assessment bindings, if declared by a deployment, must match the accepted workflow's common upstream bindings; no candidate requests a family-specific upstream rerun.
+7. Enumerate candidates from each authorized assignment x its matching products x its allowed Variants. Resolve Variant.Parent and Strategy.Structures exactly. Retain all Family memberships as provenance, without duplicating candidates per family. Candidate identity is `(AssignmentVersion, DeploymentKey, StrategyKey, StructureKey, VariantKey, ProductId)` scoped to Portfolio/Fund/mandate. Repeated keys with inconsistent content fail; do not silently truncate, coalesce differently authorized assignments or rank by database arrival order.
+8. Apply count and byte bounds before accepting the workflow: default maximum 16 effective assignments/deployments, 64 candidate intents, 256 distinct catalog definitions across the binding, 32 dependency levels, and 262144 binding bytes. Exceeding a bound is TS.CONFIG.CANDIDATE_LIMIT or TS.CONTRACT.PAYLOAD_SIZE. Read at most limit+1 assignments for overflow detection; do not enumerate the entire reference catalog or select the first page as if complete. Shared graph definitions/payloads are deduplicated by exact key/hash; conflicting content fails.
 
-**Assembly prerequisite:** The [implementation plan TS-01](TradeSelection-Implementation-Plan-v1.0.md#5-ts-01-shared-contracts-and-dependency-foundation) moves the required existing Portfolio/Reference DTOs into a dependency-safe shared assembly before adding typed workflow bindings. Existing public namespaces, field keys, validation and hashes remain unchanged; this resolves project-reference cycles without replacing the specified contracts.
+TS-02 adds an explicit exact SelectionPolicyReference to the versioned workflow activation configuration for the root/horizon; it is required even when there are no assignments. Validate its payload during binding and carry it as CommonPolicy. Existing workflows without that new configuration require explicit reauthoring, not a latest-policy fallback.
 
-All new types SHALL use explicit integer MessagePack keys, defensive copies and immutable collections at boundaries. Old keys retain their meaning; new keys append. Unsupported schemas, missing required values, invalid enums and unknown required JSON properties fail validation. Omitted fields do not silently acquire valid test defaults during deserialization. Defaults are populated only by an explicit profile factory or fixture.
+Initial all-candidate ranking requires the same exact TradeSelection policy ID/version/hash across contributing deployments for the invocation. The deployment-specific specialized policy may override only validated per-variant eligibility/preferences through the role described in section 7. It cannot override common confidence, authorization, restrictions, horizon, bounds or ranking semantics. Conflicting common policies are TS.CONFIG.PROFILE_MISMATCH; no arbitrary first-candidate policy controls another candidate. An empty authorized candidate set uses the exact workflow-configured horizon policy and produces an auditable NoTrade; it must not infer a latest profile.
 
-IDs follow existing contracts: Portfolio/Fund/family/product IDs are positive integers; definition and assignment versions are positive longs; template/profile IDs are non-empty GUIDs; selector parameter Version is a positive int. Converting assignment profile versions from long to int SHALL be checked, not truncated. Workflow ID retains `StrategyWorkflowId` UUIDv7 validation.
+Capture the existing Portfolio snapshot and canonical hash under its owning serializer; do not rewrite its frozen WorkflowRevision later. Snapshot assignment ordering is defined by the new selector-specific resolver as Priority, deployment canonical key, AssignmentVersion; other serializers/callers are unchanged. Catalog cross-deployment reads are separate repeatable-read transactions at the same as-of instant, not one transaction spanning Portfolio and ConfigurationDb. Recheck graph/key/hash consistency and required publication before sealing; a concurrent change may make binding fail/retry before acceptance, never silently substitute a version. After acceptance, immutable evidence governs; emergency stop/revocation follows explicit workflow/Portfolio safety controls and current financial checks downstream.
 
-Use exact ordinal machine identifiers after normalization at configuration authoring. Legacy `FuturesOption` catalog Family and `FuturesOptions` Portfolio AssetType are mapped explicitly as in section 2. Do not use substring, display-name or SystemKey lookup. An explicit importer may normalize known strings before publication; runtime selection may not guess them.
+### 5.2 Proposed `TradeSelectionBinding` wire schema 1
 
-Timestamps SHALL be UTC. Effective intervals are `[from, until)`; expiry occurs at `now >= until`. All numeric confidence comparisons are decimal and inclusive at the minimum. Enumerated categories use set membership, never ordinal greater-than comparisons. Invalid enum numbers are contract failures; a defined Unknown/None category has the explicit policy behavior below.
+All new schemas in this document are proposed first wire versions; the earlier unimplemented layouts are withdrawn. Existing wire types remain append-only. New fields require explicit presence/schema validation, not constructor defaults that make incomplete payloads valid.
 
-## 5. Frozen authority and definition resolution
-
-### 5.1 Resolution timing
-
-Before accepting a new workflow, freeze selection configuration together with existing regime/assessment bindings. This does not make Fund configuration an input to regime or assessment calculation. Persist the accepted binding in workflow state; dispatch copies it unchanged at TradeSelection.
-
-Resolve the Portfolio and chosen Fund by configured Portfolio identity, trading year, target horizon and underlying scope. Reuse `PortfolioFundStrategySnapshot` and existing query/storage APIs. Add `ResolveForSelection` behavior to the Portfolio resolver/query layer rather than weakening its existing strict callers:
-
-1. Identify exactly one structurally valid effective Fund and one effective assignment for the configured slot, before product-class filtering. Where the workflow has an explicit FundId, require exact equality.
-2. Count effective assignments before applying Enabled. Zero or more than one is configuration failure. Preserve a disabled assignment so selection can explain NoTrade.
-3. Validate all Portfolio/Fund/version relationships and effective intervals. Freeze allocation, financial policy and FundRiskEnvelope with their provenance.
-4. Distinguish permission denial from malformed/missing authority. A valid paused Portfolio/Fund, blocked envelope or disabled family/assignment remains explicit permission evidence; it produces NoTrade at selection. Missing, ambiguous, corrupt or expired required configuration cannot start a new qualified workflow.
-5. Resolve the exact assignment's family definition, template definition, selection profile and construction-profile descriptor. Never select latest versions in place of assigned versions.
-6. Freeze all values and hashes once. Changes after activation affect later workflows; explicit emergency cancellation remains a separate authority.
-
-The current resolver filters out disabled assignments, rejects blocked envelopes and can return several compatible assignments. Its existing behavior is not sufficient to claim these selection-specific semantics are implemented. Its canonical snapshot serializer and Portfolio ownership SHALL be reused.
-
-### 5.2 `TradeSelectionBinding` schema 1
-
-| Key | Field / type | Requirement |
-| --- | --- | --- |
-| 0 | `SchemaVersion : short` | Exactly 1 |
-| 1 | `PortfolioSnapshot : PortfolioFundStrategySnapshot` | Existing complete frozen snapshot |
-| 2 | `FamilyDefinition : TradeStrategyFamilyReadModel` | Exact assignment family ID/version; complete row |
-| 3 | `Template : TradeSelectionTemplateDefinition` | Exact assigned template version |
-| 4 | `Parameters : TradeSelectionParameterSet` | Exact assigned hint-profile ID/version |
-| 5 | `ParameterPayloadSha256 : string` | Canonical selector parameter hash |
-| 6 | `ConstructionProfile : SelectionConstructionProfileReference` | Immutable descriptor below |
-| 7 | `FrozenAtUtc : DateTime` | Accepted workflow resolution time |
-| 8 | `ValidUntilUtc : DateTime` | Earliest required authority/definition validity |
-| 9 | `PayloadSha256 : string` | Hash of this binding with this field empty |
-| 10 | `ParameterEffectiveFromUtc : DateTime` | Published version effective at FrozenAtUtc |
-| 11 | `TemplateEffectiveFromUtc : DateTime` | Published definition effective at FrozenAtUtc |
-| 12 | `RequestedTradeDate : DateOnly` | Frozen date derived using key 13 |
-| 13 | `TradeDatePolicy : string` | UTC.TriggerCreatedDate.Test.v1 in this initial specification |
-
-`SelectionConstructionProfileReference` keys: 0 SchemaVersion(short=1), 1 ProfileId(Guid), 2 Version(long), 3 PayloadSha256(string), 4 TradeTemplateId(Guid), 5 TradeTemplateVersion(long), 6 FamilyReference(existing exact reference), 7 StructureVariant(enum), 8 SupportedDirections(SelectionDirection[]), 9 EffectiveFromUtc(DateTime), 10 EffectiveUntilUtc(DateTime?). This descriptor is resolved from the real versioned OrderComposition profile; it is not an independently editable policy or proof that a builder is implemented.
-
-Snapshot WorkflowRevision is the revision at freezing. It SHALL NOT be rewritten to every stage revision to make hashes match. Bind it to the accepted start history and require it to be no greater than the current invocation revision. Workflow/Fund identity must match throughout.
-
-### 5.3 `TradeSelectionTemplateDefinition` schema 1
-
-| Key | Field / type | Required value/meaning |
-| --- | --- | --- |
-| 0 | SchemaVersion / short | 1 |
-| 1 | TradeTemplateId / Guid | Assigned reusable template ID |
-| 2 | Version / long | Assigned immutable template version |
-| 3 | Code / string | Stable ordinal code, 1-128 characters |
-| 4 | FamilyReference / TradeStrategyFamilyReference | Exact reference, not SystemKey |
-| 5 | TargetHorizon / TimeFrameType | Matches family row and assignment |
-| 6 | InstrumentRoot / string | ES |
-| 7 | AssetType / string | Futures or FuturesOptions |
-| 8 | StructureVariant / SelectionStructureVariant | One of section 2 variants |
-| 9 | SupportedDirections / SelectionDirection[] | Exactly the corresponding pair in section 2 |
-| 10 | OrderCompositionProfileId / Guid | Matches assignment and descriptor |
-| 11 | OrderCompositionProfileVersion / long | Positive exact version |
-| 12 | Enabled / bool | Explicit operating flag |
-| 13 | EffectiveFromUtc / DateTime | Effective interval start |
-| 14 | EffectiveUntilUtc / DateTime? | Optional interval end |
-
-**Superseded storage proposal, retained for mapping only:** The prior specification proposed immutable template definitions in ConfigurationDb table `reference_configuration.trade_selection_template_definition` with `(trade_template_id uuid, version bigint)` primary key, `schema_version smallint`, `status smallint`, `effective_from_utc timestamptz`, `retired_at_utc timestamptz`, `payload_json jsonb`, `payload_sha256 char(64)`, `description text`, `created_utc timestamptz`, `created_by text`. Require positive versions/schema and the same lifecycle rules as section 9. Do not implement this selector-only table. The reusable catalog design now governs storage; map these fields and identities explicitly when the specification is revised.
-
-The family row supplies catalog Family, Strategy, product symbol, exchange and currency. New qualified selections require positive `TradeStrategySymbolId`, a non-empty Exchange and USD currency for this ES initial scope. Legacy zero-product rows cannot be substituted silently. The root ES is the economic scope; the assigned product symbol need not literally be ES. Product-to-root consistency SHALL be checked during binding resolution against the authoritative product catalog. Exact expiring instruments are not required here.
-
-## 6. Complete invocation inputs
-
-| Input group | Mandatory contents and source |
+| Key | Field / type |
 | --- | --- |
-| Routing | Existing ActorSubject, EntityId and TradeSelection bounded context |
-| Workflow | WorkflowId, current input revision, running TradeSelection stage, frozen binding and workflow deadline |
-| ITI trigger | Original immutable FuturesItiSignalGeneratedEvent, ID, signal classification, underlying and target timeframe |
-| Accepted regime | Complete accepted result envelope and typed RegimeDiscoveryResult, source identity/hash/schema/parameters, as-of and produced timestamps |
-| Accepted assessment | Complete accepted result envelope and typed MarketConditionAssessmentResult, exact regime lineage, profile/parameters, target horizon and validity |
-| Portfolio/Fund | Complete frozen snapshot, assignment and financial permission provenance; no latest query at evaluation |
-| Reference/template | Exact family row, template and construction descriptor from binding |
-| Selection policy | Complete typed parameter set, exact ID/version/hash and publication evidence |
-| Clock | Injected TimeProvider for receipt/commit checks; persisted evaluation timestamp for deterministic evaluation |
+| 0 | SchemaVersion / short = 1 |
+| 1 | PortfolioSnapshot / existing PortfolioFundStrategySnapshot |
+| 2 | CatalogDefinitions / SelectionCatalogDefinitionSnapshot[]; deduplicated complete graph nodes |
+| 3 | DeploymentSnapshots / SelectionDeploymentSnapshot[]; exact graph hash and definition-key membership per deployment |
+| 4 | PipelinePolicies / SelectionPipelinePolicySnapshot[]; kind/ID/int version/hash, full canonical typed payload and lifecycle evidence |
+| 5 | Candidates / SelectionCandidateBinding[]; deterministic canonical identity order |
+| 6 | ExcludedAssignments / SelectionAssignmentExclusion[]; exact assignment/version and reason |
+| 7 | CommonPolicy / exact pipeline policy reference, kind TradeSelection |
+| 8 | FrozenAtUtc / UTC DateTime |
+| 9 | ValidUntilUtc / UTC DateTime |
+| 10 | RequestedTradeDate / DateOnly |
+| 11 | TradeDatePolicy / string = UTC.TriggerCreatedDate.Test.v1 |
+| 12 | PayloadSha256 / string; hash with this field empty |
 
-Preserve the full accepted upstream envelopes. Selector decision fields read from `RegimeDiscoveryResult.Decision`: Direction, Confidence, Quality, Restrictions, TrendPhase, TrendStrength, VolatilityLevel, VolatilityChange and StructureClassification. DirectionalScore, RiskAdjustedConviction, TrendTimeFrameAgreement, TermStructure, Breakout and specialist results remain evidence in V1; no undocumented numerical gate is derived from them.
+Binding validity is the minimum of frozen Portfolio snapshot validity, effective authorized assignments and any actual parameter/capability validity constraints. With zero authorized assignments, use the remaining authority/policy bounds; do not call Min on an empty assignment set or invent an infinite Fund lifetime. Stored catalog versions have EffectiveFromUtc and RetiredAtUtc, not an invented EffectiveUntilUtc. Before acceptance every required graph is Published/effective/not retired. A later retirement blocks new bindings but does not rewrite the accepted snapshot. Workflow and assessment expiries further bound the result in section 11.
 
-Assessment fields used are Availability, UpstreamContext, ConditionType, AssessmentConfidence, LiquidityCondition, SessionState, EventRiskState, StressState, VolatilityBehavior, TriggerAlignment, DataQuality, InheritedRestrictions and validity. EvidenceItems, ConflictingEvidenceItems and LimitationReasons are preserved. UpstreamContext SHALL equal the accepted regime decision, and inherited restrictions SHALL match exactly under existing acceptance rules.
+### 5.3 Typed transport projection and provenance
 
-No new external market data is needed by the selector. Raw quote thresholds, FMP download age, event windows and treasury inputs remain upstream-owned; selector parameters consume their resulting classifications instead of repeating their calculations.
+Catalog authoring DTOs contain JsonElement and are not currently a complete MessagePack transport contract. TS-01 adds explicit selector snapshot DTOs without changing catalog persistence or relying on typeless serialization. A typed definition snapshot retains all original fields; Settings is bounded canonical JSON validated through the exact capability/schema, never executable code.
 
-### 6.1 Append-only command and workflow changes
+- `SelectionCatalogDefinitionSnapshot` keys 0 SchemaVersion, 1 Key, 2 Code, 3 Name, 4 Description, 5 DefinitionSchemaVersion, 6 Parent, 7 Horizon, 8 Side, 9 Bias, 10 PremiumMode, 11 SettingsJson, 12 Families, 13 Structures, 14 Variants, 15 Capabilities, 16 ExpiryGroups, 17 Legs, 18 VariantLegs, 19 Products, 20 PipelineParameters, 21 Parameters, 22 LegacyFamilies, 23 ContentHash, 24 Status, 25 CreatedUtc, 26 CreatedBy, 27 EffectiveFromUtc, 28 PublishedBy, 29 RetiredAtUtc, 30 RetiredBy. Child tuple DTOs use keys in the exact positional order of the existing Catalog* records, validated against their owning schemas.
+- `SelectionDeploymentSnapshot`: 0 DeploymentKey, 1 AsOfUtc, 2 DefinitionKeys, 3 ContentHash. Preserve the existing graph hash algorithm and order; it hashes SchemaVersion=1, Deployment and each definition Key/ContentHash, not selector-normalized substitute content.
+- `SelectionPipelinePolicySnapshot`: 0 Kind, 1 Id, 2 Version, 3 SchemaVersion, 4 PayloadJson, 5 PayloadSha256, 6 Status, 7 EffectiveFromUtc, 8 RetiredAtUtc. The complete payload and referenced catalog schemas are retained, not fetched during evaluation.
+- `SelectionCandidateBinding`: 0 SchemaVersion, 1 AssignmentVersion, 2 DeploymentKey, 3 StrategyKey, 4 StructureKey, 5 VariantKey, 6 Product, 7 SelectionPolicyReference, 8 CompositionPolicyReference, 9 SpecializedParameterBindings, 10 FamilyKeys, 11 AssignmentPriority, 12 CandidateHash. Referenced node/policy content must exist exactly once in the frozen tables; CandidateHash binds the tuple, priorities and all referenced hashes.
+- `SelectionAssignmentExclusion`: 0 AssignmentVersion, 1 DeploymentKey (nullable only for explicitly recorded legacy denial), 2 ReasonCodes. A malformed enabled assignment still fails rather than becoming exclusion evidence.
 
-Retain Start command keys 0-13 unchanged. Append key 14 `SelectionBinding : TradeSelectionBinding?` and key 15 `SelectionSchemaVersion : short`. New starts require binding and explicit value 1. An old payload missing key 15 decodes to 0 and fails with `TS.CONTRACT.SCHEMA`; constructor defaults must not promote it to 1.
+`SelectionPipelinePolicyReference` keys: 0 Kind (CatalogPipelineParameterKind), 1 Id (Guid), 2 Version (int), 3 PayloadSha256, 4 Role (exact source string; empty only for the workflow's common activation reference). Policy identity comparisons use kind/ID/version/hash; the Role is provenance and remains validated against the specific deployment binding. Conversions to Storage.StrategyParameterSetKind use an explicit supported-kind mapping. `SpecializedParameterBindings` carries each exact Role/ParameterSet key, with ParameterSet/ParameterSchema hashes resolved from the binding's complete node table. `Product` uses keys 0 ProductId, 1 Symbol, 2 Exchange, 3 Currency.
 
-Append `SelectionBinding` to workflow view key 27 and workflow state key 23, leaving existing fields intact. Add it to state/view mapping, snapshots, replay, dispatch and request validation. These are the next free keys verified in the source at this revision; future implementation SHALL recheck collisions before appending. Do not reuse legacy MarketCondition fields.
+The planned narrow `SelectionConstructionProfileReference` descriptor contains keys 0 SchemaVersion=1, 1 exact CompositionPolicyReference, 2 exact DeploymentKey, 3 allowed Structure/Variant key pairs, 4 required capability triples, 5 canonical full source payload, 6 source effective timestamp. It is derived by the real exact-version profile adapter plus verified deployment graph; it is not independently authored and cannot assert a builder exists. The adapter must validate declared composition constraints through the actual owning schema/capability. Until a required schema/capability is available it returns an explicit unsupported-configuration error. Isolated fixtures supply complete declared schemas/values; no production placeholder is considered executable. The full source policy remains in PipelinePolicies, and the descriptor can be rebuilt solely from frozen evidence for handoff validation.
 
-The command binding hash SHALL match the accepted workflow binding. The workflow state supplies both accepted upstream envelopes; a duplicate mutable copy in the command is unnecessary. The actor retains an immutable validated evaluation input privately.
+Canonical key order for new selector sets is numeric Kind, lowercase GUID D text with ordinal comparison, numeric Version; product ID is numeric. Catalog/Portfolio source arrays and hashes retain their original order/algorithm. Defensive copies, bounded arrays, required-field presence, enum validity and duplicate-property rejection apply across all new DTOs.
 
-## 7. Parameter schema
+`CandidateSetSha256` for projection diagnostics is lowercase SHA-256 of the MessagePack array of CandidateHash strings in canonical candidate identity order, including the empty array when there are no candidates. The complete binding hash additionally covers exclusions and all frozen authority. Neither digest substitutes for the full typed context.
 
-`TradeSelectionParameterSet` uses these MessagePack keys; JSON names are the exact field names below. Every field is required, including explicit empty sets where allowed. Published payloads contain no PortfolioId, FundId, exact contract IDs, strikes, prices or final quantities.
+## 6. Invocation, assembly dependency and transport changes
 
-| Key | Field / type | Default or rule |
+The new Execute Function request requires routing/workflow/correlation identity, the original ITI trigger, the accepted regime and assessment envelopes in WorkflowView, the exact frozen selection binding, requested time and deadline. The market assessment must be Available/current with accepted matching regime lineage and no inherited NoNewTrade. Reuse `MarketConditionAssessmentContracts.ValidateForSelection`; an attempt to bypass upstream ineligibility is TS.UPSTREAM.NOT_ELIGIBLE, not a normal candidate decision.
+
+Preserve historical Start keys 0-13; introduce the new Function request in section 13 rather than extending the inactive Command route. Append binding to workflow view key 27/state key 23 and composition handoff to view key 28/state key 24. Append the complete frozen selector dispatch request/intent at view key 29/state key 25 (verify all slots in TS-01). Store its original input workflow revision separately from subsequent workflow revisions. TS-01 also extends clones, state application and transport round-trip tests for these fields. Missing new request schema decodes to invalid 0; producers explicitly supply 1.
+
+Trade.Shared cannot reference Portfolio.Shared or Reference.Shared because both already reference Trade.Shared. TS-01 extracts the necessary pure Portfolio DTO closure, TradeStrategyFamilyReference and catalog keys/types to a dependency-safe Strategy.Contracts.Shared assembly, preserving public namespaces, MessagePack keys, existing JSON canonicalization and type forwarding. Include CatalogKey in that extraction: the earlier legacy-family-only extraction is insufficient. Do not introduce loose JSON authority or a second set of public catalog identities to avoid the cycle. Selector typed transport DTOs can then refer to the foundation from Trade.Shared.
+
+## 7. Complete selection policy and parameter roles
+
+Use the existing `reference_configuration.trade_selection_parameter_set` and `StrategyParameterSetKind.TradeSelection`. No selector-only template table or duplicate strategy catalog is permitted. Introduce typed draft/read/exact-resolve operations with strict lifecycle/payload validation. All three initial profiles are versioned complete instances of the following proposed `TradeSelectionParameterSet` schema 1. Table row order is explicit MessagePack key order; JSON names match exactly. Every field is required.
+
+| Key | Field | Engineering default / rule |
 | --- | --- | --- |
 | 0 | SchemaVersion / short | 1 |
-| 1 | ParameterSetId / Guid | Assigned exact ID; no Guid.Empty default |
-| 2 | Version / int | 1 for initial profiles; positive |
-| 3 | ProfileCode / string | One of section 2 codes; 1-128 characters |
+| 1 | ParameterSetId / Guid | Explicit persisted ID |
+| 2 | Version / int | Positive; initial 1 |
+| 3 | ProfileCode / string | TS.ES.Daily.Test, TS.ES.Weekly.Test or TS.ES.Monthly.Test |
 | 4 | InstrumentRoot / string | ES |
-| 5 | TargetHorizon / TimeFrameType | Daily, Weekly or Monthly; never inferred |
-| 6 | StructureVariant / SelectionStructureVariant | Matches template |
-| 7 | MinimumRegimeConfidence / decimal | 0.50; inclusive [0,1] |
-| 8 | MinimumAssessmentConfidence / decimal | 0.50; inclusive [0,1] |
-| 9 | AllowedRegimeDirections / RegimeDirection[] | Up, Down |
-| 10 | AllowedTrendPhases / TrendRegimePhase[] | See section 8 |
-| 11 | AllowedTrendStrengths / TrendRegimeStrength[] | See section 8 |
-| 12 | AllowedRegimeQualities / RegimeOverallQuality[] | Acceptable, High |
-| 13 | AllowedRegimeVolatilityLevels / VolatilityRegimeLevel[] | Low, Normal, High |
-| 14 | AllowedRegimeVolatilityChanges / VolatilityRegimeChange[] | Contracting, Stable, Expanding |
-| 15 | AllowedStructureClassifications / MarketStructureClassification[] | See section 8 |
-| 16 | RejectedInheritedRestrictions / RegimeRestriction[] | NoNewTrade, DirectionConflict, LowConfidence, Transition |
-| 17 | AllowedAssessmentConditions / AssessmentCondition[] | See section 8 |
-| 18 | AllowedLiquidity / AssessmentLiquidity[] | Healthy, Degraded |
-| 19 | AllowedSessions / MarketSessionStatus[] | Open |
-| 20 | AllowedEventRisk / AssessmentEventContext[] | Clear |
-| 21 | AllowedStress / AssessmentStress[] | Normal |
-| 22 | AllowedVolatilityBehavior / AssessmentVolatility[] | See section 8 |
-| 23 | AllowedTriggerAlignment / AssessmentTriggerAlignment[] | Aligned, Neutral, NotApplicable |
-| 24 | AllowedAssessmentDataQuality / MarketConditionDataQuality[] | Healthy, Degraded |
-| 25 | UnknownEvidencePolicy / enum | NoTrade = 1, the only V1 supported value |
-| 26 | MaximumExecutionMilliseconds / int | 2000; inclusive [1,60000] ms |
-| 27 | ResultLifetimeSeconds / int | 30; inclusive [1,300] seconds |
-| 28 | FutureClockSkewSeconds / int | 2; inclusive [0,60] seconds |
-| 29 | MaximumResultPayloadBytes / int | 262144; inclusive [65536,1048576] bytes |
-| 30 | ReasonCodeCatalogVersion / string | ts-reasons-v1 |
-| 31 | SummaryTemplateVersion / string | ts-summary-v1 |
-| 32 | DirectionMappingVersion / string | ts-direction-v1 |
+| 5 | TargetHorizon / TimeFrameType | Exactly corresponding Daily, Weekly or Monthly |
+| 6 | MinimumRegimeConfidence / decimal | 0.50, inclusive [0,1] |
+| 7 | MinimumAssessmentConfidence / decimal | 0.50, inclusive [0,1] |
+| 8 | AllowedRegimeDirections | Up, Down, Neutral |
+| 9 | AllowedTrendPhases | RangeBound, Emerging, Established |
+| 10 | AllowedTrendStrengths | None, Weak, Moderate, Strong, Extreme |
+| 11 | AllowedRegimeQualities | Acceptable, High |
+| 12 | AllowedRegimeVolatilityLevels | Low, Normal, High |
+| 13 | AllowedRegimeVolatilityChanges | Contracting, Stable, Expanding |
+| 14 | AllowedStructureClassifications | Trending, Ranging, Compressing, Expanding, BreakingOut |
+| 15 | RejectedInheritedRestrictions | NoNewTrade, DirectionConflict, LowConfidence, Transition; NoNewTrade mandatory |
+| 16 | AllowedAssessmentConditions | Directional, RangeBound, VolatilityExpansion, VolatilityContraction |
+| 17 | AllowedLiquidity | Healthy, Degraded |
+| 18 | AllowedSessions | Open |
+| 19 | AllowedEventRisk | Clear |
+| 20 | AllowedStress | Normal |
+| 21 | AllowedVolatilityBehavior | Stable, Expanding, Contracting |
+| 22 | AllowedTriggerAlignment | Aligned, Neutral, NotApplicable |
+| 23 | AllowedAssessmentDataQuality | Healthy, Degraded |
+| 24 | UnknownEvidencePolicy | NoTrade=1 |
+| 25 | VariantRules / SelectionVariantRule[] | Complete twelve-row expansion of section 8 |
+| 26 | RankingPolicyVersion / string | ts-rank-v1 |
+| 27 | MaximumAssignments / int | 16; range 1-16 |
+| 28 | MaximumCandidates / int | 64; range 1-64 |
+| 29 | MaximumCatalogDefinitions / int | 256; range 1-256 |
+| 30 | MaximumBindingPayloadBytes / int | 262144; range 65536-262144 |
+| 31 | MaximumExecutionMilliseconds / int | 2000; range 1-60000 |
+| 32 | ResultLifetimeSeconds / int | 30; range 1-300 |
+| 33 | FutureClockSkewSeconds / int | 2; range 0-60 |
+| 34 | MaximumResultPayloadBytes / int | 262144; range 65536-524288 |
+| 35 | ReasonCodeCatalogVersion / string | ts-reasons-v1 |
+| 36 | SummaryTemplateVersion / string | ts-summary-v1 |
+| 37 | DirectionMappingVersion / string | ts-direction-v1 |
 
-No ranking, score weights, minimum DirectionalScore, separate opportunity strength or cross-horizon threshold is needed in V1. CompatibilityScore is null. SelectionConfidence is the minimum of the two accepted confidence values, rounded to six decimal places with MidpointRounding.ToEven for display/result only; comparisons use unrounded decimal inputs. This is a deterministic evidence summary, not a probability of profit.
+Sets are typed arrays of the existing upstream enums; permitted sets are nonempty, duplicate-free and contain known observations. Unknown numeric enum values fail; RegimeRestriction.None indicates no restriction. Confidence comparisons use unrounded decimals; result confidence is min(regime, assessment) rounded to six places with ToEven. It is not a probability of profit. CompatibilityScore remains null: ranking is explicit lexicographic preference, not a synthesized financial score.
 
-All allowed sets SHALL be non-empty, duplicate-free and contain defined non-sentinel values. The sole V1 UnknownEvidencePolicy value is 1; zero is invalid. Reject None/Unknown/Undefined where those indicate unavailable evidence; permit Neutral, NotApplicable and other genuine observations only where explicitly listed. `RejectedInheritedRestrictions` SHALL include NoNewTrade; it cannot be removed. Unknown numeric restrictions always fail contract validation. `RegimeRestriction.None` is a defined absence of restriction and is never a rejecting rule.
+Resolve exactly one deployment pipeline binding of kind TradeSelection and exactly one of kind OrderComposition, matching the existing Portfolio assignment writer. Preserve each binding's actual unique Role string in the frozen reference; do not impose a new capitalization/name convention on existing rows. Multiple bindings of either kind are ambiguous even when Role differs; assignment profile IDs/versions must match the unique references. No per-variant pipeline parameter column exists in the implemented catalog.
 
-The suspended baseline covered only the three structure variants and direction pairs above; the catalog-aligned specification must replace that closed set. Changing a threshold or permitted set requires a new published version. Removing a restriction other than NoNewTrade is an explicit policy change, not a runtime fallback. Field ranges, byte limits and cross-field horizon/variant rules remain mandatory even for test profiles.
+Optional deployment `Parameters` role `TradeSelectionVariants` references an exact catalog ParameterSet and its exact ParameterSchema. Its schema-1 typed Settings payload is `{ SchemaVersion, Rules }`; Rules is a complete replacement for VariantRules for that deployment, not an ambiguous merge. Missing this role uses the common policy Rules. All other specialized roles remain required validated evidence for their owning capabilities; unknown required roles fail the relevant capability validator. Role names are unique across pipeline and specialized bindings under existing catalog constraints. Changing any rules/parameter/schema/variant dependency creates new immutable versions and an updated deployment/assignment; there is no runtime override from UI text.
 
-## 8. Complete default profiles
+`SelectionVariantRule` keys: 0 BuilderCapabilityCode, 1 BuilderCapabilityVersion(int), 2 Side, 3 Bias, 4 PremiumMode, 5 AllowedRegimeDirections, 6 AllowedTrendPhases, 7 AllowedTrendStrengths, 8 AllowedStructureClassifications, 9 AllowedAssessmentConditions, 10 AllowedVolatilityBehavior, 11 Preference(int 0-100000). The signature (keys 0-4) is unique. Every authorized initial candidate must match exactly one rule; omitted/duplicate/unsupported signatures are configuration errors, not implicit rejection. Specialized rules may alter those allowed sets/preference but must respect common gates, mandatory side/bias direction mapping, actual capability support and the deployment's allowed Variant keys.
 
-All three profiles contain every field in section 7. Use the shared defaults there plus exactly these overrides; omitted override cells mean the shared default, not absent JSON fields.
+## 8. Three defaults and twelve variant rules
 
-| Field | Daily | Weekly | Monthly |
-| --- | --- | --- | --- |
-| ProfileCode | TS.ES.Daily.Test | TS.ES.Weekly.Test | TS.ES.Monthly.Test |
-| TargetHorizon | Daily | Weekly | Monthly |
-| StructureVariant | DailyOutright | WeeklyDebitVertical | MonthlyDirectionalCreditCondor |
-| AllowedTrendPhases | Emerging, Established | Emerging, Established | Established |
-| AllowedTrendStrengths | Moderate, Strong, Extreme | Moderate, Strong | Moderate, Strong |
-| AllowedStructureClassifications | Trending, Expanding, BreakingOut | Trending, Expanding, BreakingOut | Trending, Ranging, Compressing |
-| AllowedAssessmentConditions | Directional, VolatilityExpansion | Directional, VolatilityContraction | Directional, VolatilityContraction |
-| AllowedVolatilityBehavior | Stable, Expanding, Contracting | Stable, Contracting | Stable, Contracting |
+Create exactly three common draft policies, one per horizon, with all section 7 values and the same complete rule matrix below. No structure is assigned automatically by timeframe. Use persisted caller-supplied IDs or an explicit saved identity manifest for idempotent authoring; never generate new IDs at every startup. The existing default Family/Strategy/Structure/Variant rows remain draft authoring assets. This work does not repopulate test data or create deployments in the user's database.
 
-Parameter IDs SHALL be generated once when authoring the three version-1 rows and persisted in the exact Fund assignments. There is no prescribed production GUID and no assumed existing database seed. Repeat installation must use its saved IDs and cannot generate new IDs on every startup. Version-1 factory output must contain the complete parameter set and pass publication validation.
+Each row expands to the exact matching side/bias/premium combinations in section 4. Unspecified rule columns below equal the explicit corresponding common allowed set, and must still be serialized as fields. Bias restricts regime directions: Bullish=Up, Bearish=Down, Balanced=Neutral. An independent neutral long-volatility condor is supported; Neutral is not globally rejected.
 
-Each template supports both directions via the explicit mapping; no six-profile duplication is needed. The option profiles deliberately reject expanding/shock volatility by default as an engineering fixture choice. These numbers and categorical choices are adjustable test defaults and do not claim empirically superior strategies.
+| Rule signatures | Phases | Strengths | Market structure | Assessment conditions | Assessment volatility | Preference |
+| --- | --- | --- | --- | --- | --- | --- |
+| LongFuture / ShortFuture | Emerging, Established | Moderate, Strong, Extreme | Trending, Expanding, BreakingOut | Directional, VolatilityExpansion | Stable, Expanding, Contracting | 10 |
+| BullCallDebit / BearPutDebit | Emerging, Established | Moderate, Strong, Extreme | Trending, Expanding, BreakingOut | Directional, VolatilityExpansion | Stable, Expanding | 20 |
+| BullPutCredit / BearCallCredit | Emerging, Established | Moderate, Strong, Extreme | Trending, Ranging, Compressing | Directional, VolatilityContraction | Stable, Contracting | 30 |
+| ShortBalancedIronCondor | RangeBound, Established | None, Weak, Moderate | Ranging, Compressing | RangeBound, VolatilityContraction | Stable, Contracting | 40 |
+| ShortBullishIronCondor / ShortBearishIronCondor | Emerging, Established | Weak, Moderate, Strong | Trending, Ranging, Compressing | Directional, VolatilityContraction | Stable, Contracting | 40 |
+| LongBalancedIronCondor | RangeBound, Emerging, Established | None, Weak, Moderate | Ranging, Expanding, BreakingOut | VolatilityExpansion | Expanding | 50 |
+| LongBullishIronCondor / LongBearishIronCondor | Emerging, Established | Weak, Moderate, Strong, Extreme | Trending, Expanding, BreakingOut | Directional, VolatilityExpansion | Expanding | 50 |
 
-The one-assignment cardinality, authority hashes, NoNewTrade prohibition and required-field checks are invariants, not tuning switches. A test default never overrides a Fund prohibition or extends an expired assessment.
+These are test defaults to exercise the pipeline. They do not estimate option richness, implied/realized volatility edge or profitability. Selection uses only the accepted upstream evidence; no extra external data is required for this scope. Fund assignment Priority outranks the fixture Preference, so the defaults do not override an explicit Fund preference. Composition retains quote-dependent feasibility and may return NoCandidate without reselecting another intent.
 
-## 9. Parameter persistence, publication and hashing
+## 9. Publication, snapshots and hashing
 
-Use the existing PostgreSQL `reference_configuration.trade_selection_parameter_set` table and `StrategyParameterSetKind.TradeSelection`. Retain its `(parameter_set_id, version)` identity and configuration metadata. Add typed `InsertTradeSelectionDraftAsync`, `GetTradeSelectionVersionAsync` and exact `ResolveTradeSelectionVersionAsync(id, version, effectiveAtUtc)` contracts to ConfigurationDb. These are required additions; the enum/table alone does not implement the payload resolver.
+Reuse `InsertStrategyCatalogDraftAsync`, `GetStrategyCatalogAsync`, `PublishStrategyCatalogAsync`, `RetireStrategyCatalogAsync` and `GetPublishedStrategyDeploymentAsync`. Add typed selection policy operations to the existing parameter store; do not add immutable-template storage. Draft creation and authoring can precede capabilities; publication/executable binding cannot.
 
-Rows follow Draft -> Published -> Retired. Draft is not executable; publication validates the entire typed payload and hash. Published content is immutable. Parameter changes create a new version; retirement blocks new binding resolution but does not rewrite an accepted binding. An emergency stop uses separate cancellation authority. Guard lifecycle transitions in storage and require exactly one affected row. Reject destructive replacement, duplicate identity with different content, malformed versions and missing audit provenance.
+Pipeline policies use Draft -> Published -> Retired, exact positive versions and audited effective times. Guard content/lifecycle writes across typed and generic operations. Published/retired content cannot mutate; exact reads preserve history. Deployment graph validation already verifies referenced pipeline ID/version/hash/publication, but does not by itself implement selector semantic parsing or OrderComposition descriptors. TS-02 explicitly adds these checks without assuming the generic parameter table supplies them.
 
-Resolve by the Fund assignment's exact ID/version, not latest for a horizon. Confirm Published and effective at FrozenAtUtc, plus matching root, horizon and variant. Overlap between published versions is not ambiguous because the assignment pins one version. If any authoring tool offers effective selection, it must first resolve and save an explicit assignment before a workflow starts.
-
-### 9.1 Hash contracts
-
-| Payload | Exact hash authority |
+| Evidence | Hash authority |
 | --- | --- |
-| Existing upstream stage envelope | Existing SHA-256 of exact MessagePack payload bytes; preserve bytes and metadata |
-| Existing Portfolio snapshot | Existing `PortfolioCanonicalHash.Compute(snapshot with PayloadSha256 empty)`; preserve camelCase JSON and existing lower-case digest |
-| New selection parameters/template | Canonical typed JSON below; SHA-256 UTF-8, uppercase hexadecimal |
-| New selection binding | SHA-256 of exact MessagePack schema-1 binding with its PayloadSha256 empty; normalize new set-valued fields before sealing |
-| TradeSelection result envelope | Existing StrategyStageResultEnvelope SHA-256 over exact result MessagePack bytes |
+| Catalog node / deployment graph | Existing ConfigurationDb canonical algorithm, lowercase SHA-256; preserve exact source hashes |
+| Portfolio snapshot | Existing PortfolioCanonicalHash, existing JSON ordering and lowercase digest |
+| Accepted regime/assessment and selection envelopes | Existing hash of exact MessagePack payload bytes |
+| New typed selection policy | Explicit JSON property order equal to section 7 key order; PascalCase names, numeric enums, G29 decimals, GUID D, no omissions; SHA-256 lowercase to satisfy current catalog pipeline Hash validation |
+| New binding / candidate | SHA-256 lowercase over explicit MessagePack schema with own hash field empty; canonicalize only new sets before sealing |
 
-Do not rehash a Portfolio snapshot using the selector's JSON settings or replace an upstream hash with a hash of a reconstructed summary. Validate hex digests as 32 bytes; preserve source casing in carried fields. Binding/result identity comparison uses decoded hash bytes, not casing-sensitive string equality.
+Existing policy hashes are verified using their original serializers; do not case-rewrite or reserialize upstream payloads with selector settings. Compare carried digest identity as decoded bytes where appropriate, while new catalog writes satisfy the existing lowercase format validator. Duplicate/unknown required JSON properties, invalid enum values, incomplete schemas and conflicting key/hash pairs fail closed. The typed catalog transport projection must round-trip to the original catalog definition hash using the authoritative algorithm; golden vectors are an implementation exit gate.
 
-Canonical selector JSON uses explicit property order equal to the key order, exact PascalCase field names, numeric enum values, unindented UTF-8, no ignored/null omissions, canonical GUID D form, UTC round-trip timestamps, and invariant decimal G29 formatting. Set-valued arrays are sorted by underlying enum value before serialization; duplicates are rejected first. No serializer-dependent dictionary ordering is allowed. Reject unknown properties, duplicate properties, unknown enums and omitted fields on authoring/deserialization. Persist golden byte/hash vectors as tests.
+## 10. Validation and deterministic selection
 
-Normalize only the new selector objects before publication. Do not reorder existing Portfolio arrays or accepted upstream evidence while preserving their source hashes. The binding's frozen Portfolio snapshot must remain byte/semantic equivalent to its authoritative hashed form.
+Validate transport/size/schema/identity, duplicate invocation hash, running workflow and exact binding, frozen authority/catalog/policies, accepted upstream lineage/availability, required values/ranges and deadlines before new Function execution. Unsupported configured capability is TS.CONFIG.CAPABILITY_UNSUPPORTED. NoNewTrade at entry is TS.UPSTREAM.NOT_ELIGIBLE. These failures never become favorable evidence for another candidate.
 
-## 10. Validation and deterministic evaluation
+### 10.1 Ordered evidence and ordinary denial
 
-### 10.1 Validation order
+Preserve all applicable ordinary rejections. Global rules run once; candidate rules run in canonical candidate identity order, independent of input collection order. A rule has Passed, Rejected or NotApplicable plus typed actual/expected values and a stable reason. Missing mandatory objects/hashes/confidence or unknown numeric enums are Failed. A defined Unknown optional classification used by a rule becomes TS.EVIDENCE.UNKNOWN at that rule position. Known unfavorable values are ordinary NoTrade evidence.
 
-1. Reject malformed transport, unsupported schema, unknown keys, oversized request, wrong subject/stage/entity or invalid IDs. Do not create an actor stream for a message whose routing identity cannot be validated.
-2. Check duplicate identity before evaluating. Identical committed input returns the recorded outcome; changed-payload reuse is a conflict, never a second terminal event.
-3. Validate running workflow, exact invocation revision and binding equality against the accepted workflow snapshot. Require valid original trigger and supported target horizon.
-4. Validate binding, Portfolio snapshot hash and all identity/version/interval relationships; exact template/profile/family/product consistency; exactly one effective assignment.
-5. Reuse existing assessment acceptance validation for full regime lineage, profile binding, hashes, immutable context and inherited restrictions. Require completed accepted regime/assessment and Available/current assessment with no inherited NoNewTrade.
-6. Validate types/ranges of every selector-consumed field, including both confidence values in [0,1], known enum numbers and valid timestamps. No current-data reread is performed.
-7. Record Processing acceptance and a stable EvaluatedAtUtc. Run the pure evaluator with the frozen input and parameter set.
-8. Assemble result, validate invariants and recheck deadline/validity at commit. Commit exactly one terminal event and publication intent.
-
-NoNewTrade/unavailable assessments should have stopped before selection. A direct caller bypassing this rule receives `TS.UPSTREAM.NOT_ELIGIBLE` failure; it does not obtain a fabricated selection or normal candidate evaluation. The workflow's upstream normal NoTrade semantics remain unchanged.
-
-### 10.2 Rule order and NoTrade reasons
-
-After structural validation, evaluate all applicable rules in this fixed order. Preserve every rejection, and use the first rejection as PrimaryReasonCode. Do not stop after one ordinary incompatibility, but do stop on contract/calculation failure. Rule values come only from the frozen binding and accepted results.
-
-| Rule | Predicate required to pass | Rejection code |
+| Rule | Required predicate | Rejection code |
 | --- | --- | --- |
-| R01 | Frozen Portfolio/Fund operating permission allows new selection | TS.PERMISSION.OPERATING_STATE |
-| R02 | Frozen financial policy and delegated envelope permit new exposure; no live sizing | TS.PERMISSION.ENVELOPE |
-| R03 | Family row Active, template Enabled and assignment Enabled | TS.PERMISSION.DISABLED |
-| R04 | Exact family reference and product class/root allowed by Fund and Portfolio family permission | TS.PERMISSION.FAMILY |
-| R05 | Mapped direction permitted by template and Fund | TS.PERMISSION.DIRECTION |
-| R06 | Assessment condition allowed by Fund mandate | TS.PERMISSION.CONDITION |
-| R07 | No rejected inherited restriction present | TS.REGIME.RESTRICTION |
-| R08 | Regime direction in AllowedRegimeDirections | TS.REGIME.DIRECTION |
-| R09 | Regime confidence >= MinimumRegimeConfidence | TS.REGIME.CONFIDENCE |
-| R10 | Regime quality in AllowedRegimeQualities | TS.REGIME.QUALITY |
-| R11 | Trend phase in AllowedTrendPhases | TS.REGIME.PHASE |
-| R12 | Trend strength in AllowedTrendStrengths | TS.REGIME.STRENGTH |
-| R13 | Regime volatility level in AllowedRegimeVolatilityLevels | TS.REGIME.VOLATILITY_LEVEL |
-| R14 | Regime volatility change in AllowedRegimeVolatilityChanges | TS.REGIME.VOLATILITY_CHANGE |
-| R15 | Structure classification in AllowedStructureClassifications | TS.REGIME.STRUCTURE |
-| R16 | Assessment confidence >= MinimumAssessmentConfidence | TS.ASSESSMENT.CONFIDENCE |
-| R17 | ConditionType in AllowedAssessmentConditions | TS.ASSESSMENT.CONDITION |
-| R18 | LiquidityCondition in AllowedLiquidity | TS.ASSESSMENT.LIQUIDITY |
-| R19 | SessionState in AllowedSessions | TS.ASSESSMENT.SESSION |
-| R20 | EventRiskState in AllowedEventRisk | TS.ASSESSMENT.EVENT |
-| R21 | StressState in AllowedStress | TS.ASSESSMENT.STRESS |
-| R22 | VolatilityBehavior in AllowedVolatilityBehavior | TS.ASSESSMENT.VOLATILITY |
-| R23 | TriggerAlignment in AllowedTriggerAlignment | TS.ASSESSMENT.TRIGGER |
-| R24 | DataQuality in AllowedAssessmentDataQuality | TS.ASSESSMENT.DATA_QUALITY |
+| G01 | Frozen Portfolio/Fund operating permission allows exposure | TS.PERMISSION.OPERATING_STATE |
+| G02 | Frozen policy/envelope permits exposure, without live sizing | TS.PERMISSION.ENVELOPE |
+| G03 | Fund permits accepted assessment condition | TS.PERMISSION.CONDITION |
+| G04 | No rejected inherited restriction | TS.REGIME.RESTRICTION |
+| G05 | Accepted direction in common policy | TS.REGIME.DIRECTION |
+| G06 | Regime confidence meets minimum | TS.REGIME.CONFIDENCE |
+| G07-G12 | Regime quality, phase, strength, volatility level/change, structure in common sets, in that order | TS.REGIME.QUALITY / PHASE / STRENGTH / VOLATILITY_LEVEL / VOLATILITY_CHANGE / STRUCTURE |
+| G13 | Assessment confidence meets minimum | TS.ASSESSMENT.CONFIDENCE |
+| G14-G21 | Condition, liquidity, session, event, stress, volatility, trigger alignment, data quality in common sets, in that order | TS.ASSESSMENT.CONDITION / LIQUIDITY / SESSION / EVENT / STRESS / VOLATILITY / TRIGGER / DATA_QUALITY |
+| C01 | Exact enabled effective assignment and deployment permission retained | TS.PERMISSION.DEPLOYMENT |
+| C02 | Product, traded asset class and legacy family-string constraints allowed | TS.PERMISSION.PRODUCT |
+| C03 | Candidate bias matches accepted direction and Fund permitted direction | TS.PERMISSION.DIRECTION |
+| C04-C09 | Variant rule direction, phase, strength, structure, condition, volatility membership, in that order | TS.VARIANT.DIRECTION / PHASE / STRENGTH / STRUCTURE / CONDITION / VOLATILITY |
 
-Fund permitted directions use their existing Bullish/Bearish or Up/Down vocabulary. The explicit normalization is Up/Long/Bullish -> Bullish and Down/Short/Bearish -> Bearish; Neutral stays Neutral. Validate configuration strings against that finite vocabulary. All three initial templates reject Neutral regardless of broader Fund permission. An observed Neutral produces R08 NoTrade; do not invent a bullish or bearish bias. R05 is not applicable when no initial direction mapping exists, so the primary explanation is R08.
+Normalize Fund direction vocabulary explicitly: Up/Long/Bullish -> Bullish; Down/Short/Bearish -> Bearish; Neutral -> Neutral. Balanced variant intent requires Neutral permission; Short condor Side does not mean bearish direction, and Long condor Side does not mean bullish direction. Unknown permission strings are configuration errors. Empty permission sets authorize nothing.
 
-An empty valid Fund permission set permits nothing. An unknown permission string is configuration invalid. Known deny states are business NoTrade, while an absent required policy/family rule or malformed envelope is Failed. Restriction None is informational; NoNewTrade remains a mandatory upstream entry prohibition.
+If any global rule rejects, result is NoTrade with that first global reason; candidate rows remain NotEvaluated with the global blocker. Otherwise evaluate every candidate. An empty candidate set gives TS.NO_AUTHORIZED_CANDIDATE with the ordered excluded-assignment evidence. If all candidates reject, return TS.NO_COMPATIBLE_CANDIDATE with every candidate's ordered rejection reasons. A valid rejected candidate can never outrank a compatible one.
 
-### 10.3 Missing and unknown values
+### 10.2 Ranking and ties
 
-| Situation | Required result |
-| --- | --- |
-| Missing required object, required confidence, hash, identity, date or ConditionType for Available assessment | Failed: TS.CONTRACT.REQUIRED_FIELD or TS.UPSTREAM.INVALID |
-| Out-of-range confidence or unrecognized enum number | Failed: TS.CONTRACT.VALUE_RANGE |
-| Known Unknown value in an otherwise accepted optional classification used by R10-R24 | NoTrade: TS.EVIDENCE.UNKNOWN at that rule position, recording exact field |
-| Defined None trend strength | Evaluate R12 membership; initial defaults reject it |
-| Known unfavorable classification such as Poor/Closed/Elevated/Unusable | Corresponding ordinary rule rejection |
-| Optional source absent but no selector rule depends on an unknown derived value | Preserve limitation; no extra implicit rejection |
-| Pure evaluator exception | Failed: TS.CALCULATION.FAILED |
+For candidates passing every applicable gate, choose the lexicographically smallest tuple:
 
-Thus an Available assessment can reach selection with a closed session or poor liquidity, and the default selector can return NoTrade. MarketCondition does not acquire these template policies. No field is filled from another timeframe or replaced with zero to make evaluation pass.
+```text
+(Assignment.Priority ascending,
+ effective VariantRule.Preference ascending,
+ Deployment GUID D lowercase ordinal, Deployment version numeric,
+ Strategy GUID D lowercase ordinal, Strategy version numeric,
+ Structure GUID D lowercase ordinal, Structure version numeric,
+ Variant GUID D lowercase ordinal, Variant version numeric,
+ ProductId numeric, AssignmentVersion numeric)
+```
+
+Kind is fixed at each tuple position. Do not use runtime GetHashCode, culture sorting, Guid byte-layout comparison, database order, completion order, label text or random choice. Lower number means higher preference. Other compatible candidates are EligibleNotSelected with TS.RANK.LOWER_PREFERENCE and their full comparison tuple, not mislabeled as incompatible. Identical candidate identities are an invalid binding, so there is always exactly one winner. Two eligible variants with equal preferences are resolved by exact identity order, never a configuration failure merely because preferences tie.
+
+Freeze all inputs, policies, capabilities and evaluation time. Given the same invocation evidence, the evaluator returns identical selection and ordered explanations. No adaptive scoring, weighted probability, automatic fallback to another horizon or unsupported strategy is part of V1.
 
 ## 11. Time and expiry
 
-At receipt require `now < ExpectedCompletionAtUtc` and `now < binding.ValidUntilUtc` and `now < assessment.ValidUntilUtc`. Proposed stage deadline is the minimum of workflow deadline, RequestedAtUtc + MaximumExecutionMilliseconds, binding validity and assessment validity. The workflow writes this value into ExpectedCompletionAtUtc; the actor independently verifies it.
-
-FutureClockSkewSeconds applies only to observed/produced/evaluation timestamps from clocks, not to expiry. Reject timestamps more than the configured skew into the future. It never grants extra lifetime beyond an expired authority or workflow deadline. Regime as-of/production relationships remain governed by existing accepted contracts; do not invent a RegimeDiscovery ValidUntil field or require a fresh regime lookup.
+At receipt require `now < ExpectedCompletionAtUtc`, binding.ValidUntilUtc and accepted assessment.ValidUntilUtc. Deadline is the minimum of workflow deadline, RequestedAtUtc + MaximumExecutionMilliseconds, binding validity and assessment validity. Actor independently verifies it. FutureClockSkewSeconds applies to observed/produced timestamps, never to expiry; it cannot extend permission. Regime as-of/production relationships follow existing contracts; do not invent a regime expiry field or fresh lookup.
 
 ```text
-SelectionValidUntilUtc = min(
-    EvaluatedAtUtc + ResultLifetimeSeconds,
-    AcceptedAssessment.ValidUntilUtc,
-    SelectionBinding.ValidUntilUtc,
-    WorkflowDeadlineUtc)
+Result.ValidUntilUtc = min(EvaluatedAtUtc + ResultLifetimeSeconds,
+    accepted assessment.ValidUntilUtc, binding.ValidUntilUtc, workflow deadline)
 ```
 
-Execution deadline limits committing the decision; result validity limits subsequent consumption. Do not cap an already committed result to a now-expired execution deadline if its separately computed validity remains current. Recheck both relevant limits at their boundaries. If no positive result lifetime remains, commit Failed with TS.TIME.EXPIRED; never publish Selected and extend it downstream.
+Execution deadline governs committing a decision; result validity governs consuming that committed result. Recheck the relevant bounds before terminal commit and workflow handoff. Use injected TimeProvider and a workflow-frozen evaluation instant; monotonic elapsed milliseconds are diagnostic. An expired result cannot be refreshed by replay or projection. Common policy limits apply to the entire bounded evaluation, not separately per candidate.
 
-Use injected TimeProvider for actor/workflow checks and a persisted evaluation instant for the pure evaluator. ElapsedMilliseconds is measured monotonically and is non-negative; clocks do not affect outcome beyond explicit validity rules.
+## 12. Typed result and complete decision context
 
-## 12. Typed selection result
+Proposed new enums: SelectionOutcome Unknown=0/Selected=1/NoTrade=2; SelectionRuleStatus NotApplicable=0/Passed=1/Rejected=2; SelectionCandidateStatus NotEvaluated=0/Ineligible=1/EligibleNotSelected=2/Selected=3. UnknownEvidencePolicy NoTrade=1. Side/Bias/PremiumMode retain the exact capability-validated catalog strings. Do not introduce a closed strategy-family or timeframe-specific variant enum as catalog identity.
 
-New enums are byte-backed and explicit:
+| Key | TradeSelectionResult field / type |
+| --- | --- |
+| 0 | SchemaVersion / short = 1 |
+| 1-5 | ResultId / Guid; WorkflowId / StrategyWorkflowId; EntityId / existing workflow entity; InvocationId / Guid; InputWorkflowRevision / long |
+| 6-9 | TriggerEventId / Guid; PortfolioId / int; FundId / int; DecisionHorizon / TimeFrameType |
+| 10 | Outcome / SelectionOutcome |
+| 11 | SelectedCandidate / SelectionCandidateIntent?; null for NoTrade |
+| 12 | DecisionContext / TradeSelectionDecisionContext |
+| 13 | GlobalEvidence / SelectionRuleEvidence[] |
+| 14 | CandidateDecisions / SelectionCandidateDecision[] in canonical identity order |
+| 15 | SelectionConfidence / decimal; evidence summary on either outcome |
+| 16 | CompatibilityScore / decimal?; null in V1 |
+| 17 | PrimaryReasonCode / string |
+| 18-20 | EvaluatedAtUtc, ProducedAtUtc, ValidUntilUtc / UTC DateTime |
+| 21 | CommonPolicyReference / exact pipeline kind/ID/version/hash |
+| 22 | SummaryText / string, at most 2048 characters |
 
-```text
-SelectionOutcome: Unknown=0, Selected=1, NoTrade=2
-SelectionFamily: None=0, Future=1, OptionVertical=2, IronCondor=3
-SelectionInstrumentClass: None=0, Futures=1, FuturesOptions=2
-SelectionDirection: Undefined=0, Long=1, Short=2, Bullish=3, Bearish=4
-SelectionStructureVariant: Unspecified=0, DailyOutright=1,
-    WeeklyDebitVertical=2, MonthlyDirectionalCreditCondor=3
-SelectionRuleStatus: NotApplicable=0, Passed=1, Rejected=2
-UnknownEvidencePolicy: NoTrade=1
-```
+`SelectionCandidateIntent` keys: 0 CandidateHash, 1 AssignmentVersion, 2 DeploymentKey, 3 StrategyKey, 4 StructureKey, 5 VariantKey, 6 Product, 7 Side, 8 Bias, 9 PremiumMode, 10 SelectionPolicyReference, 11 CompositionPolicyReference, 12 SpecializedParameterBindings, 13 FamilyKeys. Every field must match the frozen candidate and complete graph; all parameter and schema versions/hashes remain in context. Product includes positive ID, symbol, exchange, currency; it is not a selected contract.
 
-These are new selector transport enums, not replacements for Reference family/strategy enums. The section 2 mapping is explicit. New parameter/result schema version is 1 even though the document is v1.0 and existing upstream schemas have other versions.
+`TradeSelectionDecisionContext`: 0 SchemaVersion=1, 1 original RegimeResultEnvelope, 2 original AssessmentResultEnvelope, 3 complete SelectionBinding. `SelectionCandidateDecision`: 0 CandidateHash, 1 Status, 2 RuleEvidence, 3 comparison tuple (typed fields in section 10.2 order), 4 ReasonCodes. `SelectionRuleEvidence`: 0 RuleId, 1 FieldPath, 2 Status, 3 ActualJson, 4 ExpectedJson, 5 ReasonCode. Preserve canonical numeric values and enum strings; each evidence row is at most 4096 UTF-8 bytes. No truncation of authoritative context/evidence is permitted.
 
-### 12.1 `TradeSelectionResult` keys
+Selected requires exactly one Selected candidate decision, zero failed global/selected-candidate rules, the deterministic winning tuple and TS.SELECTED. NoTrade has no SelectedCandidate and no Selected candidate decision; it has global rejection, empty authorized set or all-candidate incompatibility with the corresponding reason. Failed is a lifecycle outcome, never a successful third selector outcome. Observed Neutral remains in context even when no variant qualifies.
 
-| Key | Field / type | Invariant |
+Envelope ResultType=TradeSelectionResult, schema=1, ContentType=application/x-msgpack; envelope/payload IDs and ProducedAtUtc must agree. MarketDataAsOfUtc preserves the accepted assessment envelope value. All producers, validators, persistence, queries and continuation use the explicit selector result cap, default 262144; other stages retain their limits. Stage transport cap is 1048576 bytes including outer serialization. Count/individual-node caps do not guarantee the full binding/result fits: enforce actual serialized byte bounds before acceptance/terminal commit and fail oversized input, never select a smaller subset to fit.
+
+Deterministic summary: `{Horizon} {Root}: selected {DeploymentCode}/{VariantCode} ({Side}, {Bias}, {PremiumMode}); confidence {Confidence:F6}.` NoTrade: `{Horizon} {Root}: NoTrade ({PrimaryReasonCode}); {CandidateCount} candidate(s) evaluated.` Invariant formatting only. Summary text cannot fill missing machine-readable fields or authorize continuation.
+
+
+## 13. Function actor identity, lifecycle and direct delivery
+
+Implement `TradeSelectionFunctionActor : BaseEventSourceFunctionActor` with `TradeSelectionFunctionContext`, `TradeSelectionFunctionState` and its completed-only repository. Follow RegimeDiscovery and the aligned MarketCondition. Use `ActorType.Function`, actor name `TradeSelectionPipelineFunction`, verb `Execute`, existing TradeSelectionPipelineBoundedContext and Core NATS request/reply. The earlier Command/Processing/durable EventProjector design is superseded. Preserve old Start/Processing/Completed/Failed contracts for historical reads; new workflow routing must not dispatch the old selector Command or publish selector Realtime lifecycle events.
+
+Add `ExecuteTradeSelectionPipelineCommand : ICommand<TradeSelectionExecutionId>`. Composite execution identity contains workflow entity, WorkflowId and InputWorkflowRevision, with canonical formatting, validation and serialization following existing upstream execution IDs. Proposed MessagePack keys: 0 SchemaVersion (explicit 1, missing=0); 1 CommandId; 2 Subject; 3 PostEvents=false; 4 EntityId; 5 ErrorCode; 6 RouteTo; 7 InputWorkflowRevision; 8 WorkflowView; 9 TriggerEvent; 10 CorrelationId; 11 CausationId; 12 RequestedAtUtc; 13 ExpiresAtUtc; 14 SelectionBinding; 15 EvaluatedAtUtc; 16 RegimeResultEnvelope; 17 AssessmentResultEnvelope. Bind all duplicate identities/evidence to the frozen workflow. Allocate stable error-code constants using the repository error-code registry during TS-01. New completed/failed Function contracts use this Function actor subject, typed workflow result entity, complete lineage and request fingerprint; do not repoint historical event actor constants.
+
+InvocationId = Execute CommandId. Persist the complete execution request, input fingerprint, evaluation instant and deadline in the owning workflow's durable dispatch intent before requesting the Function. Generate command identity using the existing deterministic workflow scheme. ResultId = CommandId; terminal completion event ID = ResultId. The fingerprint covers the canonical complete request (including lineage, exact binding/upstream hashes and frozen timestamps), with no receive-time diagnostics. Retries use the identical request; they never recapture authority or reset deadlines.
+
+The actor SHALL declare immutable static readonly `_parseMap` keyed by ordinal verb, `_validationMap` keyed by exact command Type and `_receiveMap` keyed by exact command Type. All three contain the same supported request set. ParseMessage uses `ParseMappedFunction`, validation runs before state loading, and ExecuteFunctionAsync uses `ResolveMappedFunctionHandler` to await `ExecuteTradeSelectionPipeline.ExecuteAsync`. No type-name strings, assignable fallback, switch dispatch, reflection discovery or direct transport-handler bypass. The extension contains only deterministic domain evaluation; the base owns payload release, completed-state replay, projection, persistence and exactly one typed reply. Query actors use their own parse/receive/exception conventions.
+
+The following mapping and responsibility contract is normative:
+
+| Component | Required convention |
+| --- | --- |
+| `_parseMap` | Immutable `static readonly IReadOnlyDictionary<string, Func<IActorMessage, ExecuteTradeSelectionPipelineCommand>>`; ordinal verb key `Execute`; exactly one typed deserialization |
+| `_validationMap` | Immutable `static readonly` dictionary keyed by exact command CLR `Type`; accumulates command ID, entity, request/envelope, schema/hash and frozen-binding validation errors before state loading |
+| `_receiveMap` | Immutable `static readonly` dictionary keyed by the same exact command CLR `Type`; awaits the command extension and returns `ValueTask<FunctionResult<TCompletedEvent,TFailedEvent>>` |
+| Typed context | `IFunctionActorContext<TradeSelectionFunctionActor>` plus explicit repository, projector, evaluator, TimeProvider and typed logger dependencies; no domain-handler service discovery |
+| Base lifecycle | Inherited mailbox start/stop, payload release even on parse failure, completed-state loading/replay, projection, append and one typed reply; no overridden transport loop bypassing these steps |
+| State/repository | `Matches`, `TryComplete` and event application preserve the canonical request fingerprint and sole completed event; expected initial stream version zero; no command denormalizer |
+| Deadline hooks | Use `LoadFunctionStateAsync`, `ExecuteFunctionAsync`, `ProjectFunctionResultAsync` and `SaveFunctionStateAsync` as in MarketCondition; overrides preserve base ordering and do not duplicate the lifecycle |
+| Attempt diagnostics | Structured Function logging; no command-audit ID reservation that suppresses retries after an uncommitted failure |
+
+TS-C32 SHALL verify that the parsed request type set equals both validation and receive key sets; all maps are immutable and actor inheritance is correct. Tests enter through `HandleMessageAsync`, not a test-only direct evaluator call, for actor type/name/verb/entity mismatch, malformed/null payload, invalid command, exactly-once payload release/reply, duplicate/conflicting requests and cancellation. Invalid ingress cannot load state, capture data, project or append. TS-C33 verifies real registration, request/reply, synchronous projection and completed append failures. Existing MarketCondition and RegimeDiscovery Function tests remain regression gates whenever shared infrastructure changes.
+
+| Existing Function state | Request | Action |
 | --- | --- | --- |
-| 0 | SchemaVersion / short | 1 |
-| 1 | ResultId / Guid | Stable terminal result identity |
-| 2 | WorkflowId / StrategyWorkflowId | Same workflow |
-| 3 | EntityId / IntrinsicTimeStrategyWorkflowEntityId | Same routing entity |
-| 4 | InvocationId / Guid | Equal to accepted Start CommandId |
-| 5 | InputWorkflowRevision / long | Accepted selection invocation revision |
-| 6 | TriggerEventId / Guid | Original accepted trigger identity, using existing Id/CommandId fallback |
-| 7 | PortfolioId / int | Frozen authority |
-| 8 | FundId / int | Frozen authority |
-| 9 | DecisionHorizon / TimeFrameType | Single trigger horizon on both outcomes |
-| 10 | SelectionOutcome / SelectionOutcome | Selected or NoTrade only |
-| 11 | TradeTemplateId / Guid? | Required Selected; null NoTrade |
-| 12 | TradeTemplateVersion / long? | Required Selected; null NoTrade |
-| 13 | TradeFamilyReference / TradeStrategyFamilyReference? | Required Selected; null NoTrade |
-| 14 | TradeFamily / SelectionFamily | Selected family; None NoTrade |
-| 15 | InstrumentClass / SelectionInstrumentClass | Selected class; None NoTrade |
-| 16 | DirectionalBias / SelectionDirection | Explicit mapped direction; Undefined NoTrade |
-| 17 | StructureVariant / SelectionStructureVariant | Assigned variant; Unspecified NoTrade |
-| 18 | CompositionPolicyId / Guid? | Same assigned OrderComposition profile; null NoTrade |
-| 19 | CompositionPolicyVersion / long? | Exact profile version; null NoTrade |
-| 20 | CompositionPolicyPayloadSha256 / string? | Descriptor's exact profile hash; null NoTrade |
-| 21 | DecisionContext / TradeSelectionDecisionContext | Full immutable context below |
-| 22 | SelectionConfidence / decimal | min(regime, assessment), rounded as section 7, both outcomes |
-| 23 | CompatibilityScore / decimal? | Always null in V1 binary policy |
-| 24 | PrimaryReasonCode / string | TS.SELECTED or first ordered rejection |
-| 25 | Evidence / SelectionRuleEvidence[] | Ordered R01-R24 evaluation trace |
-| 26 | EvaluatedAtUtc / DateTime | Persisted pure evaluation instant |
-| 27 | ProducedAtUtc / DateTime | Terminal assembly time, before expiry |
-| 28 | ValidUntilUtc / DateTime | Section 11 bound |
-| 29 | ParameterSetId / Guid | Frozen selection policy identity on both outcomes |
-| 30 | ParameterSetVersion / int | Exact version on both outcomes |
-| 31 | ParameterPayloadSha256 / string | Frozen policy hash on both outcomes |
-| 32 | SelectedProduct / SelectionProductReference? | Product metadata for Selected; null NoTrade |
-| 33 | SummaryText / string | Deterministic template below; maximum 2048 characters |
+| Absent | Valid Execute | Evaluate frozen input; return failure or a candidate completion |
+| Absent | Invalid Execute | Return typed failure; no projection or Function append |
+| Absent | Selected or NoTrade | Project candidate completion, append completed state at expected version zero, reply |
+| Completed | Matching request fingerprint | Return original completion without evaluation/projection, even after expiry; workflow rechecks authority |
+| Completed | Conflicting fingerprint | Return TS.INVOCATION.CONFLICT; preserve original completion |
+| No committed completion after failure/restart | Same still-current request | May evaluate identical frozen input again; failures are not Function state |
 
-The table above is the wire schema; there is no implicit runtime conversion from an old candidate list. NoTrade can preserve observed direction inside DecisionContext while all selected-only direction/family/product fields remain absent or sentinel-valued.
+### 13.1 Completed-only persistence and projection
 
-`TradeSelectionDecisionContext` keys: 0 SchemaVersion(short=1), 1 RegimeResultEnvelope(existing type), 2 AssessmentResultEnvelope(existing type), 3 SelectionBinding(full frozen binding). It contains the complete accepted inputs and authority, not only latest-result lookup keys. Reuse immutable objects internally but preserve the full serialized contract.
+Use `IEventSourceFunctionState`, `IEventSourceFunctionStateRepository` and `IFunctionProjector<TCompletedEvent>`. Ordering is calculation -> synchronous idempotent Scylla projection -> PostgreSQL completed-event append -> direct typed reply. No Processing/Failed append, no Function event publication, no durable Function projector queue/checkpoint/replay. The shared base owns the lifecycle; domain stage hooks enforce deadlines without reordering it.
 
-`SelectionProductReference` keys: 0 TradeStrategySymbolId(int), 1 Symbol(string), 2 Exchange(string), 3 Currency(string). All values exactly match the frozen family/product identity; the product is not an expiry-specific instrument.
+A projection failure prevents completion persistence. A persistence failure after projection can leave an orphan query row; it returns failure and cannot advance the workflow. Projection rows are evidence, not authority. A matching retry after a committed completion returns that event without recapture or reprojection. Concurrent append conflicts must not return an uncommitted winner; use the shared persistence failure path, then retry/load the committed completion. No cross-database ACID or autonomous projection recovery is claimed.
 
-`SelectionRuleEvidence` keys: 0 RuleId(string), 1 FieldPath(string), 2 Status(SelectionRuleStatus), 3 ActualJson(string), 4 ExpectedJson(string), 5 ReasonCode(string). Canonical JSON scalars/arrays make values machine-readable, preserving numbers as numbers and enum names as exact strings. FieldPath references the binding/regime/assessment object. Array values are ordered and no dynamic explanatory prose is interpreted by downstream code. Each row is bounded to 4096 bytes; exceeding any evidence or result bound fails instead of truncating authority.
-
-### 12.2 Result invariants
-
-Selected requires exactly the evaluated authorized template, family, product, direction and construction descriptor. Every one must agree with the assignment and binding, and all required rules must have passed. NoTrade requires at least one Rejected rule; its PrimaryReasonCode is the first rejection. An evaluated template remains visible only in context/evidence, not selected-only fields. Failed is a lifecycle event, never a third successful selection outcome.
-
-Envelope ResultType is `TradeSelectionResult`, SchemaVersion 1 and ContentType `application/x-msgpack`. Its ResultId equals payload ResultId; ProducedAtUtc equals payload ProducedAtUtc. MarketDataAsOfUtc preserves the accepted assessment envelope timestamp. Compute PayloadSha256 from exact bytes using existing envelope functions.
-
-The default generic envelope cap is currently 65536 bytes. This result carries full upstream context, so all TradeSelection producers, validators, persistence and consumers SHALL use the explicit parameter MaximumResultPayloadBytes, initially 262144. Do not globally enlarge other stages' limits. Transport request/event payload limit is 1048576 bytes for this stage; reject oversize before dispatch/commit. Configured result size must fit the transport after outer serialization. Never truncate upstream context to squeeze under a limit.
-
-Deterministic summaries use invariant formatting and exact enum/code strings:
-
-```text
-Selected: "{Horizon} {Root}: selected {TemplateCode} ({Direction}); confidence {Confidence:F6}."
-NoTrade:  "{Horizon} {Root}: NoTrade ({PrimaryReasonCode}); {RejectedCount} rule(s) rejected."
-```
-
-NoTrade confidence describes available evidence, not a probability of choosing no trade. Display summaries cannot supply missing typed fields or change continuation.
-
-## 13. Actor identity, lifecycle and durable delivery
-
-Implement `TradeSelectionPipelineCommandActor` at existing Command actor name `TradeSelectionPipelineCommand`, Start verb and TradeSelectionPipelineBoundedContext. Retain entity routing; store invocation state keyed by WorkflowId and InputWorkflowRevision within the routed entity stream. Define InvocationId = Start CommandId, preserving the workflow's existing deterministic command-identity generation. Do not create a competing unrelated StageInvocationId.
-
-An internal persisted `TradeSelectionInvocationAccepted` record SHALL include accepted immutable evaluation input, command business-payload hash, start time, EvaluatedAtUtc, deadline, expected stream version and allocated result/Processing/terminal event IDs. Generate UUIDv7 IDs once at acceptance and persist them. Crash recovery reuses them. Command business-payload hash covers schema, EntityId, WorkflowId, InputWorkflowRevision, original trigger, binding hash, accepted upstream envelope hashes, RequestedAtUtc and ExpectedCompletionAtUtc in that order. Exclude diagnostics and delivery timestamps; correlation/causation must still match accepted workflow lineage.
-
-Use existing event keys for `TradeSelectionPipelineProcessingEvent`, `TradeSelectionPipelineCompletedEvent` and `TradeSelectionPipelineFailedEvent`. Processing is the existing lifecycle name; do not introduce Started. Completed carries the result through its existing Result key. Failed uses existing metadata plus stable machine-readable failure data defined below. Do not invent new wire event IDs or reuse the existing ErrorId constants for individual business reasons.
-
-| Current persisted state | Input | Transition/action |
-| --- | --- | --- |
-| Absent | Valid Start | Append accepted input and Processing publication intent atomically; evaluate |
-| Absent | Routable but invalid Start | Persist one Failed rejection with command identity/hash; no Processing required |
-| Processing | Same command/hash redelivery or restart | Resume from persisted input/evaluation time if current; otherwise commit one expiry failure |
-| Processing | Evaluation succeeds and commit checks pass | Append Completed and publication intent with optimistic concurrency |
-| Processing | Calculation/validation/deadline fails | Append Failed and publication intent with optimistic concurrency |
-| Completed/Failed | Same command/hash | Return recorded acceptance/outcome; recover delivery if required; never recalculate |
-| Any existing invocation | Same identity, different business hash | Reject caller and emit diagnostic TS.INVOCATION.CONFLICT; do not mutate original outcome |
-
-Restarting an uncommitted pure calculation from persisted inputs is technical recovery, not a new strategy workflow or business retry. An optimistic append conflict reloads state and returns the committed winner. No callback may publish a losing terminal event.
-
-### 13.1 Persistence and publication ordering
-
-Use the existing event-source infrastructure and durable EventProjector mechanism. Terminal actor event append is authoritative. Persist event and projection/publication work in the same event-source transaction. Complete the command acknowledgement only after durable acceptance/terminal storage appropriate to that command API, never after a best-effort in-memory enqueue alone.
-
-The projector SHALL idempotently update Scylla read models before publishing the same logical event through the existing TradeSelection Realtime route to the Strategy Workflow. Projection/publication failure leaves durable work pending. Retried delivery reuses event ID and payload hash. A crash after publish but before marking work complete can duplicate delivery; workflow acceptance must deduplicate it. Physical exactly-once network delivery is not assumed.
-
-Require durable projection for lifecycle events using the repository's `IRequireDurableProjection` integration or the equivalent registered durable work path, verified by integration tests. Scylla failure cannot erase a committed selection or cause a second evaluation. Rebuilding projections reads committed events; projections never determine the actor's outcome.
-
-Persist private input/state in PostgreSQL event-source storage. Scylla is query/history storage; Redis, if later added, is not required and is not decision authority. No cross-database transaction is assumed. Operational projection delays may make an otherwise correct result expire before workflow acceptance; stop under expiry rules without changing the original decision.
+The existing workflow Realtime actor requests the Function and translates its direct completed/failed reply into deterministic CompleteTradeSelection/FailTradeSelection commands. The workflow command actor owns durable terminal status, timeout precedence, duplicate suppression and composition reservation recovery. A lost reply is recovered by the same saved Function request while valid; a late completed reply cannot reopen an expired workflow. Function technical retries are not a new strategy evaluation input.
 
 ### 13.2 Failure data and timeout
 
-Keep the shared Failed event ErrorId/route constants. Encode structured safe ErrorData as JSON with `schemaVersion=1`, `reasonCode`, `fieldPath`, `invocationId`, `inputPayloadSha256`, `parameterSetId`, `parameterSetVersion`, `failedAtUtc`, `elapsedMilliseconds`; omit unavailable optional identity values on malformed input. ErrorMessage is a bounded operator explanation, not the authoritative reason.
+New Function failure contracts retain typed error metadata and a stable allocated ErrorId. Encode bounded safe ErrorData as JSON with schemaVersion=1, reasonCode, fieldPath, invocationId, inputPayloadSha256, commonPolicyId/version, deploymentKey/candidateHash when known, failedAtUtc and elapsedMilliseconds. Malformed input omits unknown identities. Failure is returned to the caller; only the workflow persists its failed transition.
 
-Stable failure reasons: TS.CONTRACT.SCHEMA, TS.CONTRACT.REQUIRED_FIELD, TS.CONTRACT.VALUE_RANGE, TS.CONTRACT.IDENTITY, TS.CONTRACT.HASH, TS.CONTRACT.PAYLOAD_SIZE, TS.CONFIG.MISSING, TS.CONFIG.AMBIGUOUS_ASSIGNMENT, TS.CONFIG.PROFILE_MISMATCH, TS.CONFIG.INVALID, TS.UPSTREAM.INVALID, TS.UPSTREAM.NOT_ELIGIBLE, TS.TIME.FUTURE, TS.TIME.EXPIRED, TS.CALCULATION.FAILED, TS.RESULT.INVALID and TS.INVOCATION.CONFLICT. Stable success reason: TS.SELECTED. Ordinary NoTrade reasons are section 10, including TS.EVIDENCE.UNKNOWN.
+Stable reasons: TS.CONTRACT.SCHEMA, TS.CONTRACT.REQUIRED_FIELD, TS.CONTRACT.VALUE_RANGE, TS.CONTRACT.IDENTITY, TS.CONTRACT.HASH, TS.CONTRACT.PAYLOAD_SIZE, TS.CONFIG.MISSING, TS.CONFIG.AMBIGUOUS_ASSIGNMENT, TS.CONFIG.CANDIDATE_LIMIT, TS.CONFIG.CAPABILITY_UNSUPPORTED, TS.CONFIG.PROFILE_MISMATCH, TS.CONFIG.INVALID, TS.UPSTREAM.INVALID, TS.UPSTREAM.NOT_ELIGIBLE, TS.TIME.FUTURE, TS.TIME.EXPIRED, TS.CALCULATION.FAILED, TS.PROJECTION.FAILED, TS.PERSISTENCE.FAILED, TS.RESULT.INVALID and TS.INVOCATION.CONFLICT. Success is TS.SELECTED; ordinary NoTrade reasons remain section 10.
 
-V1 adds no separate user cancellation command for TradeSelection. Workflow stop/timeout and late-event guards remain authoritative. A later cancellation feature needs an explicit atomic state transition; no optional undefined race semantics are required to implement V1.
+The request deadline is bounded by workflow expiry and frozen execution budget. Exact-boundary expiry beats new completion; caller cancellation propagates distinctly. Bound completed-state loading independently so previously completed requests can replay after market expiry. Before/after execution, projection and persistence, check remaining deadline; cancel and observe late dependencies and prevent subsequent stages from running. Cancellation cannot roll back a database write already in progress; query evidence and workflow acceptance remain separate. No additional selector cancellation command is introduced.
 
 ## 14. Workflow acceptance and composition reservation
 
@@ -506,10 +408,10 @@ Use the existing `ReserveFundOrderCompositionRequest` and `FundCompositionReserv
 | --- | --- |
 | WorkflowId | Current workflow's Guid value |
 | WorkflowRevision | Frozen PortfolioSnapshot.WorkflowRevision, as required by the existing Portfolio contract |
-| TradeSelectionInvocationId | Accepted result InvocationId (= original Start CommandId) |
+| TradeSelectionInvocationId | Accepted result InvocationId (= frozen Execute CommandId) |
 | TradeSelectionResultId / SHA256 | Exact accepted result envelope identity/hash |
 | Portfolio/Fund identities and versions | Frozen snapshot values |
-| TradeTemplate ID/version | Selected template |
+| TradeTemplate ID/version | Selected **Deployment** GUID/version, preserving schema-3 Portfolio semantics; not Strategy/Structure GUID |
 | OrderCompositionProfile ID/version | Selected construction policy |
 | UnderlyingRoot / DecisionHorizon | Frozen ES root and trigger horizon |
 | RequestedTradeDate | Binding.RequestedTradeDate, computed from TriggerEvent.CreatedOn under the explicit test date policy |
@@ -523,25 +425,27 @@ Use the existing `ReserveFundOrderCompositionRequest` and `FundCompositionReserv
 
 The request's WorkflowRevision is the snapshot revision for this existing Portfolio contract. Current continuation revision is stored separately in WorkflowCompositionHandoffState.AcceptedSelectionRevision. Do not overwrite the snapshot revision/hash to satisfy Portfolio validation. Reservation callbacks are fenced against the current pending handoff, accepted selection ID/hash and current workflow revision.
 
-The one Primary TradeInstruction has the selected catalog trade-family string, TradeRole=Primary, IsPrimaryTrade=true, selected DirectionOrBias, TradeAction=Open, ES root, the same requested trade date, null maturity, selection ResultId formatted D as Reference, persisted RequestedAtUtc as CreatedOnUtc and authenticated service principal as CreatedBy. It reserves one OrderId and one TradeId for a strategy instruction, not one TradeId per option leg. Exact leg construction follows later.
+The one Primary TradeInstruction has the selected assignment TradeFamily string (currently deployment code), without inventing a grouping-family permission, TradeRole=Primary, IsPrimaryTrade=true, Long/Short for futures, Bullish/Bearish/Neutral for options from the selected Bias (Balanced maps to Neutral); selected Side and PremiumMode remain independently present in the full intent, TradeAction=Open, ES root, the same requested trade date, null maturity, selection ResultId formatted D as Reference, persisted RequestedAtUtc as CreatedOnUtc and authenticated service principal as CreatedBy. It reserves one OrderId and one TradeId for a strategy instruction, not one TradeId per option leg. Exact leg construction follows later.
 
 The initial engineering policy is exactly `UTC.TriggerCreatedDate.Test.v1`: require non-default UTC TriggerEvent.CreatedOn and set RequestedTradeDate = DateOnly.FromDateTime(TriggerEvent.CreatedOn). Freeze both date and policy in the binding; no receipt-time fallback or live calendar lookup is allowed. This is an explicit test date convention, not a claim to calculate the exchange trading-session date. A later exchange-session date policy requires a versioned binding schema/policy extension and qualified calendar data. It does not block implementing these complete initial test inputs.
+
+The existing Portfolio reservation request checks deployment/profile presence in the frozen assignment snapshot; it does not carry structure/variant fields. Keep that contract intact. TS-06 must validate the complete selected intent in workflow authority and persist its hash/context alongside the reservation. Append the full typed intent/binding/reservation to OrderComposition start; do not reconstruct the variant from TradeInstruction.DirectionOrBias or deployment display text. The reservation is a business-ID reservation, not financial-risk approval.
 
 ### 14.3 Reservation recovery and downstream input
 
 On a timeout with unknown Portfolio response, query/retry the identical saved request with the same idempotency key while current. Do not regenerate timestamps, request hash or IDs. The existing Portfolio service returns the committed reservation for identical replay and rejects changed-payload reuse. This is recovery of one logical side effect, not new selection.
 
-After response, validate Portfolio/Fund/template/profile/result bindings, committed reservation identity, positive integer OrderId/TradeId and exactly one Primary instruction. If still current, atomically record reservation and the durable StartOrderComposition intent. Pass accepted selection unchanged, complete frozen Portfolio snapshot/binding, reservation and workflow deadline. Append versioned fields to the existing OrderComposition Start contract without changing existing keys; its detailed builder contract remains the authority for live construction data.
+After response, validate Portfolio/Fund/deployment/profile/result bindings, committed reservation identity, positive integer OrderId/TradeId and exactly one Primary instruction. If still current, atomically record reservation and the durable StartOrderComposition intent. Pass accepted selection unchanged, complete frozen Portfolio snapshot/binding, reservation and workflow deadline. Append versioned fields to the existing OrderComposition Start contract without changing existing keys; its detailed builder contract remains the authority for live construction data.
 
-If the workflow expires/stops while a reservation is pending, it SHALL not dispatch construction on a late response. Reconcile any committed FundOrder to the Portfolio's Expired/Cancelled state using its supported command. Integer IDs are retained and never reused. A permanent Portfolio validation failure stops the workflow; it cannot be downgraded to selecting another template.
+If the workflow expires/stops while a reservation is pending, it SHALL not dispatch construction on a late response. Reconcile any committed FundOrder to the Portfolio's Expired/Cancelled state using its supported command. Integer IDs are retained and never reused. A permanent Portfolio validation failure stops the workflow; it cannot be downgraded to selecting another candidate.
 
-OrderComposition returns Composed, NoCandidate or Failed through its own boundary. NoCandidate stops normally. It cannot change selected horizon/family/template or widen permissions to obtain a candidate. Final sizing and risk reservation remain Portfolio Risk Manager responsibilities after one-unit composition.
+OrderComposition returns Composed, NoCandidate or Failed through its own boundary. NoCandidate stops normally. It cannot change selected horizon/deployment/strategy/structure/variant or widen permissions to obtain a candidate. Final sizing and risk reservation remain Portfolio Risk Manager responsibilities after one-unit composition.
 
 ## 15. Read models and query contracts
 
-Add selector projection methods to `ITradeDbContext`/TradeDb and Scylla schema initialization, plus typed queries through the existing actor/query API pattern. These are proposed read models; no table is created by this document.
+Add selector projection methods to `ITradeDbContext`/TradeDb and Scylla schema initialization, plus typed queries through the existing actor/query API pattern. These read models are implemented by the additive TradeDb schema and selector repositories.
 
-Project immutable lifecycle rows keyed by workflow and invocation; query current actor status by the largest persisted source stream version. Do not implement last-arriving-message-wins. Processing replay after Completed cannot make status regress.
+Project candidate completed-result rows keyed by workflow and invocation. Function queries contain Selected/NoTrade evidence only; obtain Processing/Failed/TimedOut status and acceptance from the workflow observation. Each Function stream admits one committed completion; use source_sequence=1 as its deterministic projection slot before append, not a claimed persisted sequence. Compare immutable result hashes on retries.
 
 ```sql
 CREATE TABLE IF NOT EXISTS trade_selection_invocation_event (
@@ -556,6 +460,16 @@ CREATE TABLE IF NOT EXISTS trade_selection_invocation_event (
     outcome tinyint,
     occurred_at_utc timestamp,
     reason_code text,
+    selected_deployment_id uuid,
+    selected_deployment_version int,
+    selected_strategy_id uuid,
+    selected_strategy_version int,
+    selected_structure_id uuid,
+    selected_structure_version int,
+    selected_variant_id uuid,
+    selected_variant_version int,
+    candidate_set_sha256 text,
+    binding_sha256 text,
     parameter_set_id uuid,
     parameter_version int,
     parameter_sha256 text,
@@ -585,14 +499,15 @@ CREATE TABLE IF NOT EXISTS trade_selection_history_by_fund_date (
     (occurred_at_utc DESC, workflow_id ASC, invocation_id ASC);
 ```
 
-Use the configured TradeDb keyspace; do not hard-code a deployment keyspace. LifecycleStatus projection values are Processing=1, Completed=2, Failed=3. Outcome is Selected=1 or NoTrade=2 only for Completed; otherwise null. History contains terminal rows only and uses UTC date of the original terminal event for value_date, independently of the trigger-derived RequestedTradeDate. Retried projection uses original timestamps and keys.
+Use the configured TradeDb keyspace; do not hard-code a deployment keyspace. Selected identity columns are null for NoTrade; parameter columns refer to CommonPolicy on every routable invocation. Full candidate and dependency evidence remains in the bounded result/event bytes. LifecycleStatus is Completed=2 for these Function projections; no Processing/Failed Function rows are written. History contains candidate completions only and uses the original event UTC date. Repeated projection uses identical IDs, payload hashes, timestamps and keys.
 
-The durable projection work item carries immutable routing/Portfolio/Fund/parameter metadata captured at acceptance. Where a standard lifecycle event lacks a field, obtain it from the committed acceptance record in the same invocation stream, never from latest Portfolio configuration. A missing acceptance record for a routable rejected command permits null unavailable metadata in its invocation projection; it cannot fabricate a Fund history row. Source sequence comes from authoritative persisted EventId/stream version, not receive time. Conflicting content under an identical event ID/sequence fails projection diagnostics.
+The completed Function event carries all immutable routing/Portfolio/Fund/parameter evidence from the frozen request. There is no separate selector acceptance record or durable projector work item. A projected row does not prove a completed PostgreSQL append or workflow acceptance. Observation must expose candidate projection versus accepted workflow result and suspected orphan status, as MarketCondition does. Never infer successful execution from source_sequence=1 alone. Exact result query wording refers to exact projected evidence; committed authority is verified against Function/workflow state when required.
+
 
 | Query | Inputs | Semantics |
 | --- | --- | --- |
-| GetTradeSelectionInvocationQuery | WorkflowId, InvocationId | Latest lifecycle row plus typed result/failure if present; absent is NotFound |
-| GetTradeSelectionResultQuery | WorkflowId, InvocationId, ResultId | Exact committed result; identity mismatch is NotFound/contract error, never latest substitution |
+| GetTradeSelectionInvocationQuery | WorkflowId, InvocationId | Exact projected completion evidence; absent is NotFound; no inferred workflow status |
+| GetTradeSelectionResultQuery | WorkflowId, InvocationId, ResultId | Exact projected result (acceptance reported separately); identity mismatch is NotFound/contract error, never latest substitution |
 | GetTradeSelectionHistoryPageQuery | PortfolioId, FundId, UTC ValueDate, PageSize, PagingState? | Terminal history, stable clustering order |
 
 PageSize default is 50, valid range 1-200. Paging tokens bind query scope, schema and page size; wrong-scope tokens fail validation. No ALLOW FILTERING or unbounded date-range scan. Finding history on another date is an explicit query. Initial schema has no automatic TTL; retention is a separate operational policy, not a hidden deletion default.
@@ -601,137 +516,124 @@ Queries report eventually consistent actor decisions; they do not assert workflo
 
 ## 16. Observability and operational controls
 
-Record workflow/invocation/source event IDs, Portfolio/Fund identities, target horizon, exact family/template/profile versions, input/result hashes, outcome, primary and all rejection reasons, timestamp/expiry and elapsed milliseconds. Preserve Activity/W3C propagation through existing correlation headers; do not start unrelated traces for projection retry.
+Record workflow/invocation/source IDs, Portfolio/Fund/assignment versions, single target horizon, exact deployment/strategy/structure/variant keys, policy and specialized schema/set hashes, input/result hashes, candidate count, ranking tuple, reasons, timestamps, expiry and elapsed milliseconds. Preserve existing Activity/W3C correlation through retries. Use bounded metric labels (horizon/outcome/reason); catalog GUIDs and workflow IDs belong in traces/logs.
 
-Metrics: selection duration, Completed Selected count, Completed NoTrade count by primary reason, failure count by stable category, projection backlog/age, duplicate/conflict count, reservation pending age and late-result discard count. Use bounded labels such as horizon, outcome and reason; workflow IDs and hashes belong in structured logs/traces.
+Expose selection duration, Selected/NoTrade/failure counts, candidate counts, duplicate/conflict counts, projection failure/orphan counts and reservation pending age. Queries distinguish committed selection from workflow acceptance/reservation. UI rendering is deferred until the five operators are code complete, followed by combined testing one stage at a time.
 
-No UI change is required for selector code completion. Read models enable the later observation view to distinguish Available assessment, selection outcome, pending composition reservation and construction/risk status. A Selected result alone is not an executable order or financial approval.
+Author three common draft policies explicitly, reusing the existing basic three families and their versioned structures/variants. Create only requested deployments/assignments with saved IDs and explicit permissions. Draft authoring is permitted before builder/risk capabilities exist; publication and operational qualification are not. This document does not populate or publish the user's catalog or authorize automatic trading.
 
-Initial profile seeding is an explicit authoring operation. Create three draft policies, three matching templates and exact assignments using actual existing product/family IDs. Resolve real construction descriptors. Publish only after schema/fixture checks. This specification neither seeds nor publishes them automatically on startup. Repeated setup reuses saved identities and refuses changed-payload collisions.
+## 17. Qualification fixtures
 
-## 17. Boundary fixtures and numerical verification
+These are the required qualification fixture groups; executed coverage is recorded in the implementation evidence. Preserve existing upstream, Portfolio and catalog regression coverage; replace the old TS-F01-TS-F24 single-template matrix with this catalog-aligned matrix. Fixture IDs identify families of parametrized tests and must appear in the implementation evidence.
 
-Use one accepted, immutable upstream/authority fixture per horizon with valid identities, versions, hashes and one exact assignment. A common positive baseline has Up direction, Established phase, Moderate strength, Acceptable quality, Normal regime volatility, Stable regime volatility change, Trending structure, no restrictions, regime confidence 0.75; Available Directional assessment with confidence 0.80, Healthy liquidity, Open session, Clear event context, Normal stress, Stable volatility, Aligned trigger and Healthy data quality. All timestamps are current relative to an injected clock. Baseline selection confidence is 0.750000.
-
-| Fixture | Change from valid baseline | Expected |
-| --- | --- | --- |
-| TS-F01 | Daily baseline | Selected Future/Long/DailyOutright |
-| TS-F02 | Daily Down | Selected Future/Short |
-| TS-F03 | Weekly Up | Selected OptionVertical/Bullish/WeeklyDebitVertical |
-| TS-F04 | Weekly Down | Selected OptionVertical/Bearish |
-| TS-F05 | Monthly Up | Selected IronCondor/Bullish/MonthlyDirectionalCreditCondor |
-| TS-F06 | Monthly Down | Selected IronCondor/Bearish |
-| TS-F07 | Both confidence values exactly 0.50 | Selected; confidence 0.500000 |
-| TS-F08 | Regime confidence 0.499999, otherwise valid | NoTrade TS.REGIME.CONFIDENCE |
-| TS-F09 | Assessment confidence 0.499999 | NoTrade TS.ASSESSMENT.CONFIDENCE |
-| TS-F10 | Assessment confidence null or 1.000001 | Failed, not NoTrade |
-| TS-F11 | Neutral regime direction | NoTrade TS.REGIME.DIRECTION; selected-only fields absent |
-| TS-F12 | Monthly Emerging trend phase | NoTrade TS.REGIME.PHASE |
-| TS-F13 | Closed session with Available assessment | NoTrade TS.ASSESSMENT.SESSION |
-| TS-F14 | Poor liquidity and Elevated event risk | Both rule rejections; liquidity reason first |
-| TS-F15 | Known Unknown StressState | NoTrade TS.EVIDENCE.UNKNOWN with StressState field |
-| TS-F16 | Unknown numeric StressState | Failed TS.CONTRACT.VALUE_RANGE |
-| TS-F17 | NoNewTrade inherited restriction | Workflow stops before selection; direct invocation fails TS.UPSTREAM.NOT_ELIGIBLE |
-| TS-F18 | Duplicate exact SystemKey but different family IDs | Only the assigned exact ID/version qualifies |
-| TS-F19 | Zero or two effective assignments | Configuration failure; no arbitrary first choice |
-| TS-F20 | Weekly option assignment with futures ITI trigger | Resolves options assignment and selects; no Futures-only filter |
-| TS-F21 | Parameter version retired after binding freeze | Existing workflow retains frozen version; new resolution rejects retired row |
-| TS-F22 | Disabled assigned template with intact authority | NoTrade TS.PERMISSION.DISABLED |
-| TS-F23 | Assessment expired exactly at now | Expiry failure/stop; no skew grace |
-| TS-F24 | Upstream schema/hash/context mismatch | Failed TS.UPSTREAM.INVALID; no downstream dispatch |
-
-Each fixture SHALL seal real payloads rather than mocking hash checks. Changes to an upstream decision must update all corresponding accepted envelope hashes, preserved assessment context and workflow references. Tests intended to provoke mismatch SHALL explicitly leave only the target link inconsistent.
-
-Numerical boundary tests additionally cover confidence 0 and 1, lower/upper parameter ranges, G29-equivalent decimals 0.50/0.5, enum set order, duplicate entries, integer overflow converting profile version, 2000 ms exact deadline and 30-second result lifetime capping. At baseline EvaluatedAt=12:00:00Z, assessment expiry=12:00:10Z, binding expiry=12:00:20Z and workflow expiry=12:00:15Z, selected validity is 12:00:10Z. A consumer at exactly that instant cannot continue.
-
-## 18. BDD scenarios
-
-```gherkin
-Feature: Single-timeframe authorized trade selection
-  Scenario Outline: Select the assigned directional template
-    Given a current accepted <horizon> regime and Available assessment
-    And one frozen authorized <variant> assignment with both confidences at least 0.50
-    When TradeSelection processes that workflow invocation
-    Then it completes with Selected for the exact assigned template and family version
-    And its direction follows the accepted regime
-    And its decision context is unchanged
-    Examples:
-      | horizon | variant                       |
-      | Daily   | DailyOutright                 |
-      | Weekly  | WeeklyDebitVertical           |
-      | Monthly | MonthlyDirectionalCreditCondor |
-
-  Scenario: Compatible evidence does not override Fund permission
-    Given valid accepted market evidence and an intact disabled assignment
-    When TradeSelection evaluates the invocation
-    Then it completes with NoTrade and TS.PERMISSION.DISABLED
-    And no composition reservation or builder is invoked
-
-  Scenario: Accepted Selected requires a committed composition reservation
-    Given a valid current Selected result
-    When the workflow accepts it
-    Then the workflow persists one reservation intent
-    And OrderComposition is not dispatched until the reservation is committed
-    And replay uses the same idempotency key and frozen snapshot revision
-
-  Scenario: Projection failure does not recalculate a decision
-    Given a committed Completed event whose Scylla projection fails
-    When durable projection recovers
-    Then the same event identity and result hash are projected and published
-    And the workflow advances at most once
-```
-
-## 19. Unit, integration and verification requirements
-
-| Test layer | Required evidence |
+| Fixture | Required evidence |
 | --- | --- |
-| Contract/unit | Complete parameter/default serialization; every omitted field; invalid/duplicate enums; typed result invariants; exact identity/version mapping; canonical hashes; immutable copies; deterministic rule order; all section 17 vectors |
-| Actor/unit | Absent/Processing/Completed/Failed transitions; input conflicts; stable IDs; optimistic append races; recovery from accepted input; expiry at receipt/commit; no external market/configuration calls in pure evaluation |
-| Workflow/unit | Strict typed result acceptance; outcome recomputation; NoTrade normal stop; one pending reservation; frozen versus continuation revisions; late/duplicate callbacks; no premature builder dispatch |
-| Configuration integration | Real PostgreSQL draft/publish/retire, exact-version lookup, immutable published payload, wrong-hash rejection, missing template/profile and repeated authoring identity |
-| Actor/projector integration | Real event-source transaction and durable work; Scylla unavailable/recovery; publish failure; crash after publish before acknowledgement; identical event replays; no status regression |
-| Query integration | Both Scylla access patterns, page limits and wrong-scope tokens, source-sequence ordering, original UTC history dates, authorized scope, NotFound vs empty history |
-| Portfolio integration | Actual snapshot resolver and composition reservation service; one-assignment behavior, future-option product resolution, same-key replay, expired/late reservations, retained integer IDs |
-| Pipeline verification | Capture actual Start/results over isolated actor transport; pass real accepted RD/assessment fixtures; accept Selected/NoTrade correctly; compare IDs/hashes at OrderComposition boundary |
+| TS-C01 | All twelve section 4 variants x Daily/Weekly/Monthly = 36 positive cases with compatible exact graph and Fund permission |
+| TS-C02 | Futures Up->Long and Down->Short; no futures candidate for Neutral |
+| TS-C03 | Bull-call debit, bear-call credit, bull-put credit, bear-put debit side/right/leg-sign semantics |
+| TS-C04 | Short/Long condors each Balanced/Bullish/Bearish; premium, topology, delta intent and wing symmetry remain independent |
+| TS-C05 | Neutral+RangeBound/Stable selects an authorized short balanced condor under the defaults |
+| TS-C06 | Neutral+VolatilityExpansion/Expanding selects an authorized long balanced condor under the defaults |
+| TS-C07 | Directional credit/debit eligibility follows the frozen categorical matrix; no option-chain/IV request |
+| TS-C08 | Each confidence at 0.499999, 0.500000 and 0.500001; below rejects, equality/above passes if otherwise eligible |
+| TS-C09 | Every common/candidate rule has an unfavorable and Unknown case; malformed required fields are Failed |
+| TS-C10 | Available but Poor/Closed/Elevated/Unusable becomes NoTrade under policy; unavailable/NoNewTrade direct entry fails |
+| TS-C11 | Multiple assignments are valid; lower numeric Fund Priority wins over variant Preference |
+| TS-C12 | Equal Fund priority uses lower variant Preference; rejected candidate never wins |
+| TS-C13 | Exact ties resolve by canonical GUID text/version/product/assignment tuple; collection/culture/task-order permutations preserve bytes/evidence |
+| TS-C14 | Shared family membership does not duplicate a candidate; repeated identity with conflicting hash fails |
+| TS-C15 | Zero assignments, empty permissions and all-disabled assignments yield explained NoTrade without publishing drafts |
+| TS-C16 | Multiple Fund ambiguity and duplicate overlapping assignment for the same deployment fail distinctly |
+| TS-C17 | Exact deployment permission: same name/new version/unassigned product is not authorized |
+| TS-C18 | Paused Fund/Portfolio and blocked envelope cannot be bypassed by confidence; unknown authority is Failed |
+| TS-C19 | Futures ITI can select FuturesOption deployment; explicit instrument-class/Portfolio vocabulary mapping |
+| TS-C20 | Schema-3 TradeTemplate fields equal deployment GUID/int-version; legacy schema and checked version overflow fail for new starts |
+| TS-C21 | Missing/retired/draft/corrupt authorized deployment, absent capability or mismatched graph edge fails whole binding |
+| TS-C22 | Same common policy across candidates; different ID/version/hash fails; zero candidates use pinned activation policy |
+| TS-C23 | Unique pipeline kind mapping preserves actual Role strings; duplicates by kind and conflicting assignment profiles fail |
+| TS-C24 | Exact specialized ParameterSet->ParameterSchema versions; complete rule replacement, invalid/duplicate/missing rule signature and prohibited override |
+| TS-C25 | Node/graph/policy/Portfolio/envelope hashes survive typed transport, replay and source collection ordering rules |
+| TS-C26 | Every required field omission/invalid schema/enum, duplicate JSON property, key/hash collision and forged Selected intent fails |
+| TS-C27 | Candidate/assignment/definition/depth/byte limits at boundary and +1; overflow cannot silently choose a truncated set |
+| TS-C28 | One trigger needs only its horizon; mismatched regime/assessment/deployment/policy rejected; family changes do not alter upstream |
+| TS-C29 | Exact expiry boundaries, timestamp skew, unchanged frozen revision and no invented regime validity |
+| TS-C30 | Typed NoTrade/Selected invariants, ordered candidate rejections versus eligible alternatives, invariant summaries |
+| TS-C31 | Same command/hash is idempotent; changed hash under same identity cannot replace outcome |
+| TS-C32 | Completed-only append, restart replay after expiry, map parity, ingress rejection and optimistic append conflict |
+| TS-C33 | Synchronous projection/append failure, orphan evidence, lost Function reply and same-request completion replay |
+| TS-C34 | Workflow validates winner against full frozen context; generic Completed and forged lower-ranked intent cannot dispatch |
+| TS-C35 | Reservation identity/hash/revision mapping uses selected deployment, not strategy; one order/trade instruction, not one trade per leg |
+| TS-C36 | Reservation response lost/replayed, expiry/cancel before callback, committed result before dispatch; no duplicate logical construction |
+| TS-C37 | Actual Scylla exact invocation/result/history, paging scope, orphan indication and separation of candidate projection from workflow acceptance |
+| TS-C38 | Production bootstrap resolves real selector services and fails unknown capabilities; fixture registry cannot leak into production |
+| TS-C39 | Existing source/wire/Portfolio hash vectors and strict resolver callers unchanged after dependency extraction |
+| TS-C40 | Before/after retirement and configuration races: new binding denied, accepted evidence immutable, explicit stop still prevents dispatch |
 
-Use the existing Domain.Trade UnitTests, BDDTests, IntegratedTests and VerificationTests projects, plus Portfolio/storage integration projects where those APIs live. Add tests to their appropriate owners instead of simulating every database with an in-memory dictionary. Use controllable time and isolated test subjects/keyspaces/schema fixtures; do not run business workflows or publish profiles in a user's active environment as a side effect of tests.
+For every positive variant fixture, use the authoritative example topology with explicitly valid test parameter values and qualified test-only capability validation, full upstream envelopes, exact authorized assignment and recomputed source hashes. A fixture is not a live deployment. Defaults only supply numbers; no test may invent missing identity by deserializer fallback. Rank tests exercise a mixed authorized set and a single-candidate set to ensure lower-priority variants can be selected when explicitly preferred or when alternatives are incompatible.
 
-Fault matrix SHALL include: crash before acceptance commit, after acceptance before evaluation, after terminal append before projection, between projection and publication, and after publication before durable acknowledgement. For each, assert one logical terminal result and no duplicate composition reservation/dispatch.
+## 18. BDD scenarios and authority boundaries
 
-No completed upstream stage or newly written documentation alone proves five-operator qualification. First complete selector code and isolated tests, then integrate the five operators one at a time as requested. Live broker connectivity and observation UI are not selector acceptance gates.
+1. Given an eligible ES Daily workflow with two permitted deployments, when the lower-numbered Fund priority has a compatible variant, select that exact deployment/version regardless of retrieval order.
+2. Given a futures signal and an authorized options deployment at the same horizon, evaluate all four vertical variants permitted by its graph; select at most one without requesting option contracts.
+3. Given a Neutral expanding-volatility assessment and permission for the long balanced condor, produce Long/Balanced/Debit intent. Given stable range evidence and short balanced permission, produce Short/Balanced/Credit intent.
+4. Given bullish/bearish evidence, choose only matching directional bias; long/short premium side never substitutes for directional permission.
+5. Given no permissions or all incompatible candidates, finish NoTrade with complete authority/evidence and no reservation.
+6. Given an enabled authorized candidate with an unsupported builder/data/evaluator requirement, fail binding explicitly; never silently select another known strategy.
+7. Given a projection failure, return failure without Function completion; given a committed completion and a lost reply, replay the same result and accept it once in the workflow. Given a lost reservation response, recover the saved idempotent request and same business IDs.
+8. Given identical frozen inputs after configuration changes, retain the accepted decision evidence; a new workflow binds only currently published exact dependencies. Explicit cancellation fences late handoff.
 
-## 20. Implementation work packages and completion criteria
+## 19. Test ownership and evidence
 
-| Package | Deliverable | Completion condition |
+Unit tests cover contracts, hashing, candidate enumeration, common policy, semantic rules, deterministic ranking, result acceptance and actor state transitions. BDD tests express section 18 outcomes. PostgreSQL integration tests exercise real catalog/policy lifecycle, exact graph resolution and frozen Portfolio authority. Scylla tests exercise projections and paging. NATS/event-source tests exercise actual Function request/reply, projection, completed append, workflow translation and reservation recovery boundaries. Verification tests capture source-to-accepted-handoff fixtures, with named downstream probes clearly distinguished from implemented Composer/risk operators.
+
+Record commands, source revision, nonzero discovered count, passed/failed/skipped count, fixture IDs and artifacts per gate. Do not claim passing integration from mocked storage, or operational trading support from fixture capabilities. A skipped external-service test remains missing evidence. Use only isolated owned schemas/subjects/tables; never delete current reference/market data to qualify selection.
+
+## 20. Work packages and completion criteria
+
+| Gate | Deliverable | Current status |
 | --- | --- | --- |
-| TS-01 | Shared enums, parameter/template/binding/result contracts, explicit serializers and validators | Golden serialization/hash tests; key compatibility; every required input defined |
-| TS-02 | ConfigurationDb typed policy/template storage and lifecycle; three complete draft factories | Exact-version resolution and actual storage tests; no automatic publication |
-| TS-03 | Portfolio selection binding resolver and workflow freeze/dispatch mapping | Single assignment, product-class and snapshot-hash/revision tests |
-| TS-04 | Pure deterministic evaluator, direction mapping, reasons and summaries | All boundary and positive/negative fixtures pass |
-| TS-05 | Command actor, authoritative state and durable lifecycle projection/publication | Restart, concurrency and failure matrix passes |
-| TS-06 | Typed workflow completion and idempotent Fund composition reservation | Selected/NoTrade/expiry and real reservation integration pass |
-| TS-07 | Scylla schema/projection/query contracts and API mapping | Query/paging/idempotence tests pass |
-| TS-08 | Isolated BDD/integration/verification suite and recorded evidence | Results recorded with environment and versions; no unsupported completion claims |
+| TS-01 | Dependency foundation, typed catalog/binding/result contracts, append-only transport and hash vectors | Complete; scoped qualification passed |
+| TS-02 | Typed common policy/activation reference, specialized schema rules, existing catalog integration and capability validation adapters | Complete; scoped qualification passed |
+| TS-03 | Selector-specific Portfolio authority, bounded exact deployment resolution, candidate freeze and workflow dispatch | Complete; scoped qualification passed |
+| TS-04 | Pure evaluator, all twelve variants, deterministic preference/ranking and complete evidence | Complete; scoped qualification passed |
+| TS-05 | Mapped completed-only Function actor and synchronous projection | Complete; scoped qualification passed |
+| TS-06 | Typed workflow acceptance and recovered Portfolio reservation/Composer intent handoff | Complete; scoped qualification passed |
+| TS-07 | Scylla repositories, scoped query actors/APIs and production registration | Complete; scoped qualification passed |
+| TS-08 | Isolated BDD/unit/integration/verification qualification across sections 17-19 | Complete; scoped qualification passed |
 
-The runtime consumer path SHALL be the full typed selector. The current candidate-filter helper may be retained as a private implementation detail only if its behavior agrees with this specification; it cannot be a second legacy fallback. No ranking or latest-definition repair path is introduced.
+Document readiness is complete when the catalog mapping, candidate policy, variants, numerical defaults, hashes, lifecycle and gate ownership are specified without unresolved selection-policy decisions. This revision meets that boundary. Selector code completeness requires all gates and applicable isolated tests to pass. Live publication/operation additionally requires actual downstream builder/risk/data capability implementations, published profiles and enabled authorized assignments. Those operational prerequisites do not block beginning TS-01 or implementing/testing selector code with explicit fixture dependencies.
 
-Code completion requires all TS-01 through TS-08 deliverables, build success for affected projects, passing required tests and a traceable list of any externally blocked runtime qualification. Operational profile publication, combined five-stage exercising and the future Strategy observation UI remain separate deliverables.
+## 21. Excluded work and next action
 
-## 21. Explicitly excluded work
+No new selector-only catalog, general-purpose scripting, cross-asset ranking, option-chain edge modeling, exact one-unit construction algorithm, financial sizing, live risk reservation, IBKR emulator/live integration, new UI or combined five-stage live qualification is included in this selector scope. Future strategies use new qualified capability implementations and exact catalog definitions; unsupported definitions may remain drafts without a schema change.
 
-V1 does not implement multiple-template ranking, family membership expansion, equities/non-ES selection, option-chain scoring, exact construction parameters, final sizing, financial policy calibration, cross-Fund netting, execution, IBKR emulator, UI changes or LLM summaries. Those boundaries remain explicit; they do not leave any selector input or tuning parameter unspecified.
+See the [implementation plan](TradeSelection-Implementation-Plan-v1.0.md) and [executed gate evidence](TradeSelection-Implementation-Evidence-v1.0.md). Operational activation requires published exact profiles and real downstream capabilities; the selector implementation does not auto-publish the catalog.
 
-Construction profiles are required real versioned dependencies. Their actual wing/delta/DTE/price settings and the availability of a complete downstream builder belong to OrderComposition work. Selector tests use immutable descriptors/fixtures with full provenance and do not present fixture descriptors as published production profiles.
+## 22. Verified source references
 
-## 22. Source verification references
+- [Catalog context operations](../../../../../../TomasAI.IFM.Application.Storage/ConfigurationDb/IConfigurationDbContext.StrategyCatalog.cs), [graph resolution](../../../../../../TomasAI.IFM.Application.Storage/ConfigurationDb/ConfigurationDbContext.StrategyCatalog.cs), [canonical validation](../../../../../../TomasAI.IFM.Application.Storage/ConfigurationDb/StrategyCatalog/StrategyCatalogValidation.cs).
+- [Catalog defaults](../../../../../../TomasAI.IFM.Domain.Reference.Shared/StrategyCatalog/StrategyCatalogDefaults.cs), [deployment choice](../../../../../../TomasAI.IFM.Domain.Strategy.Contracts.Shared/Reference/StrategyCatalog/StrategyDeploymentChoice.cs), [legacy-compatible exact reference](../../../../../../TomasAI.IFM.Domain.Strategy.Contracts.Shared/Reference/ViewModels/TradeStrategyFamilyReference.cs).
+- [Portfolio assignment validation](../../../../../../TomasAI.IFM.Domain.Portfolio/Command/Actor/PortfolioFundCommandActor.cs), [current strict resolver](../../../../../../TomasAI.IFM.Domain.Portfolio/Workflow/PortfolioFundStrategyResolver.cs), [composition aggregate](../../../../../../TomasAI.IFM.Domain.Portfolio/Workflow/PortfolioFundCompositionAggregate.cs).
+- [Start contract](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/Commands/StartTradeSelectionPipelineCommand.cs), [current helper](../MarketAssessmentSelectionConsumer.cs), [generic continuation](../../Command/CompleteTradeSelection.cs), [API capability registration](../../../../../../TomasAI.IFM.Application.Api.Server/Startup.cs).
 
-- [Existing Start command](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/Commands/StartTradeSelectionPipelineCommand.cs) and [pipeline routes](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Routing/IntrinsicTimeStrategyPipelineRoutes.cs).
-- [Regime result fields](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/RegimeDiscovery/Model/RegimeDiscoveryResults.cs) and [enums](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/RegimeDiscovery/Model/RegimeDiscoveryEnums.cs).
-- [Assessment models](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/MarketCondition/Assessment/MarketConditionAssessmentModels.cs), [acceptance contracts](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/MarketCondition/Assessment/MarketConditionAssessmentContracts.cs) and [parameter/hash implementation](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Pipeline/MarketCondition/Assessment/MarketConditionAssessmentParameters.cs).
-- [Portfolio snapshot and reservation contracts](../../../../../../TomasAI.IFM.Domain.Portfolio.Shared/Contracts/PortfolioWorkflowContracts.cs), [resolver](../../../../../../TomasAI.IFM.Domain.Portfolio/Workflow/PortfolioFundStrategyResolver.cs), [snapshot hash](../../../../../../TomasAI.IFM.Domain.Portfolio/Workflow/PortfolioCanonicalHash.cs) and [composition aggregate](../../../../../../TomasAI.IFM.Domain.Portfolio/Workflow/PortfolioFundCompositionAggregate.cs).
-- [Fund template assignments](../../../../../../TomasAI.IFM.Domain.Portfolio.Shared/ViewModels/FundTradeTemplateAssignmentReadModel.cs) and [family definition](../../../../../../TomasAI.IFM.Domain.Reference.Shared/ViewModels/TradeStrategyFamilyReadModel.cs).
-- [Configuration parameter kind/lifecycle](../../../../../../TomasAI.IFM.Application.Storage/ConfigurationDb/ConfigurationParameterSet.cs) and [schema initialization](../../../../../../TomasAI.IFM.Application.Storage/ConfigurationDb/Schema/ConfigurationSchemaDb.cs).
-- [Current selection helper](../MarketAssessmentSelectionConsumer.cs), [current workflow continuation](../../Command/CompleteTradeSelection.cs) and [generic result envelope](../../../../../../TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime/Model/StrategyStageResultEnvelope.cs).
-- [Durable projection marker](../../../../../../TomasAI.IFM.Shared/EventSourcing/IRequireDurableProjection.cs).
+Verification date 2026-09-07: implementation, test commands and results are recorded in the gate evidence.
 
-The source review distinguishes existing contracts/infrastructure from proposed selector implementation. Documentation validation covers links, schemas, default completeness, enum names and internal consistency; runtime tests listed here will be executed with the implementation.
+## 23. Implemented boundary details (2026-09-07)
+
+The runtime uses `TradeSelectionFunctionActor : BaseEventSourceFunctionActor` with frozen `_parseMap`, `_validationMap` and `_receiveMap`, an exact `Execute` request, a typed domain extension, completed-only PostgreSQL state, and a synchronous Scylla projector. It never publishes Function terminal events. Workflow acceptance recomputes the entire decision over the saved request before accepting its winner. Historical `StartTradeSelectionPipelineCommand` remains readable but has no active execution route.
+
+`SelectionConstructionPolicy` schema 1 is the implemented narrow owning payload for the exact OrderComposition parameter version: SchemaVersion, ParameterSetId, Version, MaximumLegs (1-4), MinimumDaysToExpiry (1+), MaximumDaysToExpiry (through 730), MinimumWingWidth, MaximumWingWidth (through 10000), DeltaUnits (`UnderlyingEquivalent`), and MaximumDeltaTolerance (0-1). All fields are required; unknown/duplicate fields fail. Decimal serialization is invariant G29. This describes declared construction constraints; it does not implement quotes, strike selection, sizing, builders or risk. `ISelectionConstructionProfileResolver` and `SelectionConstructionProfileReference.FromFrozen` validate the exact published policy against each allowed structure/variant. Publication and reads retain the full source payload/hash.
+
+Variant Settings require TargetNetDelta, BalanceTolerance, SymmetricWings, MinimumWingWidth, MaximumWingWidth and DeltaUnits. Future delta intent is +1/-1; options use underlying-equivalent delta. Balanced has zero target; Bullish/Bearish has the corresponding sign. Option wing widths must be positive. Semantic validators check the existing basic catalog leg keys and sides/rights, one expiry group and unit ratios. Example placeholder settings are authoring examples until qualified; their names never grant execution permission.
+
+The optional `TradeSelectionVariants` role must have its exact ParameterSchema with `validator/TradeSelectionVariants/1`; both the shape DSL and complete typed rule replacement are validated. Other required roles must have owning semantic validators. Unsupported production builder/risk requirements remain fail-closed.
+
+The saved engineering profile identities are Daily `ec56ea27-d625-4bb2-a6a1-f4ac3c2ef701`, Weekly `ec56ea27-d625-4bb2-a6a1-f4ac3c2ef702`, and Monthly `ec56ea27-d625-4bb2-a6a1-f4ac3c2ef703`, version 1. `TradeSelectionDefaultProfiles.EngineeringDefaults()` returns these three complete payloads without inserting or publishing them. Workflow options pin activation ID/version/hash for each chosen horizon; each activation pins its common selector profile. There is no selector lookup by latest timeframe.
+
+Assignment retrieval uses native Scylla pages of 64 within the exact Portfolio/Fund/mandate partition, retaining enabled and disabled effective rows matching root/horizon before asset filtering. It returns at most 16 rows plus a seventeenth overflow sentinel. A 4096 historical-row scan budget fails explicitly rather than truncating. Legacy strict resolution is unchanged.
+
+CandidateHash is lowercase SHA-256 over UTF-8 canonical candidate JSON with an empty CandidateHash, followed by UTF-8 of the exact deployment graph ContentHash. BindingHash covers canonical typed JSON of the wire-normalized binding with its own hash empty, after canonical selector-set ordering. New typed-evidence hashes use invariant G29 decimal values so JSON event storage cannot change identity merely by decimal scale. Envelope PayloadSha256 still covers exact MessagePack payload bytes. Original catalog and Portfolio hash algorithms remain unchanged; the Portfolio snapshot property uses a scoped JSON converter to retain its original decimal spelling and defensive-copy semantics. Historical trigger constructor defaults are normalized once by a MessagePack round trip before dispatch is saved.
+
+`RedispatchCurrentStrategyPipelineCommand` reloads the authoritative workflow and republishes its saved intent only when workflow/revision/stage still match. It preserves the original Function request, reservation request, idempotency key, timestamps and deadline. A lost transport response does not turn a possibly committed result into rejection while recovery remains possible. Reservation waits are bounded by the fixed result deadline; late replies are observed and recorded as stopped reservations, and terminal workflows reconcile open Portfolio orders to Expired without reusing identities. Explicit redispatch is the restart/reconciliation entry point; no new automatic scheduler is introduced. The existing workflow snapshot projector remains conventional. After a projector/notification outage, operators invoke redispatch against the current PostgreSQL state; Scylla candidate projections are never approval authority.
+
+Before executing a saved selector/composer notification, realtime loads the current PostgreSQL workflow and compares execution ID, revision, stage, running status and handoff status. Delayed snapshots from stopped or superseded workflows do not dispatch. A stop racing after this read remains a downstream acceptance concern: OrderComposition must fence its command against the current workflow and Portfolio order before any irreversible action. Repeated notification uses one deterministic command ID; delivery is at-least-once, not an exactly-once network guarantee.

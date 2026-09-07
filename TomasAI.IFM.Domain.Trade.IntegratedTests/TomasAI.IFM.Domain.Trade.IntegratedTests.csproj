@@ -32,6 +32,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.Actor.IntegrationTests\TomasAI.IFM.Application.Actor.IntegrationTests.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio\TomasAI.IFM.Domain.Portfolio.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Caching\TomasAI.IFM.Framework.Caching.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
@@ -43,6 +44,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\MarketCondition\AssessmentFixture.cs" Link="Fixtures\AssessmentFixture.cs" />
+    <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\TradeSelection\TradeSelectionFixture.cs" Link="Fixtures\TradeSelectionFixture.cs" />
     <Using Include="Xunit" />
   </ItemGroup>
 

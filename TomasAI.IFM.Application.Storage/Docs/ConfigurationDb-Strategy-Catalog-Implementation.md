@@ -1,8 +1,8 @@
 # ConfigurationDb Strategy Catalog Implementation
 
-Revised: 2026-09-06
+Revised: 2026-09-07
 
-This implements the [strategy catalog design](ConfigurationDb-Strategy-Catalog-Design-v1.0.md), Reference command/query integration, the replacement Reference UI and exact deployment references in Portfolio configuration. TradeSelection TS-01 through TS-08 remain on hold; catalog integration does not implement trading algorithms.
+This implements the [strategy catalog design](ConfigurationDb-Strategy-Catalog-Design-v1.0.md), Reference command/query integration, the replacement Reference UI and exact deployment references in Portfolio configuration. TradeSelection specification/plan v1.1 are now aligned with this implementation and ready for TS-01; coding gates TS-01 through TS-08 are not started. Catalog integration does not implement trading algorithms.
 
 ## Storage and physical model
 
@@ -81,7 +81,7 @@ Fund mandates, assignments and Portfolio risk policies write schema-v3 exact Dep
 
 Legacy UI and storage implementations are retained, marked Legacy and removed from normal authoring routes. Historical rows and contracts are not deleted. The [retirement register](../../TomasAI.IFM.Domain.Reference/Docs/Strategy-Catalog-Legacy-Retirement.md) separates code eligible for removal after user UI verification from historical evidence that still needs retention.
 
-Fund authorization, risk allocation, reservations and workflow activation remain Portfolio-owned. A catalog snapshot is evidence, not a permission grant. No broker/emulator integration is changed. Actual evaluator/builder capabilities and TradeSelection algorithm gates remain deferred.
+Fund authorization, risk allocation, reservations and workflow activation remain Portfolio-owned. A catalog snapshot is evidence, not a permission grant. No broker/emulator integration is changed. TradeSelection evaluator and selector capability adapters are implemented. Actual downstream builder/risk algorithms remain separately qualified dependencies; unsupported production capabilities still prevent publication.
 
 ## Verification
 
@@ -118,3 +118,14 @@ The actual Development maintenance process ran successfully against configured P
 ### Three-default presentation correction
 
 `StrategyCatalogDefaults` replaces the generic startup grouping with Futures, Vertical Spreads and Iron Condor. Reference defaults to these named families and their supporting definitions; the full catalog is an explicit display option. The initial UI update hid integration fixtures; the subsequently requested Development cleanup removed those fixtures, the obsolete generic starter definitions and their unused imported drafts. Normal startup restores only the 22 default/supporting definitions; explicit legacy maintenance imports target the corresponding named strategy. Earlier verification counts above describe the initial 18-definition seed.
+
+## TradeSelection documentation alignment (2026-09-07)
+
+The [selector specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Specification-v1.0.md) and [implementation plan](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Implementation-Plan-v1.0.md) now reuse the physical model above. Schema-3 TradeTemplate fields map to Deployment, parameter roles remain deployment-level, and exact node/graph/policy hashes are frozen for bounded multi-candidate selection. The common policy supports all twelve initial variants on any one of Daily, Weekly or Monthly. Selection-specific typed policy/transport/resolver/evaluator capabilities are planned additions, not existing context behavior. No catalog schema or data was changed by this documentation update.
+
+
+## Trade Selection integration (2026-09-07)
+
+ConfigurationDb now owns strict typed TradeSelection, TradeSelectionActivation and narrow SelectionConstructionPolicy payloads over the existing parameter tables. Draft authoring, exact ID/version/hash resolution, publication and retirement retain lifecycle guards; published rows are immutable. Catalog graph validation calls the owning payload validators and real selector capability registry. Unsupported builder/risk capabilities remain publication failures. Three saved engineering defaults are explicit authoring payloads; application startup does not insert or publish them.
+
+Pure Portfolio/catalog DTOs now reside in Domain.Strategy.Contracts.Shared with original namespaces, MessagePack keys and public type forwarders from their original assemblies. Storage and Trade share the original canonical algorithms without a project cycle. See the TradeSelection implementation evidence for captured pre-extraction wire/hash vectors and live PostgreSQL lifecycle checks.

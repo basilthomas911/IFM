@@ -84,6 +84,9 @@ WHERE parameter_set_id = $3 AND version = $4 AND status = $5;
     {
         var table = kind switch
         {
+            StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow => "intrinsic_time_strategy_workflow_parameter_set",
+            StrategyParameterSetKind.OrderComposition => "order_composition_parameter_set",
+            StrategyParameterSetKind.TradeSelection => "trade_selection_parameter_set",
             StrategyParameterSetKind.RegimeDiscovery => "regime_discovery_parameter_set",
             StrategyParameterSetKind.MarketCondition => "market_condition_parameter_set",
             StrategyParameterSetKind.MarketConditionAssessment => "market_condition_assessment_parameter_set",

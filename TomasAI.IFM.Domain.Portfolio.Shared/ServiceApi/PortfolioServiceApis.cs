@@ -115,6 +115,7 @@ public interface IPortfolioFinancialPolicyCommandApi
 
 public interface IPortfolioQueryApi
 {
+    Task<ServiceResult<PortfolioFundStrategySnapshot>> ResolveForSelectionAsync(int portfolioId, int? fundId, int tradingYear, string decisionHorizon, string underlyingRoot, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default) => throw new NotSupportedException("Selection resolution is unavailable.");
     Task<ServiceResult<PortfolioReadModel>> GetPortfolioAsync(int portfolioId, long? version = null, CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioAggregateRevision>> GetPortfolioRevisionAsync(int portfolioId, CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioPage<PortfolioReadModel>>> GetPortfoliosAsync(PortfolioOperatingState? state, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default);

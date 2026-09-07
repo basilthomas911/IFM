@@ -32,6 +32,7 @@ using GetLegacyPortfolioScopesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Querie
 using GetPortfolioFinancialPoliciesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPoliciesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>>;
 using GetPortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPolicyRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>;
 using GetPortfolioFundStrategyReferenceCombinationsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategyReferenceCombinationsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioFundStrategyReferenceCombination[]>;
+using ResolveForSelectionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.ResolveForSelectionRequest, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot>;
 using GetPortfolioFundStrategySnapshotQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategySnapshotRequest, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot>;
 using GetPortfolioQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel>;
 using GetPortfolioRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRevisionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioAggregateRevision>;
@@ -81,6 +82,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         [PortfolioQueryVerbs.GetFundAllocation] = static message => message.AsQuery<GetFundAllocationQuery, FundAllocationReadModel>()!,
         [PortfolioQueryVerbs.GetFundRiskEnvelope] = static message => message.AsQuery<GetFundRiskEnvelopeQuery, FundRiskEnvelopeReadModel>()!,
         [PortfolioQueryVerbs.GetFundTemplateAssignments] = static message => message.AsQuery<GetFundTemplateAssignmentsQuery, FundTradeTemplateAssignmentReadModel[]>()!,
+        [PortfolioQueryVerbs.ResolveForSelection] = static message => message.AsQuery<ResolveForSelectionQuery, PortfolioFundStrategySnapshot>()!,
         [PortfolioQueryVerbs.GetPortfolioFundStrategySnapshot] = static message => message.AsQuery<GetPortfolioFundStrategySnapshotQuery, PortfolioFundStrategySnapshot>()!,
         [PortfolioQueryVerbs.GetFundOrderByOrderId] = static message => message.AsQuery<GetFundOrderByOrderIdQuery, FundOrderProjectionReadModel>()!,
         [PortfolioQueryVerbs.GetFundOrderTradeByTradeId] = static message => message.AsQuery<GetFundOrderTradeByTradeIdQuery, FundOrderTradeProjectionReadModel>()!,
@@ -159,6 +161,13 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
                 var typed = (GetFundTemplateAssignmentsQuery)query;
                 return ReplyAsync(context, typed, actor._service.GetAssignmentsAsync(
                     typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.MandateVersion, cancellationToken));
+            },
+            [typeof(ResolveForSelectionQuery)] = static (actor, context, query, cancellationToken) =>
+            {
+                var p = ((ResolveForSelectionQuery)query).Parameters;
+                return ReplyAsync(context, (ResolveForSelectionQuery)query, actor._service.ResolveForSelectionAsync(
+                    p.PortfolioId, p.FundId, p.TradingYear, p.DecisionHorizon, p.UnderlyingRoot, p.AsOfUtc,
+                    p.WorkflowId, p.WorkflowRevision, p.CorrelationId, cancellationToken));
             },
             [typeof(GetPortfolioFundStrategySnapshotQuery)] = static (actor, context, query, cancellationToken) =>
             {

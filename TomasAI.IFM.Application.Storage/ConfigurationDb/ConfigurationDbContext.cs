@@ -86,6 +86,24 @@ public sealed partial class ConfigurationDbContext(
         CancellationToken cancellationToken = default)
     {
         ValidateLifecycleArguments(parameterSetId, version, effectiveFromUtc, nameof(effectiveFromUtc));
+        if(kind==StrategyParameterSetKind.OrderComposition)
+        {
+            var row=await GetSelectionPipelinePolicyAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition,parameterSetId,version,cancellationToken).ConfigureAwait(false)
+                ??throw new InvalidOperationException("Exact construction constraints are missing.");
+            TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts.ValidatePipelinePolicy(row);
+        }
+        if (kind == StrategyParameterSetKind.TradeSelection)
+            _ = await GetTradeSelectionVersionAsync(parameterSetId, version, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Exact TradeSelection policy is missing.");
+        if(kind==StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow)
+        {
+            var row=await GetSelectionPipelinePolicyAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow,parameterSetId,version,cancellationToken).ConfigureAwait(false)
+                ??throw new InvalidOperationException("Missing workflow activation.");
+            var activation=TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection.TradeSelectionActivation.Read(row.PayloadJson);
+            if(activation.Hash()!=row.PayloadSha256 || activation.ParameterSetId!=parameterSetId || activation.Version!=version)throw new InvalidOperationException("Workflow activation hash/identity mismatch.");
+            var selector=await ResolveTradeSelectionVersionAsync(activation.SelectionPolicyReference.Id,activation.SelectionPolicyReference.Version,activation.SelectionPolicyReference.PayloadSha256,effectiveFromUtc,cancellationToken).ConfigureAwait(false);
+            if(selector.ParameterSet.TargetHorizon!=activation.TargetHorizon || selector.ParameterSet.InstrumentRoot!=activation.InstrumentRoot)throw new InvalidOperationException("Activation selector scope mismatch.");
+        }
         var sql = ConfigurationDbSql.PublishFor(kind);
         var affected = await dbFactory.ConfigurationDb
             .Use($"{nameof(ConfigurationDbSql)}.Publish.{kind}", sql)

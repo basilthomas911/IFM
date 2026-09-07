@@ -3,7 +3,7 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
 **Created:** 2026-08-14  
-**Last updated:** 2026-08-29
+**Last updated:** 2026-09-07
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -1102,6 +1102,8 @@ parity.
 
 ### 13.3 FunctionActor convention
 
+**2026-09-07 alignment:** Market Condition and planned Trade Selection must use the shared `BaseEventSourceFunctionActor` and all three maps below. A custom `IFunctionActor` host that duplicates the lifecycle does not satisfy this convention. Stage-specific load/projection/persistence hooks may preserve deadlines; they must not reorder the lifecycle or add Function event publication.
+
 A FunctionActor executes bounded calculation work as one Core NATS request/reply operation. Its
 request is an ordinary `ICommand<TEntityId>`, but its subject uses `ActorType.Function`. The typed
 reply contains exactly one `TCompletedEvent` or `TFailedEvent` in
@@ -1138,7 +1140,7 @@ completions for one Function execution stream.
 The effective Function deadline is the earliest of the request deadline, owning workflow deadline,
 and any frozen execution deadline. Exact-boundary timeout wins over completion. Caller cancellation
 remains distinguishable from a Function timeout, and late workers must be cancelled and observed so
-they cannot project, persist, or leak an unobserved exception after the request has terminated.
+they cannot start subsequent projection/persistence stages or leak an unobserved exception after the request has terminated. An already-started storage write may commit after client cancellation; callers must reconcile authoritative state, not assume timeout rolled back the database.
 
 The projector is optional at the generic base boundary. When it is absent, a completed result goes
 directly to completed-state persistence. When present, projection must finish before persistence.

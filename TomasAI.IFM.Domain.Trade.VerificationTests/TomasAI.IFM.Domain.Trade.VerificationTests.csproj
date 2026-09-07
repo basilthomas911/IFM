@@ -38,4 +38,10 @@
   </ItemGroup>
 
 <ItemGroup><Compile Include="..\test-support\MarketAssessmentTestScenario.cs" Link="Support\MarketAssessmentTestScenario.cs" /></ItemGroup>
+<ItemGroup>
+ <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio\TomasAI.IFM.Domain.Portfolio.csproj" />
+ <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\MarketCondition\AssessmentFixture.cs" Link="Fixtures\AssessmentFixture.cs" />
+ <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\TradeSelection\TradeSelectionFixture.cs" Link="Fixtures\TradeSelectionFixture.cs" />
+ <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\TradeSelection\TradeSelectionTestInputs.cs" Link="Fixtures\TradeSelectionTestInputs.cs" />
+</ItemGroup>
 </Project>

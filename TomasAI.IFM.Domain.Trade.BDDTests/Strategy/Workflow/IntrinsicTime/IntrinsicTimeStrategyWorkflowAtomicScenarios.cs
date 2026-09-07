@@ -119,19 +119,14 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
 
     /// <summary>Given an available assessment, the workflow selects Trade Selection exactly once.</summary>
     [Fact]
-    public void Available_assessment_continues_to_trade_selection()
+    public async Task Available_assessment_continues_to_trade_selection()
     {
-        var scenario = new Scenario(TimeFrameType.Daily);
-        scenario.AdvanceToMarketCondition(StartedAt);
-
-        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), AssessmentAvailability.Available);
-
-        scenario.State.CurrentView.Should().BeEquivalentTo(new
-        {
-            Status = WorkflowStrategyMachineStatus.Started,
-            Outcome = StrategyWorkflowOutcome.None,
-            CurrentStage = StrategyWorkflowStage.TradeSelection
-        });
+        var selection=await TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionFixture.Command();
+        var view=selection.WorkflowView with {CurrentStage=StrategyWorkflowStage.MarketCondition,WorkflowRevision=2,TradeSelection=new(),MarketCondition=selection.WorkflowView.MarketCondition with {ProcessingStatus=StrategyActorProcessingStatus.Processing,Result=null,SourceEventId=Guid.Empty}};
+        var state=new IntrinsicTimeStrategyWorkflowCommandState();state.Apply(new WorkflowStrategyStateUpdatedEvent {EntityId=view.EntityId,WorkflowId=view.WorkflowId,WorkflowRevision=view.WorkflowRevision,State=view},false);
+        new CompleteMarketConditionCommand {CommandId=Guid.NewGuid(),EntityId=view.EntityId,WorkflowId=view.WorkflowId,InputWorkflowRevision=2,SourceEventId=selection.AssessmentResultEnvelope.ResultId,Result=selection.AssessmentResultEnvelope,CompletedAtUtc=selection.EvaluatedAtUtc}.Execute(Context(selection.EvaluatedAtUtc),state);
+        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Started,state.CurrentView.TradeSelection.Failure?.ErrorMessage);
+        state.CurrentView.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);state.CurrentView.SelectionDispatch.Should().NotBeNull();
     }
 
     /// <summary>Given unavailable required market data, Market Condition completes the workflow as NoTrade.</summary>

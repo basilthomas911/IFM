@@ -13,25 +13,29 @@ public interface IMarketConditionFunctionContext : IFunctionActorContext<MarketC
 {
     TimeProvider TimeProvider { get; }
     ILogger<MarketConditionFunctionActor> Logger { get; }
-    MarketConditionAssessmentHandler AssessmentHandler { get; }
+    IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand> StateRepository { get; }
+    IFunctionProjector<MarketConditionAssessmentCompletedEvent> FunctionProjector { get; }
+    IMarketConditionAssessmentSnapshotProvider SnapshotProvider { get; }
 }
 
 public sealed class MarketConditionFunctionContext : FunctionActorContext,
     IFunctionActorContext<MarketConditionFunctionActor>, IMarketConditionFunctionContext
 {
-    readonly Lazy<MarketConditionAssessmentHandler> _assessment;
+    readonly Lazy<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>> _repository;
+    readonly Lazy<IFunctionProjector<MarketConditionAssessmentCompletedEvent>> _projector;
+    readonly Lazy<IMarketConditionAssessmentSnapshotProvider> _snapshots;
     public MarketConditionFunctionContext(IActorSupervisor supervisor,
         ILogger<MarketConditionFunctionActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Function, MarketConditionFunctionActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger); TimeProvider = TimeProvider.System;
-        _assessment = new(() => new MarketConditionAssessmentHandler(
-            Container.Resolve<IMarketConditionAssessmentSnapshotProvider>(),
-            Container.Resolve<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>>(),
-            Container.Resolve<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>(),
-            Container.Resolve<ILogger<MarketConditionAssessmentHandler>>(), TimeProvider));
+        _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>>());
+        _projector = new(() => Container.Resolve<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>());
+        _snapshots = new(() => Container.Resolve<IMarketConditionAssessmentSnapshotProvider>());
     }
     public ILogger<MarketConditionFunctionActor> Logger { get; }
     public TimeProvider TimeProvider { get; }
-    public MarketConditionAssessmentHandler AssessmentHandler => _assessment.Value;
+    public IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand> StateRepository => _repository.Value;
+    public IFunctionProjector<MarketConditionAssessmentCompletedEvent> FunctionProjector => _projector.Value;
+    public IMarketConditionAssessmentSnapshotProvider SnapshotProvider => _snapshots.Value;
 }

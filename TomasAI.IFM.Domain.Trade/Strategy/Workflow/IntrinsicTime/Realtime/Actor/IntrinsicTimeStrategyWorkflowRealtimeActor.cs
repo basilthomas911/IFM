@@ -23,7 +23,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Acto
 
 /// <summary>Requests workflows from eligible ITI triggers and executes only committed Started pipeline snapshots.</summary>
 /// <remarks>
-/// This stateless actor has no replay, resume, or redispatch. For Regime Discovery it owns the direct Function
+/// This stateless actor consumes committed notifications, including explicit workflow redispatch. For Regime Discovery it owns the direct Function
 /// request and translates the typed terminal reply into a Strategy Workflow complete or fail command.
 /// </remarks>
 public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
@@ -69,6 +69,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 var snapshot = (WorkflowStrategyStateUpdatedEvent)@event;
                 if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })
                     await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
+                else if(snapshot.State.CompositionHandoff is not null)
+                    await ReconcileStoppedSelectionAsync(context,snapshot).ConfigureAwait(false);
             }
         };
 
@@ -81,10 +83,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         {
             [StrategyWorkflowStage.RegimeDiscovery] = ExecuteRegimeDiscoveryAsync,
             [StrategyWorkflowStage.MarketCondition] = ExecuteMarketConditionAsync,
-            [StrategyWorkflowStage.TradeSelection] = static (context, snapshot) =>
-                ExecuteLaterPipelineAsync<StartTradeSelectionPipelineCommand>(
-                    context, snapshot, StartTradeSelectionPipelineCommand.Actor,
-                    StartTradeSelectionPipelineCommand.Verb, StartTradeSelectionPipelineCommand.ErrorId),
+            [StrategyWorkflowStage.TradeSelection] = ExecuteSelectionAsync,
             [StrategyWorkflowStage.OrderComposition] = static (context, snapshot) =>
                 ExecuteLaterPipelineAsync<StartOrderCompositionPipelineCommand>(
                     context, snapshot, StartOrderCompositionPipelineCommand.Actor,
@@ -153,9 +152,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         var workflowId = StrategyWorkflowId.New(ActorContext.TimeProvider);
         var entityId = IntrinsicTimeStrategyWorkflowEntityId.Create(trigger.EntityId);
         var triggerId = trigger.Id == Guid.Empty ? trigger.CommandId : trigger.Id;
-        var requestedAtUtc = trigger.CreatedOn == default
-            ? ActorContext.TimeProvider.GetUtcNow().UtcDateTime
-            : trigger.CreatedOn;
+        var requestedAtUtc = ActorContext.TimeProvider.GetUtcNow().UtcDateTime;
         var resolved = await ActorContext.ConfigurationDb
             .ResolveEffectiveRegimeDiscoveryAsync(requestedAtUtc, trigger.EntityId.TimePeriod).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
@@ -181,6 +178,14 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             }
         }
 
+        var activationRef=ActorContext.Options.Activations.SingleOrDefault(x=>x.Horizon==trigger.EntityId.TimePeriod)
+            ??throw new InvalidOperationException("Pin an exact workflow activation for this horizon before starting selection workflows.");
+        var activation=await ActorContext.ConfigurationDb.ResolveTradeSelectionActivationAsync(activationRef.Id,activationRef.Version,activationRef.PayloadSha256,requestedAtUtc).ConfigureAwait(false);
+        var portfolio=await ActorContext.PortfolioQueries.ResolveForSelectionAsync(activation.PortfolioId,activation.FundId,trigger.CreatedOn.Year,
+            trigger.EntityId.TimePeriod.ToString(),activation.InstrumentRoot,requestedAtUtc,workflowId.Value,1,
+            trigger.CommandId==Guid.Empty?triggerId:trigger.CommandId).ConfigureAwait(false);
+        if(!portfolio.Success || portfolio.Value is null)throw new InvalidOperationException("Selection authority resolution failed: "+portfolio.ErrorMessage);
+        var selection=await new TradeSelection.TradeSelectionBindingResolver(ActorContext.ConfigurationDb).ResolveAsync(portfolio.Value,activation.SelectionPolicyReference,DateOnly.FromDateTime(trigger.CreatedOn)).ConfigureAwait(false);
         var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = triggerId == Guid.Empty
@@ -197,7 +202,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             WorkflowDefinitionVersion = 1,
             RegimeDiscoveryParameterSet = resolved.ParameterSet,
             RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256,
-            FundId = ActorContext.Options.FundId,
+            FundId = portfolio.Value.Fund.FundId,
+            SelectionBinding = selection,
             AssessmentBinding = new() { Parameters = assessment.ParameterSet, PayloadSha256 = assessment.PayloadSha256 }
         };
         await context.SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
@@ -211,11 +217,27 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         var view = snapshot.State;
         if (view.Status != WorkflowStrategyMachineStatus.Started)
             return;
+        if (view.CurrentStage is StrategyWorkflowStage.TradeSelection or StrategyWorkflowStage.OrderComposition)
+        {
+            var read = new RedispatchCurrentStrategyPipelineCommand
+            {
+                EntityId = view.EntityId,
+                Subject = WorkflowSubject(RedispatchCurrentStrategyPipelineCommand.Verb, view.EntityId)
+            };
+            var current = await RequireEventContext(context).WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
+            if (!IsCurrentSelectionNotification(view, current.CurrentView)) return;
+        }
         if (!_pipelineExecutionMap.TryGetValue(view.CurrentStage, out var execute))
             throw new InvalidOperationException(
                 $"No pipeline execution handler is registered for workflow stage {view.CurrentStage}.");
         await execute(context, snapshot).ConfigureAwait(false);
     }
+
+    internal static bool IsCurrentSelectionNotification(IntrinsicTimeStrategyWorkflowView notification, IntrinsicTimeStrategyWorkflowView? current)
+        => current is { Status: WorkflowStrategyMachineStatus.Started }
+            && current.EntityId == notification.EntityId && current.WorkflowId == notification.WorkflowId
+            && current.WorkflowRevision == notification.WorkflowRevision && current.CurrentStage == notification.CurrentStage
+            && current.CompositionHandoff?.Status == notification.CompositionHandoff?.Status;
 
     static async ValueTask ExecuteRegimeDiscoveryAsync(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
@@ -322,9 +344,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             view.WorkflowRevision);
         var route = IntrinsicTimeStrategyPipelineRoutes.Get(view.CurrentStage);
         var input = new LaterPipelineInput(view, snapshot.Id, commandId, route.BoundedContext);
-        await context.SendAsync<TCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-            CreateLaterStart<TCommand>(input, actor, verb, errorCode),
-            view.EntityId).ConfigureAwait(false);
+        var command=CreateLaterStart<TCommand>(input,actor,verb,errorCode);
+        if(command is StartOrderCompositionPipelineCommand composition)
+            TradeSelection.TradeSelectionHandoff.ValidateStart(composition,RequireEventContext(context).TimeProvider.GetUtcNow().UtcDateTime);
+        await context.SendAsync<TCommand, IntrinsicTimeStrategyWorkflowEntityId>(command,view.EntityId).ConfigureAwait(false);
     }
 
     /// <summary>Builds the deterministic Regime Execute command only from a committed Started/Regime snapshot.</summary>
@@ -382,8 +405,17 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         Set(command, "CausationId", input.CausationId);
         Set(command, "RequestedAtUtc", view.UpdatedAtUtc);
         Set(command, "ExpectedCompletionAtUtc", view.ExpiresAtUtc);
-        if (command is StartTradeSelectionPipelineCommand selection)
-            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentContracts.ValidateForSelection(selection,view.UpdatedAtUtc);
+        if(command is StartOrderCompositionPipelineCommand composition)
+        {
+            var handoff=view.CompositionHandoff??throw new ArgumentException("Missing committed composition reservation.");
+            // Notification IDs change on redispatch; the committed reservation transition remains the cause.
+            Set(composition, nameof(composition.CausationId), view.CausationId);
+            Set(composition,nameof(composition.AcceptedSelection),view.TradeSelection.Result);
+            Set(composition,nameof(composition.SelectionBinding),view.SelectionBinding);
+            Set(composition,nameof(composition.Reservation),handoff.Reservation);
+            Set(composition,nameof(composition.ExpectedCompletionAtUtc),(DateTime?)handoff.Request.ExpiresAtUtc);
+            TradeSelection.TradeSelectionHandoff.ValidateStart(composition,view.UpdatedAtUtc);
+        }
         return command;
     }
 
@@ -409,7 +441,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         FundId = view.FundId,
         MarketConditionParameterSet = view.MarketConditionParameterSet,
         MarketConditionParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
-        AssessmentBinding = view.AssessmentBinding
+        AssessmentBinding = view.AssessmentBinding,
+        SelectionBinding = view.SelectionBinding, CompositionHandoff = view.CompositionHandoff, SelectionDispatch = view.SelectionDispatch
     };
 
     static void Set(object target, string property, object? value)

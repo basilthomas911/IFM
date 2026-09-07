@@ -124,7 +124,7 @@ public abstract class BaseEventSourceFunctionActor<
             await ValidateAsync(_context, threadId, request, cancellationToken).ConfigureAwait(false);
 
             stage = FunctionFailureStage.Loading;
-            var state = await _stateRepository.LoadStateAsync(request, cancellationToken).ConfigureAwait(false);
+            var state = await LoadFunctionStateAsync(request, cancellationToken).ConfigureAwait(false);
             state.Id = threadId;
             if (state.IsCompleted)
             {
@@ -154,11 +154,8 @@ public abstract class BaseEventSourceFunctionActor<
                     try
                     {
                         stage = FunctionFailureStage.Projection;
-                        if (_functionProjector is not null)
-                        {
-                            await _functionProjector.ProjectAsync(completed, cancellationToken)
-                                .ConfigureAwait(false);
-                        }
+                        await ProjectFunctionResultAsync(request, completed, cancellationToken)
+                            .ConfigureAwait(false);
 
                         stage = FunctionFailureStage.Persistence;
                         await SaveFunctionStateAsync(
@@ -203,7 +200,7 @@ public abstract class BaseEventSourceFunctionActor<
     }
 
     /// <summary>Persists the one completed Function event without invoking a denormalizer.</summary>
-    protected async ValueTask SaveFunctionStateAsync(
+    protected virtual async ValueTask SaveFunctionStateAsync(
         IFunctionActorContext<TActor> context,
         ActorThreadId threadId,
         TState state,
@@ -223,6 +220,15 @@ public abstract class BaseEventSourceFunctionActor<
             request,
             cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Loads completed-only state; a derived actor may bound the read without changing replay order.</summary>
+    protected virtual ValueTask<TState> LoadFunctionStateAsync(TRequest request, CancellationToken cancellationToken)
+        => _stateRepository.LoadStateAsync(request, cancellationToken);
+
+    /// <summary>Projects a candidate completion before persistence; a derived actor may enforce its deadline.</summary>
+    protected virtual ValueTask ProjectFunctionResultAsync(
+        TRequest request, TCompletedEvent completed, CancellationToken cancellationToken)
+        => _functionProjector?.ProjectAsync(completed, cancellationToken) ?? ValueTask.CompletedTask;
 
     protected TRequest ParseMappedFunction(
         IFunctionActorContext<TActor> context,

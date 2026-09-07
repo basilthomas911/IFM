@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -46,6 +48,9 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
     [Key(12)] public DateTime RequestedAtUtc { get; init; }
     /// <summary>Gets the optional UTC pipeline completion deadline.</summary>
     [Key(13)] public DateTime? ExpectedCompletionAtUtc { get; init; }
+    [Key(14)] public StrategyStageResultEnvelope? AcceptedSelection {get;init;}
+    [Key(15)] public TradeSelectionBinding? SelectionBinding {get;init;}
+    [Key(16)] public FundCompositionReservationResult? Reservation {get;init;}
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(StartOrderCompositionPipelineCommand);
@@ -96,7 +101,7 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
         Guid correlationId,
         Guid causationId,
         DateTime requestedAtUtc,
-        DateTime? expectedCompletionAtUtc)
+        DateTime? expectedCompletionAtUtc,StrategyStageResultEnvelope? acceptedSelection=null,TradeSelectionBinding? selectionBinding=null,FundCompositionReservationResult? reservation=null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -112,5 +117,6 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
         CausationId = causationId;
         RequestedAtUtc = requestedAtUtc;
         ExpectedCompletionAtUtc = expectedCompletionAtUtc;
+        AcceptedSelection=acceptedSelection;SelectionBinding=selectionBinding;Reservation=reservation;
     }
 }

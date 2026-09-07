@@ -1,5 +1,12 @@
 # Trade Domain Actor Implementation
 
+## IntrinsicTime Function alignment - 2026-09-07
+
+MarketCondition now uses `BaseEventSourceFunctionActor` with immutable `_parseMap`, exact-type `_validationMap` and `_receiveMap`. The execution extension owns market snapshot capture/calculation; the base owns completed-only replay, synchronous projection, completed append and direct typed reply. Narrow stage hooks preserve deadlines and caller cancellation. No independent assessment handler hosts a duplicate actor lifecycle. [Current MarketCondition plan](../Strategy/Workflow/IntrinsicTime/MarketCondition/Docs/MarketCondition-Implementation-Plan-v2.0.md) records verification.
+
+TradeSelection now implements the same mapped `BaseEventSourceFunctionActor` convention: frozen parse/validation/receive maps, typed context/domain extension, completed-only PostgreSQL state and synchronous Scylla projection. Its earlier Command actor/durable Function EventProjector proposal is superseded. Workflow command actors retain durable workflow status, exact dispatch intent and composition reservation recovery. [Implementation evidence](../Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Implementation-Evidence-v1.0.md) records the selector qualification and operational boundaries.
+
+
 ## Purpose
 
 `TomasAI.IFM.Domain.Trade` combines the event-sourced option-trade actor pipeline with trade query/command APIs, order and plan logic, position workflows, and intrinsic-time strategy orchestration.

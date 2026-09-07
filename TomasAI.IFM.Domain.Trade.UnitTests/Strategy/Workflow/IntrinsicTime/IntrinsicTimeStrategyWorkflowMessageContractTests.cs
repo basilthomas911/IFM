@@ -41,6 +41,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         nameof(CompleteRegimeDiscoveryCommand),
         nameof(CompleteRiskManagementCommand),
         nameof(CompleteTradeSelectionCommand),
+        nameof(CompleteTradeSelectionReservationCommand),
         nameof(ExecuteIntrinsicTimeStrategyWorkflowCommand),
         nameof(FailMarketConditionCommand),
         nameof(FailOrderCompositionCommand),
@@ -323,6 +324,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         if (type == typeof(string[]))
             return new[] { "VALID_RESULT", "PROCEED" };
 
+        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
+        if(type==typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult)) return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
         throw new InvalidOperationException(
             $"No ITSW-3 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

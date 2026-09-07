@@ -113,6 +113,59 @@ public sealed class PortfolioQueryService(
     public async Task<ServiceResult<FundTradeTemplateAssignmentReadModel[]>> GetAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, CancellationToken cancellationToken = default) =>
         new ServiceOk<FundTradeTemplateAssignmentReadModel[]>([.. await _db.GetAssignmentsAsync(Positive(portfolioId), Positive(fundId), Positive(mandateVersion), 200, cancellationToken).ConfigureAwait(false)]);
 
+    public async Task<ServiceResult<PortfolioFundStrategySnapshot>> ResolveForSelectionAsync(int portfolioId, int? fundId, int tradingYear, string decisionHorizon, string underlyingRoot, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            Utc(asOfUtc);
+            var portfolio = await _db.GetPortfolioAsync(Positive(portfolioId), cancellationToken).ConfigureAwait(false)
+                ?? throw new PortfolioResolutionException("PortfolioMissing", "Portfolio was not found.");
+            var policy = await _db.GetActivePolicyAsync(portfolioId, cancellationToken).ConfigureAwait(false)
+                ?? throw new PortfolioResolutionException("FinancialPolicyMissing", "The Portfolio has no Active financial policy.");
+            FundMandateReadModel[] funds;
+            if (fundId.HasValue)
+            {
+                var selected = await _db.GetFundAsync(Positive(fundId.Value), cancellationToken).ConfigureAwait(false)
+                    ?? throw new PortfolioResolutionException("FundMissing", "The pinned Fund was not found.");
+                funds = [selected];
+            }
+            else
+            {
+                // Inspect complete bounded pages before filtering; no asset class is selected here.
+                var matching = new List<FundMandateReadModel>();
+                var after = 0;
+                for (var page = 0; ; page++)
+                {
+                    if (page == 50) throw new PortfolioResolutionException("FundResolutionLimit", "Fund enumeration exceeded the bounded resolution limit; pin a Fund explicitly.");
+                    var rows = await _db.GetFundsByPortfolioAsync(portfolioId, after, 200, cancellationToken).ConfigureAwait(false);
+                    matching.AddRange(rows.Where(x => x.TradingYear == tradingYear && x.DecisionHorizon == decisionHorizon
+                        && x.UnderlyingUniverse.Contains(underlyingRoot, StringComparer.OrdinalIgnoreCase)
+                        && x.EffectiveFromUtc <= asOfUtc && (x.EffectiveUntilUtc is null || asOfUtc < x.EffectiveUntilUtc)));
+                    if (matching.Count > 1) throw new PortfolioResolutionException("FundAmbiguous", "Pin the Fund when multiple effective mandates match.");
+                    if (rows.Count < 200) break;
+                    var next = rows.Max(x => x.FundId);
+                    if (next <= after) throw new PortfolioResolutionException("FundPagingInvalid", "Fund paging made no progress.");
+                    after = next;
+                }
+                funds = [.. matching];
+            }
+            var fund = funds.SingleOrDefault() ?? throw new PortfolioResolutionException("FundMissing", "No effective Fund matches the root and horizon.");
+            if (fund.PortfolioId != portfolioId) throw new PortfolioResolutionException("FundMismatch", "Fund belongs to another Portfolio.");
+            var allocation = await _db.GetCurrentAllocationAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
+            var envelope = await _db.GetCurrentRiskEnvelopeAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
+            // Read at most sixteen matching effective assignments plus an overflow sentinel, before asset filtering.
+            var assignments=await _db.GetSelectionAssignmentsAsync(portfolioId,fund.FundId,fund.FundMandateVersion,decisionHorizon,underlyingRoot,asOfUtc,cancellationToken).ConfigureAwait(false);
+            return new ServiceOk<PortfolioFundStrategySnapshot>(_resolver.ResolveForSelection(workflowId, workflowRevision, correlationId,
+                portfolio, policy, funds, allocation is null ? [] : [allocation], envelope is null ? [] : [envelope],
+                assignments, tradingYear, decisionHorizon, underlyingRoot, asOfUtc, fundId));
+        }
+        catch (PortfolioResolutionException ex)
+        {
+            return new ServiceFailed<PortfolioFundStrategySnapshot>(ex.ReasonCode.Contains("Ambiguous", StringComparison.Ordinal)
+                ? PortfolioErrorCodes.ConfigurationAmbiguous : PortfolioErrorCodes.ConfigurationMissing, $"{ex.ReasonCode}: {ex.Message}");
+        }
+    }
+
     public async Task<ServiceResult<PortfolioFundStrategySnapshot>> GetStrategySnapshotAsync(int portfolioId, int tradingYear, string decisionHorizon, string underlyingRoot, string assetType, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default)
     {
         try

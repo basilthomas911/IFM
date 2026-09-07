@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using System.Collections.Immutable;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -572,6 +574,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "A concrete workflow stage is required.")
         };
 
+    static T? CopySelection<T>(T? value) where T:class => value is null?null:MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value));
+
     static IntrinsicTimeStrategyWorkflowState CloneWorkflow(IntrinsicTimeStrategyWorkflowState source)
         => source with
         {
@@ -579,7 +583,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             MarketCondition = CloneStage(source.MarketCondition),
             TradeSelection = CloneStage(source.TradeSelection),
             OrderComposition = CloneStage(source.OrderComposition),
-            RiskManagement = CloneStage(source.RiskManagement)
+            RiskManagement = CloneStage(source.RiskManagement),
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch)
         };
 
     static IntrinsicTimeStrategyWorkflowView CloneView(IntrinsicTimeStrategyWorkflowView source)
@@ -593,7 +598,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             TriggerEvent = CloneTrigger(source.TriggerEvent),
             RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
-            AssessmentBinding = source.AssessmentBinding
+            AssessmentBinding = source.AssessmentBinding,
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch)
         };
 
     static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source)
@@ -634,7 +640,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             FundId = source.FundId,
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
             MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256,
-            AssessmentBinding = source.AssessmentBinding
+            AssessmentBinding = source.AssessmentBinding,
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch)
         };
 
     static StrategyWorkflowStageState CloneStage(StrategyWorkflowStageState source)

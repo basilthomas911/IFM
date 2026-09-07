@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -96,4 +98,7 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     [Key(20)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
     [Key(21)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
     [Key(22)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
+    [Key(23)] public TradeSelectionBinding? SelectionBinding {get;init;}
+    [Key(24)] public WorkflowCompositionHandoffState? CompositionHandoff {get;init;}
+    [Key(25)] public ExecuteTradeSelectionPipelineCommand? SelectionDispatch {get;init;}
 }
