@@ -305,7 +305,21 @@ public abstract class NatsEventProducer : IEventProducer
             (!string.IsNullOrWhiteSpace(subject.EntityId) &&
              !subject.EntityId.Equals("none", StringComparison.OrdinalIgnoreCase)));
 
+    // Only literal values are immutable. Other members retain reflection's current-value/exception behavior.
+    static readonly ConcurrentDictionary<(Type, string), Func<string?>> RouteReaders = new();
+
     internal static string? GetPublicStaticRouteValue(Type eventType, string memberName)
+        => RouteReaders.GetOrAdd((eventType, memberName), static key =>
+        {
+            const BindingFlags flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+            var field = key.Item1.GetField(key.Item2, flags);
+            if (field is { IsLiteral: true, FieldType: var fieldType } && fieldType == typeof(string)
+                && field.GetRawConstantValue() is string value)
+                return () => value;
+            return () => ReadPublicStaticRouteValue(key.Item1, key.Item2);
+        })();
+
+    static string? ReadPublicStaticRouteValue(Type eventType, string memberName)
     {
         const BindingFlags flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
         if (eventType.GetField(memberName, flags)?.GetValue(null) is string fieldValue)

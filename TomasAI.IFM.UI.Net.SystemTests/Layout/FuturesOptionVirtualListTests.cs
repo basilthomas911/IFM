@@ -83,6 +83,10 @@ public sealed class FuturesOptionVirtualListTests
         Assert.Equal(Color.Black.ToArgb(), list.BackColor.ToArgb());
         Assert.Equal(200, vm.FuturesOptionContracts.Count);
         Assert.Equal(contracts[0].ContractId, list.Items[0].Text);
+        var firstRow = list.Items[0];
+        Assert.Same(firstRow, list.Items[0]);
+        Assert.Equal(contracts[128].ContractId, list.Items[128].Text);
+        Assert.Equal(contracts[0].ContractId, list.Items[0].Text); // A cache collision must not return another contract.
         Assert.True(editor.CanChangeRemove);
         await api.Received(1).GetFuturesOptionContractsPageAsync(Arg.Any<GetFuturesOptionContractsPageParameter>(), Arg.Any<CancellationToken>());
 
@@ -99,9 +103,14 @@ public sealed class FuturesOptionVirtualListTests
         list.SelectedIndices.Add(190);
         Assert.True(editor.CanChangeRemove);
         Assert.Equal(200, vm.FuturesOptionContracts.Count);
+        var loadingRow = list.Items[200];
+        Assert.Equal("Loading more...", loadingRow.Text);
         nextPage.SetResult(new ServiceOk<FuturesOptionContractPageReadModel>(new(contracts[200..], null)));
         await WaitUntilAsync(() => list.VirtualListSize == 205);
         Assert.Equal(190, list.SelectedIndices[0]);
+        Assert.NotSame(loadingRow, list.Items[200]);
+        Assert.Equal(contracts[200].ContractId, list.Items[200].Text);
+        Assert.Same(list.Items[200], list.Items[200]);
         Assert.Equal(contracts[204].ContractId, list.Items[204].Text);
         Assert.False(vm.HasMoreContracts);
         await api.Received(2).GetFuturesOptionContractsPageAsync(Arg.Any<GetFuturesOptionContractsPageParameter>(), Arg.Any<CancellationToken>());

@@ -1,5 +1,7 @@
 # Portfolio Administration layout and Fund metrics
 
+The Create Fund and Change Fund editors label their strategy permission list **Permitted Strategy Deployments**. Each choice references an exact ConfigurationDb deployment GUID and version, including its configured products, timeframe, variants and parameters.
+
 Underlyings, Asset Types, Directions and Market Conditions use the shared [checked dropdown](Checked-Dropdown-Control.md), with a read-only comma-separated selection summary. The list sources are the published Databento product index and the grouped [ConfigurationDb lookup definitions](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Lookup-Definitions.md). CSV entry is no longer required or permitted in these four controls.
 
 The main area has three equal-width columns: **Portfolios**, **Funds**, and **Selected Fund Details**. The first list selects a Portfolio, the second lists its Fund mandates, and the third shows Fund information plus Allocation, Risk Envelope and Trade Assignments tabs. Each section has its own wrapping action toolbar. The columns resize together; grids retain scrolling for longer records.

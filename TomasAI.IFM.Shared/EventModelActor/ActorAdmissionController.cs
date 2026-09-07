@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
@@ -20,6 +21,16 @@ public sealed class ActorAdmissionController
     readonly long[] _typeByteLimits;
     readonly long[] _typeMessages;
     readonly long[] _typeBytes;
+    const int StripeCount = 32;
+    readonly ObservationStripe[]? _observation;
+
+    // Separate producer stripes by two cache lines to reduce false sharing.
+    [StructLayout(LayoutKind.Explicit, Size = 128)]
+    struct ObservationStripe
+    {
+        [FieldOffset(0)] public long Messages;
+        [FieldOffset(8)] public long Bytes;
+    }
     long _messages;
     long _bytes;
 
@@ -42,13 +53,26 @@ public sealed class ActorAdmissionController
             _typeMessageLimits[(int)actorType] = limits.MessageLimit;
             _typeByteLimits[(int)actorType] = limits.ByteLimit;
         }
+        // Only unlimited observation mode uses striped telemetry. All bounded/enforced accounting is unchanged.
+        if (_mode == ActorAdmissionMode.ObserveOnly && _globalMessageLimit == 0 && _globalByteLimit == 0
+            && _maximumPayloadBytes == 0 && _typeMessageLimits.All(x => x == 0) && _typeByteLimits.All(x => x == 0))
+            _observation = new ObservationStripe[ActorTypeCapacity * StripeCount];
     }
 
     internal static ActorAdmissionController Disabled => DisabledController;
     public ActorAdmissionMode Mode => _mode;
     public bool IsEnabled => _mode != ActorAdmissionMode.Disabled;
-    internal long CurrentMessageCount => Volatile.Read(ref _messages);
-    internal long CurrentByteCount => Volatile.Read(ref _bytes);
+    internal long CurrentMessageCount => _observation is null ? Volatile.Read(ref _messages) : SumObservation(false);
+    internal long CurrentByteCount => _observation is null ? Volatile.Read(ref _bytes) : SumObservation(true);
+
+    // Diagnostics are exact when quiescent; concurrent reads are not an atomic snapshot.
+    long SumObservation(bool bytes)
+    {
+        long total = 0;
+        foreach (ref var stripe in _observation.AsSpan())
+            total += bytes ? Volatile.Read(ref stripe.Bytes) : Volatile.Read(ref stripe.Messages);
+        return total;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ActorAdmissionResult TryReserve(
@@ -65,6 +89,15 @@ public sealed class ActorAdmissionController
         if (_mode == ActorAdmissionMode.Enforce)
             return TryReserveEnforced(actorType, actorTypeIndex, payloadBytes, out charge);
 
+        if (_observation is not null)
+        {
+            var index = actorTypeIndex * StripeCount + (Environment.CurrentManagedThreadId & (StripeCount - 1));
+            Interlocked.Increment(ref _observation[index].Messages);
+            Interlocked.Add(ref _observation[index].Bytes, payloadBytes);
+            ActorRuntimeMetrics.RecordAdmissionAccepted(actorType, payloadBytes);
+            charge = new ActorAdmissionCharge(true, actorType, payloadBytes) { StripeIndex = index };
+            return ActorAdmissionResult.AcceptedResult;
+        }
         var messages = Interlocked.Increment(ref _messages);
         var bytes = Interlocked.Add(ref _bytes, payloadBytes);
         var typeMessages = Interlocked.Increment(ref _typeMessages[actorTypeIndex]);
@@ -100,6 +133,13 @@ public sealed class ActorAdmissionController
         if (!charge.IsTracked)
             return;
 
+        if (_observation is not null)
+        {
+            Interlocked.Decrement(ref _observation[charge.StripeIndex].Messages);
+            Interlocked.Add(ref _observation[charge.StripeIndex].Bytes, -charge.PayloadBytes);
+            ActorRuntimeMetrics.RecordAdmissionReleased(charge.ActorType, charge.PayloadBytes);
+            return;
+        }
         var actorTypeIndex = NormalizeActorType(charge.ActorType);
         Interlocked.Decrement(ref _messages);
         Interlocked.Add(ref _bytes, -charge.PayloadBytes);
@@ -199,4 +239,8 @@ public sealed class ActorAdmissionController
             : (int)ActorType.Unknown;
 }
 
-readonly record struct ActorAdmissionCharge(bool IsTracked, ActorType ActorType, int PayloadBytes);
+readonly record struct ActorAdmissionCharge(bool IsTracked, ActorType ActorType, int PayloadBytes)
+{
+    // Release may run on a different thread than reservation.
+    public int StripeIndex { get; init; }
+}

@@ -426,13 +426,23 @@ public class NatsActorProducer(
         }
     }
 
-    CancellationTokenSource CreateOperationCancellation(CancellationToken cancellationToken)
+    // Borrow the producer's shutdown token when no caller token needs linking. Disposing this scope
+    // releases only its own linked source; the producer owns the shutdown source across requests.
+    readonly struct OperationCancellation(CancellationToken token, CancellationTokenSource? ownedSource) : IDisposable
+    {
+        public CancellationToken Token { get; } = token;
+        public void Dispose() => ownedSource?.Dispose();
+    }
+
+    OperationCancellation CreateOperationCancellation(CancellationToken cancellationToken)
     {
         var operationStopping = _operationStopping
             ?? throw new InvalidOperationException("The NATS actor producer is not running.");
-        return CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            operationStopping.Token);
+        var stoppingToken = operationStopping.Token;
+        if (!cancellationToken.CanBeCanceled)
+            return new OperationCancellation(stoppingToken, null);
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stoppingToken);
+        return new OperationCancellation(linked.Token, linked);
     }
 
     static void EnsureCoreSubject(ActorSubject subject, ActorType expectedActorType)

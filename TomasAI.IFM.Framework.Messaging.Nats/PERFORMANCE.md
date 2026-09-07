@@ -18,3 +18,13 @@ The top ten findings from the performance review and their implementation status
 The command and query stages of the inbound owned-memory migration are complete. Ownership transfers exactly once from the NATS consumer to striped dispatch, then to the actor mailbox. A rejected handoff disposes at the sender; accepted messages are disposed by the actor thread, and the actor releases the payload as soon as typed deserialization finishes. Queue shutdown also drains and disposes pending messages.
 
 Query reply metadata is retained independently of the request payload, and each query context entry is atomically removed on reply or terminal failure. This prevents both the legacy request-buffer retention and the previous unbounded context-entry retention. Events remain last because routed event delivery can fan out to multiple mailboxes and therefore needs an explicit shared/ref-counted ownership design rather than a single-owner transfer.
+
+## Route metadata, request cancellation and durable type resolution
+
+`NatsEventProducer` caches public string constants used to derive Actor/Verb routes. Explicit event subjects still bypass derivation. Mutable static fields and property getters retain their existing read and exception behavior.
+
+`NatsActorProducer` borrows the producer's shutdown token when a request has no caller cancellation token. Requests with caller cancellation still own a linked source. Disposing a request scope releases only its linked source; the producer continues to own its shutdown source, and stopping the producer cancels both kinds of in-flight requests.
+
+`NatsJSDurableReplayQueue` caches successful, validated event-type resolutions by assembly-qualified name across process and replay deliveries. It still deserializes each envelope and event independently, supports legacy JSON, and rejects unresolved types or types that do not implement `IEvent`. The wire format and acknowledgement boundary are unchanged. Both metadata caches retain entries for the process lifetime and move reflection work to first use.
+
+Regression coverage includes mutable/inherited route members, concurrent binary/legacy deserialization, invalid types, cancellation-source ownership, broker-backed in-flight request cancellation and requests after producer restart. Local before/after benchmarks measure these operations independently of broker latency; they do not establish end-to-end messaging throughput.

@@ -714,12 +714,19 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     static string CreateReplayMessageId(string eventProjectorName, byte[] processPayload) =>
         $"{eventProjectorName}:replay:{Convert.ToHexString(SHA256.HashData(processPayload))}";
 
+    // Reuse successful type resolution across process/replay deliveries. Invalid types are never cached.
+    static readonly ConcurrentDictionary<string, Type> EventTypes = new(StringComparer.Ordinal);
+
     static IEvent Deserialize(byte[] payload)
     {
         var envelope = DeserializeEnvelope(payload);
-        var eventType = Type.GetType(envelope.EventType, throwOnError: true)!;
-        if (!typeof(IEvent).IsAssignableFrom(eventType))
-            throw new InvalidOperationException($"Envelope type '{eventType}' does not implement {nameof(IEvent)}.");
+        var eventType = EventTypes.GetOrAdd(envelope.EventType, static name =>
+        {
+            var type = Type.GetType(name, throwOnError: true)!;
+            if (!typeof(IEvent).IsAssignableFrom(type))
+                throw new InvalidOperationException($"Envelope type '{type}' does not implement {nameof(IEvent)}.");
+            return type;
+        });
         object? domainEvent = envelope.PayloadFormat switch
         {
             DurablePayloadFormat.MessagePack => MessagePackSerializer.Deserialize(

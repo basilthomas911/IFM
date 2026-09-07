@@ -37,11 +37,14 @@ sealed class ActorReadyQueue
     public async IAsyncEnumerable<ActorThreadId> ReadAllAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var threadId in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            Interlocked.Decrement(ref _scheduledCount);
-            ActorRuntimeMetrics.RecordReadyDequeued(threadId.ActorType);
-            yield return threadId;
+            while (_channel.Reader.TryRead(out var threadId))
+            {
+                Interlocked.Decrement(ref _scheduledCount);
+                ActorRuntimeMetrics.RecordReadyDequeued(threadId.ActorType);
+                yield return threadId;
+            }
         }
     }
 

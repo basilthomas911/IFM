@@ -24,6 +24,10 @@ public partial class FuturesOptionContractEditorControl
     readonly MarketDataViewModel _mktDataViewModel;
     EditMode _editMode;
     int _lastContractIndex;
+    // UI-thread-only, bounded independently of the number of loaded contract pages.
+    readonly ListViewItem?[] _rowCache = new ListViewItem?[128];
+    readonly int[] _rowIndices = new int[128];
+    IReadOnlyList<FuturesOptionContractReadModel>? _rowSequence;
     string? _originalContractId;
     Action<bool>? _dataLoaded;
     Action<bool>? _addAction;
@@ -60,7 +64,7 @@ public partial class FuturesOptionContractEditorControl
         lstFuturesOptionContractIds.RetrieveVirtualItem += (_, e) =>
         {
             var contract = _viewModel.GetFuturesOptionContract(e.ItemIndex);
-            e.Item = new ListViewItem(contract?.ContractId ?? (_pageFailed ? "Retry loading (double-click)" : "Loading more..."));
+            e.Item = GetCachedRow(e.ItemIndex, contract?.ContractId ?? (_pageFailed ? "Retry loading (double-click)" : "Loading more..."));
             if (e.ItemIndex >= _viewModel.FuturesOptionContracts.Count - 20) QueueNextPage();
         };
         lstFuturesOptionContractIds.CacheVirtualItems += (_, e) =>
@@ -85,6 +89,24 @@ public partial class FuturesOptionContractEditorControl
         lstFuturesOptionContractIds.ContextMenuStrip = menu;
         components?.Add(menu);
         DarkTradingTheme.Apply(menu);
+    }
+
+    ListViewItem GetCachedRow(int index, string text)
+    {
+        // Loading/restarting a page replaces the viewmodel's immutable row sequence.
+        if (!ReferenceEquals(_rowSequence, _viewModel.FuturesOptionContracts))
+        {
+            Array.Clear(_rowCache);
+            _rowSequence = _viewModel.FuturesOptionContracts;
+        }
+
+        var slot = index % _rowCache.Length;
+        if (_rowCache[slot] is { } existing && _rowIndices[slot] == index && existing.Text == text)
+            return existing;
+
+        // The text check also refreshes the loading/retry sentinel without a page change.
+        _rowIndices[slot] = index;
+        return _rowCache[slot] = new ListViewItem(text);
     }
 
     /// <summary>

@@ -46,6 +46,8 @@ The editor follows [Dark Trading Theme](Dark-Trading-Theme.md): Microsoft Sans S
 
 ## Portfolio and Fund use
 
+The Fund editor labels its permission list **Permitted Strategy Deployments**, matching the ConfigurationDb deployment records it selects.
+
 Mandate permissions, assignment selection and policy limit rows now use exact ConfigurationDb Deployment GUID/version references. The UI retains old permissions as unavailable entries requiring an explicit replacement; a matching name does not grant a new permission. New policy deployment limits start disabled with zero amounts, and new Fund assignments start disabled. Assignment product/timeframe/profile fields come from the selected deployment.
 
 Schema-v3 Fund assignments use the next Fund aggregate revision as their assignment version, under the existing expected-revision concurrency guard. This allows assignment creation after legacy history and across mandate versions. A disabled draft assignment does not block a later enabled assignment; overlapping enabled assignments for the same deployment within one mandate remain invalid.

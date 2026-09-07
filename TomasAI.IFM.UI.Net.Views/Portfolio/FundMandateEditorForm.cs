@@ -18,7 +18,7 @@ public sealed class FundMandateEditorForm : DarkTradingForm
     readonly CheckedDropdown _assets = new() { AccessibleName = "Eligible asset types" };
     readonly CheckedDropdown _directions = new() { AccessibleName = "Permitted directions" };
     readonly CheckedDropdown _conditions = new() { AccessibleName = "Permitted market conditions" };
-    readonly CheckedListBox _families = new() { AccessibleName = "Permitted trade families", Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, HorizontalScrollbar = true, BackColor = PortfolioUiStyle.DataSurface, ForeColor = PortfolioUiStyle.Foreground, BorderStyle = BorderStyle.FixedSingle };
+    readonly CheckedListBox _families = new() { AccessibleName = "Permitted Strategy Deployments", Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, HorizontalScrollbar = true, BackColor = PortfolioUiStyle.DataSurface, ForeColor = PortfolioUiStyle.Foreground, BorderStyle = BorderStyle.FixedSingle };
     readonly HashSet<TradeStrategyFamilyReference> _activeFamilyReferences;
     readonly Label _error = new() { Dock = DockStyle.Fill, ForeColor = Color.MistyRose, AutoEllipsis = true };
     readonly FundMandateReadModel? _source;
@@ -67,7 +67,7 @@ public sealed class FundMandateEditorForm : DarkTradingForm
         Add(body, 3, "Operating State", _state); Add(body, 4, "Decision Horizon", _horizon); Add(body, 5, "Objective", _objective);
         Add(body, 6, "Underlyings", _underlyings); Add(body, 7, "Asset Types", _assets);
         Add(body, 8, "Directions", _directions); Add(body, 9, "Market Conditions", _conditions);
-        Add(body, 10, "Permitted Trade Families", _families);
+        Add(body, 10, "Permitted Strategy Deployments", _families);
         body.Controls.Add(_error, 0, 11); body.SetColumnSpan(_error, 2);
         var save = PortfolioUiStyle.Button("Save", "Save Fund mandate"); var cancel = PortfolioUiStyle.Button("Cancel", "Cancel Fund edit");
         save.Click += (_, _) => Save(); cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };

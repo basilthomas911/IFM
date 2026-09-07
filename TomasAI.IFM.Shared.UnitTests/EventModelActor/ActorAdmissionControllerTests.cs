@@ -236,6 +236,80 @@ public sealed class ActorAdmissionControllerTests
         controller.CurrentByteCount.Should().Be(0);
     }
 
+    [Fact]
+    public async Task UnlimitedObservation_ConcurrentReservationsReleasedOnAnotherThread_BalanceExactly()
+    {
+        var controller = new ActorAdmissionController(new() { Mode = ActorAdmissionMode.ObserveOnly });
+        var charges = new ConcurrentBag<ActorAdmissionCharge>();
+        await Task.Run(() => Parallel.For(0, 4096, index =>
+        {
+            // Include unknown types and nonpositive payloads to check normalization.
+            var actorType = index % 2 == 0 ? ActorType.Query : (ActorType)999;
+            var bytes = index % 2 == 0 ? 10 : -1;
+            controller.TryReserve(new SizedActorMessage(bytes), actorType, out var charge)
+                .Accepted.Should().BeTrue();
+            charges.Add(charge);
+        }));
+        controller.CurrentMessageCount.Should().Be(4096);
+        controller.CurrentByteCount.Should().Be(20480);
+        var release = new System.Threading.Thread(() =>
+        {
+            foreach (var charge in charges)
+                controller.Release(charge);
+        });
+        release.Start();
+        release.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
+        controller.CurrentMessageCount.Should().Be(0);
+        controller.CurrentByteCount.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("global_message_limit")]
+    [InlineData("global_byte_limit")]
+    [InlineData("actor_type_message_limit")]
+    [InlineData("actor_type_byte_limit")]
+    [InlineData("payload_too_large")]
+    public void BoundedObservation_PreservesWouldRejectMetrics(string expectedReason)
+    {
+        var reasons = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == ActorRuntimeMetrics.MeterName
+                && instrument.Name == "ifm.actor.admission.would_reject")
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+                if (tag.Key == "reason" && tag.Value is string reason)
+                    reasons.Add(reason);
+        });
+        listener.Start();
+        var options = new ActorAdmissionOptions { Mode = ActorAdmissionMode.ObserveOnly, DefaultMailboxMessageLimit = 1 };
+        switch (expectedReason)
+        {
+            case "global_message_limit": options.GlobalMessageLimit = 1; break;
+            case "global_byte_limit": options.GlobalByteLimit = 10; break;
+            case "actor_type_message_limit":
+                options.ActorTypes[ActorType.Query] = new() { MessageLimit = 1 }; break;
+            case "actor_type_byte_limit":
+                options.ActorTypes[ActorType.Query] = new() { ByteLimit = 10 }; break;
+            case "payload_too_large": options.MaximumPayloadBytes = 9; break;
+        }
+        var controller = new ActorAdmissionController(options);
+        var message = new SizedActorMessage(10);
+        controller.TryReserve(message, ActorType.Query, out var first).Accepted.Should().BeTrue();
+        controller.TryReserve(message, ActorType.Query, out var second).Accepted.Should().BeTrue();
+        reasons.Should().Contain(expectedReason);
+        controller.CurrentMessageCount.Should().Be(2);
+        controller.CurrentByteCount.Should().Be(20);
+        controller.Release(first);
+        controller.Release(second);
+        controller.CurrentMessageCount.Should().Be(0);
+        controller.CurrentByteCount.Should().Be(0);
+    }
+
     static ActorAdmissionOptions CreateEnforcedOptions(
         long globalMessages,
         long globalBytes,

@@ -9,6 +9,55 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests;
 public class NatsEventProducerTests
 {
     [Fact]
+    public void RouteCache_PreservesInheritedConstantsAndConcurrentResolution()
+    {
+        Parallel.For(0, 256, _ =>
+        {
+            NatsEventProducer.GetPublicStaticRouteValue(typeof(InheritedRoute), "Actor").Should().Be("InheritedActor");
+            NatsEventProducer.GetPublicStaticRouteValue(typeof(InheritedRoute), "Verb").Should().Be("Changed");
+        });
+    }
+
+    [Fact]
+    public void RouteCache_ReadsMutableFieldsAndGettersOnEveryCall()
+    {
+        foreach (var value in new[] { "First", "Second" })
+        {
+            MutableRoute.Actor = value;
+            NatsEventProducer.GetPublicStaticRouteValue(typeof(MutableRoute), "Actor").Should().Be(value);
+            NatsEventProducer.GetPublicStaticRouteValue(typeof(MutableRoute), "Verb").Should().Be(value);
+        }
+        NatsEventProducer.GetPublicStaticRouteValue(typeof(MutableRoute), "Missing").Should().BeNull();
+        NatsEventProducer.GetPublicStaticRouteValue(typeof(MutableRoute), "NullConstant").Should().BeNull();
+        NatsEventProducer.GetPublicStaticRouteValue(typeof(MutableRoute), "Number").Should().BeNull();
+    }
+
+    [Fact]
+    public void RouteCache_DoesNotSuppressGetterExceptionsAfterWarmup()
+    {
+        ThrowingRoute.Throws = false;
+        NatsEventProducer.GetPublicStaticRouteValue(typeof(ThrowingRoute), "Actor").Should().Be("Actor");
+        ThrowingRoute.Throws = true;
+        Action read = () => NatsEventProducer.GetPublicStaticRouteValue(typeof(ThrowingRoute), "Actor");
+        read.Should().Throw<System.Reflection.TargetInvocationException>().WithInnerException<InvalidOperationException>();
+    }
+
+    public class ConstantRoute { public const string Actor = "InheritedActor"; public const string Verb = "Changed"; }
+    public sealed class InheritedRoute : ConstantRoute;
+    public static class MutableRoute
+    {
+        public static string Actor = "First";
+        public static string Verb => Actor;
+        public const string? NullConstant = null;
+        public const int Number = 1;
+    }
+    public static class ThrowingRoute
+    {
+        public static bool Throws;
+        public static string Actor => Throws ? throw new InvalidOperationException("getter") : "Actor";
+    }
+
+    [Fact]
     public void PrepareEvent_MissingSubject_DerivesNatsRouteAndInitializesDeliveryMetadata()
     {
         var @event = new RoutedTestEvent

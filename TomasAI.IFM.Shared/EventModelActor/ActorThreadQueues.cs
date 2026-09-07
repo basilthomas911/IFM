@@ -20,6 +20,10 @@ public sealed class ActorThreadQueues(
         : throw new ArgumentOutOfRangeException(nameof(maxRetainedIdleQueues));
     readonly ConcurrentDictionary<ActorThreadId, IActorThreadQueue> _threadQueues = new();
 
+    // Count before publication so a concurrent release cannot miss a newly published queue.
+    // Pending additions/removals can temporarily overestimate retention; Count remains exact for diagnostics.
+    int _publishedOrPendingQueues;
+
     public int Count => _threadQueues.Count;
 
     public bool Write(IActorMessage message)
@@ -45,7 +49,12 @@ public sealed class ActorThreadQueues(
         var reservationOwned = true;
         try
         {
-            var thread = _supervisor.GetThread(threadId);
+            var scheduler = _supervisor.ThreadPool as ActorThreadPoolV2;
+            IActorThread? thread = null;
+            if (scheduler is null)
+                thread = _supervisor.GetThread(threadId);
+            else
+                scheduler.ValidateAdmission(threadId, default);
             while (true)
             {
                 var queue = GetThreadQueue(threadId);
@@ -63,7 +72,12 @@ public sealed class ActorThreadQueues(
                 {
                     reservationOwned = false;
                     if (scheduled.TrySchedule())
-                        thread.SignalMessageAvailable(threadId);
+                    {
+                        if (scheduler is null)
+                            thread!.SignalMessageAvailable(threadId);
+                        else
+                            scheduler.SignalMailbox(threadId);
+                    }
                     return result;
                 }
 
@@ -109,7 +123,12 @@ public sealed class ActorThreadQueues(
         var reservationOwned = true;
         try
         {
-            var thread = await _supervisor.GetThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+            var scheduler = _supervisor.ThreadPool as ActorThreadPoolV2;
+            IActorThread? thread = null;
+            if (scheduler is null)
+                thread = await _supervisor.GetThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+            else
+                scheduler.ValidateAdmission(threadId, cancellationToken);
             while (true)
             {
                 var queue = GetThreadQueue(threadId);
@@ -129,7 +148,12 @@ public sealed class ActorThreadQueues(
                 {
                     reservationOwned = false;
                     if (scheduled.TrySchedule())
-                        thread.SignalMessageAvailable(threadId);
+                    {
+                        if (scheduler is null)
+                            thread!.SignalMessageAvailable(threadId);
+                        else
+                            scheduler.SignalMailbox(threadId);
+                    }
                     return result;
                 }
 
@@ -162,8 +186,10 @@ public sealed class ActorThreadQueues(
             var created = _supervisor.Container.Resolve<IActorThreadQueue>();
             created.SetId(threadId);
             created.Start();
+            Interlocked.Increment(ref _publishedOrPendingQueues);
             if (_threadQueues.TryAdd(threadId, created))
                 return created;
+            Interlocked.Decrement(ref _publishedOrPendingQueues);
             created.Stop();
         }
     }
@@ -175,7 +201,7 @@ public sealed class ActorThreadQueues(
     {
         // Keep the normal actor working set warm. Beyond the bound, newly idle high-cardinality mailboxes are
         // retired immediately so memory remains bounded without allocating a timer or an eviction task per actor.
-        if (_threadQueues.Count <= _maxRetainedIdleQueues)
+        if (Volatile.Read(ref _publishedOrPendingQueues) <= _maxRetainedIdleQueues)
             return;
 
         if (!_threadQueues.TryGetValue(threadId, out var queue))
@@ -189,6 +215,7 @@ public sealed class ActorThreadQueues(
         if (((ICollection<KeyValuePair<ActorThreadId, IActorThreadQueue>>)_threadQueues)
             .Remove(new KeyValuePair<ActorThreadId, IActorThreadQueue>(threadId, queue)))
         {
+            Interlocked.Decrement(ref _publishedOrPendingQueues);
             queue.Stop();
         }
     }
@@ -201,6 +228,7 @@ public sealed class ActorThreadQueues(
         if (((ICollection<KeyValuePair<ActorThreadId, IActorThreadQueue>>)_threadQueues)
             .Remove(new KeyValuePair<ActorThreadId, IActorThreadQueue>(threadId, queue)))
         {
+            Interlocked.Decrement(ref _publishedOrPendingQueues);
             queue.Stop();
         }
     }

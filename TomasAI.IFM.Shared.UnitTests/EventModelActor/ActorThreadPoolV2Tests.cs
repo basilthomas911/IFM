@@ -150,6 +150,30 @@ public sealed class ActorThreadPoolV2Tests
             .Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task ConcurrentWritesWithIdleRetirement_ProcessAndDisposeEveryMessageOnce(int retentionLimit)
+    {
+        const int messageCount = 512;
+        var runtime = CreateRuntime(messageCount, maxRetainedIdleQueues: retentionLimit);
+        await using var pool = runtime.Pool;
+
+        await Parallel.ForEachAsync(Enumerable.Range(0, messageCount), async (sequence, _) =>
+        {
+            var message = new TestActorMessage(sequence, $"entity-{sequence % 8}") { Owner = runtime.Actor };
+            (await runtime.Mailbox.ThreadQueues.WriteAsync(message)).Should().BeTrue();
+        });
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(10));
+        await runtime.Actor.DisposedCompleted.WaitAsync(TimeSpan.FromSeconds(10));
+
+        runtime.Actor.Sequences.Should().BeEquivalentTo(Enumerable.Range(0, messageCount));
+        runtime.Actor.DisposeCounts.Values.Should().OnlyContain(count => count == 1);
+        runtime.Actor.MaximumEntityConcurrency.Should().Be(1);
+        SpinWait.SpinUntil(() => runtime.Mailbox.ThreadQueues.Count <= retentionLimit,
+            TimeSpan.FromSeconds(2)).Should().BeTrue();
+    }
+
     [Fact]
     public async Task EnforcedFullMailbox_RejectsSynchronously_AndStopReleasesAcceptedCharge()
     {
@@ -201,7 +225,7 @@ public sealed class ActorThreadPoolV2Tests
         });
         var supervisor = new Mock<IActorSupervisor>();
         supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
-        var queues = new ActorThreadQueues(supervisor.Object);
+        var queues = new ActorThreadQueues(supervisor.Object, maxRetainedIdleQueues: 1);
         var threadId = new ActorThreadId(ActorType.Command, "ColdQueue", "1");
 
         var resolved = await Task.WhenAll(Enumerable.Range(0, producerCount)
@@ -212,6 +236,8 @@ public sealed class ActorThreadPoolV2Tests
         created.Should().HaveCount(producerCount);
         created.Sum(queue => queue.StopCount).Should().Be(producerCount - 1);
         created.Sum(queue => queue.StartCount).Should().Be(producerCount);
+        queues.ReleaseThreadQueue(threadId);
+        queues.Count.Should().Be(1, "failed concurrent publications must not inflate retention accounting");
         resolved[0].Stop();
     }
 
@@ -287,6 +313,88 @@ public sealed class ActorThreadPoolV2Tests
         controller.Release(stoppingCharge);
         stoppingMessage.Dispose();
         controller.CurrentMessageCount.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false, "missing")]
+    [InlineData(true, "missing")]
+    [InlineData(false, "uninitialized")]
+    [InlineData(true, "uninitialized")]
+    [InlineData(false, "disposed")]
+    [InlineData(true, "disposed")]
+    [InlineData(false, "canceled")]
+    [InlineData(true, "canceled")]
+    public async Task DirectAdmission_ValidatesLifecycleAndReturnsReservation(bool asynchronous, string state)
+    {
+        var controller = new ActorAdmissionController(new() { Mode = ActorAdmissionMode.ObserveOnly });
+        var supervisor = new Mock<IActorSupervisor>();
+        var container = new Mock<IContainerInstance>();
+        container.Setup(instance => instance.Resolve<IActorThreadQueue>())
+            .Returns(() => new ActorThreadQueueV2(controller, 4));
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        var children = new ConcurrentDictionary<ActorMailboxId, IActor>();
+        supervisor.SetupGet(instance => instance.Children).Returns(children);
+        await using var pool = new ActorThreadPoolV2(supervisor.Object, NullLogger.Instance);
+        supervisor.SetupGet(instance => instance.ThreadPool).Returns(pool);
+        if (state != "uninitialized") pool.Initialize(2);
+        var message = new TestActorMessage(1);
+        var mailbox = new ActorMailbox(supervisor.Object, message.Subject.ThreadId.MailboxId, 4, controller);
+        var actor = new RecordingActor(message.Subject.ThreadId.MailboxId, mailbox, 1, default);
+        children[actor.Id] = actor;
+        if (state == "missing") children.TryRemove(actor.Id, out _);
+        if (state == "disposed") await pool.DisposeAsync();
+        using var cancellation = new CancellationTokenSource();
+        if (state == "canceled") cancellation.Cancel();
+        Func<Task> admit = async () =>
+        {
+            if (asynchronous)
+                await mailbox.ThreadQueues.TryAdmitAsync(message, message.Subject, cancellation.Token);
+            else
+                mailbox.ThreadQueues.TryAdmit(message, message.Subject, cancellation.Token);
+        };
+        switch (state)
+        {
+            case "missing": await admit.Should().ThrowAsync<KeyNotFoundException>(); break;
+            case "uninitialized": await admit.Should().ThrowAsync<InvalidOperationException>(); break;
+            case "disposed": await admit.Should().ThrowAsync<ObjectDisposedException>(); break;
+            case "canceled": await admit.Should().ThrowAsync<OperationCanceledException>(); break;
+        }
+        controller.CurrentMessageCount.Should().Be(0);
+        controller.CurrentByteCount.Should().Be(0);
+        message.DisposeCount.Should().Be(0, "failed admission leaves payload ownership with its caller");
+        supervisor.Verify(instance => instance.GetThread(It.IsAny<ActorThreadId>()), Times.Never);
+        supervisor.Verify(instance => instance.GetThreadAsync(It.IsAny<ActorThreadId>(), It.IsAny<CancellationToken>()), Times.Never);
+        message.Dispose();
+    }
+
+    [Fact]
+    public async Task SignalAlreadyInFlight_RemainsSafeAfterWorkerArrayIsDisposed()
+    {
+        var runtime = CreateRuntime(0);
+        var id = new ActorThreadId(ActorType.Command, "SchedulerTest", "same");
+        runtime.Pool.ValidateAdmission(id, default);
+        await runtime.Pool.DisposeAsync();
+        runtime.Pool.Count.Should().Be(0);
+        // Reproduce disposal between admission validation and notification.
+        runtime.Pool.SignalMailbox(id);
+    }
+
+    [Fact]
+    public async Task SynchronousDirectAdmission_WakesIdleMailboxRepeatedly()
+    {
+        var runtime = CreateRuntime(20);
+        await using var pool = runtime.Pool;
+        for (var index = 0; index < 20; index++)
+        {
+            var message = new TestActorMessage(index) { Owner = runtime.Actor };
+            runtime.Mailbox.ThreadQueues.Write(message, message.Subject)
+                .Should().BeTrue();
+            (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5)))
+                .Should().BeTrue();
+        }
+        await runtime.Actor.DisposedCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+        runtime.Actor.Sequences.Should().Equal(Enumerable.Range(0, 20));
+        runtime.Actor.MaximumEntityConcurrency.Should().Be(1);
     }
 
     static TestRuntime CreateRuntime(

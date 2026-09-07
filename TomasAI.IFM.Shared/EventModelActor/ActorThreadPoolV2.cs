@@ -17,6 +17,9 @@ public sealed class ActorThreadPoolV2(
     readonly ActorReadyQueue _readyQueue = new();
     readonly ActorThreadPoolMetricsState _metricsState = new();
     ActorThreadV2[] _workers = [];
+    // Every worker publishes to the same ready queue. Retain a stable signal target so an
+    // admission already in flight cannot index an array cleared by DisposeAsync.
+    ActorThreadV2? _signalWorker;
     int _initialized;
     int _disposed;
 
@@ -34,6 +37,7 @@ public sealed class ActorThreadPoolV2(
             worker.Start();
             workers[index] = worker;
         }
+        _signalWorker = workers[0];
         Volatile.Write(ref _workers, workers);
         ActorRuntimeMetrics.RegisterWorkerPool(workers.Length);
         return this;
@@ -51,6 +55,18 @@ public sealed class ActorThreadPoolV2(
         var hash = (uint)threadId.GetHashCode();
         return workers[hash % (uint)workers.Length];
     }
+
+    internal void ValidateAdmission(ActorThreadId threadId, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        IsArgumentNull.Check(threadId);
+        ThrowIfUnavailable();
+        if (!_supervisor.Children.ContainsKey(threadId.MailboxId))
+            throw new KeyNotFoundException($"Actor with mailbox id '{threadId.MailboxId}' not found in context.");
+    }
+
+    internal void SignalMailbox(ActorThreadId threadId)
+        => _signalWorker!.SignalMessageAvailable(threadId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct)

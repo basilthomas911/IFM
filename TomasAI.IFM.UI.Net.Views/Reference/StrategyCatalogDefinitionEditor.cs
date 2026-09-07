@@ -25,8 +25,11 @@ public sealed class StrategyCatalogDefinitionEditor : DarkTradingView
 
     public StrategyCatalogDefinitionEditor(StrategyCatalogDefinition definition, bool editable, IReadOnlyList<StrategyCatalogSummary> references, IReadOnlyList<CatalogProduct>? availableProducts = null)
     {
-        foreach (var product in (availableProducts ?? []).Concat(definition.Products).Distinct())
-            products.TryAdd($"{product.Symbol} - {product.Exchange} - {product.Currency} [{product.ProductId}]", product);
+        if (definition.Key.Kind == StrategyCatalogKind.Deployment)
+        {
+            foreach (var product in (availableProducts ?? []).Concat(definition.Products).Distinct())
+                products.TryAdd($"{product.Symbol} - {product.Exchange} - {product.Currency} [{product.ProductId}]", product);
+        }
         source = StrategyCatalogJson.Read<StrategyCatalogDefinition>(StrategyCatalogJson.Write(definition)); Editable = editable;
         Name = "StrategyCatalogDefinitionEditor"; AccessibleName = "Strategy catalog definition details"; Dock = DockStyle.Fill;
         choices = references.GroupBy(x => x.Key).Select(x => x.First()).ToDictionary(x => $"{x.Name} [{x.Code}, v{x.Key.Version}, {x.Status}]", x => x.Key, StringComparer.Ordinal);

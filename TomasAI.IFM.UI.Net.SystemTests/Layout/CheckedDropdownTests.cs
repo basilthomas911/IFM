@@ -19,6 +19,7 @@ public sealed class CheckedDropdownTests
                 form.Controls.Add(dropdown); form.Show();
                 dropdown.SetItems([new("RangeBound", "Range Bound"), new("Directional", "Directional"), new("Disabled", "Disabled", false)]);
                 var checks = Field<CheckedListBox>(dropdown, "list");
+                _ = checks.Handle; // Exercise native bulk insertion when the filter rebuilds the popup list.
                 checks.SetItemChecked(0, true);
                 dropdown.SelectedValues.Should().Equal("RangeBound");
                 dropdown.DisplayText.Should().Be("Range Bound");

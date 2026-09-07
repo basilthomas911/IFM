@@ -74,9 +74,13 @@ public sealed class CheckedDropdown : UserControl
         try
         {
             list.Items.Clear();
-            foreach (var item in OrderedItems().Where(x => x.Value.Contains(search.Text, StringComparison.OrdinalIgnoreCase)
-                || x.DisplayName.Contains(search.Text, StringComparison.OrdinalIgnoreCase)))
-                list.Items.Add(new Choice(item), selected.Contains(item.Value));
+            // Read the native textbox once, then populate the list in one batch.
+            var filter = search.Text;
+            var matches = OrderedItems().Where(x => x.Value.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                || x.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)).Select(x => new Choice(x)).ToArray();
+            list.Items.AddRange(matches);
+            for (var index = 0; index < matches.Length; index++)
+                if (selected.Contains(matches[index].Item.Value)) list.SetItemChecked(index, true);
         }
         finally { list.EndUpdate(); updating = false; }
     }
