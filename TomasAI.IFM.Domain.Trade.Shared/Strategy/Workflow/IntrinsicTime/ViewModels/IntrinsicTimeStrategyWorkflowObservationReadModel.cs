@@ -54,4 +54,8 @@ public sealed record IntrinsicTimeStrategyWorkflowObservationReadModel
     [Key(17)] public MarketConditionReadModel? MarketConditionTerminal { get; init; }
     [Key(18)] public bool WorkflowAcceptedMarketConditionTerminal { get; init; }
     [Key(19)] public bool MarketConditionNotificationLossSuspected { get; init; }
+    [Key(20)] public Pipeline.MarketCondition.Assessment.MarketConditionAssessmentResult? MarketAssessment { get; init; }
+    [Key(21)] public bool WorkflowAcceptedMarketAssessment { get; init; }
+    [Key(22)] public bool MarketAssessmentOrphanSuspected { get; init; }
+    [Key(23)] public bool MarketAssessmentExpired { get; init; }
 }

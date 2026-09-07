@@ -8,7 +8,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// <summary>
 /// market data view for displaying futures bar data.
 /// </summary>
-public partial class MarketDataView : UserControl
+public partial class MarketDataView : DarkTradingView
 {
     public MarketDataView()
     {

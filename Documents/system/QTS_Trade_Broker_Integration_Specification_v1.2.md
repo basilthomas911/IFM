@@ -4,11 +4,37 @@
 **Status:** Revised Architecture Baseline --- Futures, Trade Modes,
 Micro Execution\
 **Target:** V1 Trading System\
-**Primary Broker:** Interactive Brokers TWS API\
+**Planned External Broker:** Interactive Brokers TWS API (not implemented)\
 **Primary Emulator Market Source:** Databento\
 **Design Priority:** Broker-neutral application contracts, deterministic
 behavior, testability, realistic emulation, strict separation of
 domain/application/framework concerns
+
+## Implementation status and delivery order — 2026-09-05
+
+Actual IBKR connectivity is not implemented. The first broker implementation
+will be the **IBKR emulator**, followed later by an actual IBKR connection.
+The interfaces, adapter names, and diagrams below describe the target design;
+their presence in this specification is not evidence of completed integration.
+
+1. Implement and qualify the emulator through `IOrderExecutionBroker` and
+   `IAccountBroker`, using the specified `EmulatedOrderExecutionBroker` and
+   `EmulatedAccountBroker` implementations and Databento market inputs.
+2. Exercise order and account lifecycles, failures, recovery, and reconciliation
+   through those same application-facing contracts without an IBKR connection.
+3. Implement the actual IBKR adapters later and qualify the external connection
+   separately. Emulator qualification does not establish actual-broker readiness.
+
+Market Condition evaluates market and data conditions independently of an
+actual broker connection. Before order submission, Order Execution must check
+the selected adapter's readiness: the emulator during initial development,
+and the actual IBKR adapter after it is implemented. An unavailable execution
+adapter must block submission, not be represented as a healthy connection.
+
+The currently registered `UnavailableMarketConditionBrokerReadiness` is a
+placeholder, not an IBKR adapter or an emulator. Removing that execution
+dependency from Market Condition remains a separate code/configuration change;
+this documentation update does not implement it.
 
 ------------------------------------------------------------------------
 

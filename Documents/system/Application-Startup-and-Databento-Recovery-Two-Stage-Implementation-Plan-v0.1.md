@@ -1,5 +1,7 @@
 # Application Startup and Databento Recovery Two-Stage Implementation Plan v0.1
 
+> **Strategy catalog direction (2026-09-06):** References below to the Trade Strategy Family bootstrap/catalog describe the existing ReferenceDb compatibility records and their historical verification. The proposed reusable strategy/structure/variant catalog belongs to ConfigurationDb; it does not replace product downloads or current bootstrap behavior in this change. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 | Item | Value |
 | --- | --- |
 | Plan ID | `ASDR` |

@@ -202,7 +202,8 @@ G1 is a 15-step, non-short-circuiting process audit. It owns the API and desktop
 
 ### Shell and navigation
 
-- Verify startup actions are disabled until initialization permits them and then enabled consistently.
+- Verify primary navigation remains enabled before a market session is established and across Closed, OffTrading and LiveTrading states, including when Databento is starting, recovering, failed or stopped.
+- Verify the feed start/stop action still requires a value date, an open session or active feed, and no transition in progress. Feed-health indicators continue to reflect backend health; order-action checks remain separate from navigation.
 - Open and close Market Data, Funds, Reference, System Administration, trade, and other available shell destinations.
 - Verify selector/editor dialogs expose their expected controls and cancel without mutation.
 - Verify add/change/remove enablement follows selection and validation state.

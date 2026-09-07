@@ -319,18 +319,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
                     StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("Workflow start parameter hash does not match its immutable payload.",
                     nameof(command));
-            if (execute.FundId <= 0 || execute.MarketConditionParameterSet.FundId != execute.FundId)
-                throw new ArgumentException("Workflow start requires a matching positive Market Condition FundId.",
-                    nameof(command));
-            var marketErrors = new MarketConditionParameterSetValidationRules()
-                .Execute(execute.MarketConditionParameterSet);
-            if (marketErrors.Length != 0)
-                throw new ArgumentException(string.Join("; ", marketErrors.Select(value => value.ErrorMessage)),
-                    nameof(command));
-            if (!string.Equals(MarketConditionParameterPayload.ComputeSha256(execute.MarketConditionParameterSet),
-                    execute.MarketConditionParameterPayloadSha256, StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("Market Condition parameter hash does not match its immutable payload.",
-                    nameof(command));
+            var binding = execute.AssessmentBinding
+                ?? throw new ArgumentException("Workflow start requires a frozen Market Condition assessment profile.", nameof(command));
+            binding.Validate();
+            if (execute.FundId <= 0 || binding.Parameters.TargetHorizon != execute.TriggerEvent.EntityId.TimePeriod ||
+                binding.Parameters.HorizonProfile.RegimeProfileId != execute.RegimeDiscoveryParameterSet.ParameterSetId ||
+                binding.Parameters.HorizonProfile.RegimeProfileVersion != execute.RegimeDiscoveryParameterSet.Version)
+                throw new ArgumentException("Assessment workflow profile does not match the triggering horizon and frozen Regime Discovery configuration.");
         }
 
         var completionResult = command switch

@@ -1,8 +1,20 @@
 # Market Condition Detailed Specification v1.0
 
+> **Strategy catalog direction (2026-09-06):** Reusable strategy-family/structure/variant definitions are planned in ConfigurationDb and are downstream TradeSelection concerns. Current MarketCondition remains market-only for the single ITI-triggering Daily, Weekly or Monthly horizon. Historical family hints and family-scoped rules in superseded designs do not return to the assessment path. Recorded gate evidence is unchanged and does not qualify the new catalog. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
+> Historical design only. The earlier Market Condition executable implementation was removed on 2026-09-06. See [assessment-only design v0.4](MarketCondition-High-Level-Design-v0.4.md) for current behavior.
+
+
+> **Superseded for new assessment-mode workflows on 2026-09-05 by
+> [Specification v2.0](MarketCondition-Specification-v2.0.md).**
+> This specification records legacy single-horizon Tradeable/NotTradeable behavior,
+> including family hints. It remains relevant to legacy code and persisted schemas;
+> it does not define the revised one-assessment-per-ITI-timeframe model. The new
+> specification is planned, not implemented or qualified by the results below.
+
 | Item | Value |
 |---|---|
-| Status | Implemented and qualified; MC-00 through MC-22 complete |
+| Status | MC-00 through MC-22 core implementation qualified; 2026-09-05 broker-boundary alignment pending |
 | Created | 2026-08-28 |
 | Source design | `MarketCondition-High-Level-Design-v0.1.md` |
 | Workflow stage | `StrategyWorkflowStage.MarketCondition` |
@@ -10,6 +22,26 @@
 | Architecture | Completed-only FunctionActor request/reply aligned with Regime Discovery |
 
 **Implementation plan:** `MarketCondition-Implementation-Plan-v1.0.md`
+
+### Broker implementation clarification — 2026-09-05
+
+Actual IBKR connectivity is not implemented. The IBKR emulator will be
+implemented first, with the actual broker connection following later. Market
+Condition's completed calculation and workflow gates do not imply that either
+broker implementation exists.
+
+Market analysis must not require an actual IBKR connection. Broker/emulator
+readiness belongs to Order Execution immediately before order submission,
+using the selected adapter behind the shared broker contracts. Market
+Condition retains feed, quote, session, cache, and data-quality checks.
+
+This is the target boundary. Current code still includes `IbkrSession` in the
+default required health sources and registers
+`UnavailableMarketConditionBrokerReadiness`, which always reports unavailable.
+It can therefore produce `NotTradeable / OperationsUnavailable` solely because
+of that placeholder. Removing the Market Condition dependency and introducing
+execution-stage emulator readiness are pending implementation work; no runtime
+behavior is changed by this document.
 
 ## 1. Purpose
 
@@ -525,10 +557,16 @@ The following typed health states must be known and healthy:
 
 - Databento or configured primary futures feed;
 - futures-option feed;
-- required latest-value cache path;
-- IBKR broker/session readiness.
+- required latest-value cache path.
 
 A reliable Unavailable/Degraded status is `NotTradeable / OperationsUnavailable`. Missing, expired, or contradictory mandatory health metadata is Failed.
+
+These requirements cover market-data readiness. Under the 2026-09-05 boundary
+clarification, broker session readiness is excluded from this stage and is
+required before order submission instead. The current `IbkrSession` default
+and placeholder registration must be migrated; they are not evidence that
+IBKR connectivity has been implemented. Published parameter versions remain
+immutable, so any required configuration change uses a new version.
 
 ## 10. Immutable snapshot model
 

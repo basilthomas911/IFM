@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using FluentAssertions;
 using MessagePack;
 using Microsoft.Extensions.Logging;
@@ -115,14 +117,14 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         scenario.State.Events.Should().HaveCount(2);
     }
 
-    /// <summary>Given a valid tradeable Market Condition, the workflow selects Trade Selection exactly once.</summary>
+    /// <summary>Given an available assessment, the workflow selects Trade Selection exactly once.</summary>
     [Fact]
-    public void Tradeable_market_condition_continues_to_trade_selection()
+    public void Available_assessment_continues_to_trade_selection()
     {
         var scenario = new Scenario(TimeFrameType.Daily);
         scenario.AdvanceToMarketCondition(StartedAt);
 
-        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), MarketTradeability.Tradeable);
+        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), AssessmentAvailability.Available);
 
         scenario.State.CurrentView.Should().BeEquivalentTo(new
         {
@@ -132,21 +134,21 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         });
     }
 
-    /// <summary>Given a valid blocked opportunity, Market Condition completes the workflow as NoTrade.</summary>
+    /// <summary>Given unavailable required market data, Market Condition completes the workflow as NoTrade.</summary>
     [Fact]
-    public void Non_tradeable_market_condition_completes_without_trade_selection()
+    public void Unavailable_assessment_completes_without_trade_selection()
     {
         var scenario = new Scenario(TimeFrameType.Daily);
         scenario.AdvanceToMarketCondition(StartedAt);
 
-        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), MarketTradeability.NotTradeable);
+        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), AssessmentAvailability.Unavailable);
 
         scenario.State.CurrentView.Should().BeEquivalentTo(new
         {
             Status = WorkflowStrategyMachineStatus.Completed,
             Outcome = StrategyWorkflowOutcome.NoTrade,
             CurrentStage = StrategyWorkflowStage.MarketCondition,
-            StopReasonCode = MarketConditionReasonCodes.Strength
+            StopReasonCode = "MC.ASSESSMENT.UNAVAILABLE"
         });
     }
 
@@ -192,7 +194,7 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         var scenario = new Scenario(TimeFrameType.Daily);
         scenario.AdvanceToMarketCondition(StartedAt);
 
-        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), MarketTradeability.Tradeable,
+        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), AssessmentAvailability.Available,
             validForSeconds: -1);
 
         scenario.State.CurrentView.Should().BeEquivalentTo(new
@@ -210,7 +212,7 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
     {
         var scenario = new Scenario(TimeFrameType.Daily);
         scenario.AdvanceToMarketCondition(StartedAt);
-        var command = scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), MarketTradeability.Tradeable);
+        var command = scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), AssessmentAvailability.Available);
         var revision = scenario.State.CurrentView!.WorkflowRevision;
         var eventCount = scenario.State.Events.Count;
 
@@ -224,7 +226,7 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
     {
         readonly IntrinsicTimeStrategyWorkflowEntityId _entityId;
         readonly RegimeDiscoveryParameterSet _parameters;
-        readonly MarketConditionParameterSet _marketConditionParameters;
+        readonly MarketConditionAssessmentParameterSet _marketConditionParameters;
         int _identity = 300;
 
         public Scenario(TimeFrameType period)
@@ -232,9 +234,8 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
             _entityId = IntrinsicTimeStrategyWorkflowEntityId.Create(new FuturesItiSignalEntityId(
                 "ES-202612", new DateOnly(2026, 8, 27), period));
             _parameters = RegimeDiscoveryParameterSet.CreateDefault(NextGuid(), NextGuid(), period);
-            _marketConditionParameters = MarketConditionParameterSet.CreateDefault(
-                NextGuid(), _parameters.StrategyParameterSetId, 1, period,
-                strategyVersion: _parameters.StrategyParameterSetVersion);
+            _marketConditionParameters = MarketConditionAssessmentParameterSet.CreateDefault(
+                "ES.Bdd", period, NextGuid(), _parameters.ParameterSetId, _parameters.Version);
             WorkflowId = new StrategyWorkflowId(NextGuid());
         }
 
@@ -265,46 +266,36 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         }
 
         public CompleteMarketConditionCommand CompleteMarketCondition(DateTime now,
-            MarketTradeability tradeability, int validForSeconds = 30)
+            AssessmentAvailability availability, int validForSeconds = 30)
         {
             var view = State.CurrentView!;
             var source = NextGuid();
             var evaluatedAt = validForSeconds < 0
                 ? now.AddSeconds(validForSeconds - 1)
                 : now;
-            var result = new MarketConditionResult
+            var regimeEnvelope = view.RegimeDiscovery.Result!;
+            var result = new MarketConditionAssessmentResult
             {
-                ResultId = source,
-                WorkflowId = view.WorkflowId,
-                EntityId = view.EntityId,
-                FundId = view.FundId,
-                InstrumentRoot = view.MarketConditionParameterSet.InstrumentRoot,
-                TargetHorizon = view.TriggerEvent.EntityId.TimePeriod,
-                TriggerEventId = view.TriggerEvent.Id,
+                ResultId = source, CommandId = source, WorkflowId = view.WorkflowId, EntityId = view.EntityId,
                 InputWorkflowRevision = view.WorkflowRevision,
-                MarketConditionParameterSetId = view.MarketConditionParameterSet.ParameterSetId,
-                MarketConditionParameterSetVersion = view.MarketConditionParameterSet.Version,
-                SnapshotId = NextGuid(),
-                SnapshotSha256 = new string('A', 64),
-                EvaluatedAtUtc = evaluatedAt,
-                ValidUntilUtc = now.AddSeconds(validForSeconds),
-                MarketDataAsOfUtc = evaluatedAt,
-                Tradeability = tradeability,
-                ConditionType = tradeability == MarketTradeability.Tradeable
-                    ? MarketConditionType.Directional : MarketConditionType.NoOpportunity,
-                Direction = tradeability == MarketTradeability.Tradeable
-                    ? MarketConditionDirection.Bullish : MarketConditionDirection.Neutral,
-                Phase = MarketConditionPhase.Confirmed,
-                VolatilityBehavior = MarketConditionVolatilityBehavior.Stable,
-                LiquidityQuality = MarketConditionLiquidityQuality.Healthy,
-                DataQuality = MarketConditionDataQuality.Healthy,
-                UpstreamAlignment = MarketConditionUpstreamAlignment.Aligned,
-                PrimaryReasonCode = tradeability == MarketTradeability.Tradeable
-                    ? MarketConditionReasonCodes.Directional : MarketConditionReasonCodes.Strength,
-                Reasons = tradeability == MarketTradeability.Tradeable
-                    ? [MarketConditionReasonCodes.Directional] : [MarketConditionReasonCodes.Strength],
-                SummaryText = "BDD result"
+                MarketProfileId = _marketConditionParameters.MarketProfileId, InstrumentRoot = "ES", TargetHorizon = _marketConditionParameters.TargetHorizon,
+                ParameterSetId = _marketConditionParameters.ParameterSetId, ParameterSetVersion = _marketConditionParameters.Version,
+                ParameterPayloadSha256 = view.AssessmentBinding!.PayloadSha256,
+                RegimeResultId = regimeEnvelope.ResultId, RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
+                SnapshotId = NextGuid(), SnapshotSha256 = new string('A', 64), EvaluatedAtUtc = evaluatedAt,
+                Assessment = new()
+                {
+                    Horizon = _marketConditionParameters.TargetHorizon, EvaluatedAtUtc = evaluatedAt,
+                    RegimeResultId = regimeEnvelope.ResultId, RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
+                    Availability = availability,
+                    ConditionType = availability == AssessmentAvailability.Available ? AssessmentCondition.Directional : null,
+                    AssessmentConfidence = availability == AssessmentAvailability.Available ? 0.8m : null,
+                    ValidUntilUtc = availability == AssessmentAvailability.Available ? now.AddSeconds(validForSeconds) : null,
+                    UpstreamContext = MarketConditionAssessmentContracts.ReadRegime(regimeEnvelope, view).Decision, LimitationReasons = availability == AssessmentAvailability.Unavailable ? ["Missing feed"] : []
+                },
+                SummaryText = "BDD assessment"
             };
+            MarketConditionAssessmentContracts.ValidateAcceptance(result, view, view.WorkflowRevision);
             var payload = MessagePackSerializer.Serialize(result);
             var command = new CompleteMarketConditionCommand
             {
@@ -314,8 +305,8 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 WorkflowId = view.WorkflowId,
                 InputWorkflowRevision = view.WorkflowRevision,
                 SourceEventId = source,
-                Result = StrategyStageResultEnvelope.Create(source, nameof(MarketConditionResult),
-                    MarketConditionResult.CurrentSchemaVersion, payload, now, now),
+                Result = StrategyStageResultEnvelope.Create(source, nameof(MarketConditionAssessmentResult),
+                    1, payload, evaluatedAt, evaluatedAt),
                 CausationId = source,
                 CompletedAtUtc = now
             };
@@ -359,21 +350,24 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 WorkflowId = workflowId,
                 InputWorkflowRevision = 1,
                 SourceEventId = source,
-                Result = new StrategyStageResultEnvelope
-                {
-                    ResultId = source,
-                    ResultType = "RegimeDiscovery.Result",
-                    SchemaVersion = 1,
-                    ContentType = "application/x-msgpack",
-                    Payload = new byte[] { 0x91, 0x01 },
-                    PayloadSha256 = new string('A', 64),
-                    MarketDataAsOfUtc = now,
-                    ProducedAtUtc = now
-                },
+                Result = RegimeEnvelope(source, workflowId, now),
                 CausationId = source,
                 CompletedAtUtc = now
             };
             command.Execute(Context(now), State);
+        }
+
+        StrategyStageResultEnvelope RegimeEnvelope(Guid source, StrategyWorkflowId workflowId, DateTime now)
+        {
+            var result = new RegimeDiscoveryResult
+            {
+                ResultId = source, WorkflowId = workflowId, EntityId = _entityId,
+                TargetHorizon = _parameters.TargetHorizon, TriggerEventId = State.CurrentView!.TriggerEvent.Id,
+                RegimeDiscoveryParameterSetId = _parameters.ParameterSetId, RegimeDiscoveryParameterSetVersion = _parameters.Version,
+                ProducedAtUtc = now, MarketDataAsOfUtc = now, Decision = new() { IsComplete = true, Direction = RegimeDirection.Up }
+            };
+            return StrategyStageResultEnvelope.Create(source, nameof(RegimeDiscoveryResult), RegimeDiscoveryResult.CurrentSchemaVersion,
+                MessagePackSerializer.Serialize(result), now, now);
         }
 
         public void Fail(DateTime now, string errorType)
@@ -422,10 +416,9 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 WorkflowDefinitionVersion = 1,
                 RegimeDiscoveryParameterSet = _parameters,
                 RegimeDiscoveryParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(_parameters),
-                FundId = _marketConditionParameters.FundId,
-                MarketConditionParameterSet = _marketConditionParameters,
-                MarketConditionParameterPayloadSha256 =
-                    MarketConditionParameterPayload.ComputeSha256(_marketConditionParameters)
+                FundId = 1,
+                AssessmentBinding = new() { Parameters = _marketConditionParameters,
+                    PayloadSha256 = MarketConditionAssessmentHash.Parameters(_marketConditionParameters) }
             };
         }
 

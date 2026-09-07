@@ -13,7 +13,8 @@ public static class MarketConditionTelemetry
     public static readonly Meter Meter = new(InstrumentationName);
 
     static readonly Counter<long> Processing = Meter.CreateCounter<long>("ifm.market_condition.processing");
-    static readonly Counter<long> Tradeability = Meter.CreateCounter<long>("ifm.market_condition.tradeability");
+    static readonly Counter<long> AssessmentAvailability = Meter.CreateCounter<long>("ifm.market_condition.assessment.availability");
+    static readonly Counter<long> AssessmentSources = Meter.CreateCounter<long>("ifm.market_condition.assessment.source");
     static readonly Counter<long> Reasons = Meter.CreateCounter<long>("ifm.market_condition.reason");
     static readonly Counter<long> Timeouts = Meter.CreateCounter<long>("ifm.market_condition.timeout");
     static readonly Counter<long> Expired = Meter.CreateCounter<long>("ifm.market_condition.expired_before_acceptance");
@@ -21,25 +22,18 @@ public static class MarketConditionTelemetry
         "ifm.market_condition.duration", "ms");
     static readonly Histogram<double> SourceAge = Meter.CreateHistogram<double>(
         "ifm.market_condition.source_age", "s");
-    static readonly Histogram<double> Strength = Meter.CreateHistogram<double>(
-        "ifm.market_condition.strength");
-    static readonly Histogram<double> Confidence = Meter.CreateHistogram<double>(
-        "ifm.market_condition.confidence");
-
     public static Activity? Start(string operation) => Activities.StartActivity(operation, ActivityKind.Internal);
 
-    public static void RecordResult(MarketConditionResult result, double durationMilliseconds)
+    public static void RecordAssessment(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentResult result,double elapsedMilliseconds)
     {
-        var horizon = Horizon(result.TargetHorizon);
-        Processing.Add(1, new("outcome", "completed"), new("horizon", horizon));
-        Tradeability.Add(1, new("outcome", result.Tradeability.ToString()), new("horizon", horizon));
-        Duration.Record(durationMilliseconds, new("outcome", "completed"), new("horizon", horizon));
-        Strength.Record((double)result.Strength,
-            new KeyValuePair<string, object?>("horizon", horizon));
-        Confidence.Record((double)result.Confidence,
-            new KeyValuePair<string, object?>("horizon", horizon));
-        foreach (var reason in result.BlockingReasons.Select(x => x.ReasonCode).Distinct(StringComparer.Ordinal))
-            Reasons.Add(1, new("kind", "blocker"), new("code", reason), new("horizon", horizon));
+        var horizon=Horizon(result.TargetHorizon);
+        AssessmentAvailability.Add(1,new("horizon",horizon),new("availability",result.Assessment.Availability.ToString()));
+        Duration.Record(elapsedMilliseconds,new("mode","assessment"),new("horizon",horizon));
+        foreach(var source in result.Assessment.EvidenceItems.Where(x=>x.Feature=="SourceObservation"))
+        {
+            AssessmentSources.Add(1,new("horizon",horizon),new("source",source.SourceId),new("availability",source.Availability.ToString()));
+            RecordSourceAge(source.SourceId,source.AgeSeconds,result.TargetHorizon);
+        }
     }
 
     public static void RecordFailure(MarketConditionFailureCategory category, string reason,

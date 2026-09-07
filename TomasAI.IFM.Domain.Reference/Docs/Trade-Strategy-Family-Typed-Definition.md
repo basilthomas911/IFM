@@ -1,5 +1,9 @@
 # Trade strategy family: typed catalog definition
 
+> **Implemented catalog replacement (2026-09-06):** ConfigurationDb now owns active strategy catalog authoring. Reference Data Manager edits all seven catalog sections, including balanced/directional variants; Portfolio mandates, assignments and policy limits use exact deployment GUID/version references. Existing family records are imported as Drafts without automatic permissions. The old family UI/write path is Legacy; historical contracts remain readable. [Integration details](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) and [UI guide](../../TomasAI.IFM.UI.Net/Docs/Strategy-Catalog-Reference-UI.md) supersede the older family-authoring descriptions below. TradeSelection execution remains on hold.
+
+> **Strategy catalog direction (2026-09-06):** The current family record and Futures/FuturesOption symbol filter remain instrument/product/timeframe compatibility contracts. The future reusable strategy-family/definition/structure/variant catalog belongs to PostgreSQL ConfigurationDb, with exact deployment references and Portfolio-owned Fund permissions. Do not extend the closed TradeStrategyType enum for each new strategy or reinterpret existing integer family IDs. The current editor, tables and historical tests below describe existing behavior; no migration or new editor is implemented. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 Current implementation details, configuration, storage, compatibility and verification are in [Trade strategy product catalog and family creation](Trade-Strategy-Symbol-Catalog-Implementation.md).
 
 ## Contract

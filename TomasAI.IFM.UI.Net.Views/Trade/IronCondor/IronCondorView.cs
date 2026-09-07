@@ -15,7 +15,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-public partial class IronCondorView : UserControl, IAsyncFormControl
+public partial class IronCondorView : DarkTradingView, IAsyncFormControl
 {
     const int MinimumTradeBlotterWidth = 640;
     const int MinimumChartWidth = 220;

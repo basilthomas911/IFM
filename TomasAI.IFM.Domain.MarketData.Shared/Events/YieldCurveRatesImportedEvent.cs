@@ -155,6 +155,8 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
 [MessagePackObject(AllowPrivate = true)]
 public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRateEntityId>
 {
+    [Key(13)] public TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? DownloadOutcome { get; init; }
+
     [IgnoreMember] public const string Actor = "YieldCurveRateEvent";
     [IgnoreMember] public const string Verb = "ImportedComplete";
 
@@ -193,7 +195,8 @@ public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRa
         YieldCurveRateReadModel[] yieldCurveRates,
         DateTime importedOn,
         string importedBy,
-        ImportDuplicatePolicy duplicatePolicy)
+        ImportDuplicatePolicy duplicatePolicy,
+        TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? downloadOutcome = null)
     {
         Subject = subject;
         EntityId = entityId;
@@ -208,6 +211,7 @@ public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRa
         ImportedOn = importedOn;
         ImportedBy = importedBy ?? string.Empty;
         DuplicatePolicy = duplicatePolicy;
+        DownloadOutcome = downloadOutcome;
     }
 }
 
@@ -218,6 +222,8 @@ public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRa
 [MessagePackObject(AllowPrivate = true)]
 public record YieldCurveRatesImportedFailEvent : IErrorEvent<YieldCurveRateEntityId>
 {
+    [Key(18)] public TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? DownloadOutcome { get; init; }
+
     [IgnoreMember] public const string Actor = "YieldCurveRateEvent";
     [IgnoreMember] public const string Verb = "ImportedFail";
 
@@ -265,7 +271,8 @@ public record YieldCurveRatesImportedFailEvent : IErrorEvent<YieldCurveRateEntit
         string commandData,
         string routeTo,
         DateTime importDate,
-        ImportDuplicatePolicy duplicatePolicy)
+        ImportDuplicatePolicy duplicatePolicy,
+        TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? downloadOutcome = null)
     {
         Subject = subject;
         EntityId = entityId;
@@ -285,5 +292,6 @@ public record YieldCurveRatesImportedFailEvent : IErrorEvent<YieldCurveRateEntit
         RouteTo = routeTo ?? string.Empty;
         ImportDate = importDate;
         DuplicatePolicy = duplicatePolicy;
+        DownloadOutcome = downloadOutcome;
     }
 }

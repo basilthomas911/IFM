@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using PropertyChangedEventArgs = System.ComponentModel.PropertyChangedEventArgs;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -31,6 +32,13 @@ public sealed class FuturesOptionContractEditorViewModel
     readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
     readonly AsyncOperation _loadOperation;
     readonly AsyncOperation _loadContractsOperation;
+    readonly AsyncOperation _loadMoreOperation;
+    string? _continuationToken;
+    int _catalogVersion;
+    bool _pageRestartAttempted;
+    public const int ContractPageSize = 200;
+    public bool HasMoreContracts => _continuationToken is not null;
+    public IAsyncOperation LoadMoreOperation => _loadMoreOperation;
     readonly AsyncOperation _addOperation;
     readonly AsyncOperation _changeOperation;
     readonly AsyncOperation _removeOperation;
@@ -75,6 +83,8 @@ public sealed class FuturesOptionContractEditorViewModel
         _loadContractsOperation = new AsyncOperation(
             LoadContractsCoreAsync,
             () => !string.IsNullOrWhiteSpace(SelectedSymbol));
+        _loadMoreOperation = new AsyncOperation(LoadMoreCoreAsync,
+            () => HasMoreContracts && !IsMutationRunning && !_loadOperation.IsRunning && !_loadContractsOperation.IsRunning);
         _addOperation = new AsyncOperation(
             AddCoreAsync,
             () => _pendingAdd is not null && _lifecycle.IsRunning && !IsMutationRunning);
@@ -132,7 +142,7 @@ public sealed class FuturesOptionContractEditorViewModel
         private set => SetProperty(ref _optionTypes, value);
     }
 
-    /// <summary>Gets the option contracts for <see cref="SelectedSymbol"/>.</summary>
+    /// <summary>Gets the contracts cached from pages loaded for <see cref="SelectedSymbol"/>.</summary>
     public IReadOnlyList<FuturesOptionContractReadModel> FuturesOptionContracts
     {
         get => _futuresOptionContracts;
@@ -171,7 +181,7 @@ public sealed class FuturesOptionContractEditorViewModel
     /// <summary>Gets the operation that starts the listener and loads a coherent editor snapshot.</summary>
     public IAsyncOperation LoadOperation => _loadOperation;
 
-    /// <summary>Gets the operation that reloads contracts for the selected symbol.</summary>
+    /// <summary>Gets the operation that reloads the first contract page for the selected symbol.</summary>
     public IAsyncOperation LoadContractsOperation => _loadContractsOperation;
 
     /// <summary>Gets the correlated operation that adds the prepared option contract.</summary>
@@ -186,7 +196,15 @@ public sealed class FuturesOptionContractEditorViewModel
     /// <summary>Selects the symbol used by the next contract load.</summary>
     public void SelectSymbol(int index)
     {
-        SelectedSymbol = GetLookup(Symbols, index).ShortCode;
+        var symbol = GetLookup(Symbols, index).ShortCode;
+        if (SelectedSymbol != symbol)
+        {
+            ++_catalogVersion;
+            _loadMoreOperation.Cancel();
+            SetContinuationToken(null);
+            FuturesOptionContracts = [];
+        }
+        SelectedSymbol = symbol;
         _loadContractsOperation.NotifyCanExecuteChanged();
     }
 
@@ -301,9 +319,9 @@ public sealed class FuturesOptionContractEditorViewModel
         var optionTypes = await LoadLookupAsync("OptionType", cancellationToken);
         var symbols = await LoadLookupAsync("Symbol", cancellationToken);
         var selectedSymbol = symbols.FirstOrDefault()?.ShortCode ?? string.Empty;
-        var contracts = string.IsNullOrWhiteSpace(selectedSymbol)
-            ? []
-            : await QueryContractsAsync(selectedSymbol, cancellationToken);
+        var page = string.IsNullOrWhiteSpace(selectedSymbol)
+            ? new FuturesOptionContractPageReadModel([], null)
+            : await QueryPageAsync(selectedSymbol, null, cancellationToken);
 
         SecurityTypes = securityTypes;
         Currencies = currencies;
@@ -312,29 +330,98 @@ public sealed class FuturesOptionContractEditorViewModel
         OptionTypes = optionTypes;
         Symbols = symbols;
         SelectedSymbol = selectedSymbol;
-        FuturesOptionContracts = contracts;
+        _pageRestartAttempted = false;
+        PublishFirstPage(page);
         NotifyMutationCanExecuteChanged();
         _loadContractsOperation.NotifyCanExecuteChanged();
     }
 
     async Task LoadContractsCoreAsync(CancellationToken cancellationToken)
-        => FuturesOptionContracts = await QueryContractsAsync(SelectedSymbol, cancellationToken);
+    {
+        ++_catalogVersion;
+        _loadMoreOperation.Cancel();
+        while (true)
+        {
+            var version = _catalogVersion;
+            var symbol = SelectedSymbol;
+            var page = await QueryPageAsync(symbol, null, cancellationToken);
+            if (version != _catalogVersion) continue;
+            _pageRestartAttempted = false;
+            PublishFirstPage(page);
+            return;
+        }
+    }
 
     async Task<IReadOnlyList<LookupTypeUiModel>> LoadLookupAsync(
-        string lookupTypeName,
-        CancellationToken cancellationToken)
-        => (await _referenceDataService.GetLookupTypesAsync(lookupTypeName, cancellationToken))
-            .RequireValue();
+        string lookupTypeName, CancellationToken cancellationToken)
+        => (await _referenceDataService.GetLookupTypesAsync(lookupTypeName, cancellationToken)).RequireValue();
 
-    async Task<IReadOnlyList<FuturesOptionContractReadModel>> QueryContractsAsync(
-        string symbol,
-        CancellationToken cancellationToken)
+    async Task<FuturesOptionContractPageReadModel> QueryPageAsync(
+        string symbol, string? continuationToken, CancellationToken cancellationToken)
     {
-        FuturesOptionContractReadModel[] result = [];
-        await _queryModel.ExecuteObservableAsync(
-            model => model.GetFuturesOptionContractsAsync(symbol, loaded => result = loaded ?? []),
-            cancellationToken);
-        return result;
+        var result = await _queryModel.GetFuturesOptionContractsPageAsync(
+            new GetFuturesOptionContractsPageParameter(symbol, ContractPageSize, continuationToken), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!result.Success || result.Value is null)
+            throw new UiServiceOperationException(result.ErrorCode, result.ErrorMessage ?? "Unable to load option contracts.");
+        return result.Value;
+    }
+
+    void SetContinuationToken(string? token)
+    {
+        _continuationToken = token;
+        OnPropertyChanged(nameof(HasMoreContracts));
+        _loadMoreOperation.NotifyCanExecuteChanged();
+    }
+
+    void PublishFirstPage(FuturesOptionContractPageReadModel page)
+    {
+        FuturesOptionContracts = page.Items;
+        SetContinuationToken(page.ContinuationToken);
+    }
+
+    async Task LoadMoreCoreAsync(CancellationToken cancellationToken)
+    {
+        var version = _catalogVersion;
+        var symbol = SelectedSymbol;
+        var token = _continuationToken;
+        if (token is null) return;
+        FuturesOptionContractPageReadModel page;
+        try
+        {
+            page = await QueryPageAsync(symbol, token, cancellationToken);
+        }
+        catch (UiServiceOperationException) when (!_pageRestartAttempted)
+        {
+            // An expired cursor or changed projection requires a new browsing sequence.
+            // If the first-page request also fails, retain the existing rows for retry.
+            if (version != _catalogVersion) return;
+            _pageRestartAttempted = true;
+            page = await QueryPageAsync(symbol, null, cancellationToken);
+            if (version == _catalogVersion) PublishFirstPage(page);
+            return;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (version != _catalogVersion) return;
+        if (page.ContinuationToken == token)
+            throw new InvalidOperationException("The contract page did not advance. Refresh the list.");
+        _pageRestartAttempted = false;
+        FuturesOptionContracts = [.. FuturesOptionContracts, .. page.Items];
+        SetContinuationToken(page.ContinuationToken);
+    }
+
+    /// <summary>Restores a saved contract by identity, reading further pages only when necessary.</summary>
+    public async Task EnsureContractLoadedAsync(string contractId, CancellationToken cancellationToken = default)
+    {
+        var symbol = SelectedSymbol;
+        while (SelectedSymbol == symbol && HasMoreContracts && !FuturesOptionContracts.Any(c => c.ContractId == contractId))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!LoadMoreOperation.CanExecute) break;
+            var previousToken = _continuationToken;
+            await LoadMoreOperation.ExecuteAsync(cancellationToken);
+            if (_continuationToken == previousToken) break;
+        }
     }
 
     Task AddCoreAsync(CancellationToken cancellationToken)
@@ -395,7 +482,9 @@ public sealed class FuturesOptionContractEditorViewModel
                 throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
 
             SelectedSymbol = symbol;
-            FuturesOptionContracts = await QueryContractsAsync(symbol, cancellationToken);
+            ++_catalogVersion;
+            _pageRestartAttempted = false;
+            PublishFirstPage(await QueryPageAsync(symbol, null, cancellationToken));
             LastStatusMessage = statusMessage;
             clearPending();
         }
@@ -447,6 +536,8 @@ public sealed class FuturesOptionContractEditorViewModel
 
     void PrepareMutation()
     {
+        ++_catalogVersion;
+        _loadMoreOperation.Cancel();
         lock (_correlationGate)
             _earlyTerminalEvents.Clear();
         LastStatusMessage = string.Empty;
@@ -478,6 +569,8 @@ public sealed class FuturesOptionContractEditorViewModel
 
     void CancelOperations()
     {
+        ++_catalogVersion;
+        _loadMoreOperation.Cancel();
         _loadOperation.Cancel();
         _loadContractsOperation.Cancel();
         _addOperation.Cancel();
@@ -487,6 +580,7 @@ public sealed class FuturesOptionContractEditorViewModel
 
     async Task AwaitOperationsStoppedAsync()
     {
+        await AwaitOperationStoppedAsync(_loadMoreOperation);
         await AwaitOperationStoppedAsync(_loadOperation);
         await AwaitOperationStoppedAsync(_loadContractsOperation);
         await AwaitOperationStoppedAsync(_addOperation);

@@ -28,6 +28,13 @@ public record FundPnlReportReadModel(
     [property: Key(8)] double PnlPercent,
     [property: Key(9)] decimal TradeCommission)
 {
+    /// <summary>Largest recorded ledger-balance decline from a preceding peak; cash flows are included.</summary>
+    [Key(10)] public decimal? MaximumDrawdownAmount { get; init; }
+    /// <summary>Largest proportional ledger-balance decline from a positive preceding peak.</summary>
+    [Key(11)] public double? MaximumDrawdownPercent { get; init; }
+    /// <summary>Null for older producers; false when the period has no recorded balances or trades.</summary>
+    [Key(12)] public bool? HasHistory { get; init; }
+
     [IgnoreMember]
     public bool IsValid => WinRate > 0 || LossRate > 0;
 }

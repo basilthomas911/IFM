@@ -4,7 +4,7 @@ using TomasAI.IFM.UI.Net.Services.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
-public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
+public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFormControl
 {
     readonly IAppRoot _appRoot;
     readonly Dictionary<string, Func<IAppRoot, Control>> _controlMap;
@@ -14,7 +14,6 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     bool _closeInProgress;
     int _selectionGeneration;
     const string TradeStrategyFamiliesLabel = "trade strategy families";
-    static readonly Font ReferenceFont = new("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point);
 
     public ReferenceForm(
         IAppRoot appRoot,
@@ -43,19 +42,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         }
     }
 
-    // Include all nested editors and controls added later, not only the designer shell.
-    static void ApplyReferenceFont(Control control)
-    {
-        control.Font = ReferenceFont;
-        control.ControlAdded -= ReferenceControlAdded;
-        control.ControlAdded += ReferenceControlAdded;
-        foreach (Control child in control.Controls) ApplyReferenceFont(child);
-    }
-
-    static void ReferenceControlAdded(object? sender, ControlEventArgs e)
-    {
-        if (e.Control is not null) ApplyReferenceFont(e.Control);
-    }
+    static void ApplyReferenceFont(Control control) => DarkTradingTypography.Apply(control);
 
     /// <summary>
     /// load reference view model
@@ -120,8 +107,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         pnlMarketData.Controls.Clear();
         if (string.Equals(ddlReferenceDataSelector.SelectedItem?.ToString(), TradeStrategyFamiliesLabel, StringComparison.Ordinal))
         {
-            var catalog = new TradeStrategyFamilyReferenceView(_appRoot.Services.ReferenceQueries, _appRoot.Services.ReferenceCommands,
-                _appRoot.Services.MarketDataQueries) { Dock = DockStyle.Fill };
+            var catalog = new StrategyCatalogReferenceView(_appRoot.Services.ReferenceQueries, _appRoot.Services.ReferenceCommands) { Dock = DockStyle.Fill };
             _ctrlCommand = catalog;
             catalog.StateChanged += (_, _) => { if (ReferenceEquals(_ctrlCommand, catalog)) RefreshFamilyButtons(catalog); };
             pnlMarketData.Controls.Add(catalog);
@@ -159,7 +145,8 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
             await asyncControl.CloseAsync();
         else
             command?.Unload();
-        pnlMarketData.Controls.Remove(control);
+        // Dispose also removes the child. Removing a live, docked SplitContainer
+        // first can trigger a repaint against its closing window handle.
         control.Dispose();
     }
 
@@ -189,7 +176,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     void RefreshAddButton(bool enabled)
     {
-        if (_ctrlCommand is TradeStrategyFamilyReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
+        if (_ctrlCommand is StrategyCatalogReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
         btnAdd.Text = !enabled ? "Save" : "Add";
         btnChange.Enabled = enabled;
         btnRemove.Enabled = enabled;
@@ -199,7 +186,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     void RefreshChangeButton(bool enabled)
     {
-        if (_ctrlCommand is TradeStrategyFamilyReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
+        if (_ctrlCommand is StrategyCatalogReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
         btnChange.Text = !enabled ? "Save" : "Change";
         btnAdd.Enabled = enabled;
         btnRemove.Enabled = enabled;
@@ -209,7 +196,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
     void ResetButtons(bool enabled)
     {
-        if (_ctrlCommand is TradeStrategyFamilyReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
+        if (_ctrlCommand is StrategyCatalogReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
         btnAdd.Text = @"&Add";
         btnAdd.Enabled = true;
         btnChange.Text = @"C&hange";
@@ -256,13 +243,13 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
             $"Reference data selector; selected={ddlReferenceDataSelector.SelectedItem}; "
             + $"catalog: {ddlReferenceDataSelector.AccessibleDescription}";
 
-    void RefreshFamilyButtons(TradeStrategyFamilyReferenceView catalog)
+    void RefreshFamilyButtons(StrategyCatalogReferenceView catalog)
     {
         btnAdd.Text = catalog.IsEditing && !catalog.IsChanging ? "Save" : "&Add";
         btnAdd.Enabled = catalog.IsEditing ? !catalog.IsChanging && catalog.CanSave : catalog.CanAdd;
         btnChange.Text = catalog.IsChanging ? "Save" : "C&hange";
         btnChange.Enabled = catalog.IsChanging ? catalog.CanSave : catalog.CanChangeRemove;
-        btnRemove.Enabled = catalog.CanChangeRemove;
+        btnRemove.Enabled = catalog.CanRemove;
         btnImport.Enabled = false;
         btnClose.Text = catalog.IsEditing ? "Cancel" : "Close";
         btnClose.Enabled = !catalog.IsSaving;

@@ -1,4 +1,7 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
+using GetFuturesOptionContractsPageParameter = TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.GetFuturesOptionContractsPageParameter;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
@@ -174,6 +177,18 @@ public static class ReferenceQueries
 {
     public static IEndpointRouteBuilder MapReferenceQueries(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapPost(GetLookupDefinitionsQuery.Uri, async (IActorService actor, GetLookupDefinitionsParameter parameter, CancellationToken cancellationToken) =>
+        {
+            var query = new GetLookupDefinitionsQuery { GroupName = parameter.GroupName,
+                Subject = new ActorSubject(ActorType.Query, GetLookupDefinitionsQuery.Actor, GetLookupDefinitionsQuery.Verb, ActorEntityId.Default.Format()) };
+            return await actor.RequestAsync<LookupDefinitionReadModel[], GetLookupDefinitionsQuery>(query, cancellationToken);
+        });
+        endpoints.MapPost(StrategyCatalogUris.Query, async (IActorService actor, CatalogQueryParameter parameter, CancellationToken cancellationToken) =>
+        {
+            var query = new StrategyCatalogQuery { RequestJson = StrategyCatalogJson.Write(parameter.Request),
+                Subject = new ActorSubject(ActorType.Query, StrategyCatalogQuery.Actor, StrategyCatalogQuery.Verb, ActorEntityId.Default.Format()) };
+            return await actor.RequestAsync<string, StrategyCatalogQuery>(query, cancellationToken);
+        });
         endpoints.MapGet(ReferenceQueryUriPath.GetDefaultFuturesContractDefinitions, async (IActorService e) =>
         {
             var query = new GetDefaultFuturesContractDefinitionsQuery();
@@ -361,6 +376,17 @@ public static class MarketDataQueries
             return await e.RequestAsync<FuturesOptionContractReadModel, global::TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesOptionContractQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataQueryUriPath.GetFuturesOptionContractsPage,
+            async (IActorService e, string symbol, int? pageSize, string? continuationToken, CancellationToken cancellationToken) =>
+        {
+            var request = new GetFuturesOptionContractsPageParameter(symbol, pageSize ?? 200, continuationToken);
+            var query = new GetFuturesOptionContractsPageQuery(request)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesOptionContractsPageQuery.Actor,
+                    GetFuturesOptionContractsPageQuery.Verb, request.Format())
+            };
+            return await e.RequestAsync<FuturesOptionContractPageReadModel, GetFuturesOptionContractsPageQuery>(query, cancellationToken);
+        });
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesOptionContracts, async (IActorService e, string symbol) =>
         {
             var query = new GetFuturesOptionContractsQuery(symbol);

@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+// LEGACY: retained for migration/replay and UI comparison only. Active authoring uses ConfigurationDb.
+// Removal criteria: Domain.Reference/Docs/Strategy-Catalog-Legacy-Retirement.md.
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Views.Portfolio;
@@ -7,7 +9,7 @@ using TomasAI.IFM.UI.Net.Services.MarketData;
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
 /// <summary>Lookup-style list/detail editor with versioned changes and retirement.</summary>
-public sealed class TradeStrategyFamilyReferenceView : UserControl, IControlCommand, IAsyncFormControl
+public sealed class TradeStrategyFamilyReferenceView : DarkTradingView, IControlCommand, IAsyncFormControl
 {
     readonly IReferenceQueryApi _queries;
     readonly IReferenceCommandApi? _commands;

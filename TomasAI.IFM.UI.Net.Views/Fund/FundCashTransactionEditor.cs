@@ -9,7 +9,7 @@ namespace TomasAI.IFM.UI.Net.Views.Fund;
 /// <summary>
 /// Modal editor for an operator-entered cash deposit or withdrawal.
 /// </summary>
-public sealed class FundCashTransactionEditor : Form, IFormControl
+public sealed class FundCashTransactionEditor : DarkTradingForm, IFormControl
 {
     readonly FundCashTransactionViewModel _viewModel;
     readonly TextBox _amount = new() { Name = "txtAmount", Dock = DockStyle.Fill };

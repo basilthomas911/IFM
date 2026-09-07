@@ -73,4 +73,6 @@ public enum BoundedContextName
     PortfolioFundBoundedContext,
     /// <summary>Routes audited reference catalog creation commands.</summary>
     TradeStrategyFamilyBoundedContext,
+    /// <summary>Routes immutable market-data download outcomes.</summary>
+    DownloadLogBoundedContext,
 }

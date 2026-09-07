@@ -3,7 +3,7 @@
 **Document type:** System-wide capability roadmap and milestone contract  
 **Status:** Active planning baseline; milestone descriptions do not authorize implementation  
 **Created:** 2026-08-13  
-**Last updated:** 2026-08-18
+**Last updated:** 2026-09-05
 **Owner:** IFM engineering
 
 ## 1. Purpose
@@ -16,6 +16,21 @@ This document separates two goals that must not be treated as the same delivery 
 The optimized WinForms restoration is a major system milestone. It proves that the modernized actor runtime, storage, NATS messaging, domain behavior, application APIs, event consumers, Models, ViewModels, and legacy WinForms presentation work together as an integrated system with the business behavior that previously existed. It does **not** by itself prove that the new paper-trading capabilities exist.
 
 This document is the authoritative high-level milestone map. Detailed subsystem designs and implementation plans remain separate documents and require review before implementation.
+
+### Current broker status and sequencing
+
+Actual IBKR connectivity is not implemented. The **IBKR emulator is the first
+planned broker implementation**; actual IBKR connectivity follows later.
+Milestone descriptions below are target capabilities, not statements that
+the emulator or broker foundation already exists. The emulator and later IBKR
+adapters share the order-execution and account contracts defined in the
+[broker integration specification](QTS_Trade_Broker_Integration_Specification_v1.2.md).
+
+Market Condition should assess market/data conditions without requiring an
+actual broker connection. Execution readiness is checked against the selected
+emulator or broker adapter before order submission. The current Market
+Condition placeholder still blocks under its default configuration; aligning
+that code and configuration with this boundary is pending.
 
 ## 2. Terminology and readiness levels
 
@@ -118,7 +133,7 @@ Broker adapters must not expose provider-specific DTOs directly to domain actors
 
 ### 5.3 Trade-broker emulation engine
 
-The emulator must implement the same application-facing contract as an external broker adapter. It should support deterministic scenarios for:
+The IBKR emulator must be implemented before the actual IBKR connection and must implement the same application-facing contracts as the later external broker adapter. It should support deterministic scenarios for:
 
 - accepted and rejected orders;
 - market, limit, stop, and approved multi-leg option orders;
@@ -180,7 +195,7 @@ Milestone B also establishes:
 
 ### 5.7 Exit criteria
 
-- the emulator and at least one approved broker adapter contract test use the same application-facing interface;
+- the IBKR emulator passes the shared order-execution and account contract tests without an actual IBKR connection; the later actual adapter must pass the same contract suite before external-broker qualification;
 - account snapshots, positions, orders, executions, balances, and margin can be queried and stored;
 - account actor recovery and reconciliation pass deterministic restart and discrepancy tests;
 - broker disconnect, delayed response, duplicate update, and ambiguous outcome scenarios are observable and recoverable; and

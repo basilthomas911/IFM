@@ -21,7 +21,24 @@ namespace TomasAI.IFM.Application.Api.Client;
 /// </summary>
 public class ReferenceQueryApi(IQueryServiceApi querySvc) : IReferenceQueryApi
 {
+    public Task<ServiceResult<TomasAI.IFM.Domain.Reference.Shared.Lookups.LookupDefinitionReadModel[]>> GetLookupDefinitionsAsync(string groupName, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return _querySvc.PostQueryAsync<TomasAI.IFM.Domain.Reference.Shared.Lookups.LookupDefinitionReadModel[]>(
+            TomasAI.IFM.Domain.Reference.Shared.Lookups.GetLookupDefinitionsQuery.Uri,
+            new TomasAI.IFM.Domain.Reference.Shared.Lookups.GetLookupDefinitionsParameter(groupName),
+            TomasAI.IFM.Domain.Reference.Shared.Lookups.GetLookupDefinitionsQuery.ErrorId).WaitAsync(cancellationToken);
+    }
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);
+    public Task<ServiceResult<string>> QueryStrategyCatalogAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogQueryRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return _querySvc.PostQueryAsync<string>(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogUris.Query,
+            new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogQueryParameter(request), 1063).WaitAsync(cancellationToken);
+    }
+    public Task<ServiceResult<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
+        => new MarketDataQueryApi(_querySvc).GetTradeStrategySymbolsAsync(family, cancellationToken);
+
 
     /// <summary>
     /// Returns default futures contract definitions.

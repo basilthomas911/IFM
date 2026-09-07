@@ -8,6 +8,12 @@ using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.Views.App;
 using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.UI.Net.Services.Application;
+using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
+using TomasAI.IFM.UI.EventConsumer;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 
@@ -50,7 +56,7 @@ public sealed class DashboardSplitterRenderingTests
             "NavigationFontStyle",
             BindingFlags.Static | BindingFlags.NonPublic)!;
         ((Color)textColor.Invoke(null, [false, true])!).ToArgb()
-            .Should().Be(Color.LightGray.ToArgb());
+            .Should().Be(Color.White.ToArgb());
         ((Color)textColor.Invoke(null, [true, true])!).ToArgb()
             .Should().Be(Color.White.ToArgb());
         ((FontStyle)fontStyle.Invoke(null, [false])!).Should().Be(FontStyle.Regular);
@@ -101,15 +107,15 @@ public sealed class DashboardSplitterRenderingTests
     }
 
     [Fact]
-    public void MarketFeedButtonUsesBlackBackgroundAndBrightLifecycleText()
+    public void MarketFeedButtonUsesBlackBackgroundAndThemeCaptionState()
     {
         var colorMethod = typeof(IFMAppView).GetMethod(
             "MarketDataFeedColors",
             BindingFlags.Static | BindingFlags.NonPublic)!;
         var expected = new Dictionary<bool, (Color Background, Color Foreground)>
         {
-            [false] = (Color.Black, Color.LimeGreen),
-            [true] = (Color.Black, Color.Red)
+            [false] = (Color.Black, Color.Gray),
+            [true] = (Color.Black, Color.White)
         };
 
         foreach (var lifecycleState in expected)
@@ -127,6 +133,7 @@ public sealed class DashboardSplitterRenderingTests
         button.Enabled = true;
         button.BackColor = Color.Black;
         button.ForeColor = Color.Red;
+        button.ForeColor.Should().Be(Color.White, "command captions follow enabled state even after legacy color assignments");
         using var bitmap = new Bitmap(menuBar.ClientSize.Width, menuBar.ClientSize.Height);
         menuBar.DrawToBitmap(bitmap, menuBar.ClientRectangle);
         bitmap.GetPixel(button.Bounds.Left + 2, button.Bounds.Top + 2).ToArgb()
@@ -163,17 +170,61 @@ public sealed class DashboardSplitterRenderingTests
     }
 
     [Fact]
-    public void Databento_readiness_maps_recovery_and_unexpected_failure_to_operator_fencing()
+    public void Databento_readiness_maps_recovery_and_failure_to_health_indicators()
     {
         var healthMapper = typeof(IFMAppViewModel).GetMethod(
             "MapDatabentoDisplayHealth", BindingFlags.Static | BindingFlags.NonPublic)!;
-        var navigationMapper = typeof(IFMAppViewModel).GetMethod(
-            "IsDatabentoCoreNavigationRestricted", BindingFlags.Static | BindingFlags.NonPublic)!;
-
         healthMapper.Invoke(null, ["Orange"]).Should().Be(MarketDataFeedHealthState.Recovering);
         healthMapper.Invoke(null, ["Red"]).Should().Be(MarketDataFeedHealthState.Critical);
-        navigationMapper.Invoke(null, [false, FuturesMarketState.LiveTrading]).Should().Be(true);
-        navigationMapper.Invoke(null, [false, FuturesMarketState.Closed]).Should().Be(false);
+    }
+
+    [Theory]
+    [InlineData("Starting", "Orange", false, true)]
+    [InlineData("Resetting", "Orange", false, true)]
+    [InlineData("Failed", "Red", false, false)]
+    [InlineData("ScheduledStopped", "Inactive", false, false)]
+    [InlineData("Healthy", "Green", true, true)]
+    [InlineData("Degraded", "Yellow", true, true)]
+    public async Task Navigation_remains_available_across_market_and_feed_states(
+        string feedState, string displayHealth, bool coreReady, bool feedActive)
+    {
+        var root = Substitute.For<IAppRoot>();
+        root.Services.CommandResponses.Returns(new CommandResponseEventService(
+            Substitute.For<ICommandResponseUIEventConsumer>()));
+        var api = Substitute.For<IMarketDataFeedQueryApi>();
+        api.GetDatabentoReadinessAsync().Returns(new ServiceOk<DatabentoReadinessReadModel>(new()
+        {
+            State = feedState, DisplayHealth = displayHealth, CoreReady = coreReady
+        }));
+        root.Services.FeedQueries.Returns(new MarketDataFeedQueryService(api));
+        await using var model = new IFMAppViewModel(root, new Version(1, 0), "TEST",
+            Substitute.For<IIFMAppLiveViewAdapter>(), Substitute.For<IEconomicCalendarService>());
+        using var form = CreateForm();
+        typeof(IFMAppView).GetField("_viewModel", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(form, model);
+        var menu = form.Controls.Find("toolStrip1", true).OfType<ToolStrip>().Single();
+        var refresh = typeof(IFMAppViewModel).GetMethod("RefreshDatabentoReadinessAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var render = typeof(IFMAppView).GetMethod("RenderMenuState", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        foreach (var marketState in Enum.GetValues<FuturesMarketState>())
+        {
+            typeof(IFMAppViewModel).GetProperty(nameof(model.MarketState))!.SetValue(model, marketState);
+            await (Task)refresh.Invoke(model, null)!;
+            model.IsMarketDataFeedActive.Should().Be(feedActive);
+            foreach (var valueDate in new DateOnly?[] { null, new(2026, 9, 8) })
+            foreach (var busy in new[] { false, true })
+            {
+                typeof(IFMAppViewModel).GetProperty(nameof(model.ValueDate))!.SetValue(model, valueDate);
+                typeof(IFMAppViewModel).GetProperty(nameof(model.IsMarketDataFeedOperationInProgress))!.SetValue(model, busy);
+                render.Invoke(form, null);
+                new[] { "tradeButton", "marketDataButton", "portfolioButton", "fundButton", "referenceButton", "systemAdminButton" }
+                    .Select(name => menu.Items[name])
+                    .Should().OnlyContain(item => item != null && item.Enabled,
+                        $"navigation must remain available in {marketState} with a {feedState} feed");
+                menu.Items["marketDataFeedButton"].Enabled.Should().Be(
+                    valueDate.HasValue && (marketState != FuturesMarketState.Closed || feedActive) && !busy,
+                    "feed commands retain their date, session and operation-in-progress checks");
+            }
+        }
     }
 
     [Fact]

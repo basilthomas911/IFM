@@ -41,9 +41,9 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             lblFundBalance = new Label();
             txtFundBalance = new TextBox();
             lblTo = new Label();
-            dtpTo = new DateTimePicker();
+            dtpTo = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             lblFrom = new Label();
-            dtpFrom = new DateTimePicker();
+            dtpFrom = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             ddlFund = new ComboBox();
             lblFundSelector = new Label();
             pnlTradeOrders = new Panel();

@@ -5,7 +5,7 @@ using TomasAI.IFM.UI.Net.Models.Reference;
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
 public partial class LookupTypeEditorView
-    : UserControl, IControlCommand, IAsyncFormControl
+    : DarkTradingView, IControlCommand, IAsyncFormControl
 {
     readonly LookupTypeEditorViewModel _viewModel;
     EditMode _editMode;

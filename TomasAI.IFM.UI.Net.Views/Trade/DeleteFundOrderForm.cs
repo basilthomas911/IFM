@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade
 {
-    public partial class DeleteFundOrderForm : Form
+    public partial class DeleteFundOrderForm : DarkTradingForm
     {
         public DeleteFundOrderForm(string caption)
         {

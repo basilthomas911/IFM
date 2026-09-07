@@ -8,7 +8,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 /// <summary>
 /// Transitional WinForms adapter for observable new-fund-order state.
 /// </summary>
-public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFormControl
+public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrderForm>, IFormControl
 {
     FundOrderEditorViewModel _viewModel = null!;
     bool _rendering;

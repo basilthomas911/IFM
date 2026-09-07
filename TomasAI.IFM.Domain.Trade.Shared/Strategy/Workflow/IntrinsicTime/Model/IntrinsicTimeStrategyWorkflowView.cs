@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -62,4 +63,5 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(24)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
     /// <summary>Gets the canonical frozen Market Condition parameter hash.</summary>
     [Key(25)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(26)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
 }

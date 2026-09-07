@@ -52,7 +52,9 @@ public sealed class PortfolioFundAggregate
         if (replacement.PortfolioId != Current.PortfolioId || replacement.FundId != Current.FundId)
             throw new ArgumentException("Portfolio/Fund parent identity cannot change.", nameof(replacement));
         if (replacement.FundCode != Current.FundCode) throw new ArgumentException("FundCode cannot change.", nameof(replacement));
-        if (Current.PermittedTradeStrategyFamilies.Length > 0 && (replacement.SchemaVersion < 2 || replacement.PermittedTradeStrategyFamilies.Length == 0))
+        var unassignedInactive = replacement.SchemaVersion >= 3 && replacement.OperatingState is FundOperatingState.Draft or FundOperatingState.Disabled or FundOperatingState.Retired
+            && replacement.PermittedTradeFamilies is { Length: 0 } && replacement.PermittedTradeStrategyFamilies is { Length: 0 };
+        if (Current.PermittedTradeStrategyFamilies.Length > 0 && (replacement.SchemaVersion < 2 || (replacement.PermittedTradeStrategyFamilies.Length == 0 && !unassignedInactive)))
             throw new ArgumentException("An exact-reference Fund mandate cannot downgrade to legacy family names.", nameof(replacement));
         if (replacement.FundMandateVersion != Current.FundMandateVersion + 1)
             throw new ArgumentException("FundMandateVersion must increment by one.", nameof(replacement));
@@ -85,6 +87,8 @@ public sealed class PortfolioFundAggregate
             throw new InvalidOperationException("Fund activation configuration is incomplete.");
         if (Current.IsLegacyHistory && state != FundOperatingState.Draft)
             throw new InvalidOperationException("A legacy-history Fund mandate cannot become operational.");
+        if (state == FundOperatingState.Active)
+            ThrowIfInvalid((Current with { OperatingState = state }).Validate());
         return ApplyAndReturn(new FundOperatingStateChanged(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, state, reason.Trim()));
     }
 
@@ -144,9 +148,9 @@ public sealed class PortfolioFundAggregate
             throw new ArgumentException("Assignment trade family is incompatible with the Fund mandate.", nameof(assignment));
         ThrowIfInvalid(assignment.Validate());
         var latestVersion = _assignments.Count == 0 ? 0 : _assignments.Max(x => x.AssignmentVersion);
-        if (assignment.AssignmentVersion != latestVersion + 1)
-            throw new ArgumentException("AssignmentVersion must increment the Fund assignment stream by one.", nameof(assignment));
-        if (_assignments.Any(existing => existing.TradeTemplateId == assignment.TradeTemplateId &&
+        if (assignment.AssignmentVersion != (assignment.SchemaVersion >= 3 ? Revision + 1 : latestVersion + 1))
+            throw new ArgumentException("AssignmentVersion must be the next Fund revision for schema v3, or the next assignment sequence for legacy data.", nameof(assignment));
+        if (_assignments.Any(existing => (assignment.SchemaVersion < 3 || (existing.FundMandateVersion == assignment.FundMandateVersion && existing.Enabled && assignment.Enabled)) && existing.TradeTemplateId == assignment.TradeTemplateId &&
                                          WindowsOverlap(existing.EffectiveFromUtc, existing.EffectiveUntilUtc,
                                              assignment.EffectiveFromUtc, assignment.EffectiveUntilUtc)))
             throw new InvalidOperationException("The same TradeTemplate has an overlapping assignment window.");

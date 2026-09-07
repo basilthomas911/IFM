@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
@@ -8,7 +9,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
 /// <summary>Bounded v1 editor for immutable PortfolioFinancialPolicy versions.</summary>
-public sealed class PortfolioRiskPolicyForm : Form
+public sealed class PortfolioRiskPolicyForm : DarkTradingForm
 {
     readonly PortfolioReadModel _portfolio;
     readonly IPortfolioQueryApi _queries;
@@ -39,7 +40,7 @@ public sealed class PortfolioRiskPolicyForm : Form
     readonly Button _save = PortfolioUiStyle.Button("Save", "Save the edited financial policy Draft");
     readonly Button _cancel = PortfolioUiStyle.Button("Cancel", "Discard financial policy edits");
     readonly Func<bool> _confirmDiscard;
-    TradeStrategyFamilyReadModel[] _catalog = [];
+    StrategyDeploymentChoice[] _catalog = [];
     PortfolioFinancialPolicyReadModel? _selected;
     PortfolioFinancialPolicyReadModel? _editingPolicy;
     bool _binding;
@@ -79,10 +80,11 @@ public sealed class PortfolioRiskPolicyForm : Form
         {
             if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.TradeStrategyFamilyId)] is { } familyId)
             {
-                familyId.HeaderText = "Trade Family";
+                familyId.HeaderText = "Strategy deployment";
                 familyId.ReadOnly = true;
             }
-            if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.DefinitionVersion)] is { } version) version.ReadOnly = true;
+            if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.DefinitionVersion)] is { } version) version.Visible = false;
+            if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.CatalogDeployment)] is { } deployment) deployment.Visible = false;
         };
         _families.CellFormatting += (_, e) =>
         {
@@ -91,7 +93,10 @@ public sealed class PortfolioRiskPolicyForm : Form
                 || e.Value is not int familyId)
                 return;
 
-            e.Value = _catalog.FirstOrDefault(x => x.TradeStrategyFamilyId == familyId)?.Description ?? "Unknown Trade Family";
+            var limit = _families.Rows[e.RowIndex].DataBoundItem as TradeFamilyRiskLimitReadModel;
+            e.Value = limit?.CatalogDeployment is { } key
+                ? _catalog.FirstOrDefault(x => x.Key == key)?.Description ?? $"Unavailable deployment {key.Id} v{key.Version}"
+                : $"Legacy family {limit?.TradeStrategyFamilyId} v{limit?.DefinitionVersion}";
             e.FormattingApplied = true;
         };
         _newPolicy.Click += async (_, _) => await BeginNewPolicyAsync();
@@ -118,8 +123,9 @@ public sealed class PortfolioRiskPolicyForm : Form
         {
             if (_references is not null)
             {
-                var catalog = await _references.GetTradeStrategyFamiliesAsync();
-                if (catalog.Success && catalog.Value is not null) _catalog = catalog.Value;
+                var catalog = await _references.GetStrategyDeploymentChoicesAsync();
+                if (!catalog.Success || catalog.Value is null) throw new InvalidOperationException(catalog.ErrorMessage ?? "Deployment catalog unavailable.");
+                _catalog = TradeFamilyCatalogSelection.Active(catalog.Value);
             }
             var result = await _queries.GetPoliciesAsync(_portfolio.PortfolioId, 200);
             _policies.DataSource = result.Success && result.Value is not null ? result.Value.Items : [];
@@ -145,11 +151,18 @@ public sealed class PortfolioRiskPolicyForm : Form
         var now = DateTime.UtcNow;
         BeginEdit(new PortfolioFinancialPolicyReadModel
         {
-            PortfolioId = _portfolio.PortfolioId, PolicyId = allocation.Value.Value, PolicyVersion = 1, OperatingState = PortfolioFinancialPolicyState.Draft,
-            BaseCurrency = _portfolio.BaseCurrency, TradeFamilyLimits = [.. _catalog.Select(x => new TradeFamilyRiskLimitReadModel { TradeStrategyFamilyId = x.TradeStrategyFamilyId, DefinitionVersion = x.DefinitionVersion })],
+            PortfolioId = _portfolio.PortfolioId, PolicyId = allocation.Value.Value, PolicyVersion = 1, SchemaVersion = 3, OperatingState = PortfolioFinancialPolicyState.Draft,
+            BaseCurrency = _portfolio.BaseCurrency, TradeFamilyLimits = [.. _catalog.Select(x => new TradeFamilyRiskLimitReadModel { CatalogDeployment = x.Key })],
             EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = Environment.UserName,
         }, false);
         _status.Text = $"Editing new policy {allocation.Value.Value}. The sequence ID is consumed even if editing is cancelled.";
+    }
+
+    TradeFamilyRiskLimitReadModel[] MergeDeploymentLimits(TradeFamilyRiskLimitReadModel[] previous)
+    {
+        // Preserve exact new references/limits. New or unmapped deployments start disabled with zero limits.
+        return _catalog.Where(x => x.Status != CatalogLifecycleStatus.Retired).Select(x =>
+            previous.SingleOrDefault(p => p.CatalogDeployment == x.Key) ?? new TradeFamilyRiskLimitReadModel { CatalogDeployment = x.Key }).ToArray();
     }
 
     void BeginNewVersion()
@@ -158,7 +171,7 @@ public sealed class PortfolioRiskPolicyForm : Form
         var now = DateTime.UtcNow;
         BeginEdit(_selected.DefensiveCopy() with
         {
-            PolicyVersion = _selected.PolicyVersion + 1, OperatingState = PortfolioFinancialPolicyState.Draft,
+            PolicyVersion = _selected.PolicyVersion + 1, SchemaVersion = 3, TradeFamilyLimits = MergeDeploymentLimits(_selected.TradeFamilyLimits), OperatingState = PortfolioFinancialPolicyState.Draft,
             EffectiveFromUtc = now, EffectiveUntilUtc = null, CreatedOnUtc = now, CreatedBy = Environment.UserName,
             SupersededOnUtc = null, SupersededBy = string.Empty,
         }, true);

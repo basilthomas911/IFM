@@ -53,7 +53,6 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
 
         var expiresAtUtc = now.Add(maximumExecutionDuration);
         var parameterSet = command.RegimeDiscoveryParameterSet;
-        var marketConditionParameterSet = command.MarketConditionParameterSet;
         var started = new IntrinsicTimeStrategyWorkflowView
         {
             EntityId = command.EntityId,
@@ -81,8 +80,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
             RegimeDiscoveryParameterSet = parameterSet,
             RegimeDiscoveryParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
             FundId = command.FundId,
-            MarketConditionParameterSet = marketConditionParameterSet,
-            MarketConditionParameterPayloadSha256 = command.MarketConditionParameterPayloadSha256,
+            AssessmentBinding = command.AssessmentBinding,
             Outcome = StrategyWorkflowOutcome.None,
             TriggerEvent = command.TriggerEvent
         };

@@ -592,7 +592,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             RiskManagement = CloneStage(source.RiskManagement),
             TriggerEvent = CloneTrigger(source.TriggerEvent),
             RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
-            MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet)
+            MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
+            AssessmentBinding = source.AssessmentBinding
         };
 
     static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source)
@@ -632,7 +633,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             RegimeDiscoveryParameterPayloadSha256 = source.RegimeDiscoveryParameterPayloadSha256,
             FundId = source.FundId,
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
-            MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256
+            MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256,
+            AssessmentBinding = source.AssessmentBinding
         };
 
     static StrategyWorkflowStageState CloneStage(StrategyWorkflowStageState source)

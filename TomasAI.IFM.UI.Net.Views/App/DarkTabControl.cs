@@ -4,10 +4,10 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// Paints the complete tab surface because the native WinForms tab renderer
 /// ignores <see cref="Control.BackColor"/> around the tab pages.
 /// </summary>
-sealed class DarkTabControl : TabControl
+public sealed class DarkTabControl : TabControl
 {
     static readonly Color ChromeBackColor = Color.Black;
-    static readonly Color SelectedTabColor = Color.FromArgb(48, 48, 48);
+    static readonly Color SelectedTabColor = DarkTradingTheme.CommandSurface;
     static readonly Color ActiveTabBorderColor = Color.Gray;
     static readonly Color InactiveTabTextColor = Color.LightGray;
     const int DefaultHorizontalPadding = 12;
@@ -152,7 +152,7 @@ sealed class DarkTabControl : TabControl
     }
 }
 
-sealed class TabCloseRequestedEventArgs(TabPage tabPage) : EventArgs
+public sealed class TabCloseRequestedEventArgs(TabPage tabPage) : EventArgs
 {
     public TabPage TabPage { get; } = tabPage;
 }

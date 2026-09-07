@@ -32,6 +32,7 @@ public sealed record FundTradeTemplateAssignmentReadModel
     public IReadOnlyList<string> Validate()
     {
         List<string> errors = [];
+        if (SchemaVersion >= 3 && (TradeStrategyFamily?.CatalogDeployment is not { } deployment || TradeTemplateId != deployment.Id || TradeTemplateVersion != deployment.Version)) errors.Add("New assignments require an exact ConfigurationDb deployment.");
         if (PortfolioId <= 0 || PortfolioVersion <= 0) errors.Add("A positive Portfolio identity/version is required.");
         if (FundId <= 0 || FundMandateVersion <= 0) errors.Add("A positive Fund identity/version is required.");
         if (AssignmentVersion <= 0) errors.Add("AssignmentVersion must be positive.");
@@ -45,8 +46,8 @@ public sealed record FundTradeTemplateAssignmentReadModel
         if (Priority < 0) errors.Add("Priority cannot be negative.");
         if (EffectiveFromUtc.Kind != DateTimeKind.Utc) errors.Add("EffectiveFromUtc must be UTC.");
         if (EffectiveUntilUtc is { } until && (until.Kind != DateTimeKind.Utc || until <= EffectiveFromUtc)) errors.Add("EffectiveUntilUtc must be UTC and after EffectiveFromUtc.");
-        if (TradeSelectionHintProfileId == Guid.Empty || TradeSelectionHintProfileVersion <= 0) errors.Add("A versioned TradeSelectionHintProfile is required.");
-        if (OrderCompositionProfileId == Guid.Empty || OrderCompositionProfileVersion <= 0) errors.Add("A versioned OrderCompositionProfile is required.");
+        if ((SchemaVersion < 3 || Enabled) && (TradeSelectionHintProfileId == Guid.Empty || TradeSelectionHintProfileVersion <= 0)) errors.Add("A versioned TradeSelectionHintProfile is required.");
+        if ((SchemaVersion < 3 || Enabled) && (OrderCompositionProfileId == Guid.Empty || OrderCompositionProfileVersion <= 0)) errors.Add("A versioned OrderCompositionProfile is required.");
         if (CreatedOnUtc.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(CreatedBy)) errors.Add("UTC audit provenance is required.");
         return errors;
     }

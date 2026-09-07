@@ -94,7 +94,7 @@ public abstract class BaseEventSourceFunctionActor<
     public ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => HandleMessageAsync(message, threadId, CancellationToken.None);
 
-    public async ValueTask HandleMessageAsync(
+    public virtual async ValueTask HandleMessageAsync(
         IActorMessage message,
         ActorThreadId threadId,
         CancellationToken cancellationToken)

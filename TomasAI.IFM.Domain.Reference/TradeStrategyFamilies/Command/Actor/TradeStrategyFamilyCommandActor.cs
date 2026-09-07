@@ -7,14 +7,16 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command.Actor;
 
-/// <summary>Audited command transport; the reference CAS catalog is the durable authority and receipt.</summary>
+/// <summary>Catalog command transport; ConfigurationDb is the active authority. Legacy verbs return a migration error.</summary>
 public sealed class TradeStrategyFamilyCommandActor(ICommandActorContext<TradeStrategyFamilyCommandActor> context,
-    TradeStrategyFamilyCreationService service, ILogger<TradeStrategyFamilyCommandActor> logger) : BaseEventSourceCommandActor<TradeStrategyFamilyCommandActor>(context, logger)
+    TradeStrategyFamilyCreationService service, ILogger<TradeStrategyFamilyCommandActor> logger,
+    TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService? catalog = null) : BaseEventSourceCommandActor<TradeStrategyFamilyCommandActor>(context, logger)
 {
     public const string ActorName = CreateTradeStrategyFamilyCommand.Actor;
     protected override ICommand ParseMessage(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorMessage message) =>
         ParseMappedCommand(context, message, new Dictionary<string, Func<IActorMessage, ICommand>>
         {
+            [TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand.Verb] = msg => msg.AsCommand<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand>()!,
             [CreateTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<CreateTradeStrategyFamilyCommand>()!,
             [ChangeTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<ChangeTradeStrategyFamilyCommand>()!,
             [RemoveTradeStrategyFamilyCommand.Verb] = msg => msg.AsCommand<RemoveTradeStrategyFamilyCommand>()!
@@ -25,12 +27,16 @@ public sealed class TradeStrategyFamilyCommandActor(ICommandActorContext<TradeSt
     {
         switch (command)
         {
-            case CreateTradeStrategyFamilyCommand create when create.CommandId != Guid.Empty && create.Request?.OperationId == create.CommandId:
-                await service.CreateAsync(create.Request, create.OriginatedBy, cancellationToken).ConfigureAwait(false); break;
-            case ChangeTradeStrategyFamilyCommand change when change.CommandId != Guid.Empty && change.Request?.OperationId == change.CommandId:
-                await service.ChangeAsync(change.Request, change.OriginatedBy, cancellationToken).ConfigureAwait(false); break;
-            case RemoveTradeStrategyFamilyCommand remove when remove.CommandId != Guid.Empty && remove.Request?.OperationId == remove.CommandId:
-                await service.RemoveAsync(remove.Request, remove.OriginatedBy, cancellationToken).ConfigureAwait(false); break;
+            case TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand changeCatalog:
+                if (catalog is null) throw new InvalidOperationException("ConfigurationDb catalog service is unavailable.");
+                var request = TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogJson.Read<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogCommandRequest>(changeCatalog.RequestJson);
+                if (request.OperationId != command.CommandId) throw new ArgumentException("Catalog OperationId must match CommandId.");
+                await catalog.ExecuteAsync(request, changeCatalog.OriginatedBy, cancellationToken).ConfigureAwait(false);
+                break;
+            case CreateTradeStrategyFamilyCommand:
+            case ChangeTradeStrategyFamilyCommand:
+            case RemoveTradeStrategyFamilyCommand:
+                throw new InvalidOperationException("Legacy trade strategy families are read-only. Use the ConfigurationDb strategy catalog in Reference Data Manager.");
             default: throw new ArgumentException("CommandId must equal the nonempty OperationId.");
         }
         return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

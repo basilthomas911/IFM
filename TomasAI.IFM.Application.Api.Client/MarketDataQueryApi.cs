@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;
@@ -72,6 +72,16 @@ public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketData
     }
 
     /// <inheritdoc />
+    public Task<ServiceResult<FuturesOptionContractPageReadModel>> GetFuturesOptionContractsPageAsync(
+        GetFuturesOptionContractsPageParameter request, CancellationToken cancellationToken = default)
+    {
+        request.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+        return _querySvc.ExecuteQueryAsync<FuturesOptionContractPageReadModel>(
+            MarketDataQueryUriPath.GetFuturesOptionContractsPage, request, GetFuturesOptionContractsPageQuery.ErrorId)
+            .WaitAsync(cancellationToken);
+    }
+
     public async Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(string symbol)
     {
         var qryParam = new GetFuturesOptionContractsParameter(symbol);

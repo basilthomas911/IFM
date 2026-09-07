@@ -1,5 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Queries;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Reference;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi;
@@ -29,13 +28,13 @@ public sealed class IntrinsicTimePipelineDecisionReferenceQueryApi(IActorProduce
             }, cancellationToken);
     }
 
-    public ValueTask<ServiceResult<MarketConditionDecisionReferenceDto[]>> GetMarketConditionAsync(
+    public ValueTask<ServiceResult<MarketConditionAssessmentReferenceRow[]>> GetMarketConditionAssessmentAsync(
         CancellationToken cancellationToken = default)
     {
-        var subject = Subject(GetMarketConditionDecisionReferenceQuery.Actor,
-            GetMarketConditionDecisionReferenceQuery.Verb);
-        return _actorProducer.RequestAsync<MarketConditionDecisionReferenceDto[],
-            GetMarketConditionDecisionReferenceQuery>(subject, new GetMarketConditionDecisionReferenceQuery
+        var subject = Subject(GetMarketConditionAssessmentReferenceQuery.Actor,
+            GetMarketConditionAssessmentReferenceQuery.Verb);
+        return _actorProducer.RequestAsync<MarketConditionAssessmentReferenceRow[],
+            GetMarketConditionAssessmentReferenceQuery>(subject, new GetMarketConditionAssessmentReferenceQuery
             {
                 Subject = subject,
                 EntityId = new ActorEntityId(ReferenceEntity)

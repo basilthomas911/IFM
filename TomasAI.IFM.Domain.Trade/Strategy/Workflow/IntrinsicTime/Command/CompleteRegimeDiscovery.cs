@@ -85,9 +85,9 @@ public static class CompleteRegimeDiscovery
                 ProcessingStatus = StrategyActorProcessingStatus.Processing,
                 StartedAtUtc = now,
                 InputWorkflowRevision = revision,
-                ParameterSetId = current.MarketConditionParameterSet.ParameterSetId,
-                ParameterSetVersion = current.MarketConditionParameterSet.Version,
-                ParameterPayloadSha256 = current.MarketConditionParameterPayloadSha256,
+                ParameterSetId = current.AssessmentBinding?.Parameters.ParameterSetId ?? Guid.Empty,
+                ParameterSetVersion = current.AssessmentBinding?.Parameters.Version ?? 0,
+                ParameterPayloadSha256 = current.AssessmentBinding?.PayloadSha256 ?? string.Empty,
                 ExpiresAtUtc = current.ExpiresAtUtc
             }
         };

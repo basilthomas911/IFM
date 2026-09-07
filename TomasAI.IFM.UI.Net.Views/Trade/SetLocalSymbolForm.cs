@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade
 {
-    public partial class SetLocalSymbolForm : Form
+    public partial class SetLocalSymbolForm : DarkTradingForm
     {
 
         public string LocalSymbol => txtLocalSymbol.Text;

@@ -1,10 +1,29 @@
 # MarketCondition High-Level Design
 
+> **Strategy catalog direction (2026-09-06):** Reusable strategy-family/structure/variant definitions are planned in ConfigurationDb and are downstream TradeSelection concerns. Current MarketCondition remains market-only for the single ITI-triggering Daily, Weekly or Monthly horizon. Historical family hints and family-scoped rules in superseded designs do not return to the assessment path. Recorded gate evidence is unchanged and does not qualify the new catalog. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
+> Historical design only. The earlier Market Condition executable implementation was removed on 2026-09-06. See [assessment-only design v0.4](MarketCondition-High-Level-Design-v0.4.md) for current behavior.
+
+
+> **Superseded on 2026-09-05 by [High-Level Design v0.4](MarketCondition-High-Level-Design-v0.4.md).**
+> This version is retained as historical design context. Its fund-selected product
+> evaluators, strategy-family scope, and tradeability decisions are not the current
+> target. The revised design assesses only the ITI trigger's timeframe (Daily,
+> Weekly, or Monthly) before Trade Selector considers any strategy family. See its
+> v2.0 specification/implementation plan; their runtime migration remains pending.
+
 **Document version:** 0.3  
 **Status:** High-level design  
 **System:** Intrinsic Time Trade Strategy Workflow  
 **Stage:** MarketCondition  
 **Primary implementation target:** .NET 10 / C# actor-based trading system
+
+**2026-09-05 clarification:** Actual IBKR connectivity is not implemented.
+The IBKR emulator will be implemented first; an actual broker connection follows
+later. Market Condition evaluates market/data readiness independently of
+broker connectivity. Order Execution checks the selected emulator or broker
+adapter before submission. The detailed specification records the current
+placeholder behavior and the pending code/configuration alignment.
 
 ### Revision history
 
@@ -224,8 +243,11 @@ The actor reads or receives a point-in-time snapshot of the latest required valu
 - abnormal price movement or market dislocation flags;
 - scheduled event-risk window state;
 - upstream data freshness, completeness, and sequence health;
-- Databento and IBKR connectivity or feed-health state;
-- broker availability needed to regard the market as operationally tradeable.
+- Databento or configured market-data-provider connectivity and feed-health state.
+
+Broker/emulator session availability is an Order Execution prerequisite, not
+a market-condition input. Emulator development and market analysis do not
+require an actual IBKR connection.
 
 V1 need not store full order books or option chains in the result. It stores the calculated evidence, essential measurements, source sequence identifiers, timestamps, and snapshot hashes required for diagnosis.
 
@@ -845,7 +867,7 @@ Initial gate groups are:
 | Futures market integrity | Invalid/crossed quote, sequence problem, price-limit proximity, trigger invalidation, immediate dislocation | `NotTradeable / FuturesMarketIntegrityInvalid` |
 | Options market integrity | Parity, synthetic-forward, surface, quote synchronization, or chain-consistency failure | `NotTradeable / OptionChainIntegrityFailure` |
 | Liquidity | Futures spread/depth/impact or option spread/coverage/activity below the selected profile | `NotTradeable / LiquidityInsufficient` |
-| Operational readiness | Required feed and broker connectivity health | `NotTradeable / OperationsUnavailable` |
+| Operational readiness | Required market-data feed and cache health | `NotTradeable / OperationsUnavailable` |
 | Workflow eligibility | Entry disabled, stale upstream result, expired stage allowance | `NotTradeable / WorkflowIneligible` |
 
 An expected condition that can be measured and classified is a completed `NotTradeable` result. For example, quotes known to be older than the configured maximum age produce `NotTradeable / DataUnfit`.

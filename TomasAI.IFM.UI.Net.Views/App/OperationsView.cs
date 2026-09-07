@@ -10,7 +10,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Operations;
 namespace TomasAI.IFM.UI.Net.Views.App;
 
 /// <summary>WinForms adapter for the framework-neutral Operations presentation state.</summary>
-public partial class OperationsView : UserControl
+public partial class OperationsView : DarkTradingView
 {
     const double StrategyDetailHeightRatio = 0.33;
     const string PriceSeriesName = "ITI Price";
@@ -28,6 +28,9 @@ public partial class OperationsView : UserControl
     {
         InitializeComponent();
         DashboardTypography.ApplyFamilyAndSize(this);
+        lblTimeFrame.Dock = DockStyle.None;
+        lblTimeFrame.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        lblTimeFrame.Height = ddlTimeFrame.Height;
         ConfigureChart();
         lstItiEvents.SetDoubleBuffered(true);
         ddlTimeFrame.Items.AddRange(

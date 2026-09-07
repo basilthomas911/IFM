@@ -5,7 +5,7 @@ using TomasAI.IFM.UI.Net.ViewModels.App;
 namespace TomasAI.IFM.UI.Net.Views.App;
 
 /// <summary>Independent read-only central operations status; it owns no market subscription or reset authority.</summary>
-public sealed class MarketDataOperationsHealthForm : Form, IForm<MarketDataOperationsHealthForm>
+public sealed class MarketDataOperationsHealthForm : DarkTradingForm, IForm<MarketDataOperationsHealthForm>
 {
     readonly MarketDataOperationsHealthViewModel viewModel;
     readonly CancellationTokenSource closing = new();
@@ -51,7 +51,7 @@ public sealed class MarketDataOperationsHealthForm : Form, IForm<MarketDataOpera
         {
             AutoSize = true, Text = "Auto-refresh every 5 seconds; status queries only.", Padding = new Padding(8)
         });
-        var tabs = new TabControl { Name = "operationsHealthTabs", Dock = DockStyle.Fill };
+        var tabs = new TomasAI.IFM.UI.Net.Views.App.DarkTabControl { Name = "operationsHealthTabs", Dock = DockStyle.Fill };
         var stageTab = new TabPage("Processing stages") { BackColor = BackColor };
         var datasetTab = new TabPage("Dataset workers / recovery") { BackColor = BackColor };
         stageTab.Controls.Add(stages);

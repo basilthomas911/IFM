@@ -1,5 +1,9 @@
 # API Server implementation details
 
+> **Implemented catalog replacement (2026-09-06):** ConfigurationDb now owns active strategy catalog authoring. Reference Data Manager edits all seven catalog sections, including balanced/directional variants; Portfolio mandates, assignments and policy limits use exact deployment GUID/version references. Normal startup seeds only Futures, Vertical Spreads and Iron Condor and their supporting definitions. Existing legacy family records are imported as Drafts only through explicit `--migrate-strategy-catalog-only` maintenance, without automatic permissions. The old family UI/write path is Legacy; historical contracts remain readable. [Integration details](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) and [UI guide](../../TomasAI.IFM.UI.Net/Docs/Strategy-Catalog-Reference-UI.md) supersede the older family-authoring descriptions below. TradeSelection execution remains on hold.
+
+> **Strategy catalog direction (2026-09-06):** References below to the Trade Strategy Family bootstrap/catalog describe the existing ReferenceDb compatibility records and their historical verification. The proposed reusable strategy/structure/variant catalog belongs to ConfigurationDb; it does not replace product downloads or current bootstrap behavior in this change. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 ## Purpose and scope
 
 `TomasAI.IFM.Application.Api.Server` is the ASP.NET Core composition root for the IFM actor runtime. It exposes the public HTTP command and query surface, translates HTTP requests into typed actor messages, starts the domain actors and NATS consumers, and hosts the currently enabled background services.

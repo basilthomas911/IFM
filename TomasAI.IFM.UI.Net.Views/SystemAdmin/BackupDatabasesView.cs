@@ -7,7 +7,7 @@ using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
 
 /// <summary>Displays the NATS-only database-backup protection-set dashboard.</summary>
-public partial class BackupDatabasesView : UserControl, IAsyncFormControl
+public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
 {
     readonly DatabaseBackupViewModel _viewModel;
     readonly Label _backupModeLabel = new();

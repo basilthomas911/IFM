@@ -1,5 +1,7 @@
 # Trade Structure, Strategy, Position, and Monitor Design
 
+> **Strategy catalog direction (2026-09-06):** Reusable strategy logic, payoff structures, variants and management-policy references are planned in ConfigurationDb. The durable executed trade/position/monitor facts described here remain Trade-domain responsibilities. Future trades must retain exact selected strategy/structure/variant/deployment versions rather than infer behavior from a legacy family enum or display label. New parameter metadata does not implement a new position, risk or exit evaluator. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 Date: 2026-08-17  
 Status: Initial authoritative design baseline  
 Scope: Trade-domain persistence, live position updates, strategy-specific monitoring, and Trade Blotter boundaries
@@ -63,6 +65,8 @@ Examples include:
 `OptionTradeCommandActor` currently owns a large event-sourced option-trade structure containing both durable facts and frequently changing position data. The target design keeps the durable option structure but removes live position marking from that aggregate.
 
 ### Trade strategy
+
+Terminology update: the reusable strategy definition expresses why and when to trade; a reusable structure definition describes the legs/payoff. The existing strategy-specific calculations below consume the selected structure and policy capabilities. These are separate catalog identities even when they share a familiar name.
 
 A trade strategy defines how instruments and legs form an economic position and how that position must be evaluated.
 

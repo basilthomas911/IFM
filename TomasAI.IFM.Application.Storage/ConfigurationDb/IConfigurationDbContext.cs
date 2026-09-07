@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 
 /// <summary>Defines immutable PostgreSQL strategy-configuration lifecycle operations.</summary>
-public interface IConfigurationDbContext : IObjectRepository<ConfigurationDbContext>
+public partial interface IConfigurationDbContext : IObjectRepository<ConfigurationDbContext>
 {
     /// <summary>Inserts one immutable Draft Regime Discovery version after hash and contract validation.</summary>
     Task InsertRegimeDiscoveryDraftAsync(

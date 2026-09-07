@@ -18,7 +18,8 @@ namespace TomasAI.IFM.Domain.Portfolio.Query;
 public sealed class PortfolioQueryService(
     IPortfolioDbReadContext db,
     PortfolioFundStrategyResolver resolver,
-    IPortfolioBusinessIdHighWatermark identityHighWatermark) : IPortfolioQueryApi
+    IPortfolioBusinessIdHighWatermark identityHighWatermark,
+    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? catalogQueries = null) : IPortfolioQueryApi
 {
     readonly IPortfolioDbReadContext _db = db ?? throw new ArgumentNullException(nameof(db));
     readonly PortfolioFundStrategyResolver _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
@@ -125,6 +126,13 @@ public sealed class PortfolioQueryService(
             var allocation = await _db.GetCurrentAllocationAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
             var envelope = await _db.GetCurrentRiskEnvelopeAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
             var assignments = await _db.GetAssignmentsAsync(portfolioId, fund.FundId, fund.FundMandateVersion, 200, cancellationToken).ConfigureAwait(false);
+            if (catalogQueries is not null)
+                foreach (var assignment in assignments.Where(x => x.Enabled))
+                {
+                    var key = assignment.TradeStrategyFamily?.CatalogDeployment ?? throw new PortfolioResolutionException("LegacyAssignment", "Legacy strategy assignments must be migrated to ConfigurationDb before workflow use.");
+                    try { await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, key, true, cancellationToken); }
+                    catch (Exception ex) when (ex is not OperationCanceledException) { throw new PortfolioResolutionException("StrategyDeploymentUnavailable", ex.Message); }
+                }
             return new ServiceOk<PortfolioFundStrategySnapshot>(_resolver.Resolve(workflowId, workflowRevision, correlationId, portfolio, financialPolicy, eligible, allocation is null ? [] : [allocation], envelope is null ? [] : [envelope], assignments, tradingYear, decisionHorizon, underlyingRoot, assetType, asOfUtc));
         }
         catch (PortfolioResolutionException ex)
@@ -172,7 +180,20 @@ public sealed class PortfolioQueryService(
         var rows = new List<PortfolioFundStrategyReferenceCombination>();
         foreach (var fund in funds.OrderBy(x => x.FundId))
         foreach (var assignment in await _db.GetAssignmentsAsync(portfolioId, fund.FundId, fund.FundMandateVersion, 200, cancellationToken).ConfigureAwait(false))
-        foreach (var root in assignment.UnderlyingUniverse.Order(StringComparer.Ordinal))
+        {
+            var eligible = assignment.TradeStrategyFamily?.CatalogDeployment is not null && fund.OperatingState == FundOperatingState.Active && assignment.IsEffectiveAt(asOfUtc);
+            var reason = assignment.TradeStrategyFamily?.CatalogDeployment is null ? "LegacyAssignmentRequiresMigration" : "InactiveOrNotEffective";
+            if (eligible)
+            {
+                if (catalogQueries is null) { eligible = false; reason = "CatalogValidationUnavailable"; }
+                else try
+                {
+                    await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, assignment.TradeStrategyFamily!.CatalogDeployment!, true, cancellationToken);
+                    reason = "Eligible";
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { eligible = false; reason = "StrategyDeploymentUnavailable"; }
+            }
+            foreach (var root in assignment.UnderlyingUniverse.Order(StringComparer.Ordinal))
             rows.Add(new()
             {
                 PortfolioId = portfolioId, PortfolioVersion = assignment.PortfolioVersion, FundId = fund.FundId, FundMandateVersion = fund.FundMandateVersion,
@@ -180,9 +201,10 @@ public sealed class PortfolioQueryService(
                 TradeFamily = assignment.TradeFamily, TradeStrategyFamily = assignment.TradeStrategyFamily, TradeTemplateId = assignment.TradeTemplateId, TradeTemplateVersion = assignment.TradeTemplateVersion,
                 TradeSelectionHintProfileId = assignment.TradeSelectionHintProfileId, TradeSelectionHintProfileVersion = assignment.TradeSelectionHintProfileVersion,
                 OrderCompositionProfileId = assignment.OrderCompositionProfileId, OrderCompositionProfileVersion = assignment.OrderCompositionProfileVersion,
-                CurrentlyEligible = fund.OperatingState == FundOperatingState.Active && assignment.IsEffectiveAt(asOfUtc),
-                ReasonCode = fund.OperatingState == FundOperatingState.Active && assignment.IsEffectiveAt(asOfUtc) ? "Eligible" : "InactiveOrNotEffective",
+                CurrentlyEligible = eligible,
+                ReasonCode = reason,
             });
+        }
         return new ServiceOk<PortfolioFundStrategyReferenceCombination[]>([.. rows]);
     }
 

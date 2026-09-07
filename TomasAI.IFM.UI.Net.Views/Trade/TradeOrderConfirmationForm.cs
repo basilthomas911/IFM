@@ -3,7 +3,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade;
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>WinForms adapter for framework-neutral trade-order confirmation state.</summary>
-public partial class TradeOrderConfirmationForm : Form
+public partial class TradeOrderConfirmationForm : DarkTradingForm
 {
     readonly TradeOrderConfirmationViewModel _viewModel;
 

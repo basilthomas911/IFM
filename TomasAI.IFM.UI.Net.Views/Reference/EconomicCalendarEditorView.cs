@@ -15,7 +15,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
     /// <summary>
     /// Adapts economic-calendar maintenance and correlated imports to WinForms controls.
     /// </summary>
-    public partial class EconomicCalendarEditorView : UserControl, IControlCommand, IAsyncFormControl
+    public partial class EconomicCalendarEditorView : DarkTradingView, IControlCommand, IAsyncFormControl
     {
         readonly EconomicCalendarEditorViewModel _viewModel;
         EditMode _editMode;

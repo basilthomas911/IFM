@@ -23,6 +23,7 @@ namespace TomasAI.IFM.UI.Net
             WinForms.Application.EnableVisualStyles();
             WinForms.Application.SetCompatibleTextRenderingDefault(false);
             WinForms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
+            WinForms.Application.SetDefaultFont(Views.Presentation.DarkTradingTheme.CreateFont());
 
             try
             {

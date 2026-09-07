@@ -143,7 +143,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     OperationsViewModel? _operations;
     long _errorSequence;
     MarketDataFeedHealthState _marketDataFeedHealthState = MarketDataFeedHealthState.Inactive;
-    bool _isSystemOnlyNavigation;
     FuturesEodDataUIViewModel? _marketOutlook;
     string _marketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
     FuturesTradeSignalUIViewModel? _futuresTradeSignal;
@@ -317,12 +316,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 OnPropertyChanged(nameof(MarketDataFeedHealthIndicatorText));
             }
         }
-    }
-
-    public bool IsSystemOnlyNavigation
-    {
-        get => _isSystemOnlyNavigation;
-        private set => SetProperty(ref _isSystemOnlyNavigation, value);
     }
 
     /// <summary>Gets whether a shell-initiated market-data feed transition is in progress.</summary>
@@ -1755,7 +1748,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         if (readiness is null) return;
         IsMarketDataFeedActive = IsDatabentoLifecycleActive(readiness.State);
         MarketDataFeedHealthState = MapDatabentoDisplayHealth(readiness.DisplayHealth);
-        IsSystemOnlyNavigation = IsDatabentoCoreNavigationRestricted(readiness.CoreReady, MarketState);
     }
 
     internal static bool IsDatabentoLifecycleActive(string state)
@@ -1770,9 +1762,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             "Red" => MarketDataFeedHealthState.Critical,
             _ => MarketDataFeedHealthState.Inactive
         };
-
-    internal static bool IsDatabentoCoreNavigationRestricted(bool coreReady, FuturesMarketState marketState)
-        => marketState != FuturesMarketState.Closed && !coreReady;
 
     public Task<DatabentoWatchdogObservationReadModel[]> GetDatabentoWatchdogHistoryAsync(int pageSize = 25)
         => _appRoot.Services.FeedQueries.GetDatabentoWatchdogHistoryAsync(pageSize);

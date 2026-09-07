@@ -625,6 +625,9 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ProviderTypeName}.GetObjectAsync: dataMapper parameter is null");
         if (_ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.GetObjectAsync: only single parameter value accepted");
+        await using var ambientCommand = ctx.Repository.InTransaction() as NpgsqlCommand;
+        if (ambientCommand is not null)
+            return await ReadSingleInTransactionAsync(ctx, ambientCommand, dataMapper, cancellationToken).ConfigureAwait(false);
         await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = conn.CreateCommand();
@@ -652,6 +655,9 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.GetScalarAsync: only single parameter value accepted");
+        await using var ambientCommand = ctx.Repository.InTransaction() as NpgsqlCommand;
+        if (ambientCommand is not null)
+            return await ReadSingleInTransactionAsync(ctx, ambientCommand, dataMapper, cancellationToken).ConfigureAwait(false);
         await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(ctx.Repository.ConnectionString);
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = conn.CreateCommand();
@@ -663,6 +669,20 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (await dataReader.ReadAsync(cancellationToken).ConfigureAwait(false))
             return dataMapper(record);
         return default;
+    }
+
+    // INSERT ... RETURNING uses these read paths too. Opening an independent connection
+    // would commit an event outside its caller's transaction and defeat rollback.
+    async Task<TResult> ReadSingleInTransactionAsync<TResult>(IObjectRepositoryContext ctx, NpgsqlCommand command,
+        Func<IObjectDataRecord, TResult> dataMapper, CancellationToken cancellationToken)
+    {
+        ctx.SetCommand(command);
+        SetParameters(command);
+        await PrepareParameterizedCommandAsync(command, cancellationToken).ConfigureAwait(false);
+        // The owning transaction controls connection lifetime.
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? dataMapper(new AdoNetDataRecord().SetReader(reader)) : default!;
     }
 
     public void Dispose()

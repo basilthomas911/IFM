@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Framework.Storage;
@@ -147,6 +147,10 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// <summary>
     /// Executes the query asynchronously and maps the results to a collection using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
+    public Task<QueryPage<TResult>> ExecutePageAsync<TResult>(Func<IObjectDataRecord, TResult> mapper,
+        int pageSize, byte[]? pagingState = null, CancellationToken cancellationToken = default)
+        => _provider.GetPageAsync(this, mapper, pageSize, pagingState, cancellationToken);
+
     public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
         => _provider.GetObjectsAsync(this, dataReaderMapper);
 

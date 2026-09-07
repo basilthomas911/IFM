@@ -12,7 +12,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// <summary>
 /// Transitional WinForms adapter for observable status-console state.
 /// </summary>
-public partial class StatusConsoleView : UserControl
+public partial class StatusConsoleView : DarkTradingView
 {
     const int MaximumStatusLogItems = 500;
     StatusConsoleViewModel? _viewModel;

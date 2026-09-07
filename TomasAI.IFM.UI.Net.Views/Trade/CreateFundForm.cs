@@ -13,7 +13,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-public partial class CreateFundForm : Form, IFormControl
+public partial class CreateFundForm : DarkTradingForm, IFormControl
 {
     readonly CreateFundReadModel _viewModel;
     FundReadModel _fund = null!;

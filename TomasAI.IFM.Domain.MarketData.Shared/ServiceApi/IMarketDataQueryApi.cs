@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -20,6 +20,8 @@ public interface IMarketDataQueryApi
     Task<ServiceResult<string>> GetFuturesContractSymbolAsync(string contractId);
     Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(string contractId);
     Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync();
+    Task<ServiceResult<FuturesOptionContractPageReadModel>> GetFuturesOptionContractsPageAsync(
+        GetFuturesOptionContractsPageParameter request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(string symbol);
     Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(string[] contractIds);
     Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync();

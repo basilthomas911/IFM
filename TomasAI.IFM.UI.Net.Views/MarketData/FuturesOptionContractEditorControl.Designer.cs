@@ -32,7 +32,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
         {
             components = new System.ComponentModel.Container();
             pnlEditorSplitter = new SplitContainer();
-            lstFuturesOptionContractIds = new ListBox();
+            lstFuturesOptionContractIds = new BufferedContractListView();
             futuresOptionContractViewModelBindingSource = new BindingSource(components);
             pnlFuturesOptionContractIds = new Panel();
             lblFuturesContractContractIds = new Label();
@@ -113,12 +113,9 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             // 
             lstFuturesOptionContractIds.BackColor = Color.FromArgb(64, 64, 64);
             lstFuturesOptionContractIds.BorderStyle = BorderStyle.FixedSingle;
-            lstFuturesOptionContractIds.DataSource = futuresOptionContractViewModelBindingSource;
-            lstFuturesOptionContractIds.DisplayMember = "ContractId";
             lstFuturesOptionContractIds.Dock = DockStyle.Fill;
             lstFuturesOptionContractIds.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lstFuturesOptionContractIds.ForeColor = Color.White;
-            lstFuturesOptionContractIds.FormattingEnabled = true;
             lstFuturesOptionContractIds.Location = new Point(0, 30);
             lstFuturesOptionContractIds.Margin = new Padding(2);
             lstFuturesOptionContractIds.Name = "lstFuturesOptionContractIds";
@@ -681,7 +678,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
         private System.Windows.Forms.Label lblMultiplier;
         private System.Windows.Forms.ComboBox ddlMultiplier;
         private System.Windows.Forms.BindingSource futuresOptionContractViewModelBindingSource;
-        private System.Windows.Forms.ListBox lstFuturesOptionContractIds;
+        private BufferedContractListView lstFuturesOptionContractIds;
         private System.Windows.Forms.Panel pnlFuturesOptionContractIds;
         private System.Windows.Forms.Label lblFuturesContractContractIds;
     }

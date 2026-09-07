@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+// LEGACY: retained for migration/replay and UI comparison only. Active authoring uses ConfigurationDb.
+// Removal criteria: Domain.Reference/Docs/Strategy-Catalog-Legacy-Retirement.md.
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -7,7 +9,7 @@ using TomasAI.IFM.UI.Net.Services.MarketData;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
-public sealed class TradeStrategyFamilyEditorForm : Form
+public sealed class TradeStrategyFamilyEditorForm : DarkTradingForm
 {
     public TradeStrategyFamilyEditorForm(MarketDataQueryService queries, IReferenceCommandApi commands)
     {
@@ -29,7 +31,7 @@ public sealed class TradeStrategyFamilyEditorForm : Form
 }
 
 /// <summary>Reusable inline editor; its host owns Add/Save/Cancel controls.</summary>
-public sealed class TradeStrategyFamilyEditorControl : UserControl
+public sealed class TradeStrategyFamilyEditorControl : DarkTradingView
 {
     readonly MarketDataQueryService _queries;
     readonly IReferenceCommandApi _commands;

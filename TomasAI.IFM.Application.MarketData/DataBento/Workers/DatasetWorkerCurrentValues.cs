@@ -41,6 +41,17 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     public DateOnly? ActiveValueDate => GetStatus().ActiveValueDate;
     public bool IsRunning => GetStatus().IsRunning;
     public bool IsFeedUp => GetStatus().IsFeedUp;
+    public FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)
+    {
+        lock(gate)
+        {
+            var state=datasets.Values.SingleOrDefault(x=>x.Contracts.ContainsKey(contractId));
+            var admission=state?.Admission;
+            return new(lastPrices is not null, lastPrices is not null&&admission.HasValue&&state!.Healthy,
+                admission is { } id?$"{id.Dataset}|{id.WorkerInstanceId:N}|{id.GenerationId:N}|{id.ManifestRevision}":string.Empty,
+                lastPrices?.ValueDate,DateTimeOffset.UtcNow,state?.LastSequence??0);
+        }
+    }
 
     /// <summary>Returns one coherent runtime status even when stop/start is concurrent.</summary>
     public (bool IsRunning, DateOnly? ActiveValueDate, bool IsFeedUp) GetStatus()

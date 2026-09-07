@@ -1,11 +1,15 @@
 # Portfolio and Fund Detailed Specification v1.1
 
+> **Implemented catalog replacement (2026-09-06):** ConfigurationDb now owns active strategy catalog authoring. Reference Data Manager edits all seven catalog sections, including balanced/directional variants; Portfolio mandates, assignments and policy limits use exact deployment GUID/version references. Existing family records are imported as Drafts without automatic permissions. The old family UI/write path is Legacy; historical contracts remain readable. [Integration details](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) and [UI guide](../../TomasAI.IFM.UI.Net/Docs/Strategy-Catalog-Reference-UI.md) supersede the older family-authoring descriptions below. TradeSelection execution remains on hold.
+
+> **Strategy catalog direction (2026-09-06):** New reusable strategy families, strategy definitions, structures, variants and deployments are planned in PostgreSQL ConfigurationDb. Portfolio continues to own Fund assignments, permissions and financial/risk limits. Existing exact ReferenceDb family IDs/versions and risk-limit keys remain compatibility contracts until a versioned migration maps them explicitly; new variants must not expand Fund permission implicitly. Earlier three-family restrictions below describe the original PF scope, not the new catalog taxonomy. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 **Status:** Draft revision for review; v1.0 implementation evidence remains historical
 **Date:** 2026-08-30
 **Supersedes:** The approved v1.0 contract where this revision explicitly changes PortfolioCode, policy, reference-family, or UI behavior
 **Domain:** `TomasAI.IFM.Domain.Portfolio`  
 **Authoritative design:** [Portfolio-Fund-High-Level-Design-v0.1.md](../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md)  
-**Related TradeSelection design:** [TradeSelection-High-Level-Design-v0.1.md](../../Documents/system/TradeSelection-High-Level-Design-v0.1.md)  
+**Related TradeSelection design:** [TradeSelection-High-Level-Design-v0.1.md](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-High-Level-Design-v0.1.md)\
 **Implementation plan:** [Portfolio-Fund-Implementation-Plan-v1.0.md](./Portfolio-Fund-Implementation-Plan-v1.0.md)  
 **Runtime target:** .NET 10, MessagePack, NATS Core/JetStream, PostgreSQL EventSourceDb and SequenceIdDb, and ScyllaDB projections  
 **Implementation boundary:** Reference trade-family catalog, Portfolio/Fund and Risk Policy configuration, unified Trade Orders composition view, and composition identity through accepted OrderComposition result references
@@ -54,9 +58,9 @@ The HLD controls domain intent. This specification controls the initial reposito
 18. High-throughput ScyllaDB sequence-ID redesign is deferred.
 19. PortfolioCode is removed. PortfolioId is the sequence-generated stable identity and Name is the display description. MessagePack key 1 remains reserved and is not reused.
 20. Portfolio policy is a Portfolio-owned versioned `PortfolioFinancialPolicy`, identified by positive integer PolicyId and PolicyVersion; raw GUID and fabricated policy identities are prohibited.
-21. ReferenceDb owns a versioned `TradeStrategyFamily` catalog. V1 contains exactly Futures, Vertical Spread, and Iron Condor and exposes no public mutation API.
+21. ReferenceDb owns the existing versioned product/timeframe `TradeStrategyFamily` compatibility catalog. The three original seeds are preserved; current commands support additional product-linked definitions. The proposed reusable strategy/structure/variant catalog belongs to ConfigurationDb.
 22. A PortfolioFinancialPolicy contains Portfolio-wide hard limits plus one versioned `TradeFamilyRiskLimit` row per configured family. Family limits may reduce but never enlarge the global limits.
-23. The Reference screen displays the v1 family catalog read-only. Trade-family management and strategy variants are deferred to v1.x.
+23. The current Reference editor supports Add/Change/Remove for legacy product/timeframe family definitions. Reusable strategy-definition/variant authoring and Portfolio deployment assignments require the new ConfigurationDb design and a separate versioned migration.
 24. Portfolio Administration uses a compact command bar with Risk Policy as a primary action and no Planned Compositions action.
 25. Trade Orders is the only UI for manual and Strategy Workflow compositions. The separate Portfolio composition viewer is removed.
 
@@ -66,7 +70,7 @@ The HLD controls domain intent. This specification controls the initial reposito
 
 - Portfolio identity, lifecycle, versions, policy references, and operating state;
 - PortfolioFinancialPolicy identities, immutable versions, lifecycle, global limits, and per-family limits;
-- read-only ReferenceDb TradeStrategyFamily catalog and idempotent three-family bootstrap;
+- existing ReferenceDb TradeStrategyFamily compatibility catalog and idempotent legacy-seed bootstrap;
 - Fund identity, Portfolio membership, mandate versions, and operating state;
 - Portfolio-to-Fund allocation and FundRiskEnvelope versions;
 - TradeTemplate, TradeSelectionHintProfile, and OrderCompositionProfile assignments;
@@ -94,8 +98,8 @@ The HLD controls domain intent. This specification controls the initial reposito
 - deletion of legacy tables or UI;
 - non-ES initial template definitions beyond extensibility contracts;
 - high-throughput tick-table key or sequence redesign;
-- TradeStrategyFamily mutation commands or management UI;
-- strategy-family variants/subtypes such as Long, Short, bullish, bearish, neutral, debit, or credit;
+- new ConfigurationDb strategy-catalog management UI (existing Reference family management is documented separately);
+- implementation of the new reusable strategy/structure/variant catalog; its accepted design includes independent side, bias and credit/debit choices;
 - scheduled future policy activation; and
 - a generic policy formula, script, or conditional-rule engine.
 
@@ -191,7 +195,10 @@ The Strategy Workflow owns stage sequencing and accepted stage-result history. P
 
 The PortfolioFinancialPolicy aggregate owns immutable policy versions, global capital/risk hard limits, TradeFamilyRiskLimit rows, effective interval, activation/supersession/retirement, and deletion eligibility. It does not own actual Fund allocation, observed utilization, broker balances, execution, or strategy-family definitions.
 
-### 6.5 TradeStrategyFamily reference catalog
+### 6.5 TradeStrategyFamily compatibility catalog and future strategy authority
+
+ConfigurationDb will own reusable strategy, structure, variant and deployment definitions. Portfolio-owned assignments must reference exact deployment versions and permitted subsets; the catalog cannot authorize a Fund. Mapping old family/template references and per-family risk limits requires explicit versioned contracts, preserving existing integer IDs, snapshots and hashes. Do not equate a strategy-family grouping with instrument class or reuse a new catalog UUID as an existing risk-limit key.
+
 
 ReferenceDb owns immutable TradeStrategyFamily definitions. Bootstrap preserves the three legacy seeds; the command API now creates product-linked definitions in an additive catalog. Portfolio policy, Fund mandate, template, TradeSelection, OrderComposition, and RiskManagement contracts reference exact TradeStrategyFamilyId/DefinitionVersion values and MUST NOT infer family behavior from display text.
 
@@ -457,7 +464,7 @@ All read models SHALL:
 | 13 | `EligibleAssetTypes` | Non-empty immutable array |
 | 14 | `PermittedDirections` | Immutable array |
 | 15 | `PermittedConditions` | Immutable array |
-| 16 | `PermittedTradeFamilies` | Non-empty immutable array of exact TradeStrategyFamilyId/DefinitionVersion references |
+| 16 | `PermittedTradeFamilies` | Permission classification codes; schema-v3 exact Deployment GUID/version references are stored in `PermittedTradeStrategyFamilies`. Both arrays may be empty for an unassigned Draft, Disabled or Retired Fund; operational Funds require permissions. |
 | 17 | `CreatedOnUtc` | Required UTC |
 | 18 | `CreatedBy` | Required principal |
 

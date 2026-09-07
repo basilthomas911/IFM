@@ -1,5 +1,9 @@
 # Portfolio and Fund Implementation Plan v1.1
 
+> **Implemented catalog replacement (2026-09-06):** ConfigurationDb now owns active strategy catalog authoring. Reference Data Manager edits all seven catalog sections, including balanced/directional variants; Portfolio mandates, assignments and policy limits use exact deployment GUID/version references. Existing family records are imported as Drafts without automatic permissions. The old family UI/write path is Legacy; historical contracts remain readable. [Integration details](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) and [UI guide](../../TomasAI.IFM.UI.Net/Docs/Strategy-Catalog-Reference-UI.md) supersede the older family-authoring descriptions below. TradeSelection execution remains on hold.
+
+> **Strategy catalog direction (2026-09-06):** New reusable strategy families, strategy definitions, structures, variants and deployments are planned in PostgreSQL ConfigurationDb. Portfolio continues to own Fund assignments, permissions and financial/risk limits. Existing exact ReferenceDb family IDs/versions and risk-limit keys remain compatibility contracts until a versioned migration maps them explicitly; new variants must not expand Fund permission implicitly. Earlier three-family restrictions below describe the original PF scope, not the new catalog taxonomy. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 | Item | Value |
 | --- | --- |
 | Status | Draft extension prepared for review and execution approval |
@@ -45,7 +49,7 @@ PF-01 through PF-20 retain their recorded evidence and status. The approved desi
 - PostgreSQL EventSourceDb is authoritative for aggregate history.
 - PostgreSQL SequenceIdDb allocates positive integer PortfolioId, FundId, OrderId, and TradeId values.
 - PostgreSQL SequenceIdDb also allocates PolicyId and TradeStrategyFamilyId; no operator enters an integer business ID.
-- ReferenceDb owns exactly three read-only v1 TradeStrategyFamily definitions: Futures, Vertical Spread, and Iron Condor.
+- Original PF scope used three ReferenceDb family seeds; current versioned Reference management is documented separately. New reusable families/strategies/structures/variants belong to the proposed ConfigurationDb catalog. PF historical gates do not implement or qualify that catalog.
 - PortfolioFinancialPolicy owns immutable global and per-family hard limits and atomic activation/assignment.
 - ScyllaDB `PortfolioDbContext` is a query projection, never write authority.
 - All application and UI commands/queries use typed NATS messaging.

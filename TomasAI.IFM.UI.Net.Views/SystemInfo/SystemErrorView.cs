@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemInfo
 {
-    public partial class SystemErrorView : Form
+    public partial class SystemErrorView : DarkTradingForm
     {
         public SystemErrorView(string caption, string errorMessage)
         {

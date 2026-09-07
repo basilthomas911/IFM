@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// <param name="connectionSettings"></param>
 /// <param name="dbFactory"></param>
 ///  <param name="logger"
-public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger) 
+public partial class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
     : ObjectDataRepository<SecuritiesDbContext>(connectionSettings[SecuritiesDbConnection], logger), ISecuritiesDbContext
 {
     public const string SecuritiesDbConnection = "SecuritiesDbConnection";

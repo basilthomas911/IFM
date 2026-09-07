@@ -1,28 +1,20 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
-/// <summary>Catalog-backed choices for the existing string-key Fund contracts.</summary>
 static class TradeFamilyCatalogSelection
 {
-    public static TradeStrategyFamilyReadModel[] Active(IEnumerable<TradeStrategyFamilyReadModel>? catalog)
+    public static StrategyDeploymentChoice[] Active(IEnumerable<StrategyDeploymentChoice>? catalog)
     {
         var rows = catalog?.ToArray() ?? [];
-        if (rows.Any(x => x is null || x.Validate().Count != 0))
-            throw new ArgumentException("The trade strategy family catalog contains invalid definitions.");
-        if (rows.Select(TradeStrategyFamilyReference.From).Distinct().Count() != rows.Length)
-            throw new ArgumentException("The trade strategy family catalog contains ambiguous definitions.");
-        var active = rows.GroupBy(x => x.TradeStrategyFamilyId).Select(x => x.MaxBy(v => v.DefinitionVersion)!)
-            .Where(x => x.State == TradeStrategyFamilyState.Active).ToArray();
-        if (active.Select(TradeStrategyFamilyReference.From).Distinct().Count() != active.Length)
-            throw new ArgumentException("The trade strategy family catalog contains ambiguous active definitions.");
-        return active.OrderBy(x => x.SystemKey, StringComparer.Ordinal).ThenBy(x => x.Symbol, StringComparer.Ordinal).ThenBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion).ToArray();
+        if (rows.Any(x => x.Key.Kind != StrategyCatalogKind.Deployment || x.Key.Id == Guid.Empty || x.Key.Version <= 0) || rows.Select(x => x.Key).Distinct().Count() != rows.Length)
+            throw new ArgumentException("Invalid or duplicate ConfigurationDb deployment identities.");
+        return rows.GroupBy(x => x.Key.Id).Select(g => g.MaxBy(x => x.Key.Version)!).Where(x => x.Status != CatalogLifecycleStatus.Retired).OrderBy(x => x.Code, StringComparer.Ordinal).ToArray();
     }
-
-    public sealed record Choice(string SystemKey, string Label, TradeStrategyFamilyReference? Reference = null)
+    public sealed record Choice(string SystemKey, string Label, TradeStrategyFamilyReference? Reference = null, StrategyDeploymentChoice? Deployment = null)
     {
-        public static Choice From(TradeStrategyFamilyReadModel row) =>
-            new(row.SystemKey, $"{row.Description} [{row.Symbol} / {row.Exchange} / {row.Currency} / {row.TimeFrame}] (ID {row.TradeStrategyFamilyId} v{row.DefinitionVersion})", TradeStrategyFamilyReference.From(row));
+        public static Choice From(StrategyDeploymentChoice row) => new(row.Code,
+            $"{row.Name} [{row.Symbol} / {row.Currency} / {row.TimeFrame} {row.Exchange}] v{row.Key.Version} {row.Status}", row.Reference, row);
         public override string ToString() => Label;
     }
 }

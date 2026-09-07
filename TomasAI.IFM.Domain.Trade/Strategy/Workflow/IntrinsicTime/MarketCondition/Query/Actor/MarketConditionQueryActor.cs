@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Reference;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
@@ -16,19 +18,38 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
+            [GetMarketConditionAssessmentQuery.Verb] = x => x.AsQuery<GetMarketConditionAssessmentQuery, MarketConditionAssessmentCompletedEvent>()!,
+            [GetMarketConditionAssessmentReferenceQuery.Verb] = x => x.AsQuery<GetMarketConditionAssessmentReferenceQuery, MarketConditionAssessmentReferenceRow[]>()!,
+            [GetMarketConditionAssessmentHistoryQuery.Verb] = x => x.AsQuery<GetMarketConditionAssessmentHistoryQuery, MarketConditionAssessmentCompletedEvent[]>()!,
             [GetMarketConditionQuery.Verb] = x => x.AsQuery<GetMarketConditionQuery,
                 MarketConditionReadModel>()!,
             [GetLatestMarketConditionQuery.Verb] = x => x.AsQuery<GetLatestMarketConditionQuery,
                 MarketConditionReadModel>()!,
             [GetMarketConditionHistoryQuery.Verb] = x => x.AsQuery<GetMarketConditionHistoryQuery,
                 ICollection<MarketConditionReadModel>>()!,
-            [GetMarketConditionDecisionReferenceQuery.Verb] = x =>
-                x.AsQuery<GetMarketConditionDecisionReferenceQuery, MarketConditionDecisionReferenceDto[]>()!
+
         };
     static readonly IReadOnlyDictionary<Type, Func<MarketConditionQueryActor, IQueryActorContext<MarketConditionQueryActor>,
         IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<MarketConditionQueryActor, IQueryActorContext<MarketConditionQueryActor>,
         IQuery, CancellationToken, ValueTask>>()
     {
+        [typeof(GetMarketConditionAssessmentQuery)] = static async (actor, c, query, token) =>
+        {
+            var get = (GetMarketConditionAssessmentQuery)query;
+            var value = await actor._context.DbFactory.TradeDb.GetMarketConditionAssessmentAsync(get.WorkflowId,token).ConfigureAwait(false)
+                ?? throw new KeyNotFoundException("Assessment result was not found.");
+            await c.ReplyAsync(query.Subject.ThreadId,get.Subject.Verb,new ServiceResult<MarketConditionAssessmentCompletedEvent>(value)).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionAssessmentReferenceQuery)] = static async (_, c, query, _) =>
+        {
+            await c.ReplyAsync(query.Subject.ThreadId,query.Subject.Verb,new ServiceResult<MarketConditionAssessmentReferenceRow[]>(new MarketConditionAssessmentReferenceGenerator().Generate())).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionAssessmentHistoryQuery)] = static async (actor, c, query, token) =>
+        {
+            var get = (GetMarketConditionAssessmentHistoryQuery)query;
+            var values = await actor._context.DbFactory.TradeDb.GetMarketConditionAssessmentHistoryAsync(get.MarketProfileId,get.InstrumentRoot,get.TargetHorizon,get.BeforeUtc,get.PageSize,token).ConfigureAwait(false);
+            await c.ReplyAsync(query.Subject.ThreadId,get.Subject.Verb,new ServiceResult<MarketConditionAssessmentCompletedEvent[]>(values.ToArray())).ConfigureAwait(false);
+        },
         [typeof(GetMarketConditionQuery)] = static async (actor, c, query, token) =>
         {
             var get = (GetMarketConditionQuery)query;
@@ -58,13 +79,7 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
             await c.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
                 new ServiceResult<ICollection<MarketConditionReadModel>>(values)).ConfigureAwait(false);
         },
-        [typeof(GetMarketConditionDecisionReferenceQuery)] = static async (_, c, query, _) =>
-        {
-            var get = (GetMarketConditionDecisionReferenceQuery)query;
-            var values = new MarketConditionDecisionReferenceGenerator().Generate();
-            await c.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
-                new ServiceResult<MarketConditionDecisionReferenceDto[]>(values)).ConfigureAwait(false);
-        }
+
     };
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(

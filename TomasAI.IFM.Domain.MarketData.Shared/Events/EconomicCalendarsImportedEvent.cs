@@ -159,6 +159,8 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
 [MessagePackObject(AllowPrivate = true)]
 public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCalendarId>
 {
+    [Key(14)] public TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? DownloadOutcome { get; init; }
+
     [IgnoreMember] public const string Actor = "EconomicCalendarEvent";
     [IgnoreMember] public const string Verb = "ImportedComplete";
 
@@ -199,7 +201,8 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
         string importedBy,
         ImportDuplicatePolicy duplicatePolicy,
         DateTime importedDate,
-        string[] countryCodes)
+        string[] countryCodes,
+        TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? downloadOutcome = null)
     {
         Subject = subject;
         EntityId = entityId;
@@ -215,6 +218,7 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
         DuplicatePolicy = duplicatePolicy;
         ImportedDate = importedDate;
         CountryCodes = countryCodes ?? [];
+        DownloadOutcome = downloadOutcome;
     }
 }
 
@@ -225,6 +229,8 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
 [MessagePackObject(AllowPrivate = true)]
 public record EconomicCalendarsImportedFailEvent : IErrorEvent<EconomicCalendarId>
 {
+    [Key(19)] public TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? DownloadOutcome { get; init; }
+
     [IgnoreMember] public const string Actor = "EconomicCalendarEvent";
     [IgnoreMember] public const string Verb = "ImportedFail";
 
@@ -274,7 +280,8 @@ public record EconomicCalendarsImportedFailEvent : IErrorEvent<EconomicCalendarI
         string routeTo,
         DateTime importedDate,
         string[] countryCodes,
-        ImportDuplicatePolicy duplicatePolicy)
+        ImportDuplicatePolicy duplicatePolicy,
+        TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadOutcome? downloadOutcome = null)
     {
         Subject = subject;
         EntityId = entityId;
@@ -295,5 +302,6 @@ public record EconomicCalendarsImportedFailEvent : IErrorEvent<EconomicCalendarI
         ImportedDate = importedDate;
         CountryCodes = countryCodes ?? [];
         DuplicatePolicy = duplicatePolicy;
+        DownloadOutcome = downloadOutcome;
     }
 }

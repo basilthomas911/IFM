@@ -1,5 +1,7 @@
 # Trade Strategy Builder Design v1.0
 
+> **Strategy catalog direction (2026-09-06):** The target catalog separates trading logic from structure and variant. TradeSelection will supply exact strategy/deployment/structure/variant versions; Composer builds one unit using the required supported builder. Desired coverage includes Long/Short futures, all four credit/debit verticals and Long/Short iron condors with independent Balanced/Bullish/Bearish bias. Existing three-profile algorithms below are a limited baseline, not complete support for these variants. Leg count and expiry constraints are per structure; Jade Lizards and double calendars require explicit builder/data/risk capabilities. TradeSelection implementation is on hold; no algorithms are changed by this document update. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 > **Catalog identity clarification (2026-09-05):** TradeSelection supplies the exact TradeStrategyFamilyId/DefinitionVersion. Family-Strategy SystemKey is classification and may be shared by several products/timeframes; it must not select the construction policy or contract universe by itself. TradeStrategySymbolId resolves product Symbol/Currency/Exchange, not a tradable expiry contract. The live chain and exact futures contract remain builder inputs. See [catalog implementation](../../../../../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md). Catalog creation does not enable a strategy or alter the three-family implementation boundary.
 
 | Item | Value |
@@ -8,7 +10,7 @@
 | Status | Requested design; one-unit construction boundary; not runtime implementation or live approval |
 | Purpose | Build every leg of one complete strategy unit from the accepted TradeSelection result (including regime and MarketCondition), a construction policy and qualified live market data |
 | Initial scope | Three families: monthly ES iron condor, weekly ES vertical spread and daily single-leg ES futures |
-| Related specifications | [Trade Selection result](../../../../../../Documents/system/TradeSelection-High-Level-Design-v0.1.md#12-tradeselection-result), [Composer selection](../../../../../../Documents/system/Order-Composition-Strategy-Selection-Specification-v1.0.md), [pricing](../../../../../../Documents/system/Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md), [Stage 4 plan](../../../../../../Documents/system/Market-Data-Resiliency-Stage-4-Implementation-Plan-v1.0.md) |
+| Related specifications | [Trade Selection result specification](../../TradeSelection/Docs/TradeSelection-Specification-v1.0.md#12-typed-selection-result), [Composer selection](../../../../../../Documents/system/Order-Composition-Strategy-Selection-Specification-v1.0.md), [pricing](../../../../../../Documents/system/Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md), [Stage 4 plan](../../../../../../Documents/system/Market-Data-Resiliency-Stage-4-Implementation-Plan-v1.0.md) |
 
 ## 1. Core decision: construct one unit, size later
 
@@ -46,7 +48,8 @@ Portfolio configuration implementation already implements live sizing or reserva
 
 | Component | Input and responsibility | Output |
 | --- | --- | --- |
-| MarketCondition | Existing accepted, unexpired market classification; no reclassification by the builder | Direction, condition, phase, strength, confidence, volatility/liquidity quality and evidence |
+| RegimeDiscovery | Accepted immutable regime context; no reclassification by the builder | Direction, trend phase/strength, confidence, volatility regime, structure and restrictions |
+| MarketCondition | Accepted, unexpired market-only assessment for the trigger horizon | Availability, condition, assessment confidence, volatility behavior, liquidity, session, event/stress context and evidence |
 | TradeSelection | Existing workflow stage choosing the Fund-permitted family/template | Accepted selected strategy: family/template, direction, horizon, construction-policy reference and frozen regime/MarketCondition context |
 | StrategyConstructionPolicy | Map accepted condition fields to explicit versioned construction rules; constrain them by Fund mandate and Portfolio-issued limits | One immutable `ResolvedConstructionRules` |
 | OptionLegSelector | Search actual listed contracts using resolved expiry, delta, width, shape and liquidity constraints | Bounded complete leg-set candidates; never a partial successful strategy |
@@ -102,8 +105,10 @@ real supported contracts/calculators; an enabled but unsupported constraint fail
 
 Use a versioned table of condition-to-profile rules, not arbitrary scripts or inference at runtime.
 Each rule specifies a stable rule ID, priority, predicates and an immutable parameter-profile ID.
-Predicates may use the existing MarketCondition fields: horizon, condition type, direction, phase,
-volatility behavior, liquidity quality and explicit strength/confidence intervals. Interval endpoint
+Predicates may use accepted RegimeDiscovery direction, trend phase/strength and confidence, plus
+MarketCondition target horizon, condition type, assessment confidence, volatility behavior and
+liquidity/session/event/stress context. Trend strength uses explicit enum membership; numeric
+confidence intervals use the relevant upstream confidence field. Interval endpoint
 semantics are serialized. Reject overlapping matches at equal priority; no matching rule is NoTrade.
 A matched rule referencing missing/invalid parameters is Failed. Do not fall through to a looser
 rule after a risk rejection.

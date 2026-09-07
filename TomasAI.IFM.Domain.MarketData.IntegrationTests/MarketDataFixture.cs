@@ -29,10 +29,14 @@ public class MarketDataFixture : IDisposable
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
     public BlackboardService BlackboardService { get; private set; } = default!;
 
-    public MarketDataFixture()
+    public MarketDataFixture() : this("market_data_test_db") { }
+
+    internal MarketDataFixture(string marketDataKeyspace)
     {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(marketDataKeyspace, "^[a-z][a-z0-9_]{0,47}$"))
+            throw new ArgumentException("Invalid test keyspace.", nameof(marketDataKeyspace));
         SetSeqIdDatabase();
-        SetDbFactory();
+        SetDbFactory(marketDataKeyspace);
         SetEventSourceDatabase();
     }
 
@@ -50,10 +54,10 @@ public class MarketDataFixture : IDisposable
         ActorEventSourceDb = (EventSourceActorDbContext)factory.ActorEventSourceDb;
     }
 
-    void SetDbFactory()
+    void SetDbFactory(string marketDataKeyspace)
     {
         var dbConn = new DbConnectionSettings()
-             .Add("MarketDataDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
+             .Add("MarketDataDbConnection", $"Contact Points=localhost;Port=9042;Default Keyspace={marketDataKeyspace}", "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);
@@ -67,6 +71,7 @@ public class MarketDataFixture : IDisposable
         new MarketDataSchemaDb(dbConn, logger)
             .CreateAsync([
                 "market_data_import_ownership",
+                "market_data_download_log",
                 "economic_calendar_v2",
                 "economic_calendar_country_code",
                 "economic_calendar_cutover_v2"

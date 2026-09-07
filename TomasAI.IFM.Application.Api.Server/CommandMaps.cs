@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -262,6 +263,11 @@ public static class ReferenceCommands
 {
     public static IEndpointRouteBuilder MapReferenceCommands(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapPost(StrategyCatalogUris.Command, async (IActorService actor, StrategyCatalogCommand command, CancellationToken cancellationToken) =>
+        {
+            var routed = command with { Subject = new ActorSubject(ActorType.Command, StrategyCatalogCommand.Actor, StrategyCatalogCommand.Verb, ActorEntityId.Default.Format()), EntityId = ActorEntityId.Default };
+            return await actor.RequestAsync<StrategyCatalogCommand, ActorEntityId>(routed, cancellationToken);
+        });
         // Economic Calendar Commands
         endpoints.MapPost(MarketDataUriPath.AddEconomicCalendar, async (IActorService e, AddEconomicCalendarParameter cmdParam)
             => {

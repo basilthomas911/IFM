@@ -13,7 +13,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// valid and provides feedback for invalid inputs. Additionally, it prevents duplicate entries for the same value
 /// date.</remarks>
 public partial class YieldCurveRateEditForm
-    : Form, IForm<YieldCurveRateEditForm>, IFormControl
+    : DarkTradingForm, IForm<YieldCurveRateEditForm>, IFormControl
 {
     readonly YieldCurveRateEditViewModel _viewModel;
     YieldCurveRateReadModel? _yieldCurveRate = default!;

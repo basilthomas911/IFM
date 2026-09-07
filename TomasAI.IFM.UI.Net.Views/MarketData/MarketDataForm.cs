@@ -6,7 +6,7 @@ using TomasAI.IFM.UI.Net.Services.Reference;
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
 public partial class MarketDataForm 
-    : Form, IForm<MarketDataForm>, IFormControl
+    : DarkTradingForm, IForm<MarketDataForm>, IFormControl
 {
     readonly IAppRoot _appRoot;
     readonly IStatusConsoleEventProducer _statusConsoleLog;
@@ -34,6 +34,19 @@ public partial class MarketDataForm
         InitializeComponent();
         MarketDataTypography.Apply(this);
         MarketDataInputPalette.Apply(this);
+        lblMarketDataSelector.AutoSize = false;
+        lblMarketDataSelector.TextAlign = ContentAlignment.MiddleLeft;
+        lblMarketDataSelector.UseCompatibleTextRendering = false;
+        AlignSelectionLabel();
+        ddlMarketDataSelector.SizeChanged += (_, _) => AlignSelectionLabel();
+        ddlMarketDataSelector.LocationChanged += (_, _) => AlignSelectionLabel();
+    }
+
+    void AlignSelectionLabel()
+    {
+        lblMarketDataSelector.Top = ddlMarketDataSelector.Top;
+        lblMarketDataSelector.Height = ddlMarketDataSelector.Height;
+        lblMarketDataSelector.Width = lblMarketDataSelector.PreferredWidth;
     }
 
     public void LoadViewModel(MarketDataViewModel viewModel)
@@ -120,7 +133,6 @@ public partial class MarketDataForm
         btnClose.Text = !enabled ? "Cancel" : "Close";
         btnChange.Enabled = enabled;
         btnRemove.Enabled = enabled;
-        SetButtonEnabledState();
         ddlMarketDataSelector.Enabled = enabled;
     }
 
@@ -130,7 +142,6 @@ public partial class MarketDataForm
         btnClose.Text = !enabled ? "Cancel" : "Close";
         btnAdd.Enabled = enabled;
         btnRemove.Enabled = enabled;
-        SetButtonEnabledState();
         ddlMarketDataSelector.Enabled = enabled;
     }
 
@@ -142,7 +153,6 @@ public partial class MarketDataForm
         btnClose.Text = "Close";
         btnChange.Enabled = enabled;
         btnRemove.Enabled = enabled;
-        SetButtonEnabledState();
         ddlMarketDataSelector.Enabled = enabled;
     }
 
@@ -153,14 +163,6 @@ public partial class MarketDataForm
         btnRemove.Enabled = false;
         btnImport.Enabled = false;
         btnClose.Enabled = false;
-        SetButtonEnabledState();    
-    }
-
-    void SetButtonEnabledState()
-    {         
-        btnChange.ForeColor = btnChange.Enabled ? Color.Black : Color.White;
-        btnRemove.ForeColor = btnRemove.Enabled ? Color.Black : Color.White;
-        btnImport.ForeColor = btnImport.Enabled ? Color.Black : Color.White;       
     }
 
     void BindDefinitionTypes()
@@ -209,7 +211,6 @@ public partial class MarketDataForm
         btnChange.Enabled = _ctrlCommand?.CanChangeRemove ?? false;
         btnRemove.Enabled = _ctrlCommand?.CanChangeRemove ?? false;
         btnImport.Enabled = _ctrlCommand?.CanImport ?? false;
-        SetButtonEnabledState();
     }
 
     void UnsubscribeFromViewModel()

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -39,6 +39,9 @@ public interface ISecuritiesDbReadContext
     Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId, CancellationToken cancellationToken);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds, CancellationToken cancellationToken);
+    Task<FuturesOptionContractPageReadModel> GetFuturesOptionContractsPageAsync(
+        TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.GetFuturesOptionContractsPageParameter request,
+        CancellationToken cancellationToken = default);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol, CancellationToken cancellationToken);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync();

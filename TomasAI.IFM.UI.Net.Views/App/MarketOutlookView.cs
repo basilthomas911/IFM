@@ -12,7 +12,7 @@ using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.App
 {
-    public partial class MarketOutlookView : UserControl
+    public partial class MarketOutlookView : DarkTradingView
     {
         const int CompactBottomClearance = 6;
 

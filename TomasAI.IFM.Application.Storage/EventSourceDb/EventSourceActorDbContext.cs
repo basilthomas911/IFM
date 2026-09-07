@@ -318,6 +318,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                         commandId,
                         eventDate,
                         cancellationToken).ConfigureAwait(false));
+                await InsertRequiredProjectionAsync(db, e.DomainEvent, cancellationToken).ConfigureAwait(false);
                 savedEvents.Add(e.DomainEvent);
             }
             tx?.Commit();
@@ -389,6 +390,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                     throw new ConcurrencyException(
                         $"Event stream {eventStream} is no longer at expected version {expectedStreamVersion + index}.");
                 EventInitHelper.SetProperty(entry.DomainEvent, nameof(IEvent.EventId), eventVersion);
+                await InsertRequiredProjectionAsync(db, entry.DomainEvent, cancellationToken).ConfigureAwait(false);
                 savedEvents.Add(entry.DomainEvent);
             }
             tx?.Commit();
@@ -402,12 +404,25 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     }
 
     /// <summary>
-    /// Asynchronously inserts a log entry for the specified command into the event source database.
+    /// Stages an opted-in private event's recovery marker in its existing event-log transaction.
     /// </summary>
-    /// <param name="command">The command to log. Must not be null.</param>
-    /// <param name="commandTimestamp">The date and time, in UTC, when the command was issued.</param>
-    /// <param name="commandData">A serialized representation of the command's data to be stored in the log. Cannot be null or empty.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    static async Task InsertRequiredProjectionAsync(IObjectRepository<EventSourceActorDbContext> transactionDb, IEvent domainEvent, CancellationToken cancellationToken)
+    {
+        if (domainEvent is not IRequireDurableProjection required) return;
+        var requirement = required.RequiredProjection;
+        ArgumentException.ThrowIfNullOrWhiteSpace(requirement.ActorName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requirement.ProjectorName);
+        if (requirement.InitialStage is not (EventProjectorStageType.PublishProcessingEvent or EventProjectorStageType.ApplyProjection))
+            throw new ArgumentException("Invalid initial durable projection stage.");
+        var now = DateTime.UtcNow;
+        // Use the same repository/transaction as the event insert, not a fresh factory context.
+        var state = await transactionDb.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryCreateEventProjectorExecutionState)}", EventSourceDbSql.TryCreateEventProjectorExecutionState)
+            .SetParameters(new TryCreateEventProjectorExecutionState(domainEvent.EventId, requirement.ActorName, requirement.ProjectorName,
+                false, 0, "Processing", requirement.InitialStage.ToString(), string.Empty, $"{now:o}", $"{now:o}", now))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken).ConfigureAwait(false);
+        if (state is null) throw new InvalidOperationException("The required durable projection marker was not persisted.");
+    }
+
     public Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData)
         => InsertCommandLogAsync(command, commandTimestamp, commandData, CancellationToken.None);
 

@@ -9,7 +9,7 @@ using TomasAI.IFM.UI.Net.Models;
 namespace TomasAI.IFM.UI.Net.Views.Fund;
 
 public partial class FundTransactionEditor
-    : Form, IForm<FundTransactionEditor>, IFormControl
+    : DarkTradingForm, IForm<FundTransactionEditor>, IFormControl
 {
     FundTransactionEditorViewModel? _viewModel;
     readonly IViewNavigator _navigator;

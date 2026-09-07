@@ -16,11 +16,33 @@ using TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.Queries;
 
 public sealed class TradeStrategyCatalogTransportTests
 {
+    [Fact]
+    public async Task Serialized_lookup_query_reads_configurationdb_and_replies_with_group_rows()
+    {
+        var ctx = Substitute.For<IReferenceQueryContext>();
+        ctx.Logger.Returns(Substitute.For<ILogger<ReferenceQueryActor>>());
+        ctx.ActorId.Returns(new ActorMailboxId(ActorType.Query, ReferenceQueryActor.ActorName));
+        var row = new LookupDefinitionReadModel(1, LookupDefinitionGroups.AssetTypes, "Futures", "Futures", "", 10, true, DateTime.UtcNow, DateTime.UtcNow);
+        ctx.DbFactory.ConfigurationDb.GetLookupDefinitionsAsync(LookupDefinitionGroups.AssetTypes, Arg.Any<CancellationToken>()).Returns([row]);
+        var query = MessagePackSerializer.Deserialize<GetLookupDefinitionsQuery>(MessagePackSerializer.Serialize(new GetLookupDefinitionsQuery
+        {
+            GroupName = LookupDefinitionGroups.AssetTypes,
+            Subject = new ActorSubject(ActorType.Query, GetLookupDefinitionsQuery.Actor, GetLookupDefinitionsQuery.Verb, "0")
+        }));
+        var message = Substitute.For<IActorMessage>(); message.Subject.Returns(query.Subject);
+        message.AsQuery<GetLookupDefinitionsQuery, LookupDefinitionReadModel[]>().Returns(query);
+        var actor = new Probe(ctx); actor.Parse(ctx, message).Should().BeSameAs(query);
+        await actor.Receive(ctx, query);
+        await ctx.Received(1).ReplyAsync(query.Subject.ThreadId, GetLookupDefinitionsQuery.Verb,
+            Arg.Is<ServiceResult<LookupDefinitionReadModel[]>>(x => x.Success && x.Value!.Length == 1 && x.Value[0] == row));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -47,7 +69,7 @@ public sealed class TradeStrategyCatalogTransportTests
     }
 
     [Fact]
-    public async Task Serialized_creation_command_reaches_service_and_returns_same_operation_acknowledgement()
+    public async Task Legacy_creation_command_remains_deserializable_but_rejects_active_writes()
     {
         var request = new CreateTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Family = TradeStrategyFamilyType.Futures, Strategy = TradeStrategyType.Futures, TimeFrame = TimeFrameType.Daily, TradeStrategySymbolId = 10, Description = "Daily ES" };
         var command = MessagePackSerializer.Deserialize<CreateTradeStrategyFamilyCommand>(MessagePackSerializer.Serialize(new CreateTradeStrategyFamilyCommand
@@ -64,15 +86,16 @@ public sealed class TradeStrategyCatalogTransportTests
         store.CreateAsync(request, Arg.Any<TradeStrategyFamilyReadModel>(), Arg.Any<CancellationToken>()).Returns(call => call.Arg<TradeStrategyFamilyReadModel>() with { TradeStrategyFamilyId = 20, DefinitionVersion = 1 });
         var actor = new TradeStrategyFamilyCommandActor(ctx, new TradeStrategyFamilyCreationService(api, store, TimeProvider.System), Substitute.For<ILogger<TradeStrategyFamilyCommandActor>>());
         var receive = typeof(TradeStrategyFamilyCommandActor).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Single(x => x.Name == "ReceiveAsync" && x.DeclaringType == typeof(TradeStrategyFamilyCommandActor) && x.GetParameters().Length == 4);
-        var result = await (ValueTask<ServiceResult<GuidResult>>)receive.Invoke(actor, [ctx, null, command, CancellationToken.None])!;
-        result.Success.Should().BeTrue();
-        await store.Received(1).CreateAsync(request, Arg.Is<TradeStrategyFamilyReadModel>(x => x.Exchange == "XCME" && x.TradeStrategySymbolId == 10), Arg.Any<CancellationToken>());
+        await FluentActions.Invoking(async () => await (ValueTask<ServiceResult<GuidResult>>)receive.Invoke(actor, [ctx, null, command, CancellationToken.None])!)
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("Legacy*read-only*");
+        store.ReceivedCalls().Should().BeEmpty();
+
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Serialized_change_and_remove_dispatch_to_service_with_exact_target(bool remove)
+    public async Task Legacy_change_and_remove_remain_deserializable_but_cannot_write(bool remove)
     {
         var operation = Guid.NewGuid(); var target = new TradeStrategyFamilyReference(20, 3);
         var definition = new CreateTradeStrategyFamilyRequest { OperationId = operation, Family = TradeStrategyFamilyType.Futures,
@@ -110,15 +133,10 @@ public sealed class TradeStrategyCatalogTransportTests
         var parse = typeof(TradeStrategyFamilyCommandActor).GetMethod("ParseMessage", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)!;
         parse.Invoke(actor, [ctx, message]).Should().BeSameAs(command);
         var receive = typeof(TradeStrategyFamilyCommandActor).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Single(x => x.Name == "ReceiveAsync" && x.DeclaringType == typeof(TradeStrategyFamilyCommandActor) && x.GetParameters().Length == 4);
-        var result = await (ValueTask<ServiceResult<GuidResult>>)receive.Invoke(actor, [ctx, null, command, CancellationToken.None])!;
-        result.Success.Should().BeTrue();
-        if (remove)
-        {
-            await store.Received(1).RemoveAsync(removeRequest, Arg.Is<DateTime>(x => x.Kind == DateTimeKind.Utc), Arg.Any<string>(), Arg.Any<CancellationToken>());
-            api.ReceivedCalls().Should().BeEmpty();
-        }
-        else await store.Received(1).ChangeAsync(changeRequest,
-            Arg.Is<TradeStrategyFamilyReadModel>(x => x.Exchange == "XCME" && x.Symbol == "ES" && x.TimeFrame == TimeFrameType.Weekly), Arg.Any<CancellationToken>());
+        await FluentActions.Invoking(async () => await (ValueTask<ServiceResult<GuidResult>>)receive.Invoke(actor, [ctx, null, command, CancellationToken.None])!)
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("Legacy*read-only*");
+        store.ReceivedCalls().Should().BeEmpty();
+
     }
 
     sealed class Probe(IReferenceQueryContext ctx) : ReferenceQueryActor(ctx)

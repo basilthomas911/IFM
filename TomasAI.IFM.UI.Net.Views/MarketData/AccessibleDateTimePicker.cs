@@ -9,7 +9,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// The stock WinForms provider advertises a Value pattern but does not apply values written through it.
 /// This provider keeps the standard picker UI while making date entry available to assistive technology.
 /// </remarks>
-class AccessibleDateTimePicker : DateTimePicker
+public class AccessibleDateTimePicker : DateTimePicker
 {
     protected override AccessibleObject CreateAccessibilityInstance()
         => new DateTimePickerAccessibleObject(this);

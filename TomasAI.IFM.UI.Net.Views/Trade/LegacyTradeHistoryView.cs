@@ -4,7 +4,7 @@ using TomasAI.IFM.UI.Net.Contracts;
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>Read-only center-tab presentation of a legacy composition and its hydrated TradeDb history.</summary>
-public sealed class LegacyTradeHistoryView : UserControl
+public sealed class LegacyTradeHistoryView : DarkTradingView
 {
     static readonly Color Surface = Color.FromArgb(48, 48, 48);
 
@@ -29,7 +29,7 @@ public sealed class LegacyTradeHistoryView : UserControl
             Text = $"READ-ONLY LEGACY TRADE   {composition.OrderId}:{composition.TradeId}\r\n"
                 + $"{composition.TradeType} | composition={composition.TradeState} | TradeDb={history.MatchStatus}"
         };
-        var tabs = new TabControl { Dock = DockStyle.Fill, AccessibleName = "Legacy trade history sections" };
+        var tabs = new TomasAI.IFM.UI.Net.Views.App.DarkTabControl { Dock = DockStyle.Fill, AccessibleName = "Legacy trade history sections" };
         tabs.TabPages.Add(TextTab("Summary", Summary(history)));
         tabs.TabPages.Add(GridTab("Option Legs", (trade?.OptionLegs ?? []).Select(x => new
         {

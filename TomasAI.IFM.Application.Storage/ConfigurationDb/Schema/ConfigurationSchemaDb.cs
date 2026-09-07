@@ -43,6 +43,12 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
             ON reference_configuration.market_condition_parameter_set;
             DROP FUNCTION IF EXISTS reference_configuration.guard_market_condition_parameter_set();
             """))
+        .Append(new SchemaObjectDefinition("market_condition_assessment_parameter_set",
+            MarketConditionAssessmentSchemaSql.Create,
+            "DROP TABLE IF EXISTS reference_configuration.market_condition_assessment_parameter_set;"))
+        .Append(new SchemaObjectDefinition("lookup_definition", LookupDefinitionSchemaSql.Create, LookupDefinitionSchemaSql.Drop))
+        .Append(new SchemaObjectDefinition("strategy_catalog",
+            StrategyCatalogSchemaSql.Create, StrategyCatalogSchemaSql.Drop))
         .ToArray();
 
     /// <inheritdoc />

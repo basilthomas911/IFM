@@ -1,6 +1,10 @@
 # Application Storage — Implementation Details
 
+> **Implemented catalog replacement (2026-09-06):** ConfigurationDb now owns active strategy catalog authoring. Reference Data Manager edits all seven catalog sections, including balanced/directional variants; Portfolio mandates, assignments and policy limits use exact deployment GUID/version references. Existing family records are imported as Drafts without automatic permissions. The old family UI/write path is Legacy; historical contracts remain readable. [Integration details](ConfigurationDb-Strategy-Catalog-Implementation.md) and [UI guide](../../TomasAI.IFM.UI.Net/Docs/Strategy-Catalog-Reference-UI.md) supersede the older family-authoring descriptions below. TradeSelection execution remains on hold.
+
 ## Purpose
+
+Grouped predefined Fund choices are stored in PostgreSQL `ConfigurationDb.lookup_definition`; see [ConfigurationDb lookup definitions](ConfigurationDb-Lookup-Definitions.md) for its schema, seed values, query transport and Databento-backed underlying selections.
 
 `TomasAI.IFM.Application.Storage` is the application-layer persistence catalog for IFM. It adapts domain read models and commands to the provider-neutral repository primitives in `TomasAI.IFM.Framework.Storage` and exposes:
 
@@ -13,7 +17,23 @@
 - external data-reader contexts for economic calendars and yield curves; and
 - a DI-backed context factory, resolver, and limited context pool.
 
-The project does not select a database vendor directly. Each context receives a named `IDbConnectionSetting`; its `ProviderName` and credential-free connection string determine which framework provider creates connections, commands, parameters, readers, and bulk-copy operations. Result materialization is explicit ordinal mapping through `IObjectDataRecord`; application contexts do not register reflection-based result maps.
+The project does not select a database vendor directly. Each context receives a named `IDbConnectionSetting`; its `ProviderName` and credential-free connection string determine which framework provider creates connections, commands, parameters, readers, and bulk-copy operations. Result materialization uses explicit ordinal mapping; application contexts do not register reflection-based result maps. The PostgreSQL catalog uses operation-owned provider connections and typed readers for transactions, reconstructing its definition DTO from normalized rows.
+
+## ConfigurationDb and strategy catalog direction (2026-09-06)
+
+`ConfigurationDbContext` owns PostgreSQL schema `reference_configuration`. Its existing pipeline parameter tables store versioned JSONB configuration with identity, hash, lifecycle and audit metadata. The current schema includes workflow, RegimeDiscovery, MarketCondition, TradeSelection, OrderComposition and RiskManagement parameter tables plus MarketCondition assessment parameters.
+
+The reusable trading-strategy catalog is now implemented in this context. Relational identities and versioned relationships separate strategy families, trading hypotheses, structures, variants, leg/expiry definitions, parameter schemas and product/timeframe deployments. Specialized settings use validated JSONB. A small asset universe can support many strategies without extending the existing strategy enum for every variation.
+
+Fund assignments, permissions and financial limits remain Portfolio-owned. Instrument definitions and product/contract discovery remain with Reference/MarketData/Securities. Existing ReferenceDb `TradeStrategyFamily` rows retain their current identities until an explicit compatibility migration; they are not the new reusable strategy definitions.
+
+[ConfigurationDb Strategy Catalog Design v1.0](ConfigurationDb-Strategy-Catalog-Design-v1.0.md) defines common/future variants, capability validation, version freezing and migration boundaries. [Catalog implementation](ConfigurationDb-Strategy-Catalog-Implementation.md) documents the normalized physical tables, immutable-draft context APIs, trusted capability/reference adapter contracts and PostgreSQL verification. **TradeSelection implementation remains on hold** pending realignment of its specification and plan. Normal ConfigurationDb schema initialization now creates the catalog additively; no production strategies or Fund permissions are seeded.
+
+## DownloadLog addition (2026-09-05)
+
+`MarketDataDbContext.DownloadLog.cs` and the `market_data_download_log` schema record immutable terminal outcomes for EconomicCalendar and TreasuryCurve imports. Queries use full dataset/provider/scope/date partitions, typed CQL bindings, bounded timestamp/UUID keyset paging, and millisecond-normalized payload hashes. Failed attempts retain nullable counts when persistence is uncertain. Source data is not copied into the log.
+
+Private events implementing `IRequireDurableProjection` commit their initial projector-state marker with the event in PostgreSQL. Scalar and single-row provider reads now honor the active transaction, including `INSERT ... RETURNING`; rollback tests cover failure to create that marker. The durable projector performs the subsequent idempotent Scylla upsert asynchronously. See [DownloadLog implementation and qualification](../../TomasAI.IFM.Domain.MarketData/Docs/Domain-Actor-Implementation-Details.md).
 
 ## Complete project folder map
 
@@ -21,6 +41,8 @@ The tree below records every directory currently present beneath the project roo
 
 ```text
 TomasAI.IFM.Application.Storage/                    Project root
+├── ConfigurationDb/                               PostgreSQL strategy configuration
+│   └── Schema/                                     Configuration SQL schema
 ├── Docs/                                           Maintained project documentation
 ├── EventSourceDb/                                  Active event-source persistence
 │   └── Schema/                                     Event-source SQL schema

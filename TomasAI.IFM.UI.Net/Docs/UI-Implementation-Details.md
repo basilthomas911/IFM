@@ -1,5 +1,7 @@
 # UI.Net implementation details
 
+> **Implemented catalog replacement (2026-09-06):** ConfigurationDb now owns active strategy catalog authoring. Reference Data Manager edits all seven catalog sections, including balanced/directional variants; Portfolio mandates, assignments and policy limits use exact deployment GUID/version references. Existing family records are imported as Drafts without automatic permissions. The old family UI/write path is Legacy; historical contracts remain readable. [Integration details](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) and [UI guide](Strategy-Catalog-Reference-UI.md) supersede the older family-authoring descriptions below. TradeSelection execution remains on hold.
+
 ## Purpose and scope
 
 The UI.Net project family is the Windows Forms desktop client for the IFM application. It presents the operational fund, trade, market-data, reference-data, system-administration, and status-console workflows. It does not host domain actors or access storage directly.
@@ -43,6 +45,14 @@ The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows ex
 | Concrete UI event consumers | [`TomasAI.IFM.UI.EventConsumer`](../../TomasAI.IFM.UI.EventConsumer) |
 | NATS event-listener implementation | [`TomasAI.IFM.Framework.Messaging.Nats`](../../TomasAI.IFM.Framework.Messaging.Nats) |
 | UTC/Eastern UI boundary | [`EasternTime.cs`](../../TomasAI.IFM.UI.Net.Models/EasternTime.cs), [`EasternTimeDisplayPolicy.cs`](../../TomasAI.IFM.UI.Net.Views/Presentation/EasternTimeDisplayPolicy.cs) |
+
+## Default UI appearance
+
+The Futures Option Contract editor uses a virtual list and a separate paged query; see [Futures Option Contract paging](Futures-Option-Contract-Paging.md) for loading, selection, token and projection-readiness behavior.
+
+All application-owned forms and embedded views use **[Dark Trading Theme](Dark-Trading-Theme.md)**. New forms inherit `DarkTradingForm`; new embedded views inherit `DarkTradingView`. The shared theme defines Microsoft Sans Serif 10-point typography, black content, white text, blue selections, flat dark-gray buttons and gray frames. The theme specification documents each control, interaction state, native-rendering exception and verification requirement.
+
+The bases apply the theme before display and to dynamically added controls. The navigator also applies it to resolved views, and application startup sets the default font. Existing async loading/reveal logic and semantic trading/status colors remain intact.
 
 ## Runtime architecture
 

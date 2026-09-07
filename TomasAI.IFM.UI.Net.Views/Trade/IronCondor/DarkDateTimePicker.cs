@@ -7,7 +7,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 /// Preserves the native <see cref="DateTimePicker"/> calendar and input behavior while
 /// replacing its system-colored visible face with the Trade Orders dark palette.
 /// </summary>
-sealed class DarkDateTimePicker : MarketData.AccessibleDateTimePicker
+public sealed class DarkDateTimePicker : MarketData.AccessibleDateTimePicker
 {
     const int WmPaint = 0x000F;
     const int WmPrintClient = 0x0318;

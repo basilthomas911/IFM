@@ -13,7 +13,10 @@ public sealed class WinFormsViewNavigator(Func<Type, object> resolveView) : IVie
     {
         var view = (TView)_resolveView(typeof(TView));
         if (view is Control control)
+        {
+            DarkTradingTheme.Apply(control);
             control.ApplyEasternTimeDisplayPolicy();
+        }
         return view;
     }
 

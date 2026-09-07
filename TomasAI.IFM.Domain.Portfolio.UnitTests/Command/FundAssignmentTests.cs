@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
@@ -61,6 +63,25 @@ public sealed class FundAssignmentTests
         var action = () => aggregate.AssignTradeTemplate(Guid.NewGuid(), 1,
             Assignment(Guid.NewGuid(), 1, 1) with { AssetType = "FuturesOptions" }, Now, "admin");
         action.Should().Throw<ArgumentException>().WithMessage("*asset type*");
+    }
+
+    [Fact]
+    public void Catalog_assignments_use_Fund_revision_after_legacy_history_and_disabled_drafts_do_not_block_enablement()
+    {
+        var aggregate = CreateFund();
+        aggregate.AssignTradeTemplate(Guid.NewGuid(), 1, Assignment(Guid.NewGuid(), 1, 1), Now, "test");
+        var key = new CatalogKey(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1);
+        var reference = new TradeStrategyFamilyReference(0, 0) { CatalogDeployment = key };
+        aggregate.AddVersion(Guid.NewGuid(), 2, aggregate.Current! with { SchemaVersion = 3, FundMandateVersion = 2, PermittedTradeStrategyFamilies = [reference] }, default, Now, "test");
+        var draft = Assignment(key.Id, 4, 1) with { SchemaVersion = 3, FundMandateVersion = 2, TradeStrategyFamily = reference, Enabled = false, TradeSelectionHintProfileId = Guid.Empty, TradeSelectionHintProfileVersion = 0, OrderCompositionProfileId = Guid.Empty, OrderCompositionProfileVersion = 0 };
+        draft.Validate().Should().BeEmpty();
+        aggregate.AssignTradeTemplate(Guid.NewGuid(), 3, draft, Now, "test");
+        var enabled = Assignment(key.Id, 5, 1) with { SchemaVersion = 3, FundMandateVersion = 2, TradeStrategyFamily = reference };
+        aggregate.AssignTradeTemplate(Guid.NewGuid(), 4, enabled, Now, "test");
+        aggregate.Assignments.Select(x => x.AssignmentVersion).Should().Equal(1, 4, 5);
+        var duplicate = () => aggregate.AssignTradeTemplate(Guid.NewGuid(), 5, enabled with { AssignmentVersion = 6 }, Now, "test");
+        duplicate.Should().Throw<InvalidOperationException>().WithMessage("*overlapping*");
+        var wrong = draft with { TradeTemplateId = Guid.NewGuid() }; wrong.Validate().Should().Contain(x => x.Contains("deployment"));
     }
 
     internal static PortfolioFundAggregate CreateFund()

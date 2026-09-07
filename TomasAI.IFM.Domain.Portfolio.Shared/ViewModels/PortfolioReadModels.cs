@@ -97,10 +97,14 @@ public sealed record FundMandateReadModel
         if (string.IsNullOrWhiteSpace(Objective)) errors.Add("Objective is required.");
         if (UnderlyingUniverse.Length == 0 || UnderlyingUniverse.Any(string.IsNullOrWhiteSpace)) errors.Add("UnderlyingUniverse is required.");
         if (EligibleAssetTypes.Length == 0 || EligibleAssetTypes.Any(string.IsNullOrWhiteSpace)) errors.Add("EligibleAssetTypes is required.");
-        if (PermittedTradeFamilies.Length == 0 || PermittedTradeFamilies.Any(string.IsNullOrWhiteSpace)) errors.Add("PermittedTradeFamilies is required.");
+        // An unassigned Draft may also be disabled/retired. None of these states grants trading authority.
+        var unassignedInactive = SchemaVersion >= 3 && OperatingState is FundOperatingState.Draft or FundOperatingState.Disabled or FundOperatingState.Retired
+            && PermittedTradeFamilies is { Length: 0 } && PermittedTradeStrategyFamilies is { Length: 0 };
+        if (PermittedTradeFamilies is null || (!unassignedInactive && PermittedTradeFamilies.Length == 0) || PermittedTradeFamilies.Any(string.IsNullOrWhiteSpace)) errors.Add("PermittedTradeFamilies is required for an operational Fund.");
+        if (SchemaVersion >= 3 && PermittedTradeStrategyFamilies?.Any(x => x?.CatalogDeployment is null) == true) errors.Add("Explicitly replace legacy family permissions with ConfigurationDb deployments.");
         if (PermittedTradeStrategyFamilies is null || PermittedTradeStrategyFamilies.Any(x => x is null || !x.IsValid) ||
             PermittedTradeStrategyFamilies.Distinct().Count() != PermittedTradeStrategyFamilies.Length ||
-            (SchemaVersion >= 2 && PermittedTradeStrategyFamilies.Length == 0))
+            (SchemaVersion >= 2 && PermittedTradeStrategyFamilies.Length == 0 && !unassignedInactive))
             errors.Add("Schema v2 requires distinct, exact trade strategy family ID/version references.");
         if (CreatedOnUtc.Kind != DateTimeKind.Utc) errors.Add("CreatedOnUtc must be UTC.");
         if (string.IsNullOrWhiteSpace(CreatedBy)) errors.Add("CreatedBy is required.");

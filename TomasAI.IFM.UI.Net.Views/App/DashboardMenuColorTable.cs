@@ -40,16 +40,25 @@ sealed class DashboardMenuRenderer() : ToolStripProfessionalRenderer(new Dashboa
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        if (string.Equals(e.Item.Name, MarketDataFeedButtonName, StringComparison.Ordinal)
-            || string.Equals(e.Item.Name, MarketDataFeedHealthIndicatorName, StringComparison.Ordinal))
+        if (string.Equals(e.Item.Name, MarketDataFeedHealthIndicatorName, StringComparison.Ordinal))
         {
             e.TextColor = e.Item.ForeColor;
             base.OnRenderItemText(e);
             return;
         }
 
+        if (DarkTradingTheme.IsCommandItem(e.Item) && !DarkTradingTheme.IsCommandEnabled(e.Item))
+        {
+            // The native disabled renderer substitutes SystemColors.GrayText for TextColor.
+            TextRenderer.DrawText(e.Graphics, e.Text, e.TextFont, e.TextRectangle,
+                DarkTradingTheme.DisabledText, e.TextFormat);
+            return;
+        }
+
         if (!NavigationItemNames.Contains(e.Item.Name))
         {
+            if (DarkTradingTheme.IsCommandItem(e.Item))
+                e.TextColor = DarkTradingTheme.ButtonTextColor(DarkTradingTheme.IsCommandEnabled(e.Item));
             base.OnRenderItemText(e);
             return;
         }
@@ -59,12 +68,12 @@ sealed class DashboardMenuRenderer() : ToolStripProfessionalRenderer(new Dashboa
             e.TextFont,
             selected ? FontStyle.Bold : FontStyle.Regular);
         e.TextFont = font;
-        e.TextColor = NavigationTextColor(selected, e.Item.Enabled);
+        e.TextColor = NavigationTextColor(selected, DarkTradingTheme.IsCommandEnabled(e.Item));
         base.OnRenderItemText(e);
     }
 
     internal static Color NavigationTextColor(bool selected, bool enabled)
-        => !enabled ? Color.DimGray : selected ? Color.White : Color.LightGray;
+        => DarkTradingTheme.ButtonTextColor(enabled);
 
     internal static FontStyle NavigationFontStyle(bool selected)
         => selected ? FontStyle.Bold : FontStyle.Regular;
@@ -74,8 +83,8 @@ sealed class DashboardMenuRenderer() : ToolStripProfessionalRenderer(new Dashboa
 sealed class DashboardMenuColorTable : ProfessionalColorTable
 {
     static readonly Color Black = Color.Black;
-    static readonly Color Hover = Color.FromArgb(48, 48, 48);
-    static readonly Color Pressed = Color.FromArgb(64, 64, 64);
+    static readonly Color Hover = DarkTradingTheme.HoverSurface;
+    static readonly Color Pressed = DarkTradingTheme.PressedSurface;
 
     public override Color ToolStripGradientBegin => Black;
     public override Color ToolStripGradientMiddle => Black;

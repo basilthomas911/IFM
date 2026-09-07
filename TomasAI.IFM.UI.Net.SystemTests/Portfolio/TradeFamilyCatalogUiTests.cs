@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using System.Reflection;
 using FluentAssertions;
 using NSubstitute;
@@ -12,15 +14,16 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 
 public sealed class TradeFamilyCatalogUiTests
 {
-    static TradeStrategyFamilyReadModel[] Catalog() => TradeStrategyFamilySeed.Definitions
-        .Select((x, i) => x.Create(71 + i, DateTime.UtcNow, "test")).ToArray();
+    static StrategyDeploymentChoice[] Catalog() => Enumerable.Range(1, 3).Select(i =>
+        new StrategyDeploymentChoice(new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId("UI-deployment-" + i), 1), "Deployment-" + i,
+            "Example deployment " + i, CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(71 + i, "ES", "XCME", "USD")], ["FuturesOption"], [], [])).ToArray();
     static PortfolioReadModel Portfolio() => new() { PortfolioId = 1, PortfolioVersion = 1 };
     [Fact]
     public void Duplicate_system_keys_are_disambiguated_by_exact_id_version_and_not_legacy_text()
     {
         var es = Catalog()[1];
-        var nq = es with { TradeStrategyFamilyId = 99, Symbol = "NQ", Description = "Weekly NQ spread" };
-        var fund = Fund(es.SystemKey) with { SchemaVersion = 2, PermittedTradeStrategyFamilies = [TradeStrategyFamilyReference.From(nq)] };
+        var nq = es with { Key = es.Key with { Id = Guid.NewGuid() }, Code = "NQ", Products = [new(99, "NQ", "XCME", "USD")], Name = "Weekly NQ spread" };
+        var fund = Fund(nq.SystemKey) with { SchemaVersion = 3, PermittedTradeStrategyFamilies = [nq.Reference] };
         using var mandate = new FundMandateEditorForm(1, 2, fund, [es, nq]);
         InvokeSave(mandate);
         mandate.Value!.PermittedTradeStrategyFamilies.Should().Equal(TradeStrategyFamilyReference.From(nq));
@@ -28,9 +31,9 @@ public sealed class TradeFamilyCatalogUiTests
         Field<ComboBox>(assignment, "_family").Items.Count.Should().Be(1);
         PopulateAssignment(assignment); InvokeSave(assignment);
         assignment.Value!.TradeStrategyFamily.Should().Be(TradeStrategyFamilyReference.From(nq));
-        using var legacy = new FundMandateEditorForm(1, 2, Fund(es.SystemKey), [es, nq]);
+        using var legacy = new FundMandateEditorForm(1, 2, Fund("unmapped legacy name"), [es, nq]);
         InvokeSave(legacy); legacy.Value.Should().BeNull("ambiguous legacy names must be explicitly reselected");
-        using var legacyAssignment = new FundAssignmentEditorForm(Portfolio(), Fund(es.SystemKey), [es, nq]);
+        using var legacyAssignment = new FundAssignmentEditorForm(Portfolio(), Fund("unmapped legacy name"), [es, nq]);
         Field<ComboBox>(legacyAssignment, "_family").Items.Count.Should().Be(0);
     }
     static FundMandateReadModel Fund(params string[] families) => new()
@@ -38,7 +41,7 @@ public sealed class TradeFamilyCatalogUiTests
         PortfolioId = 1, FundId = 2, FundMandateVersion = 1, TradingYear = 2026,
         FundCode = "ES", Name = "ES Fund", Objective = "Test", OperatingState = FundOperatingState.Draft,
         DecisionHorizon = "Weekly", UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["FuturesOption"],
-        PermittedTradeFamilies = families, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test"
+        PermittedTradeFamilies = families, PermittedTradeStrategyFamilies = Catalog().Where(x => families.Contains(x.Code)).Select(x => x.Reference).ToArray(), SchemaVersion = 3, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test"
     };
 
     [Fact]
@@ -77,13 +80,14 @@ public sealed class TradeFamilyCatalogUiTests
     public void Unresolved_existing_family_remains_visible_and_blocks_save_until_explicitly_removed(string oldKey)
     {
         var catalog = Catalog();
-        using var form = new FundMandateEditorForm(1, 2, Fund(catalog[1].SystemKey, oldKey), catalog);
+        using var form = new FundMandateEditorForm(1, 2, Fund(catalog[1].SystemKey, oldKey) with { PermittedTradeStrategyFamilies = [] }, catalog);
         var list = Field<CheckedListBox>(form, "_families");
         Keys(list.CheckedItems).Should().Contain(oldKey);
         list.Items[IndexOf(list, oldKey)].ToString().Should().Contain("Unavailable");
         InvokeSave(form);
         form.Value.Should().BeNull();
-        list.SetItemChecked(IndexOf(list, oldKey), false);
+        foreach (var item in list.CheckedIndices.Cast<int>().ToArray()) list.SetItemChecked(item, false);
+        list.SetItemChecked(IndexOf(list, catalog[1].SystemKey), true);
         InvokeSave(form);
         form.Value!.PermittedTradeFamilies.Should().Equal(catalog[1].SystemKey);
     }
@@ -92,7 +96,7 @@ public sealed class TradeFamilyCatalogUiTests
     public void Retired_family_is_not_offered_as_a_new_permission_and_cannot_be_saved_if_previously_checked()
     {
         var catalog = Catalog();
-        catalog[0] = catalog[0] with { State = TradeStrategyFamilyState.Retired };
+        catalog[0] = catalog[0] with { Status = CatalogLifecycleStatus.Retired };
         using var fresh = new FundMandateEditorForm(1, 2, catalog: catalog);
         Keys(Field<CheckedListBox>(fresh, "_families").Items).Should().NotContain(catalog[0].SystemKey);
         using var existing = new FundMandateEditorForm(1, 2, Fund(catalog[0].SystemKey), catalog);
@@ -101,12 +105,12 @@ public sealed class TradeFamilyCatalogUiTests
     }
 
     [Theory]
-    [InlineData(TradeStrategyFamilyState.Active, 1)]
-    [InlineData(TradeStrategyFamilyState.Retired, 0)]
-    public void Only_the_latest_version_can_be_selected_while_historical_permissions_remain_unavailable(TradeStrategyFamilyState state, int offered)
+    [InlineData(CatalogLifecycleStatus.Draft, 1)]
+    [InlineData(CatalogLifecycleStatus.Retired, 0)]
+    public void Only_the_latest_version_can_be_selected_while_historical_permissions_remain_unavailable(CatalogLifecycleStatus state, int offered)
     {
         var original = Catalog()[0];
-        var latest = original with { DefinitionVersion = 2, Description = "Updated ES family", State = state };
+        var latest = original with { Key = original.Key with { Version = 2 }, Name = "Updated ES deployment", Status = state };
         using var fresh = new FundMandateEditorForm(1, 2, catalog: [original, latest]);
         var choices = Field<CheckedListBox>(fresh, "_families");
         choices.Items.Count.Should().Be(offered);
@@ -121,7 +125,7 @@ public sealed class TradeFamilyCatalogUiTests
     public void Assignment_is_a_non_editable_dropdown_limited_to_active_permitted_families_and_saves_key()
     {
         var catalog = Catalog();
-        catalog[2] = catalog[2] with { State = TradeStrategyFamilyState.Retired };
+        catalog[2] = catalog[2] with { Status = CatalogLifecycleStatus.Retired };
         using var form = new FundAssignmentEditorForm(Portfolio(), Fund(catalog[1].SystemKey, catalog[2].SystemKey, "UNKNOWN"), catalog);
         var combo = Field<ComboBox>(form, "_family");
         combo.DropDownStyle.Should().Be(ComboBoxStyle.DropDownList);
@@ -178,13 +182,13 @@ public sealed class TradeFamilyCatalogUiTests
     public async Task Administration_queries_fresh_catalog_and_returns_only_active_rows()
     {
         var catalog = Catalog();
-        catalog[2] = catalog[2] with { State = TradeStrategyFamilyState.Retired };
+        catalog[2] = catalog[2] with { Status = CatalogLifecycleStatus.Retired };
         var references = Substitute.For<IReferenceQueryApi>();
-        references.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<TradeStrategyFamilyReadModel[]>(catalog));
+        references.GetStrategyDeploymentChoicesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<StrategyDeploymentChoice[]>(catalog));
         using var form = Administration(references);
         (await LoadCatalog(form))!.Select(x => x.SystemKey).Should().BeEquivalentTo(catalog.Take(2).Select(x => x.SystemKey));
         await LoadCatalog(form);
-        await references.Received(2).GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>());
+        await references.Received(2).GetStrategyDeploymentChoicesAsync(Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -201,18 +205,18 @@ public sealed class TradeFamilyCatalogUiTests
         var catalog = Catalog();
         switch (scenario)
         {
-            case "failed": references.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceFailed<TradeStrategyFamilyReadModel[]>(503, "offline")); break;
-            case "throws": references.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException<ServiceResult<TradeStrategyFamilyReadModel[]>>(new InvalidOperationException("offline"))); break;
+            case "failed": references.GetStrategyDeploymentChoicesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceFailed<StrategyDeploymentChoice[]>(503, "offline")); break;
+            case "throws": references.GetStrategyDeploymentChoicesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException<ServiceResult<StrategyDeploymentChoice[]>>(new InvalidOperationException("offline"))); break;
             default:
                 catalog = scenario switch
                 {
                     "empty" => [],
-                    "retired" => catalog.Select(x => x with { State = TradeStrategyFamilyState.Retired }).ToArray(),
-                    "invalid" => [catalog[0] with { SystemKey = "BAD" }],
+                    "retired" => catalog.Select(x => x with { Status = CatalogLifecycleStatus.Retired }).ToArray(),
+                    "invalid" => [catalog[0] with { Key = catalog[0].Key with { Id = Guid.Empty } }],
                     "duplicate" => [catalog[0], catalog[0]],
                     _ => catalog
                 };
-                references.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<TradeStrategyFamilyReadModel[]>(catalog));
+                references.GetStrategyDeploymentChoicesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<StrategyDeploymentChoice[]>(catalog));
                 break;
         }
         using var form = Administration(scenario == "missing" ? null : references);
@@ -222,7 +226,7 @@ public sealed class TradeFamilyCatalogUiTests
 
     static void PopulateAssignment(FundAssignmentEditorForm form)
     {
-        foreach (var field in new[] { "_template", "_hint", "_composition" }) Field<TextBox>(form, field).Text = Guid.NewGuid().ToString();
+        // Values now come from the exact selected deployment; users cannot invent profile IDs.
     }
     static PortfolioAdministrationForm Administration(IReferenceQueryApi? references)
     {
@@ -230,8 +234,8 @@ public sealed class TradeFamilyCatalogUiTests
         form.GetType().GetField("_referenceQueries", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(form, references);
         return form;
     }
-    static Task<TradeStrategyFamilyReadModel[]?> LoadCatalog(PortfolioAdministrationForm form) =>
-        (Task<TradeStrategyFamilyReadModel[]?>)form.GetType().GetMethod("LoadTradeFamilyCatalogAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null)!;
+    static Task<StrategyDeploymentChoice[]?> LoadCatalog(PortfolioAdministrationForm form) =>
+        (Task<StrategyDeploymentChoice[]?>)form.GetType().GetMethod("LoadTradeFamilyCatalogAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null)!;
     static void InvokeSave(Form form) => form.GetType().GetMethod(form is FundMandateEditorForm ? "Save" : "SaveCore", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null);
     static T Field<T>(object owner, string name) => (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner)!;
     static string Key(object item) => (string)item.GetType().GetProperty("SystemKey")!.GetValue(item)!;

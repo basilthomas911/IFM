@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using System.Reflection;
 using FlaUI.Core.AutomationElements;
 using FlaUI.UIA3;
@@ -104,12 +106,12 @@ public sealed class PortfolioRiskPolicyMessageLoopAcceptanceTests
     static IReferenceQueryApi ReferenceCatalog()
     {
         var references = Substitute.For<IReferenceQueryApi>();
-        references.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(
-            new ServiceOk<TradeStrategyFamilyReadModel[]>(
+        references.GetStrategyDeploymentChoicesAsync(Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<StrategyDeploymentChoice[]>(
             [
-                TradeStrategyFamilySeed.Definitions[0].Create(1, DateTime.UtcNow, "PF-27 acceptance"),
-                TradeStrategyFamilySeed.Definitions[1].Create(2, DateTime.UtcNow, "PF-27 acceptance"),
-                TradeStrategyFamilySeed.Definitions[2].Create(3, DateTime.UtcNow, "PF-27 acceptance"),
+                new(new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId("PF-27-1"), 1), "Deployment-1", "Deployment 1", CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(1, "ES", "XCME", "USD")], ["FuturesOption"], [], []),
+                new(new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId("PF-27-2"), 1), "Deployment-2", "Deployment 2", CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(2, "ES", "XCME", "USD")], ["FuturesOption"], [], []),
+                new(new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId("PF-27-3"), 1), "Deployment-3", "Deployment 3", CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(3, "ES", "XCME", "USD")], ["FuturesOption"], [], []),
             ]));
         return references;
     }

@@ -270,3 +270,7 @@ __pycache__/
 /Docker/vLLM
 /BenchmarkDotNet.Artifacts/
 /.test-results/
+/.codex-*/
+**/TestResults/
+/test-support/lookup-layout-evidence/*.png
+/test-support/strategy-catalog-evidence/*.png

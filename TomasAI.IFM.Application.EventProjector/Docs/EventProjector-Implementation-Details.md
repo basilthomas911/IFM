@@ -24,6 +24,12 @@ set has passed the cross-store idempotency and persistent-infrastructure test-is
 all future target-operation additions remain subject to the operational and extension gates in
 `Documents/system/Event-Sourcing-Projection-Split-Brain-Controls.md`.
 
+## Atomic admission for DownloadLog (2026-09-05)
+
+Recovery scans explicit projector-state rows; it does not discover arbitrary event-log rows that have no projection marker. DownloadLog's private inserted event implements `IRequireDurableProjection`, allowing `EventSourceActorDbContext.SaveEventsAsync` to create that initial marker in the same PostgreSQL transaction as the event. Enqueue happens after commit. A restart between commit and enqueue can therefore recover the original event. This opt-in does not change other event types' admission semantics.
+
+The supporting PostgreSQL scalar and single-object read paths now join the active repository transaction, including `INSERT ... RETURNING`. DownloadLog integration tests verify rollback of the event if marker creation fails, recovery before enqueue, target failure/replay, notification-outbox restart, and bounded exhaustion. See [DownloadLog qualification](../../TomasAI.IFM.Domain.MarketData/Docs/Domain-Actor-Implementation-Details.md).
+
 ## Source map
 
 | File | Responsibility |

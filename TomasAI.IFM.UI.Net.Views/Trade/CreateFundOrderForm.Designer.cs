@@ -44,10 +44,10 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.lblReference = new System.Windows.Forms.Label();
             this.pnlTradeDate = new System.Windows.Forms.Panel();
             this.lblTradeDate = new System.Windows.Forms.Label();
-            this.dtpTradeDate = new TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker();
+            this.dtpTradeDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             this.pnlMaturityDate = new System.Windows.Forms.Panel();
             this.lblMaturityDate = new System.Windows.Forms.Label();
-            this.dtpMaturityDate = new TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker();
+            this.dtpMaturityDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             this.txtOrderStatus = new System.Windows.Forms.TextBox();
             this.pnlButtons = new System.Windows.Forms.Panel();
             this.btnCancel = new System.Windows.Forms.Button();

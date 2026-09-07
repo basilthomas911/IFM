@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Shared.Application;
+namespace TomasAI.IFM.Shared.Application;
 
 /// <summary>
 /// Provides a collection of URI path constants for querying fund-related resources in the API.
@@ -104,6 +104,7 @@ public class FuturesBarDataQueryUriPath
     public const string GetFuturesTradeSignal = "/api/marketdata/futures/tradesignal";
     public const string GetFuturesOptionContract = "/api/marketdata/futures/option/contract";
     public const string GetFuturesContracts = "/api/marketdata/futures/contracts";
+    public const string GetFuturesOptionContractsPage = "/api/marketdata/futures/option/contracts/page";
     public const string GetFuturesOptionContracts = "/api/marketdata/futures/option/contracts";
     public const string GetLastYieldCurveRate = "/api/marketdata/yieldcurve/last";
     public const string GetLastRateOfReturn = "/api/marketdata/rateofreturn/last";

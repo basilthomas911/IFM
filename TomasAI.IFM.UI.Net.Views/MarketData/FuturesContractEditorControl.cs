@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -14,7 +14,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// supports loading reference data such as currencies, exchanges, and symbols required for futures contract management.
 /// The control is designed to be used within a larger application that manages financial instruments.</remarks>
 public partial class FuturesContractEditorControl
-    : UserControl, IControlCommand, IAsyncFormControl
+    : DarkTradingView, IControlCommand, IAsyncFormControl
 {
     FuturesContractEditorViewModel _viewModel;
     EditMode _editMode;

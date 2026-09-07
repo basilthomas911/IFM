@@ -207,7 +207,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                     ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
                 }
 
-                if (!accepted)
+                // Opt-in immutable aggregates can verify duplicate payloads against committed
+                // state and resume a reservation whose first execution never committed.
+                if (!accepted && !await ShouldProcessDuplicateAsync(_context!, command, cancellationToken))
                 {
                     ActorRuntimeMetrics.DuplicateCommands.Add(1);
                     result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
@@ -277,7 +279,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         stageStarted = ActorRuntimeMetrics.StartStage();
                         try
                         {
-                            await OnSaveStateAsync(_context!, threadId, state!, command);
+                            if (cancellationToken.CanBeCanceled)
+                                await OnSaveStateAsync(_context!, threadId, state!, command, cancellationToken);
+                            else
+                                await OnSaveStateAsync(_context!, threadId, state!, command);
                         }
                         finally
                         {
@@ -346,6 +351,12 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// A null result retains the legacy throwing validation hook for actors not yet migrated.
     /// </summary>
     protected virtual IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) => null;
+
+    /// <summary>Defaults to audit suppression. An immutable aggregate may verify persisted
+    /// content and resume only when the reserved command has no committed outcome.</summary>
+    protected virtual ValueTask<bool> ShouldProcessDuplicateAsync(
+        ICommandActorContext<TActor> context, ICommand command, CancellationToken cancellationToken)
+        => ValueTask.FromResult(false);
 
     /// <summary>
     /// Resolves a command parser from an actor-owned verb map and materializes the command.

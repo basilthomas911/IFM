@@ -86,6 +86,7 @@ WHERE parameter_set_id = $3 AND version = $4 AND status = $5;
         {
             StrategyParameterSetKind.RegimeDiscovery => "regime_discovery_parameter_set",
             StrategyParameterSetKind.MarketCondition => "market_condition_parameter_set",
+            StrategyParameterSetKind.MarketConditionAssessment => "market_condition_assessment_parameter_set",
             _ => throw new NotSupportedException($"The typed lifecycle for {kind} is not defined yet.")
         };
         return string.Format(System.Globalization.CultureInfo.InvariantCulture, template, table);

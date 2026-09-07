@@ -1,5 +1,7 @@
 # Portfolio and Fund High-Level Design
 
+> **Strategy catalog direction (2026-09-06):** New reusable strategy families, strategy definitions, structures, variants and deployments are planned in PostgreSQL ConfigurationDb. Portfolio continues to own Fund assignments, permissions and financial/risk limits. Existing exact ReferenceDb family IDs/versions and risk-limit keys remain compatibility contracts until a versioned migration maps them explicitly; new variants must not expand Fund permission implicitly. Earlier three-family restrictions below describe the original PF scope, not the new catalog taxonomy. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 > **2026-09-05 catalog amendment:** [Product discovery, family creation and exact Fund references](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md) supersedes the earlier read-only/unique-SystemKey restrictions below. References now supports creating immutable product-linked definitions. SystemKey is non-unique classification; updated Fund/assignment editors persist exact catalog ID/version references (SchemaVersion 2). Seed-only acceptance statements describe the earlier baseline, not a current three-row limit. Existing history is preserved and no downstream trading capability is automatically enabled.
 
 **Version:** 0.2
@@ -55,7 +57,7 @@ The following decisions are approved and normative:
 25. Placeholder or randomly generated policy identities are prohibited.
 26. Portfolio Administration exposes `Risk Policy...` as a primary Portfolio command. Less-frequent Portfolio version, state, and Draft-deletion operations are grouped under one `Portfolio Actions` menu instead of occupying separate command-bar buttons.
 27. Trade Orders is the single operator-facing view for manual and Strategy Workflow compositions. Portfolio Administration does not expose Planned Compositions, and no separate composition viewer is retained.
-28. ReferenceDb owns the `TradeStrategyFamily` catalog. V1 seeds exactly Futures, Vertical Spread, and Iron Condor and exposes them read-only through typed NATS queries and the Reference screen.
+28. ReferenceDb owns the existing product/timeframe `TradeStrategyFamily` compatibility catalog, including the three original seeds and current versioned management commands. ConfigurationDb will own reusable strategies, structures, variants and deployments; Portfolio owns exact Fund assignments.
 29. `TradeStrategyFamilyId` is a positive sequence-generated integer. Each definition has a stable system key and immutable definition version; bootstrap is idempotent and never renumbers an existing family.
 30. PortfolioFinancialPolicy contains one versioned `TradeFamilyRiskLimit` per configured family. A family must be enabled before use, and its limits can constrain but never enlarge Portfolio-wide limits.
 31. Long/Short, bullish/bearish/neutral, debit/credit, and other strategy variants are deferred to a v1.x child model and management UI. They are not additional v1 families.
@@ -64,7 +66,7 @@ The following decisions are approved and normative:
 
 This document is the authoritative Portfolio/Fund prerequisite for:
 
-- `TradeSelection-High-Level-Design-v0.1.md`;
+- [TradeSelection-High-Level-Design-v0.1.md](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-High-Level-Design-v0.1.md);
 - `Intrinsic-Time-Strategy-Workflow-Design-v0.2.md`;
 - the future TradeSelection detailed specification;
 - the future OrderComposition high-level design and detailed specification;
@@ -83,7 +85,8 @@ If another document describes Portfolio/Fund as a deferred post-paper-trading re
 | --- | --- | --- |
 | Portfolio | Identity, operating state, selected financial-policy reference, Fund membership, allocations, aggregate exposure, and delegated Fund envelopes | Defining policy limits inline, trade-template compatibility, exact legs, broker execution, or live marks |
 | PortfolioFinancialPolicy | Versioned capital, reserve, exposure, margin, drawdown, trade-family, and hard-risk limits for one Portfolio | Fund investment intent, exact order construction, broker credentials, or mutable active rules |
-| TradeStrategyFamily catalog | Shared versioned family identity, display metadata, lifecycle, and supported-family discovery | Portfolio-specific limits, template parameters, direction/bias variants, or composition algorithms |
+| Existing Reference family catalog | Versioned instrument/product/timeframe compatibility identities and discovery | New reusable strategy taxonomy or Fund authorization |
+| Proposed ConfigurationDb strategy catalog | Reusable families, strategies, structures, variants, parameters and exact deployments | Portfolio-specific permissions, financial limits or executed contract facts |
 | Fund | Mandate, eligible assets, horizon, objectives, template assignments, composition preferences, and planned FundOrder/FundOrderTrade identities | Portfolio-wide capital authority, broker truth, fills, or live positions |
 | Strategy Workflow | Stage sequencing, frozen input/result acceptance, timeouts, terminal semantics, and exactly-once logical progression | Reclassifying stage results or directly contacting a broker |
 | TradeSelection | Select one permitted versioned template or `NoTrade` using accepted market decisions and the frozen Fund mandate | Exact expiration, strike, contract, quantity, price, or risk approval |

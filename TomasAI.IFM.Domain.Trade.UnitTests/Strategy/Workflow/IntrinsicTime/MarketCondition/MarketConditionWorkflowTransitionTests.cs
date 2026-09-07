@@ -13,72 +13,16 @@ using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.MarketCondition;
 
+/// <summary>Historical result payloads must never authorize the assessment-only continuation.</summary>
 public sealed class MarketConditionWorkflowTransitionTests
 {
     static readonly DateTime Now = new(2026, 8, 27, 14, 0, 10, DateTimeKind.Utc);
 
-    [Fact]
-    public void Tradeable_result_advances_exactly_once_to_trade_selection()
-    {
-        var (state, view) = MarketConditionState();
-        var command = Complete(view, Result(view, MarketTradeability.Tradeable));
 
-        command.Execute(Context(Now), state);
 
-        state.CurrentView.Should().BeEquivalentTo(new
-        {
-            Status = WorkflowStrategyMachineStatus.Started,
-            Outcome = StrategyWorkflowOutcome.None,
-            CurrentStage = StrategyWorkflowStage.TradeSelection,
-            WorkflowRevision = view.WorkflowRevision + 1
-        });
-        state.CurrentView!.MarketCondition.ContinuationDecision.Should()
-            .Be(StrategyWorkflowContinuationDecision.Proceed);
-        state.CurrentView.TradeSelection.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
-        state.Events.Should().ContainSingle();
-    }
 
-    [Fact]
-    public void Not_tradeable_result_closes_workflow_with_explicit_no_trade_outcome()
-    {
-        var (state, view) = MarketConditionState();
-        var result = Result(view, MarketTradeability.NotTradeable);
 
-        Complete(view, result).Execute(Context(Now), state);
 
-        state.CurrentView.Should().BeEquivalentTo(new
-        {
-            Status = WorkflowStrategyMachineStatus.Completed,
-            Outcome = StrategyWorkflowOutcome.NoTrade,
-            CurrentStage = StrategyWorkflowStage.MarketCondition,
-            StopReasonCode = result.PrimaryReasonCode
-        });
-        state.CurrentView!.MarketCondition.ContinuationDecision.Should()
-            .Be(StrategyWorkflowContinuationDecision.Stop);
-        state.CurrentView.TradeSelection.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.NotStarted);
-    }
-
-    [Fact]
-    public void Expired_completed_result_times_out_and_never_dispatches_next_stage()
-    {
-        var (state, view) = MarketConditionState();
-        var expired = Result(view, MarketTradeability.Tradeable) with
-        {
-            EvaluatedAtUtc = Now.AddSeconds(-2),
-            ValidUntilUtc = Now
-        };
-
-        Complete(view, expired).Execute(Context(Now), state);
-
-        state.CurrentView.Should().BeEquivalentTo(new
-        {
-            Status = WorkflowStrategyMachineStatus.TimedOut,
-            Outcome = StrategyWorkflowOutcome.TimedOut,
-            CurrentStage = StrategyWorkflowStage.MarketCondition,
-            StopReasonCode = MarketConditionReasonCodes.ResultExpired
-        });
-        state.CurrentView!.TradeSelection.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.NotStarted);
-    }
 
     [Fact]
     public void Identity_conflicting_payload_fails_closed_as_invalid_result()

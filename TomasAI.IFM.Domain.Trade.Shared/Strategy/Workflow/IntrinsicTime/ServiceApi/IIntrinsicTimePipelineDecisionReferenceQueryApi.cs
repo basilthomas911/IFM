@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Reference;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -10,6 +10,6 @@ public interface IIntrinsicTimePipelineDecisionReferenceQueryApi
     ValueTask<ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>> GetRegimeDiscoveryAsync(
         CancellationToken cancellationToken = default);
 
-    ValueTask<ServiceResult<MarketConditionDecisionReferenceDto[]>> GetMarketConditionAsync(
+    ValueTask<ServiceResult<MarketConditionAssessmentReferenceRow[]>> GetMarketConditionAssessmentAsync(
         CancellationToken cancellationToken = default);
 }

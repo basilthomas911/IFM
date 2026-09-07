@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Mar
 public sealed class MarketConditionTelemetryTests
 {
     [Fact]
-    public void Calculation_emits_named_span_and_bounded_metric_dimensions()
+    public void Assessment_emits_bounded_metric_dimensions()
     {
         var activities = new ConcurrentQueue<Activity>();
         using var activityListener = new ActivityListener
@@ -37,7 +37,10 @@ public sealed class MarketConditionTelemetryTests
             measurements.Enqueue((instrument.Name, tags.ToArray().Select(x => x.Key).ToArray())));
         meterListener.Start();
 
-        _ = new MarketConditionCalculationModel().Calculate(MarketConditionV1Tests.Healthy());
+        var command = AssessmentFixture.Command();
+        var result = MarketConditionAssessmentCalculationTests.Calculate(command,
+            MarketConditionAssessmentCalculationTests.Snapshot(command));
+        MarketConditionTelemetry.RecordAssessment(result, 1d);
         MarketConditionTelemetry.RecordFailure(MarketConditionFailureCategory.Timeout,
             "MC_TIMEOUT", TimeFrameType.Daily, 5d);
         MarketConditionTelemetry.RecordSourceAge("futures", 1.25m, TimeFrameType.Daily);
@@ -47,14 +50,12 @@ public sealed class MarketConditionTelemetryTests
         activityListener.Dispose();
         var capturedMeasurements = measurements.ToArray();
 
-        activities.Should().Contain(x => x.OperationName == "market-condition.classify-and-score");
         capturedMeasurements.Select(x => x.Name).Should().Contain([
-            "ifm.market_condition.processing", "ifm.market_condition.tradeability",
-            "ifm.market_condition.duration", "ifm.market_condition.strength",
-            "ifm.market_condition.confidence", "ifm.market_condition.reason",
+            "ifm.market_condition.processing", "ifm.market_condition.assessment.availability",
+            "ifm.market_condition.duration", "ifm.market_condition.reason",
             "ifm.market_condition.timeout", "ifm.market_condition.source_age",
             "ifm.market_condition.expired_before_acceptance"]);
-        var allowedTags = new HashSet<string>(["outcome", "horizon", "kind", "code", "source"],
+        var allowedTags = new HashSet<string>(["outcome", "horizon", "kind", "code", "source", "availability", "mode"],
             StringComparer.Ordinal);
         capturedMeasurements.SelectMany(x => x.Tags).Should().OnlyContain(tag => allowedTags.Contains(tag));
         capturedMeasurements.SelectMany(x => x.Tags).Should().NotContain(tag => tag.Contains("id", StringComparison.OrdinalIgnoreCase));

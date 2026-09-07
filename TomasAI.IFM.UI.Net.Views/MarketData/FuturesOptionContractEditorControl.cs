@@ -18,7 +18,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// model (<see cref="FuturesOptionContractEditorViewModel"/>) to handle  data operations and provides feedback to the
 /// user through UI elements such as combo boxes,  text fields, and lists.</remarks>
 public partial class FuturesOptionContractEditorControl 
-    : UserControl, IControlCommand, IAsyncFormControl
+    : DarkTradingView, IControlCommand, IAsyncFormControl
 {
     readonly FuturesOptionContractEditorViewModel _viewModel;
     readonly MarketDataViewModel _mktDataViewModel;
@@ -29,6 +29,11 @@ public partial class FuturesOptionContractEditorControl
     Action<bool>? _addAction;
     Action<bool>? _changeAction;
     bool _isBinding;
+    bool _pagingQueued;
+    bool _pageFailed;
+    bool _closing;
+    int SelectedContractIndex => lstFuturesOptionContractIds.SelectedIndices.Count == 0
+        ? -1 : lstFuturesOptionContractIds.SelectedIndices[0];
 
 
     /// <summary>
@@ -43,13 +48,50 @@ public partial class FuturesOptionContractEditorControl
         _viewModel = viewModel;
         _mktDataViewModel = mktDataViewModel;
         _editMode = EditMode.View;
+        lstFuturesOptionContractIds.VirtualMode = true;
+        lstFuturesOptionContractIds.View = View.Details;
+        lstFuturesOptionContractIds.HeaderStyle = ColumnHeaderStyle.None;
+        lstFuturesOptionContractIds.FullRowSelect = true;
+        lstFuturesOptionContractIds.MultiSelect = false;
+        lstFuturesOptionContractIds.HideSelection = false;
+        lstFuturesOptionContractIds.Columns.Add("Contract", Math.Max(1, lstFuturesOptionContractIds.ClientSize.Width - 4));
+        lstFuturesOptionContractIds.Resize += (_, _) =>
+            lstFuturesOptionContractIds.Columns[0].Width = Math.Max(1, lstFuturesOptionContractIds.ClientSize.Width - 4);
+        lstFuturesOptionContractIds.RetrieveVirtualItem += (_, e) =>
+        {
+            var contract = _viewModel.GetFuturesOptionContract(e.ItemIndex);
+            e.Item = new ListViewItem(contract?.ContractId ?? (_pageFailed ? "Retry loading (double-click)" : "Loading more..."));
+            if (e.ItemIndex >= _viewModel.FuturesOptionContracts.Count - 20) QueueNextPage();
+        };
+        lstFuturesOptionContractIds.CacheVirtualItems += (_, e) =>
+        {
+            if (e.EndIndex >= _viewModel.FuturesOptionContracts.Count - 20) QueueNextPage();
+        };
+        lstFuturesOptionContractIds.ItemActivate += (_, _) =>
+        {
+            if (SelectedContractIndex == _viewModel.FuturesOptionContracts.Count)
+            {
+                _pageFailed = false;
+                QueueNextPage();
+            }
+        };
+        var menu = new ContextMenuStrip();
+        var refresh = menu.Items.Add("Refresh");
+        refresh.Click += async (_, _) =>
+        {
+            if (_editMode == EditMode.View && !_closing) await ReloadContractsAsync();
+        };
+        menu.Opening += (_, _) => refresh.Enabled = _editMode == EditMode.View && !_viewModel.LoadContractsOperation.IsRunning;
+        lstFuturesOptionContractIds.ContextMenuStrip = menu;
+        components?.Add(menu);
+        DarkTradingTheme.Apply(menu);
     }
 
     /// <summary>
     /// Gets a value indicating whether the "Remove" action can be performed.
     /// </summary>
     public bool CanChangeRemove 
-        => lstFuturesOptionContractIds.Items.Count > 0;
+        => _viewModel.GetFuturesOptionContract(SelectedContractIndex) is not null;
 
     /// <summary>
     /// Gets a value indicating whether the current instance supports importing data.
@@ -122,7 +164,8 @@ public partial class FuturesOptionContractEditorControl
                 SetLocalSymbol(DateOnly.FromDateTime(dtmContractMonth.Value));
                 txtContractId.Text = string.Empty;
                 txtDescription.Text = string.Empty;
-                _lastContractIndex = lstFuturesOptionContractIds.SelectedIndex;
+                _lastContractIndex = SelectedContractIndex;
+                lstFuturesOptionContractIds.Enabled = false;
                 _editMode = EditMode.Add;
                 addAction(false);
                 break;
@@ -172,7 +215,7 @@ public partial class FuturesOptionContractEditorControl
             case EditMode.Change:
                 ShowSelectedFuturesOptionContract(_lastContractIndex);
                 _editMode = EditMode.View;
-                closeAction(lstFuturesOptionContractIds.Items.Count > 0);
+                closeAction(_viewModel.GetFuturesOptionContract(SelectedContractIndex) is not null);
                 lstFuturesOptionContractIds.Enabled = true;
                 return false;
         }
@@ -211,8 +254,8 @@ public partial class FuturesOptionContractEditorControl
                 ddlMultiplier.Enabled = true;
                 ddlSymbol.Enabled = true;
                 txtLocalSymbol.Enabled = true;
-                _lastContractIndex = lstFuturesOptionContractIds.SelectedIndex;
-                _originalContractId = $"{lstFuturesOptionContractIds.SelectedItem}";
+                _lastContractIndex = SelectedContractIndex;
+                _originalContractId = _viewModel.GetFuturesOptionContract(SelectedContractIndex)?.ContractId;
                 _editMode = EditMode.Change;
                 changeAction(false);
                 lstFuturesOptionContractIds.Enabled = false;
@@ -256,7 +299,7 @@ public partial class FuturesOptionContractEditorControl
     {
         if (_viewModel.RemoveOperation.IsRunning)
             return;
-        var contract = _viewModel.GetFuturesOptionContract(lstFuturesOptionContractIds.SelectedIndex);
+        var contract = _viewModel.GetFuturesOptionContract(SelectedContractIndex);
         if (contract is not null)
         {
             if (MessageBox.Show($"Are you sure you want to remove Futures Option Contract: {contract.ContractId} ?", "Remove Futures Option Contract", MessageBoxButtons.YesNo) == DialogResult.Yes)
@@ -288,9 +331,10 @@ public partial class FuturesOptionContractEditorControl
         });
 
     async Task ReloadContractsAsync()
-        => await ExecuteOperationAsync(
-            _viewModel.LoadContractsOperation,
-            () => BindFuturesOptionContractIds());
+    {
+        var selectedId = _viewModel.GetFuturesOptionContract(SelectedContractIndex)?.ContractId;
+        await ExecuteOperationAsync(_viewModel.LoadContractsOperation, () => BindFuturesOptionContractIds(selectedId));
+    }
 
     async Task AddPreparedContractAsync(string contractId)
         => await ExecuteOperationAsync(_viewModel.AddOperation, () =>
@@ -321,10 +365,17 @@ public partial class FuturesOptionContractEditorControl
         try
         {
             await operation.ExecuteAsync();
+            if (_closing || IsDisposed) return;
+            var savedId = ReferenceEquals(operation, _viewModel.AddOperation) || ReferenceEquals(operation, _viewModel.ChangeOperation)
+                ? txtContractId.Text : null;
+            if (!string.IsNullOrEmpty(savedId)) await _viewModel.EnsureContractLoadedAsync(savedId);
+            if (_closing || IsDisposed) return;
             onCompleted();
         }
+        catch (OperationCanceledException) { }
         catch (Exception exception)
         {
+            if (_closing || IsDisposed) return;
             MessageBox.Show(
                 text: exception.Message,
                 caption: "Futures Option Contract Editor Error",
@@ -333,7 +384,7 @@ public partial class FuturesOptionContractEditorControl
         }
         finally
         {
-            SetBusy(false);
+            if (!_closing && !IsDisposed) SetBusy(false);
         }
     }
 
@@ -365,21 +416,71 @@ public partial class FuturesOptionContractEditorControl
     /// selected;  otherwise, the first item in the list will be selected by default.</param>
     void BindFuturesOptionContractIds(string? contractId = null)
     {
-        var contractIds = _viewModel.FuturesOptionContracts.Select(value => value.ContractId).ToList();
-        lstFuturesOptionContractIds.DataSource = contractIds;
-        if (contractIds.Count == 0)
+        _pageFailed = false;
+        _isBinding = true;
+        try
         {
-            txtContractId.Text = string.Empty;
-            txtDescription.Text = string.Empty;
-            _dataLoaded?.Invoke(false);
-            return;
+            lstFuturesOptionContractIds.SelectedIndices.Clear();
+            UpdateVirtualCount();
+            var selectedIndex = string.IsNullOrEmpty(contractId) ? 0
+                : _viewModel.FuturesOptionContracts.ToList().FindIndex(c => c.ContractId == contractId);
+            if (_viewModel.FuturesOptionContracts.Count > 0)
+            {
+                selectedIndex = Math.Max(0, selectedIndex);
+                lstFuturesOptionContractIds.SelectedIndices.Add(selectedIndex);
+                lstFuturesOptionContractIds.EnsureVisible(selectedIndex);
+                ShowSelectedFuturesOptionContract(selectedIndex);
+            }
+            else
+            {
+                txtContractId.Clear();
+                txtDescription.Clear();
+            }
         }
+        finally { _isBinding = false; }
+        _dataLoaded?.Invoke(CanChangeRemove);
+    }
 
-        var selectedIndex = !string.IsNullOrWhiteSpace(contractId)
-            ? contractIds.IndexOf(contractId)
-            : 0;
-        lstFuturesOptionContractIds.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-        _dataLoaded?.Invoke(true);
+    void UpdateVirtualCount()
+    {
+        lstFuturesOptionContractIds.VirtualListSize = _viewModel.FuturesOptionContracts.Count + (_viewModel.HasMoreContracts ? 1 : 0);
+        lstFuturesOptionContractIds.Invalidate();
+    }
+
+    void QueueNextPage()
+    {
+        if (_closing || IsDisposed || _isBinding || _pagingQueued || _pageFailed || _editMode != EditMode.View
+            || !_viewModel.LoadMoreOperation.CanExecute || !IsHandleCreated) return;
+        _pagingQueued = true;
+        BeginInvoke((Action)(async () =>
+        {
+            try
+            {
+                if (_closing || _editMode != EditMode.View) return;
+                var selectedId = _viewModel.GetFuturesOptionContract(SelectedContractIndex)?.ContractId;
+                await _viewModel.LoadMoreOperation.ExecuteAsync();
+                if (_closing || IsDisposed) return;
+                UpdateVirtualCount();
+                // A restarted cursor can replace the cached sequence; retain identity, not an old index.
+                var index = _viewModel.FuturesOptionContracts.ToList().FindIndex(c => c.ContractId == selectedId);
+                _isBinding = true;
+                lstFuturesOptionContractIds.SelectedIndices.Clear();
+                if (index >= 0) lstFuturesOptionContractIds.SelectedIndices.Add(index);
+                _isBinding = false;
+                _dataLoaded?.Invoke(CanChangeRemove);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                _pageFailed = true;
+            }
+            finally
+            {
+                _pagingQueued = false;
+                _isBinding = false;
+                if (!_closing && !IsDisposed) lstFuturesOptionContractIds.Invalidate();
+            }
+        }));
     }
 
     /// <summary>
@@ -417,7 +518,11 @@ public partial class FuturesOptionContractEditorControl
         ddlExchange.Enabled = false;
         ddlMultiplier.SelectedIndex = _viewModel.GetMultiplierIndex(foc.Multiplier);
         ddlMultiplier.Enabled = false;
-        ddlSymbol.Enabled = false;
+        var wasBinding = _isBinding;
+        _isBinding = true;
+        try { ddlSymbol.SelectedIndex = _viewModel.Symbols.ToList().FindIndex(symbol => symbol.ShortCode == foc.Symbol); }
+        finally { _isBinding = wasBinding; }
+        ddlSymbol.Enabled = true;
     }
 
     enum EditMode
@@ -484,7 +589,10 @@ public partial class FuturesOptionContractEditorControl
         => _ = ((IAsyncFormControl)this).CloseAsync();
 
     async ValueTask IAsyncFormControl.CloseAsync()
-        => await _viewModel.StopAsync(CancellationToken.None);
+    {
+        _closing = true;
+        await _viewModel.StopAsync(CancellationToken.None);
+    }
 
     void ddlSymbol_SelectedIndexChanged(object sender, EventArgs e)
     {
@@ -499,6 +607,8 @@ public partial class FuturesOptionContractEditorControl
 
     void lstFuturesOptionContractIds_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_isBinding || _closing || _editMode != EditMode.View) return;
+        _dataLoaded?.Invoke(CanChangeRemove);
         if (lstFuturesOptionContractIds.SelectedIndices.Count > 0)
             ShowSelectedFuturesOptionContract(lstFuturesOptionContractIds.SelectedIndices[0]);
     }

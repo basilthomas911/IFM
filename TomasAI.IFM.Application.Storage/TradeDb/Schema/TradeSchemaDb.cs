@@ -17,6 +17,8 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
         new("option_trade_spread_data", TradeSchemaCql.CreateOptionTradeSpreadDataTable, "DROP TABLE IF EXISTS option_trade_spread_data;"),
         new("regime_discovery", TradeSchemaCql.CreateRegimeDiscoveryTable, "DROP TABLE IF EXISTS regime_discovery;"),
         new("market_condition", TradeSchemaCql.CreateMarketConditionTable, "DROP TABLE IF EXISTS market_condition;"),
+        new("market_condition_assessment", "CREATE TABLE IF NOT EXISTS market_condition_assessment (workflow_id uuid PRIMARY KEY,payload blob,payload_sha256 text);", "DROP TABLE IF EXISTS market_condition_assessment;"),
+        new("market_condition_assessment_by_profile", "CREATE TABLE IF NOT EXISTS market_condition_assessment_by_profile (market_profile_id text,instrument_root text,target_horizon text,evaluated_at_utc timestamp,workflow_id uuid,payload blob,payload_sha256 text,PRIMARY KEY ((market_profile_id,instrument_root,target_horizon),evaluated_at_utc,workflow_id)) WITH CLUSTERING ORDER BY (evaluated_at_utc DESC,workflow_id ASC);", "DROP TABLE IF EXISTS market_condition_assessment_by_profile;"),
         new("market_condition_by_fund", TradeSchemaCql.CreateMarketConditionByFundTable, "DROP TABLE IF EXISTS market_condition_by_fund;"),
         ..EvidenceColumns("market_condition"),
         ..EvidenceColumns("market_condition_by_fund"),

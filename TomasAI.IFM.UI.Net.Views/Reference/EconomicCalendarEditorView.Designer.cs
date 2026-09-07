@@ -45,7 +45,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlLocalSymbol = new Panel();
             lblForecast = new Label();
             pnlSecurityType = new Panel();
-            dtmEventDate = new TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker();
+            dtmEventDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             txtEventName = new TextBox();
             pnlPrior = new Panel();
             label1 = new Label();

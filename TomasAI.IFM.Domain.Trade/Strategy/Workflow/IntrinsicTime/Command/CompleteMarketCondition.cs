@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
@@ -37,7 +39,7 @@ public static class CompleteMarketCondition
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        if (!TryReadResult(command, current, out var result, out var validationError))
+        if (!TryReadContinuation(command, current, out var result, out var validationError))
         {
             var failure = new StrategyPipelineFailure
             {
@@ -91,7 +93,7 @@ public static class CompleteMarketCondition
         }
 
         var revision = current.WorkflowRevision + 1;
-        if (result.Tradeability == MarketTradeability.NotTradeable)
+        if (result.Stop)
         {
             var noTrade = current with
             {
@@ -111,8 +113,8 @@ public static class CompleteMarketCondition
                     Result = command.Result,
                     Failure = null,
                     SourceEventId = command.SourceEventId,
-                    ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
-                    ContinuationRuleSetVersion = 1,
+                    ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.Assessment.v2",
+                    ContinuationRuleSetVersion = 2,
                     ContinuationReasonCodes = result.Reasons
                 }
             };
@@ -130,8 +132,8 @@ public static class CompleteMarketCondition
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
                 ContinuationDecision = StrategyWorkflowContinuationDecision.Proceed,
                 CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
-                SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
-                ContinuationRuleSetVersion = 1, ContinuationReasonCodes = result.Reasons
+                SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.Assessment.v2",
+                ContinuationRuleSetVersion = 2, ContinuationReasonCodes = result.Reasons
             },
             TradeSelection = new StrategyWorkflowStageState
             {
@@ -159,72 +161,37 @@ public static class CompleteMarketCondition
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = MarketConditionPipelineFailedEvent.ErrorId,
+        ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId,
         ErrorMessage = "The Market Condition result or workflow execution deadline was reached.",
         ErrorType = nameof(MarketConditionFailureCategory.Timeout),
         ErrorData = MarketConditionReasonCodes.ResultExpired,
         FailedAtUtc = now
     };
 
-    static bool TryReadResult(
-        CompleteMarketConditionCommand command,
-        IntrinsicTimeStrategyWorkflowView current,
-        out MarketConditionResult result,
-        out string error)
-    {
-        result = new MarketConditionResult();
-        error = string.Empty;
-        var envelope = command.Result;
-        if (envelope.ResultType != nameof(MarketConditionResult) ||
-            envelope.SchemaVersion != MarketConditionResult.CurrentSchemaVersion ||
-            envelope.ContentType != "application/x-msgpack" ||
-            envelope.ResultId == Guid.Empty ||
-            !envelope.HasValidPayloadSha256())
-        {
-            error = "The Market Condition result envelope is invalid.";
-            return false;
-        }
+    sealed record Continuation(bool Stop, DateTime? ValidUntilUtc,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType TargetHorizon, string PrimaryReasonCode, string[] Reasons);
 
+    static bool TryReadContinuation(CompleteMarketConditionCommand command, IntrinsicTimeStrategyWorkflowView current,
+        out Continuation result, out string error)
+    {
+        result = new(false, null, default, "", []);
         try
         {
-            result = MessagePackSerializer.Deserialize<MarketConditionResult>(envelope.Payload);
+            var r = MarketConditionAssessmentContracts.ReadResult(command.Result);
+            MarketConditionAssessmentContracts.ValidateAcceptance(r, current, command.InputWorkflowRevision);
+            if (command.SourceEventId != r.ResultId) throw new ArgumentException("Assessment terminal event identity mismatch.");
+            var noNewTrade = r.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade);
+            var unavailable = r.Assessment.Availability == AssessmentAvailability.Unavailable;
+            var reason = noNewTrade ? "MC.ASSESSMENT.INHERITED_NO_NEW_TRADE" : unavailable ? "MC.ASSESSMENT.UNAVAILABLE" : "MC.ASSESSMENT.AVAILABLE";
+            result = new(noNewTrade || unavailable, r.Assessment.ValidUntilUtc, r.TargetHorizon, reason, [reason]);
+            error = "";
+            return true;
         }
-        catch (Exception exception) when (exception is MessagePackSerializationException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or MessagePackSerializationException or InvalidOperationException)
         {
-            error = $"The Market Condition result payload could not be read: {exception.GetType().Name}.";
+            error = "Assessment result conflicts with the accepted workflow invocation: " + ex.GetType().Name;
             return false;
         }
-
-        var triggerId = current.TriggerEvent.Id == Guid.Empty
-            ? current.TriggerEvent.CommandId
-            : current.TriggerEvent.Id;
-        if (result.SchemaVersion != MarketConditionResult.CurrentSchemaVersion ||
-            result.ResultId != envelope.ResultId ||
-            result.WorkflowId != current.WorkflowId ||
-            result.EntityId != current.EntityId ||
-            result.FundId != current.FundId ||
-            !string.Equals(result.InstrumentRoot, current.MarketConditionParameterSet.InstrumentRoot,
-                StringComparison.Ordinal) ||
-            result.TargetHorizon != current.TriggerEvent.EntityId.TimePeriod ||
-            result.TriggerEventId != triggerId ||
-            result.InputWorkflowRevision != command.InputWorkflowRevision ||
-            result.MarketConditionParameterSetId != current.MarketConditionParameterSet.ParameterSetId ||
-            result.MarketConditionParameterSetVersion != current.MarketConditionParameterSet.Version ||
-            result.Tradeability is not (MarketTradeability.Tradeable or MarketTradeability.NotTradeable) ||
-            result.ConditionType == MarketConditionType.Undefined ||
-            result.Direction == MarketConditionDirection.Undefined ||
-            result.Phase == MarketConditionPhase.Undefined ||
-            result.EvaluatedAtUtc == default ||
-            result.ValidUntilUtc <= result.EvaluatedAtUtc ||
-            result.SnapshotId == Guid.Empty ||
-            string.IsNullOrWhiteSpace(result.SnapshotSha256) ||
-            string.IsNullOrWhiteSpace(result.PrimaryReasonCode))
-        {
-            error = "The Market Condition result conflicts with the accepted workflow invocation.";
-            return false;
-        }
-
-        return true;
     }
 
     static ServiceResult<GuidResult> Ok(CompleteMarketConditionCommand command)

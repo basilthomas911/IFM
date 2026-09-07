@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -30,6 +30,10 @@ public interface IObjectRepositoryContext: IDisposable
     string GetParameterName(string parameterName);
 
     object QueueCommand();
+
+    Task<QueryPage<TResult>> ExecutePageAsync<TResult>(Func<IObjectDataRecord, TResult> mapper,
+        int pageSize, byte[]? pagingState = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This repository does not support explicit paging.");
 
     // async methods...
     IAsyncEnumerable<TResult> ExecuteStreamAsync<TResult>(

@@ -34,6 +34,9 @@ internal static class FundQueryCalculations
         var dailyBalancesTask = cancellationToken.CanBeCanceled
             ? db.GetFundDailyBalancesAsync(fundId, startDate, endDate, cancellationToken)
             : db.GetFundDailyBalancesAsync(fundId, startDate, endDate);
+        var transactionsTask = cancellationToken.CanBeCanceled
+            ? db.GetFundTransactionsAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundTransactionsAsync(fundId, startDate, endDate);
 
         await Task.WhenAll(
             lossOrdersTask,
@@ -41,7 +44,8 @@ internal static class FundQueryCalculations
             startingBalanceTask,
             endingBalanceTask,
             tradeCommissionTask,
-            dailyBalancesTask).ConfigureAwait(false);
+            dailyBalancesTask,
+            transactionsTask).ConfigureAwait(false);
 
         var lossOrders = await lossOrdersTask.ConfigureAwait(false);
         var profitOrders = await profitOrdersTask.ConfigureAwait(false);
@@ -58,6 +62,12 @@ internal static class FundQueryCalculations
         var averageLoss = AverageAmount(lossOrders);
         var averageProfit = AverageAmount(profitOrders);
         var sharpeRatio = CalculateSharpeRatio(dailyBalances);
+        var transactions = await transactionsTask.ConfigureAwait(false);
+        // Daily balances currently retain the day's maximum, which can hide a later trough.
+        // Use each recorded balance in chronological order for peak-to-trough drawdown.
+        var chronological = transactions.OrderBy(x => x.ValueDate).ThenBy(x => x.TransactionDate).ThenBy(x => x.TransactionId).ToArray();
+        var openingBalance = chronological.Length == 0 ? startingBalance : chronological[0].Balance - chronological[0].Amount;
+        var drawdown = CalculateMaximumDrawdown(chronological.Select(x => x.Balance), openingBalance);
 
         return new FundPnlReportReadModel(
             WinRate: winRate,
@@ -71,7 +81,30 @@ internal static class FundQueryCalculations
             PnlPercent: startingBalance != 0m
                 ? (double)((endingBalance - startingBalance) / startingBalance)
                 : 0,
-            TradeCommission: tradeCommission);
+            TradeCommission: tradeCommission)
+        {
+            MaximumDrawdownAmount = drawdown.Amount,
+            MaximumDrawdownPercent = drawdown.Percent,
+            HasHistory = transactions.Count > 0 || dailyBalances.Count > 0 || totalCount > 0 || tradeCommission != 0m
+        };
+    }
+
+    internal static (decimal? Amount, double? Percent) CalculateMaximumDrawdown(
+        IEnumerable<decimal> balances, decimal startingBalance)
+    {
+        var observed = false;
+        var peak = startingBalance;
+        var amount = 0m;
+        double? percent = peak > 0 ? 0d : null;
+        foreach (var balance in balances)
+        {
+            observed = true;
+            peak = Math.Max(peak, balance);
+            amount = Math.Max(amount, peak - balance);
+            if (peak > 0)
+                percent = Math.Max(percent ?? 0d, (double)((peak - balance) / peak));
+        }
+        return observed ? (amount, percent) : (null, null);
     }
 
     internal static async Task<FundWinLossRatioReadModel> GetWinLossRatioAsync(

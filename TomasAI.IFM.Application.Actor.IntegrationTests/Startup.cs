@@ -277,9 +277,12 @@ public static class Startup
             services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
 
             services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
-            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+            services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
             {
-                Enabled = config.GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false)
+                Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
+                MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
+                FundId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:FundId", 1),
+                RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
             });
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
@@ -314,14 +317,15 @@ public static class Startup
             services.AddSingleton<IEventSourceActorStateFactory, EventSourceActorStateFactory>();
             services.AddSingleton<IActorStateFactory, ActorStateFactory>();
             services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
-            services.AddSingleton<INatsProducerOptions, NatsProducerOptions>();
-            services.AddSingleton<INatsConsumerOptions, NatsConsumerOptions>();
-            services.AddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
+            var testBrokerUrl = config["IFM_TEST_NATS_URL"] ?? "nats://localhost:4222";
+            services.AddSingleton<INatsProducerOptions>(new NatsProducerOptions { Url = testBrokerUrl });
+            services.AddSingleton<INatsConsumerOptions>(new NatsConsumerOptions { Url = testBrokerUrl });
+            services.AddSingleton<INatsEventListenerOptions>(new NatsEventListenerOptions { Url = testBrokerUrl });
             services.AddSingleton<NatsConnectionManager>();
             services.AddTransient<IActorProducer, NatsActorProducer>();
             services.AddTransient<IActorConsumer, NatsActorConsumer>();
-            services.AddSingleton<INatsJetStreamProducerOptions, NatsJetStreamProducerOptions>();
-            services.AddSingleton<INatsJetStreamConsumerOptions, NatsJetStreamConsumerOptions>();
+            services.AddSingleton<INatsJetStreamProducerOptions>(new NatsJetStreamProducerOptions { Url = testBrokerUrl });
+            services.AddSingleton<INatsJetStreamConsumerOptions>(new NatsJetStreamConsumerOptions { Url = testBrokerUrl });
             services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
             services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
             services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
@@ -365,6 +369,9 @@ public static class Startup
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
+            services.AddSingleton<IDownloadLogQueryApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogQueryApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, TomasAI.IFM.Application.Api.Nats.Client.MarketConditionAssessmentQueryApi>();
+            services.AddSingleton<IDownloadLogCommandApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogCommandApi>();
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
             services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
@@ -382,7 +389,8 @@ public static class Startup
                 .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("FundDbConnection", config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
-                .Add("MarketDataDbConnection", config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
+                .Add("MarketDataDbConnection", config["IFM_TEST_MARKET_DATA_CONNECTION"]
+                    ?? config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
                 .Add("OptionPricerDbConnection", config.GetConnectionString("OptionPricerDbConnection")!, "System.Data.ScyllaDb")
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
@@ -428,19 +436,13 @@ public static class Startup
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
             services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
-            services.AddSingleton<IMarketConditionFuturesQuoteAdapter, MarketConditionFuturesQuoteAdapter>();
-            services.AddSingleton<IMarketConditionOptionUniverseAdapter, MarketConditionOptionUniverseAdapter>();
-            services.AddSingleton<IMarketConditionSessionAdapter, MarketConditionSessionAdapter>();
+
+
+
             services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();
-            services.AddSingleton<IMarketConditionVolatilityAdapter, MarketConditionVolatilityAdapter>();
-            services.AddSingleton<IMarketConditionBrokerReadiness, UnavailableMarketConditionBrokerReadiness>();
-            services.AddSingleton<IMarketConditionOperationalHealthAdapter, MarketConditionOperationalHealthAdapter>();
-            services.AddSingleton<IMarketConditionSnapshotAdapterCoordinator, MarketConditionSnapshotAdapterCoordinator>();
-            services.AddSingleton<MarketConditionSnapshotProvider>();
-            services.AddSingleton<IMarketConditionSnapshotProvider>(provider =>
-                provider.GetRequiredService<MarketConditionSnapshotProvider>());
-            services.AddSingleton<IMarketConditionSnapshotCache>(provider =>
-                provider.GetRequiredService<MarketConditionSnapshotProvider>());
+            services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, MarketConditionAssessmentSnapshotProvider>();
+
+
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)
@@ -540,6 +542,10 @@ public static class Startup
             services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
             services.AddSingleton<IMarketOutlookSnapshotCommandWriter, ActorMarketOutlookSnapshotCommandWriter>();
+            services.AddSingleton<LatestMarketOutlookSnapshotPublisher>();
+            services.AddSingleton<IMarketOutlookSnapshotPublisher>(provider =>
+                provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
+            services.AddHostedService(provider => provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
             services.AddSingleton<MarketOutlookUpdateProcessor>();
             services.AddSingleton<IMarketOutlookOperations>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
@@ -603,6 +609,11 @@ public static class Startup
             SystemAdminActorAssembly.Current,
             TradeActorAssembly.Current
         };
+        // Focused transport tests can boot only their owning domain, avoiding unrelated
+        // actors and background execution while using the real production runtime.
+        var selectedDomain = config["IFM_TEST_ACTOR_DOMAIN"];
+        if (!string.IsNullOrWhiteSpace(selectedDomain))
+            domainAssemblies = domainAssemblies.Where(a => selectedDomain.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Contains(a.GetName().Name,StringComparer.Ordinal)).ToList();
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
             .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
@@ -614,22 +625,23 @@ public static class Startup
         siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
         siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
         siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
-        siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
+        // Test assemblies can contain derived actor probes, not runtime actors.
+        siContainer.Register(typeof(IActor<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
-        siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
-        siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
-        siContainer.Register(typeof(IEventSourceFunctionStateRepository<,>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IActorStateDenormalizer<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IEventSourceActorStateRepository<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IEventSourceFunctionStateRepository<,>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionProjector<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(
             typeof(TomasAI.IFM.Application.EventProjector.Realtime.Contracts.IRealtimeProjector<>),
             domainAssemblies,
             Lifestyle.Singleton);
-        siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
+        siContainer.Register(typeof(IEventSourceActorState<>), domainAssemblies, Lifestyle.Transient);
         logger.LogInformationEvent("ApiServer", "open generic handlers registered");
     }
 

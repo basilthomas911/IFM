@@ -6,7 +6,7 @@ namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 static class PortfolioUiStyle
 {
     // Matches the established Trade Order form surface exactly.
-    public static readonly Color Surface = Color.FromArgb(64, 64, 64);
+    public static readonly Color Surface = DarkTradingTheme.Background;
     public static readonly Color MenuSurface = Color.Black;
     public static readonly Color Border = Color.Gray;
     public const int BorderWidth = 3;
@@ -37,18 +37,20 @@ static class PortfolioUiStyle
         AccessibleName = accessibleName,
         RowHeadersVisible = false,
         EnableHeadersVisualStyles = false,
-        ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = Surface, ForeColor = Foreground, Font = BodyFont },
-        DefaultCellStyle = new DataGridViewCellStyle { BackColor = DataSurface, ForeColor = Foreground, SelectionBackColor = Color.DarkSlateBlue, SelectionForeColor = Foreground },
+        ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = DarkTradingTheme.CommandSurface, ForeColor = Foreground, Font = BodyFont },
+        DefaultCellStyle = new DataGridViewCellStyle { BackColor = DataSurface, ForeColor = Foreground, SelectionBackColor = DarkTradingTheme.Selection, SelectionForeColor = Foreground },
     };
 
     public static Button Button(string text, string accessibleName) => new()
     {
         Text = text,
         AutoSize = true,
-        ForeColor = Color.Black,
+        ForeColor = DarkTradingTheme.Foreground,
         Font = BodyFont,
         AccessibleName = accessibleName,
-        UseVisualStyleBackColor = true,
+        UseVisualStyleBackColor = false,
+        BackColor = DarkTradingTheme.CommandSurface,
+        FlatStyle = FlatStyle.Flat,
         Margin = new Padding(4),
     };
 

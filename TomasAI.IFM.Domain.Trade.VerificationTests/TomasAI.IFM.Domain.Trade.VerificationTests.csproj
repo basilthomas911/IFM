@@ -37,4 +37,5 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+<ItemGroup><Compile Include="..\test-support\MarketAssessmentTestScenario.cs" Link="Support\MarketAssessmentTestScenario.cs" /></ItemGroup>
 </Project>

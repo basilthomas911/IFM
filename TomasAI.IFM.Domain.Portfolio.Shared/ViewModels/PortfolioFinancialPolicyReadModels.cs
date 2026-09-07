@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using System.Text.Json.Serialization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -17,11 +19,12 @@ public sealed record TradeFamilyRiskLimitReadModel
     [Key(5)] public decimal MaximumMargin { get; init; }
     [Key(6)] public decimal MaximumGrossNotional { get; init; }
     [Key(7)] public int MaximumOpenPositions { get; init; }
+    [Key(8), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public CatalogKey? CatalogDeployment { get; init; }
 
     public IReadOnlyList<string> Validate()
     {
         List<string> errors = [];
-        if (TradeStrategyFamilyId <= 0 || DefinitionVersion <= 0) errors.Add("A versioned TradeStrategyFamily identity is required.");
+        if (CatalogDeployment is { } key ? key.Kind != StrategyCatalogKind.Deployment || key.Id == Guid.Empty || key.Version <= 0 || TradeStrategyFamilyId != 0 || DefinitionVersion != 0 : TradeStrategyFamilyId <= 0 || DefinitionVersion <= 0) errors.Add("An exact deployment reference is required (legacy identities are replay-only).");
         if (MaximumRiskPerTrade < 0 || MaximumAggregateRisk < 0 || MaximumMargin < 0 || MaximumGrossNotional < 0 || MaximumOpenPositions < 0)
             errors.Add("Trade-family limits cannot be negative.");
         if (MaximumRiskPerTrade > MaximumAggregateRisk) errors.Add("Family MaximumRiskPerTrade cannot exceed MaximumAggregateRisk.");
@@ -40,6 +43,7 @@ public sealed record EffectiveTradeFamilyRiskCaps
     [Key(5)] public decimal MaximumMargin { get; init; }
     [Key(6)] public decimal MaximumGrossNotional { get; init; }
     [Key(7)] public int MaximumOpenPositions { get; init; }
+    [Key(8), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public CatalogKey? CatalogDeployment { get; init; }
 }
 
 [MessagePackObject(AllowPrivate = true)]
@@ -86,7 +90,8 @@ public sealed record PortfolioFinancialPolicyReadModel
         if (CreatedOnUtc.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(CreatedBy)) errors.Add("UTC audit provenance is required.");
         if (TradeFamilyLimits.Length == 0) errors.Add("At least one TradeStrategyFamily definition is required.");
         foreach (var family in TradeFamilyLimits) errors.AddRange(family.Validate());
-        if (TradeFamilyLimits.GroupBy(x => (x.TradeStrategyFamilyId, x.DefinitionVersion)).Any(x => x.Count() > 1)) errors.Add("TradeStrategyFamily definitions must be unique.");
+        if (SchemaVersion >= 3 && TradeFamilyLimits.Any(x => x.CatalogDeployment is null)) errors.Add("New policies require ConfigurationDb deployment references; explicitly replace legacy limits.");
+        if (TradeFamilyLimits.GroupBy(x => (x.CatalogDeployment, x.TradeStrategyFamilyId, x.DefinitionVersion)).Any(x => x.Count() > 1)) errors.Add("TradeStrategyFamily definitions must be unique.");
         foreach (var family in TradeFamilyLimits.Where(x => x.Enabled))
         {
             if (family.MaximumRiskPerTrade > MaximumRiskPerTrade || family.MaximumAggregateRisk > MaximumAggregateRisk || family.MaximumMargin > MaximumMargin || family.MaximumGrossNotional > MaximumGrossNotional || family.MaximumOpenPositions > MaximumOpenPositions)
@@ -102,7 +107,7 @@ public sealed record PortfolioFinancialPolicyReadModel
 
     public PortfolioFinancialPolicyReadModel DefensiveCopy() => this with
     {
-        TradeFamilyLimits = [.. TradeFamilyLimits.OrderBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion)]
+        TradeFamilyLimits = [.. TradeFamilyLimits.OrderBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion).ThenBy(x => x.CatalogDeployment?.Id).ThenBy(x => x.CatalogDeployment?.Version)]
     };
 
     public string CanonicalSha256()
@@ -125,15 +130,29 @@ public sealed record PortfolioFinancialPolicyReadModel
         ArgumentNullException.ThrowIfNull(envelope);
         if (effectiveAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("Effective time must be UTC.", nameof(effectiveAtUtc));
         var family = TradeFamilyLimits.SingleOrDefault(x =>
-            x.TradeStrategyFamilyId == tradeStrategyFamilyId && x.DefinitionVersion == definitionVersion)
+            x.CatalogDeployment is null && tradeStrategyFamilyId > 0 && x.TradeStrategyFamilyId == tradeStrategyFamilyId && x.DefinitionVersion == definitionVersion)
             ?? throw new InvalidOperationException("The exact TradeStrategyFamily definition is not configured by this policy.");
+        return ResolveCaps(family, envelope, effectiveAtUtc);
+    }
+
+    public EffectiveTradeFamilyRiskCaps ResolveEffectiveCaps(CatalogKey deployment, FundRiskEnvelopeReadModel envelope, DateTime effectiveAtUtc)
+    {
+        var family = TradeFamilyLimits.SingleOrDefault(x => x.CatalogDeployment == deployment)
+            ?? throw new InvalidOperationException("The exact deployment is not configured by this policy.");
+        return ResolveCaps(family, envelope, effectiveAtUtc);
+    }
+
+    EffectiveTradeFamilyRiskCaps ResolveCaps(TradeFamilyRiskLimitReadModel family, FundRiskEnvelopeReadModel envelope, DateTime effectiveAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (effectiveAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("Effective time must be UTC.");
         if (envelope.SourcePolicyId != PolicyId || envelope.SourcePolicyVersion != PolicyVersion)
             throw new InvalidOperationException("The Fund risk envelope does not reference this exact policy version.");
 
         var caps = new EffectiveTradeFamilyRiskCaps
         {
-            TradeStrategyFamilyId = tradeStrategyFamilyId,
-            DefinitionVersion = definitionVersion,
+            TradeStrategyFamilyId = family.TradeStrategyFamilyId,
+            DefinitionVersion = family.DefinitionVersion, CatalogDeployment = family.CatalogDeployment,
             MaximumRiskPerTrade = Math.Min(Math.Min(MaximumRiskPerTrade, family.MaximumRiskPerTrade), envelope.MaximumRiskPerTrade),
             MaximumAggregateRisk = Math.Min(Math.Min(MaximumAggregateRisk, family.MaximumAggregateRisk), envelope.MaximumAggregateRisk),
             MaximumMargin = Math.Min(Math.Min(MaximumMargin, family.MaximumMargin), envelope.MaximumMargin),

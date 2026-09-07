@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Reference.Shared.CommandParameters;
 using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -14,6 +17,14 @@ public class ReferenceCommandApi(ICommandServiceApi commandSvc)
     : IReferenceCommandApi
 {
     readonly ICommandServiceApi _commandSvc = IsArgumentNull.Set(commandSvc);
+    public Task<ServiceResult<Guid>> ExecuteStrategyCatalogAsync(CatalogCommandRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var command = new StrategyCatalogCommand { CommandId = request.OperationId, RequestJson = StrategyCatalogJson.Write(request),
+            Subject = new ActorSubject(ActorType.Command, StrategyCatalogCommand.Actor, StrategyCatalogCommand.Verb, ActorEntityId.Default.Format()) };
+        return _commandSvc.PostCommandAsync(StrategyCatalogUris.Command, command).WaitAsync(cancellationToken);
+    }
+
 
     /// <summary>
     /// add lookup type

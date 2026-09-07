@@ -40,7 +40,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.txtTradeId = new System.Windows.Forms.TextBox();
             this.pnlValueDate = new System.Windows.Forms.Panel();
             this.lblValueDate = new System.Windows.Forms.Label();
-            this.dtpValueDate = new System.Windows.Forms.DateTimePicker();
+            this.dtpValueDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             this.pnlOpenPrice = new System.Windows.Forms.Panel();
             this.lblOpenPrice = new System.Windows.Forms.Label();
             this.txtOpenPrice = new System.Windows.Forms.MaskedTextBox();

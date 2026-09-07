@@ -17,7 +17,8 @@ public enum StrategyParameterSetKind : byte
     /// <summary>Order Composition parameters.</summary>
     OrderComposition = 5,
     /// <summary>Risk Management parameters.</summary>
-    RiskManagement = 6
+    RiskManagement = 6,
+    MarketConditionAssessment = 7
 }
 
 /// <summary>Identifies the guarded lifecycle state of one immutable parameter-set version.</summary>

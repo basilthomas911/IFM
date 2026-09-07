@@ -30,6 +30,9 @@ public readonly record struct FuturesTermStructureContracts(
 /// </remarks>
 public interface IMarketDataApi
 {
+    /// <summary>Reads the selected futures contract's feed/cache admission, independent of unrelated datasets.</summary>
+    FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)
+        => new(false,false,string.Empty,null,DateTimeOffset.UtcNow,0);
     Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
         TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family,
         CancellationToken cancellationToken = default)
@@ -264,3 +267,6 @@ public interface IMarketDataApi
         string futuresContractId,
         DateOnly maturityDate);
 }
+
+public readonly record struct FuturesMarketHealthSnapshot(bool Running,bool Healthy,string Generation,
+    DateOnly? ValueDate,DateTimeOffset ObservedAtUtc,long Sequence);

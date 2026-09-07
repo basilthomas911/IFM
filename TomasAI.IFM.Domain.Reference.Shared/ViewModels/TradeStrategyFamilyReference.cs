@@ -7,8 +7,14 @@ public sealed record TradeStrategyFamilyReference(
     [property: Key(0)] int TradeStrategyFamilyId,
     [property: Key(1)] long DefinitionVersion)
 {
-    [IgnoreMember] public bool IsValid => TradeStrategyFamilyId > 0 && DefinitionVersion > 0;
+    // Keys 0/1 are retained solely for legacy replay. New writes use the exact ConfigurationDb deployment.
+    [Key(2), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public StrategyCatalog.CatalogKey? CatalogDeployment { get; init; }
+    [IgnoreMember] public bool IsValid => CatalogDeployment is { Kind: StrategyCatalog.StrategyCatalogKind.Deployment, Version: > 0 } key
+        ? key.Id != Guid.Empty && TradeStrategyFamilyId == 0 && DefinitionVersion == 0
+        : CatalogDeployment is null && TradeStrategyFamilyId > 0 && DefinitionVersion > 0;
     public static TradeStrategyFamilyReference From(TradeStrategyFamilyReadModel row) => new(row.TradeStrategyFamilyId, row.DefinitionVersion);
+    public static TradeStrategyFamilyReference From(StrategyCatalog.StrategyDeploymentChoice row) => row.Reference;
 }
 
 [MessagePackObject]

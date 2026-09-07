@@ -36,13 +36,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             panel2 = new Panel();
             lblLookupTypeNames = new Label();
             tlpLookupTypes = new TableLayoutPanel();
-            pnlLookupTypeName = new Panel();
             lblLookupTypeName = new Label();
-            pnlShortCode = new Panel();
             lblShortCode = new Label();
-            pnlOrderId = new Panel();
             lblOrderId = new Label();
-            pnlDescription = new Panel();
             lblDescription = new Label();
             txtLookupTypeName = new TextBox();
             txtShortCode = new TextBox();
@@ -55,10 +51,6 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             tlpLookupTypes.SuspendLayout();
-            pnlLookupTypeName.SuspendLayout();
-            pnlShortCode.SuspendLayout();
-            pnlOrderId.SuspendLayout();
-            pnlDescription.SuspendLayout();
             SuspendLayout();
             // 
             // splitContainer1
@@ -164,12 +156,12 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // tlpLookupTypes
             // 
             tlpLookupTypes.ColumnCount = 2;
-            tlpLookupTypes.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31.42857F));
-            tlpLookupTypes.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68.57143F));
-            tlpLookupTypes.Controls.Add(pnlLookupTypeName, 0, 0);
-            tlpLookupTypes.Controls.Add(pnlShortCode, 0, 1);
-            tlpLookupTypes.Controls.Add(pnlOrderId, 0, 2);
-            tlpLookupTypes.Controls.Add(pnlDescription, 0, 3);
+            tlpLookupTypes.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            tlpLookupTypes.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            tlpLookupTypes.Controls.Add(lblLookupTypeName, 0, 0);
+            tlpLookupTypes.Controls.Add(lblShortCode, 0, 1);
+            tlpLookupTypes.Controls.Add(lblOrderId, 0, 2);
+            tlpLookupTypes.Controls.Add(lblDescription, 0, 3);
             tlpLookupTypes.Controls.Add(txtLookupTypeName, 1, 0);
             tlpLookupTypes.Controls.Add(txtShortCode, 1, 1);
             tlpLookupTypes.Controls.Add(txtOrderId, 1, 2);
@@ -178,98 +170,63 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             tlpLookupTypes.Location = new Point(0, 0);
             tlpLookupTypes.Margin = new Padding(4, 3, 4, 3);
             tlpLookupTypes.Name = "tlpLookupTypes";
+            tlpLookupTypes.Padding = new Padding(8);
             tlpLookupTypes.RowCount = 5;
-            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
-            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
-            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
+            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.Absolute, 81F));
-            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
+            tlpLookupTypes.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tlpLookupTypes.Size = new Size(572, 468);
             tlpLookupTypes.TabIndex = 0;
             // 
-            // pnlLookupTypeName
-            // 
-            pnlLookupTypeName.Controls.Add(lblLookupTypeName);
-            pnlLookupTypeName.Dock = DockStyle.Fill;
-            pnlLookupTypeName.Location = new Point(4, 3);
-            pnlLookupTypeName.Margin = new Padding(4, 3, 4, 3);
-            pnlLookupTypeName.Name = "pnlLookupTypeName";
-            pnlLookupTypeName.Size = new Size(171, 29);
-            pnlLookupTypeName.TabIndex = 0;
-            // 
             // lblLookupTypeName
             // 
+            lblLookupTypeName.Anchor = AnchorStyles.Right;
             lblLookupTypeName.AutoSize = true;
             lblLookupTypeName.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblLookupTypeName.ForeColor = Color.White;
             lblLookupTypeName.Location = new Point(10, 3);
-            lblLookupTypeName.Margin = new Padding(4, 0, 4, 0);
+            lblLookupTypeName.Margin = new Padding(0, 3, 8, 3);
             lblLookupTypeName.Name = "lblLookupTypeName";
             lblLookupTypeName.Size = new Size(136, 17);
             lblLookupTypeName.TabIndex = 0;
             lblLookupTypeName.Text = "Lookup Type Name:";
             // 
-            // pnlShortCode
-            // 
-            pnlShortCode.Controls.Add(lblShortCode);
-            pnlShortCode.Dock = DockStyle.Fill;
-            pnlShortCode.Location = new Point(4, 38);
-            pnlShortCode.Margin = new Padding(4, 3, 4, 3);
-            pnlShortCode.Name = "pnlShortCode";
-            pnlShortCode.Size = new Size(171, 29);
-            pnlShortCode.TabIndex = 1;
-            // 
             // lblShortCode
             // 
+            lblShortCode.Anchor = AnchorStyles.Right;
             lblShortCode.AutoSize = true;
             lblShortCode.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblShortCode.ForeColor = Color.White;
             lblShortCode.Location = new Point(72, 3);
-            lblShortCode.Margin = new Padding(4, 0, 4, 0);
+            lblShortCode.Margin = new Padding(0, 3, 8, 3);
             lblShortCode.Name = "lblShortCode";
             lblShortCode.Size = new Size(83, 17);
             lblShortCode.TabIndex = 0;
             lblShortCode.Text = "Short Code:";
             // 
-            // pnlOrderId
-            // 
-            pnlOrderId.Controls.Add(lblOrderId);
-            pnlOrderId.Dock = DockStyle.Fill;
-            pnlOrderId.Location = new Point(4, 73);
-            pnlOrderId.Margin = new Padding(4, 3, 4, 3);
-            pnlOrderId.Name = "pnlOrderId";
-            pnlOrderId.Size = new Size(171, 29);
-            pnlOrderId.TabIndex = 2;
-            // 
             // lblOrderId
             // 
+            lblOrderId.Anchor = AnchorStyles.Right;
             lblOrderId.AutoSize = true;
             lblOrderId.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblOrderId.ForeColor = Color.White;
             lblOrderId.Location = new Point(94, 5);
-            lblOrderId.Margin = new Padding(4, 0, 4, 0);
+            lblOrderId.Margin = new Padding(0, 3, 8, 3);
             lblOrderId.Name = "lblOrderId";
             lblOrderId.Size = new Size(64, 17);
             lblOrderId.TabIndex = 0;
             lblOrderId.Text = "Order Id:";
             // 
-            // pnlDescription
-            // 
-            pnlDescription.Controls.Add(lblDescription);
-            pnlDescription.Dock = DockStyle.Fill;
-            pnlDescription.Location = new Point(4, 108);
-            pnlDescription.Margin = new Padding(4, 3, 4, 3);
-            pnlDescription.Name = "pnlDescription";
-            pnlDescription.Size = new Size(171, 75);
-            pnlDescription.TabIndex = 3;
-            // 
             // lblDescription
             // 
+            lblDescription.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblDescription.AutoSize = true;
             lblDescription.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblDescription.ForeColor = Color.White;
             lblDescription.Location = new Point(72, 7);
-            lblDescription.Margin = new Padding(4, 0, 4, 0);
+            lblDescription.Margin = new Padding(0, 5, 8, 3);
             lblDescription.Name = "lblDescription";
             lblDescription.Size = new Size(83, 17);
             lblDescription.TabIndex = 0;
@@ -277,6 +234,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             // txtLookupTypeName
             // 
+            txtLookupTypeName.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             txtLookupTypeName.BackColor = Color.Black;
             txtLookupTypeName.BorderStyle = BorderStyle.FixedSingle;
             txtLookupTypeName.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -290,6 +248,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             // txtShortCode
             // 
+            txtShortCode.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             txtShortCode.BackColor = Color.Black;
             txtShortCode.BorderStyle = BorderStyle.FixedSingle;
             txtShortCode.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -303,6 +262,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             // txtOrderId
             // 
+            txtOrderId.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             txtOrderId.BackColor = Color.Black;
             txtOrderId.BorderStyle = BorderStyle.FixedSingle;
             txtOrderId.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -316,6 +276,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             // 
             // txtDescription
             // 
+            txtDescription.Dock = DockStyle.Fill;
             txtDescription.BackColor = Color.Black;
             txtDescription.BorderStyle = BorderStyle.FixedSingle;
             txtDescription.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -323,6 +284,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             txtDescription.Location = new Point(183, 108);
             txtDescription.Margin = new Padding(4, 3, 4, 3);
             txtDescription.Multiline = true;
+            txtDescription.ScrollBars = ScrollBars.Vertical;
             txtDescription.Name = "txtDescription";
             txtDescription.ReadOnly = true;
             txtDescription.Size = new Size(385, 72);
@@ -334,6 +296,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(splitContainer1);
+            Dock = DockStyle.Fill;
             Margin = new Padding(4, 3, 4, 3);
             Name = "LookupTypeEditorView";
             Size = new Size(1031, 468);
@@ -347,14 +310,6 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             panel2.PerformLayout();
             tlpLookupTypes.ResumeLayout(false);
             tlpLookupTypes.PerformLayout();
-            pnlLookupTypeName.ResumeLayout(false);
-            pnlLookupTypeName.PerformLayout();
-            pnlShortCode.ResumeLayout(false);
-            pnlShortCode.PerformLayout();
-            pnlOrderId.ResumeLayout(false);
-            pnlOrderId.PerformLayout();
-            pnlDescription.ResumeLayout(false);
-            pnlDescription.PerformLayout();
             ResumeLayout(false);
 
         }
@@ -363,13 +318,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
 
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.TableLayoutPanel tlpLookupTypes;
-        private System.Windows.Forms.Panel pnlLookupTypeName;
         private System.Windows.Forms.Label lblLookupTypeName;
-        private System.Windows.Forms.Panel pnlShortCode;
         private System.Windows.Forms.Label lblShortCode;
-        private System.Windows.Forms.Panel pnlOrderId;
         private System.Windows.Forms.Label lblOrderId;
-        private System.Windows.Forms.Panel pnlDescription;
         private System.Windows.Forms.Label lblDescription;
         private System.Windows.Forms.TextBox txtLookupTypeName;
         private System.Windows.Forms.TextBox txtShortCode;

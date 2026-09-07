@@ -631,6 +631,32 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Executes a query asynchronously and maps the results to a collection using an <see cref="IObjectDataRecord"/>
     /// mapper, eliminating intermediate <c>object[]</c> allocation and value-type boxing.
     /// </summary>
+    /// <summary>Reads exactly one driver page, with automatic fetching disabled.</summary>
+    public async Task<QueryPage<TResult>> GetPageAsync<TResult>(IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> mapper, int pageSize, byte[]? pagingState,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mapper);
+        if (pageSize is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        if (ctx.ParameterValues.Count > 1) throw new ArgumentException("Paging accepts one parameter set.");
+        cancellationToken.ThrowIfCancellationRequested();
+        var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        var prepared = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
+        var statement = Bind(session, prepared, ctx.ParameterValues.SingleOrDefault());
+        statement.SetPageSize(pageSize).SetAutoPage(false);
+        if (pagingState is not null) statement.SetPagingState(pagingState);
+        using var rows = await ExecuteOwnedStatementAsync(session, statement, cancellationToken).ConfigureAwait(false);
+        var nextState = rows.PagingState;
+        var record = rows.ToObjectDataRecord();
+        var items = new List<TResult>();
+        foreach (var row in rows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            items.Add(mapper(record.SetRow(row)));
+        }
+        return new QueryPage<TResult>([.. items], nextState);
+    }
+
     public async Task<ICollection<TResult>> GetObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper)
         => await GetObjectsAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
 

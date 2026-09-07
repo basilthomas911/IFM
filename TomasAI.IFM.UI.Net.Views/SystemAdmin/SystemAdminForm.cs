@@ -5,7 +5,7 @@ using TomasAI.IFM.UI.Net.Services.SystemAdmin;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
 
-public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormControl
+public partial class SystemAdminForm : DarkTradingForm, IForm<SystemAdminForm>, IFormControl
 {
     SystemAdminViewModel _viewModel = null!;
     Dictionary<string, Func<Control>> _controlMap;

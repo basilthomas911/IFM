@@ -9,7 +9,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// Adapts the observable yield-curve editor state and operations to WinForms controls and dialogs.
 /// </summary>
 public partial class YieldCurveRateEditorControl
-    : UserControl, IControlCommand, IAsyncFormControl
+    : DarkTradingView, IControlCommand, IAsyncFormControl
 {
     readonly YieldCurveRateEditorViewModel _viewModel;
     readonly MarketDataViewModel _marketDataViewModel;

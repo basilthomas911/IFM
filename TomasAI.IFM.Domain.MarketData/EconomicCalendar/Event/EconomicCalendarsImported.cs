@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using TomasAI.IFM.Domain.MarketData.DownloadLog;
+using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -34,36 +37,65 @@ public static class EconomicCalendarsImported
         IsArgumentNull.Check(dbFactory);
         IsArgumentNull.Check(logger);
 
+        var started = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
+        var stopwatch = Stopwatch.StartNew();
+        long? downloaded = null;
+        long? persisted = 0;
+        var terminalId = Guid.NewGuid();
+        EconomicCalendarsImportedCompleteEvent? complete = null;
+        EconomicCalendarsImportedFailEvent? failed = null;
+        Exception? processingError = null;
         try
         {
             var importDate = DateOnly.FromDateTime(@event.ImportedDate);
             var countries = NormalizeCountries(@event.CountryCodes);
-            var entries = await referenceDataApi.EconomicCalendar
-                .GetAsync(importDate, importDate, countries)
-                .ConfigureAwait(false);
+            var entries = await referenceDataApi.EconomicCalendar.GetAsync(importDate, importDate, countries).ConfigureAwait(false);
+            downloaded = entries.Count;
             var records = entries.Select(Map).ToArray();
             Validate(records);
-            await dbFactory.MarketDataDb.InsertEconomicCalendarsAsync(
-                records, @event.DuplicatePolicy, @event.CommandId).ConfigureAwait(false);
-            var complete = @event.ToCompleteEvent<
-                EconomicCalendarsImportedCompleteEvent,
-                EconomicCalendarId>(records);
-            await context.SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(
-                (EconomicCalendarsImportedCompleteEvent)complete).ConfigureAwait(false);
-            logger.LogInformationEvent(ServiceId,
-                "Economic-calendar import completed for command {CommandId} with {RecordCount} records.",
-                @event.CommandId, records.Length);
-            return true;
+            persisted = null; // A failed bulk write may have accepted a subset.
+            await dbFactory.MarketDataDb.InsertEconomicCalendarsAsync(records, @event.DuplicatePolicy, @event.CommandId).ConfigureAwait(false);
+            persisted = records.LongLength;
+            stopwatch.Stop();
+            complete = (EconomicCalendarsImportedCompleteEvent)@event.ToCompleteEvent<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(records);
+            complete = complete with { Id = terminalId, DownloadOutcome = Outcome(MarketDataDownloadStatus.Completed, null) };
         }
         catch (Exception exception)
         {
-            logger.LogErrorEvent(ServiceId, exception,
-                "Economic-calendar import failed for command {CommandId}", @event.CommandId);
-            var failed = @event.ToFailEvent<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(exception);
-            await context.SendAsync<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(
-                (EconomicCalendarsImportedFailEvent)failed).ConfigureAwait(false);
-            throw;
+            stopwatch.Stop();
+            processingError = exception;
+            logger.LogErrorEvent(ServiceId, exception, "Import processing failed for command {CommandId}", @event.CommandId);
+            failed = (EconomicCalendarsImportedFailEvent)@event.ToFailEvent<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(exception);
+            failed = failed with { Id = terminalId, DownloadOutcome = Outcome(MarketDataDownloadStatus.Failed, exception) };
         }
+
+        // Publication is outside the acquisition catch: delivery failure cannot invent a Failed download.
+        try
+        {
+            if (complete is not null)
+                await context.SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(complete).ConfigureAwait(false);
+            else
+                await context.SendAsync<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(failed!).ConfigureAwait(false);
+        }
+        catch (Exception deliveryError)
+        {
+            var outcome = complete?.DownloadOutcome ?? failed!.DownloadOutcome!;
+            logger.LogError(deliveryError, "Import terminal publication failed. Recovery outcome: {DownloadOutcome}", System.Text.Json.JsonSerializer.Serialize(outcome));
+            throw new DownloadLogDeliveryException(outcome, deliveryError);
+        }
+        if (processingError is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(processingError).Throw();
+        return true;
+
+        MarketDataDownloadOutcome Outcome(MarketDataDownloadStatus status, Exception? error) => new()
+        {
+            Dataset = MarketDataDownloadDataset.EconomicCalendar, ValueDate = DateOnly.FromDateTime(@event.ImportedDate),
+            Scope = MarketDataDownloadOutcome.CanonicalScope(@event.CountryCodes), ImportCommandId = @event.CommandId, SourceTerminalEventId = terminalId,
+            RequestedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(@event.RequestedOn), StartedAtUtc = started,
+            FinishedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow), Status = status,
+            DownloadedRecordCount = downloaded, PersistedRecordCount = persisted, ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
+            ErrorCode = error is null ? null : "ImportProcessingFailed",
+            ErrorMessage = error is null ? null : "Provider acquisition, response validation or data persistence failed. See the correlated import diagnostics."
+        };
     }
 
     /// <summary>Handles the successful terminal event without starting another operation.</summary>
@@ -71,27 +103,16 @@ public static class EconomicCalendarsImported
         this EconomicCalendarsImportedCompleteEvent @event,
         IEventActorContext context,
         ILogger<EconomicCalendarEventActor> logger)
-    {
-        IsArgumentNull.Check(@event);
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(logger);
-        return ValueTask.FromResult(true);
-    }
+        => DownloadLogDelivery.ForwardAsync(@event.DownloadOutcome, @event,
+            MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Completed, context, logger);
 
     /// <summary>Logs the failed terminal event without retrying the import attempt.</summary>
     public static ValueTask<bool> ExecuteAsync(
         this EconomicCalendarsImportedFailEvent @event,
         IEventActorContext context,
         ILogger<EconomicCalendarEventActor> logger)
-    {
-        IsArgumentNull.Check(@event);
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(logger);
-        logger.LogErrorEvent(ServiceId,
-            "{EventName} for command {CommandId}: {ErrorMessage}",
-            @event.EventName, @event.CommandId, @event.ErrorMessage);
-        return ValueTask.FromResult(true);
-    }
+        => DownloadLogDelivery.ForwardAsync(@event.DownloadOutcome, @event,
+            MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Failed, context, logger);
 
     /// <summary>Maps a provider-neutral calendar entry to the durable domain schema.</summary>
     static EconomicCalendarReadModel Map(EconomicCalendarEntry entry) => new(

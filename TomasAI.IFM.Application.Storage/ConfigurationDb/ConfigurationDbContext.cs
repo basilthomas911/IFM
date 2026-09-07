@@ -9,10 +9,12 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 
 /// <summary>Stores immutable strategy configuration versions in PostgreSQL.</summary>
-public sealed class ConfigurationDbContext(
+public sealed partial class ConfigurationDbContext(
     IDbConnectionSettings connectionSettings,
     IDbContextFactory dbFactory,
-    ILogger<DbProvider> logger)
+    ILogger<DbProvider> logger,
+    TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities? catalogCapabilities = null,
+    TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences? catalogReferences = null)
     : ObjectDataRepository<ConfigurationDbContext>(connectionSettings[ConfigurationDbConnection], logger),
       IConfigurationDbContext
 {

@@ -22,7 +22,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public partial class TradeOrderEditorForm 
-    : Form, IForm<TradeOrderEditorForm>, IFormControl
+    : DarkTradingForm, IForm<TradeOrderEditorForm>, IFormControl
 {
     const int LeftLabelLeft = 30;
     const int ContentLeft = 112;
@@ -50,6 +50,8 @@ public partial class TradeOrderEditorForm
     readonly ComboBox _sourceFilter = new() { Name = "ddlCompositionSource", AccessibleName = "Composition source filter", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(1010, 8), Size = new Size(220, 28) };
     readonly ComboBox _historyModeSelector = new() { Name = "ddlTradeHistoryMode", AccessibleName = "Trade history mode", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 10F), Location = new Point(1300, 8), Size = new Size(140, 28) };
     readonly Label _portfolioLabel = new() { Text = "Portfolio:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(LeftLabelLeft, 14) };
+    readonly Label _sourceLabel = new() { Text = "Source:", AutoSize = true, ForeColor = Color.White };
+    readonly Label _modeLabel = new() { Text = "Mode:", AutoSize = true, ForeColor = Color.White };
     bool _canonicalOrderSelected;
     bool _legacyOrderSelected;
     LegacyFundOrderHistoryReadModel? _selectedLegacyOrder;
@@ -70,6 +72,7 @@ public partial class TradeOrderEditorForm
         ConfigurePortfolioScope();
         TradeOrderTypography.Apply(this);
         TradeOrderInputPalette.Apply(this);
+        pnlContentFrame.BackColor = Color.Gray;
         ConfigureCompactLayout();
         ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
@@ -113,9 +116,9 @@ public partial class TradeOrderEditorForm
         _portfolioSelector.Left = ContentLeft;
         pnlFundSelector.Controls.Add(_portfolioLabel);
         pnlFundSelector.Controls.Add(_portfolioSelector);
-        pnlFundSelector.Controls.Add(new Label { Text = "Source:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(935, 14) });
+        pnlFundSelector.Controls.Add(_sourceLabel);
         _sourceFilter.Items.AddRange(["All", "Manual", "Strategy Workflow"]); _sourceFilter.SelectedIndex = 0; pnlFundSelector.Controls.Add(_sourceFilter);
-        pnlFundSelector.Controls.Add(new Label { Text = "Mode:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 10F), Location = new Point(1240, 14) });
+        pnlFundSelector.Controls.Add(_modeLabel);
         _historyModeSelector.Items.AddRange(["Current", "Legacy History"]); _historyModeSelector.SelectedIndex = 0; pnlFundSelector.Controls.Add(_historyModeSelector);
         _portfolioSelector.SelectedIndexChanged += async (_, _) => { if (_rendering) return; await _viewModel.SelectPortfolioAsync(_portfolioSelector.SelectedIndex); RenderEditor(); };
         _sourceFilter.SelectedIndexChanged += (_, _) => RenderFundOrders();
@@ -151,15 +154,15 @@ public partial class TradeOrderEditorForm
 
     void ConfigureCompactLayout()
     {
-        ClientSize = new Size(
-            ContentLeft + ddlFund.Width + ContentToCommandGap + CommandButtonWidth + CommandRightMargin,
-            DefaultClientHeight);
+        // The initial width is a layout baseline, not a measurement of a designer-scaled combo.
+        ClientSize = new Size(1440, DefaultClientHeight);
         MinimumSize = SizeFromClientSize(new Size(1200, DefaultClientHeight));
         pnlTradeOrders.Height = 270;
         lstTradeOrders.Height = pnlTradeOrders.ClientSize.Height - lstTradeOrders.Top - 6;
         pnlTradePosition.Controls.Add(lblTradeStateTarget);
         pnlTradePosition.Controls.Add(ddlTradeState);
         AlignLeftColumnAndCalendarFilters();
+        LayoutPortfolioFilters();
         AlignTradePositionHeader();
         lstTradeOrders.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         lstTrades.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -181,7 +184,11 @@ public partial class TradeOrderEditorForm
             btnSubmitOrder, btnEndOfDay);
         AlignTargetStateUnderEndOfDay();
 
-        pnlFundSelector.Resize += (_, _) => ddlFund.Width = CalculateMainContentWidth(pnlFundSelector);
+        pnlFundSelector.Resize += (_, _) =>
+        {
+            ddlFund.Width = CalculateMainContentWidth(pnlFundSelector);
+            LayoutPortfolioFilters();
+        };
         pnlTradeOrders.Resize += (_, _) =>
         {
             LayoutMainContent(pnlTradeOrders, lstTradeOrders);
@@ -213,6 +220,22 @@ public partial class TradeOrderEditorForm
         LayoutTradeBlotterHeight();
         PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
             btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
+    }
+
+    void LayoutPortfolioFilters()
+    {
+        const int groupGap = 12;
+        const int labelGap = 6;
+        var filterWidth = 2 * groupGap + 2 * labelGap + _sourceLabel.PreferredWidth
+            + _modeLabel.PreferredWidth + _sourceFilter.Width + _historyModeSelector.Width;
+        _portfolioSelector.Width = Math.Min(720, Math.Max(200,
+            pnlFundSelector.ClientSize.Width - ContentLeft - filterWidth - CommandRightMargin));
+        _sourceLabel.Location = new Point(_portfolioSelector.Right + groupGap,
+            _portfolioSelector.Top + (_portfolioSelector.Height - _sourceLabel.PreferredHeight) / 2);
+        _sourceFilter.Location = new Point(_sourceLabel.Right + labelGap, _portfolioSelector.Top);
+        _modeLabel.Location = new Point(_sourceFilter.Right + groupGap,
+            _portfolioSelector.Top + (_portfolioSelector.Height - _modeLabel.PreferredHeight) / 2);
+        _historyModeSelector.Location = new Point(_modeLabel.Right + labelGap, _portfolioSelector.Top);
     }
 
     void AlignLeftColumnAndCalendarFilters()

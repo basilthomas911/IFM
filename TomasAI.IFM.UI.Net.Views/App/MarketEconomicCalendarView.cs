@@ -10,7 +10,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// <summary>
 /// Transitional WinForms adapter for observable economic-calendar state.
 /// </summary>
-public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
+public partial class MarketEconomicCalendarView : DarkTradingView, IAsyncFormControl
 {
     MarketEconomicCalendarViewModel? _viewModel;
     bool _rendering;

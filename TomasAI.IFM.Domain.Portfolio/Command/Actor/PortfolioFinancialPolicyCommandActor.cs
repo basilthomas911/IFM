@@ -29,7 +29,8 @@ public sealed class PortfolioFinancialPolicyCommandActor(
     IPortfolioDbWriteContext projections,
     IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFinancialPolicyCommandActor> logger)
+    ILogger<PortfolioFinancialPolicyCommandActor> logger,
+    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? referenceQueries = null)
     : BaseEventSourceCommandActor<PortfolioFinancialPolicyCommandActor>(context, logger)
 {
     public const string ActorName = PortfolioCommandSubjects.PolicyActor;
@@ -146,6 +147,20 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         var request = (IPortfolioRequestMetadata)command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request);
         var principal = operationalGuard.Demand(PortfolioOperation.AdministerPortfolio, request, mutation: true).Principal;
+        var policy = command switch
+        {
+            CreatePortfolioFinancialPolicyCommand create => create.Payload.Policy,
+            AddPortfolioFinancialPolicyVersionCommand change => change.Payload.Policy,
+            ActivateAndAssignPortfolioFinancialPolicyCommand activate => state.Aggregate.Versions.SingleOrDefault(x => x.PolicyVersion == activate.Payload.PolicyVersion),
+            _ => null
+        };
+        if (policy is not null && referenceQueries is not null && await events.FindCommittedPolicyCommandAsync(state.PolicyId, command.CommandId, cancellationToken).ConfigureAwait(false) is null)
+            foreach (var limit in policy.TradeFamilyLimits)
+            {
+                var key = limit.CatalogDeployment ?? throw new ArgumentException("Legacy risk limits are read-only. Create a policy version with explicit ConfigurationDb deployment limits.");
+                await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(referenceQueries, key,
+                    command is ActivateAndAssignPortfolioFinancialPolicyCommand && limit.Enabled, cancellationToken);
+            }
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         return await receive(this, command, state, principal, cancellationToken).ConfigureAwait(false);
     }

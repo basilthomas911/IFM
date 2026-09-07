@@ -255,6 +255,18 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         var marketCondition = await ActorContext.DbFactory.TradeDb
             .GetMarketConditionAsync(view.WorkflowId, cancellationToken).ConfigureAwait(false);
         var result = CreateObservation(entityText, view, regime, now, marketCondition);
+        if (view.AssessmentBinding is not null)
+        {
+            var projected = await ActorContext.DbFactory.TradeDb.GetMarketConditionAssessmentAsync(view.WorkflowId,cancellationToken).ConfigureAwait(false);
+            if (projected is not null)
+            {
+                var assessment = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentContracts.ReadResult(projected.Result);
+                var accepted = view.MarketCondition.SourceEventId == projected.Id && view.MarketCondition.Result?.PayloadSha256 == projected.Result.PayloadSha256;
+                result = result with { MarketAssessment = assessment, WorkflowAcceptedMarketAssessment = accepted, MarketAssessmentOrphanSuspected = !accepted,
+                    MarketAssessmentExpired = assessment.Assessment.ValidUntilUtc is { } until && until <= now,
+                    IsOperationalIssue = result.IsOperationalIssue || !accepted, Diagnostic = !accepted ? "MarketAssessmentProjectionNotAccepted" : result.Diagnostic };
+            }
+        }
 
         if (result.OperationalStatus == IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed)
             ActorContext.Logger.LogWarning(

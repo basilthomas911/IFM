@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
 using Microsoft.Extensions.Caching.Distributed;
@@ -301,9 +301,12 @@ public static class Startup
             services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
             services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
             services.AddSingleton<IBinarySerializer, MessagePackBinarySerializer>();
-            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+            services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
             {
-                Enabled = config.GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false)
+                Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
+                MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
+                FundId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:FundId", 1),
+                RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
             });
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
@@ -402,7 +405,7 @@ public static class Startup
             services.AddSingleton<IMarketDataAnalyticsCommandApi,
                 TomasAI.IFM.Application.Api.Nats.Client.MarketDataAnalyticsCommandApi>();
             services.AddSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
-            services.AddSingleton<IReferenceCommandApi, ReferenceCommandApi>();
+            services.AddSingleton<IReferenceCommandApi, TomasAI.IFM.Application.Api.Nats.Client.ReferenceCommandApi>();
             services.AddSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
@@ -424,10 +427,13 @@ public static class Startup
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
+            services.AddSingleton<IDownloadLogQueryApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogQueryApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, TomasAI.IFM.Application.Api.Nats.Client.MarketConditionAssessmentQueryApi>();
+            services.AddSingleton<IDownloadLogCommandApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogCommandApi>();
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
             services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
-            services.AddSingleton<IReferenceQueryApi, ReferenceQueryApi>();
+            services.AddSingleton<IReferenceQueryApi, TomasAI.IFM.Application.Api.Nats.Client.ReferenceQueryApi>();
         }
 
         void RegisterStorageServices()
@@ -483,6 +489,11 @@ public static class Startup
             services.AddTradeStrategySymbolCatalog();
             services.AddSingleton<ITradeStrategyFamilyCatalogStore, TradeStrategyFamilyCatalogStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences, TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogReferenceAdapter>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
+                _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry([]));
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
@@ -510,19 +521,13 @@ public static class Startup
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
             services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
-            services.AddSingleton<IMarketConditionFuturesQuoteAdapter, MarketConditionFuturesQuoteAdapter>();
-            services.AddSingleton<IMarketConditionOptionUniverseAdapter, MarketConditionOptionUniverseAdapter>();
-            services.AddSingleton<IMarketConditionSessionAdapter, MarketConditionSessionAdapter>();
+
+
+
             services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();
-            services.AddSingleton<IMarketConditionVolatilityAdapter, MarketConditionVolatilityAdapter>();
-            services.AddSingleton<IMarketConditionBrokerReadiness, UnavailableMarketConditionBrokerReadiness>();
-            services.AddSingleton<IMarketConditionOperationalHealthAdapter, MarketConditionOperationalHealthAdapter>();
-            services.AddSingleton<IMarketConditionSnapshotAdapterCoordinator, MarketConditionSnapshotAdapterCoordinator>();
-            services.AddSingleton<MarketConditionSnapshotProvider>();
-            services.AddSingleton<IMarketConditionSnapshotProvider>(provider =>
-                provider.GetRequiredService<MarketConditionSnapshotProvider>());
-            services.AddSingleton<IMarketConditionSnapshotCache>(provider =>
-                provider.GetRequiredService<MarketConditionSnapshotProvider>());
+            services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, MarketConditionAssessmentSnapshotProvider>();
+
+
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)

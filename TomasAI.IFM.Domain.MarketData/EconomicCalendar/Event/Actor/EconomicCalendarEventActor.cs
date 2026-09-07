@@ -74,6 +74,9 @@ public class EconomicCalendarEventActor(
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
     protected override async ValueTask OnExceptionAsync(IEventActorContext<EconomicCalendarEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
+        if (ex is TomasAI.IFM.Domain.MarketData.DownloadLog.DownloadLogDeliveryException
+            && @event is EconomicCalendarsImportedCompleteEvent or EconomicCalendarsImportedFailEvent)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
         try
         {
             IsArgumentNull.Check(context);

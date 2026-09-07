@@ -14,6 +14,7 @@ try
     var bootstrapTradeStrategyFamiliesOnly = args.Contains(
         "--bootstrap-trade-strategy-families-only",
         StringComparer.OrdinalIgnoreCase);
+    var migrateStrategyCatalogOnly = args.Contains("--migrate-strategy-catalog-only", StringComparer.OrdinalIgnoreCase);
     var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
     var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +41,13 @@ try
         Log.Information("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
         await app.DisposeAsync();
     }
+    else if (migrateStrategyCatalogOnly)
+    {
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb>().CreateAllAsync();
+        var migration = await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>().EnsureAsync(importLegacy: true);
+        Console.WriteLine($"Verified catalog migration: {migration.StarterDefinitions} starter definitions, {migration.ImportedDeployments} legacy deployment imports, {migration.DeploymentsRequiringProductResolution} imports needing product resolution. No automatic publication or Fund permission changes.");
+        await app.DisposeAsync();
+    }
     else if (bootstrapTradeStrategyFamiliesOnly)
     {
         // Deliberately avoid HTTP binding and actor startup. This narrow process mode
@@ -57,7 +65,8 @@ try
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>().EnsureAsync();
         app.EnableServerManagerStandardInputShutdown(args, logger);
         // Bind the HTTP endpoint and start hosted infrastructure before exposing
         // any NATS actor subscriptions. If Kestrel cannot bind (for example, a

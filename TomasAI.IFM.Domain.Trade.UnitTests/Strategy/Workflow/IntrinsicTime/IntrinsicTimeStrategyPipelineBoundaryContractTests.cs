@@ -32,6 +32,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static readonly string[] ExpectedCommandNames =
     [
+        nameof(ExecuteMarketConditionAssessmentCommand),
         nameof(ExecuteMarketConditionPipelineCommand),
         nameof(ExecuteRegimeDiscoveryPipelineCommand),
         nameof(StartOrderCompositionPipelineCommand),
@@ -41,6 +42,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static readonly string[] ExpectedEventNames =
     [
+        nameof(MarketConditionAssessmentCompletedEvent),
+        nameof(MarketConditionAssessmentFailedEvent),
         nameof(MarketConditionPipelineCompletedEvent),
         nameof(MarketConditionPipelineFailedEvent),
         nameof(OrderCompositionPipelineCompletedEvent),
@@ -75,8 +78,13 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             keyedProperties.Select(value => value.Key).Should().Equal(
                 Enumerable.Range(0, keyedProperties.Length), type.Name);
 
-            var constructor = type.GetConstructors().Single(candidate =>
+            var constructor = type.GetConstructors().SingleOrDefault(candidate =>
                 candidate.GetCustomAttribute<SerializationConstructorAttribute>() is not null);
+            if (constructor is null)
+            {
+                type.GetConstructor(Type.EmptyTypes).Should().NotBeNull(type.Name);
+                continue;
+            }
             constructor.GetParameters().Select(parameter => parameter.Name).Should().Equal(
                 keyedProperties.Select(value => LowerFirst(value.Property.Name)), type.Name);
             constructor.GetParameters().Select(parameter => parameter.ParameterType).Should().Equal(
@@ -104,7 +112,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [Fact]
     public void Pipeline_events_have_only_the_approved_lifecycle_shapes()
     {
-        EventTypes.Should().OnlyContain(type => type.Name.Contains("Pipeline", StringComparison.Ordinal));
+        EventTypes.Should().OnlyContain(type => (type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
         EventTypes.Where(type => type.Name.EndsWith("ProcessingEvent", StringComparison.Ordinal)).Should()
             .OnlyContain(type => typeof(IEvent).IsAssignableFrom(type) && !typeof(ICompleteEvent).IsAssignableFrom(type));
         EventTypes.Where(type => type.Name.EndsWith("CompletedEvent", StringComparison.Ordinal)).Should()
@@ -124,7 +132,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         foreach (var type in CommandTypes)
         {
             if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
-                type == typeof(ExecuteMarketConditionPipelineCommand))
+                type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand))
             {
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
@@ -207,6 +215,11 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static object CreatePopulatedContract(Type type)
     {
+        if (type == typeof(ExecuteMarketConditionAssessmentCommand)) return MessagePackSerializer.Deserialize<ExecuteMarketConditionAssessmentCommand>(MessagePackSerializer.Serialize(MarketCondition.AssessmentFixture.Command()));
+        if (type == typeof(MarketConditionAssessmentCompletedEvent)) return new MarketConditionAssessmentCompletedEvent
+        { Id = Guid.NewGuid(), WorkflowId = StrategyWorkflowId.New(TimeProvider.System), InputWorkflowRevision = 2 };
+        if (type == typeof(MarketConditionAssessmentFailedEvent)) return new MarketConditionAssessmentFailedEvent
+        { Id = Guid.NewGuid(), ErrorCode = 1, ErrorMessage = "Qualification failure" };
         var constructor = type.GetConstructors().Single(candidate =>
             candidate.GetCustomAttribute<SerializationConstructorAttribute>() is not null);
         var isCommand = typeof(ICommand).IsAssignableFrom(type);

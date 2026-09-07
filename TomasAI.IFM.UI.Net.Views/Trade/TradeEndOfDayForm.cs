@@ -6,7 +6,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade;
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>WinForms adapter for the observable end-of-day workflow.</summary>
-public partial class TradeEndOfDayForm : Form, IFormControl
+public partial class TradeEndOfDayForm : DarkTradingForm, IFormControl
 {
     readonly EndOfDayProcessViewModel _viewModel;
     bool _closeComplete;

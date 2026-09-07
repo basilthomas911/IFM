@@ -21,6 +21,29 @@ public sealed class DatasetWorkerCurrentValuesTests
     const string Vx = "VX20260916";
 
     [Fact]
+    public void Contract_health_is_independent_of_other_datasets_and_fenced_by_generation()
+    {
+        using var values = new DatasetWorkerCurrentValues();
+        var es = Admission("GLBX.MDP3"); var vx = Admission("XCBF.PITCH");
+        values.ActivateDataset(es, [Registration(Es, es.Dataset)]);
+        values.ActivateDataset(vx, [Registration(Vx, vx.Dataset)]);
+        values.SetDatasetHealth(es, true);
+        Assert.False(values.IsFeedUp);
+        var first = values.GetFuturesMarketHealth(Es);
+        Assert.True(first.Healthy); Assert.False(values.GetFuturesMarketHealth(Vx).Healthy);
+        Assert.False(values.GetFuturesMarketHealth("missing").Healthy);
+        values.ClearDataset(es.Dataset);
+        Assert.False(values.GetFuturesMarketHealth(Es).Healthy);
+        var next = es with { GenerationId = Guid.NewGuid() };
+        values.ActivateDataset(next, [Registration(Es, next.Dataset)]);
+        values.SetDatasetHealth(es, true);
+        Assert.False(values.GetFuturesMarketHealth(Es).Healthy);
+        values.SetDatasetHealth(next, true);
+        Assert.True(values.GetFuturesMarketHealth(Es).Healthy);
+        Assert.NotEqual(first.Generation, values.GetFuturesMarketHealth(Es).Generation);
+    }
+
+    [Fact]
     public void Retained_readers_clear_on_reset_then_receive_the_replacement_generation()
     {
         using var values = new DatasetWorkerCurrentValues();

@@ -237,6 +237,7 @@ public sealed class PortfolioAdministrationViewModel(
     public async Task<bool> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, CancellationToken cancellationToken = default)
     {
         if (!EnsureMutation()) return false;
+        if (assignment.SchemaVersion >= 3) assignment = assignment with { AssignmentVersion = checked(RequireFundRevision() + 1) };
         var errors = assignment.Validate(); if (errors.Count > 0) { Validation(errors); return false; }
         return await ExecuteFundAsync(_fundCommands.AssignTradeTemplateAsync(assignment, RequireFundRevision(), cancellationToken), $"Trade template assignment {assignment.AssignmentVersion} committed.").ConfigureAwait(false);
     }

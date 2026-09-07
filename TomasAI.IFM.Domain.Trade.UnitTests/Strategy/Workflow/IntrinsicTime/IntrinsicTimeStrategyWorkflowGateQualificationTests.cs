@@ -163,20 +163,15 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     [Fact]
     public void Market_condition_execute_requires_committed_stage_and_freezes_configuration()
     {
-        var started = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification();
-        var marketCondition = started with
+        var command = MarketCondition.AssessmentFixture.Command();
+        var marketCondition = new WorkflowStrategyStateUpdatedEvent
         {
-            State = started.State with
-            {
-                CurrentStage = StrategyWorkflowStage.MarketCondition,
-                WorkflowRevision = 2,
-                UpdatedAtUtc = started.State.UpdatedAtUtc.AddSeconds(1)
-            }
+            EntityId = command.WorkflowEntityId, WorkflowId = command.WorkflowId, State = command.WorkflowView
         };
 
-        var first = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateMarketConditionExecute(marketCondition);
-        var duplicate = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateMarketConditionExecute(marketCondition);
-        var terminal = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateMarketConditionExecute(marketCondition with
+        var first = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateAssessmentExecute(marketCondition);
+        var duplicate = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateAssessmentExecute(marketCondition);
+        Action terminal = () => IntrinsicTimeStrategyWorkflowRealtimeActor.CreateAssessmentExecute(marketCondition with
         {
             State = marketCondition.State with { Status = WorkflowStrategyMachineStatus.Completed }
         });
@@ -185,10 +180,10 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         duplicate!.CommandId.Should().Be(first!.CommandId);
         first.EntityId.WorkflowEntityId.Should().Be(marketCondition.EntityId);
         first.EntityId.WorkflowId.Should().Be(marketCondition.WorkflowId);
-        first.ParameterSet.Should().BeEquivalentTo(marketCondition.State.MarketConditionParameterSet);
-        first.ParameterPayloadSha256.Should().Be(marketCondition.State.MarketConditionParameterPayloadSha256);
+        first.ParameterSet.Should().BeEquivalentTo(marketCondition.State.AssessmentBinding!.Parameters);
+        first.ParameterPayloadSha256.Should().Be(marketCondition.State.AssessmentBinding!.PayloadSha256);
         (first.ExpiresAtUtc <= marketCondition.State.ExpiresAtUtc).Should().BeTrue();
-        terminal.Should().BeNull();
+        terminal.Should().Throw<ArgumentException>();
     }
 
     /// <summary>Confirms the typed query contract survives the default MessagePack transport boundary.</summary>

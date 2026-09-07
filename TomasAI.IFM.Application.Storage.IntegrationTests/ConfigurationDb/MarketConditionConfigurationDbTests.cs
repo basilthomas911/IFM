@@ -26,7 +26,8 @@ public sealed class MarketConditionConfigurationDbCollection
 public sealed class MarketConditionConfigurationDbFixture : IAsyncLifetime
 {
     const string ConnectionVariable = "IFM_POSTGRES_CONFIGURATION_TEST_CONNECTION";
-    const string DefaultConnection = "Host=localhost;Port=5432;Database=event-source-test-db";
+    // Keep generated configuration fixtures out of the Development API database.
+    const string DefaultConnection = "Host=localhost;Port=5432;Database=ifm-configuration-integration-tests";
     const string Provider = "System.Data.Postgres";
 
     public ConfigurationDbContext Context { get; private set; } = null!;

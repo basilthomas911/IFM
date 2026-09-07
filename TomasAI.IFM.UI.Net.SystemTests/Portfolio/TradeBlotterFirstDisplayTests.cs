@@ -140,6 +140,9 @@ public sealed class TradeBlotterFirstDisplayTests
             foreach (var (control, height) in revealedHeights!)
                 control.Height.Should().Be(height, $"{control.Name} must not shrink after the reveal");
             editor.Width.Should().Be(host.ClientSize.Width);
+            var assetPrice = Field<TextBox>(editor, "txtAssetPrice");
+            assetPrice.Parent!.ClientRectangle.Contains(assetPrice.Bounds).Should().BeTrue(
+                "the asset price must remain fully visible after the final font and host layout are applied");
             editor.Hide(); editor.Show();
             Field<Task>(editor, "_initialLoad").Should().BeSameAs(initialLoad);
             using var bitmap = new Bitmap(parent.Width, parent.Height);

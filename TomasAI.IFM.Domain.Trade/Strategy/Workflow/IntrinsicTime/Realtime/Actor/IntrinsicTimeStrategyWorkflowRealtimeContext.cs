@@ -87,6 +87,8 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions
     /// live ITI trigger can start a workflow.
     /// </summary>
     public bool RequireWarmRegimeDiscoverySignals { get; set; } = true;
+    /// <summary>Market profile shared across strategy families, resolved for the triggering timeframe.</summary>
+    public string MarketConditionAssessmentProfileId { get; set; } = "ES.Standard";
 
     /// <summary>Gets or sets the fund used by the configured Intrinsic Time workflow.</summary>
     public int FundId { get; set; } = 1;

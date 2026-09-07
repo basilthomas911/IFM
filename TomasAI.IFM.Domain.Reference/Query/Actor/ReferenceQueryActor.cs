@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Query.Extensions;
 using Microsoft.Extensions.Logging;
@@ -52,6 +53,8 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// use in query deserialization and routing scenarios.</remarks>
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
+        [GetLookupDefinitionsQuery.Verb] = msg => msg.AsQuery<GetLookupDefinitionsQuery, LookupDefinitionReadModel[]>()!,
+        [TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery.Verb] = msg => msg.AsQuery<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery, string>()!,
         [GetCurrentSeedIdQuery.Verb] = msg => msg.AsQuery<GetCurrentSeedIdQuery, ScalarReadModel<int>>()!,
         [GetNextSeedIdQuery.Verb] = msg => msg.AsQuery<GetNextSeedIdQuery, ScalarReadModel<int>>()!,
         [GetDefaultFuturesContractDefinitionsQuery.Verb] = msg => msg.AsQuery<GetDefaultFuturesContractDefinitionsQuery, DefaultFuturesContractDefinitionsReadModel>()!,
@@ -91,6 +94,19 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
+        [typeof(GetLookupDefinitionsQuery)] = async (ctx, q, ct) =>
+        {
+            var rows = await ctx.DbFactory.ConfigurationDb.GetLookupDefinitionsAsync(((GetLookupDefinitionsQuery)q).GroupName, ct);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupDefinitionsQuery.Verb, new ServiceOk<LookupDefinitionReadModel[]>(rows));
+        },
+        [typeof(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery)] = async (ctx, q, ct) =>
+        {
+            var query = (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery)q;
+            var request = TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogJson.Read<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogQueryRequest>(query.RequestJson);
+            var value = await new TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService(ctx.DbFactory).QueryAsync(request, ct);
+            await ctx.ReplyAsync(q.Subject.ThreadId, TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery.Verb, new ServiceOk<string>(value));
+        },
         [typeof(GetTradeStrategySymbolsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (GetTradeStrategySymbolsQuery)q;

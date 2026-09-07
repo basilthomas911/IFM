@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using System.Collections;
 using System.Globalization;
 using System.Reflection;
@@ -28,17 +29,17 @@ public sealed class PipelineDecisionReferenceTests : IDisposable
     public void Generators_return_stable_non_authoritative_twelve_case_catalogs()
     {
         var regimes = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
-        var conditions = new MarketConditionDecisionReferenceGenerator().Generate();
+        var conditions = new MarketConditionAssessmentReferenceGenerator().Generate();
 
         regimes.Should().HaveCount(12);
-        conditions.Should().HaveCount(12);
+        conditions.Should().HaveCount(30);
         regimes.Select(x => x.CaseCode).Should().Equal(Enumerable.Range(1, 12).Select(x => $"RD-REF-{x:D3}"));
-        conditions.Select(x => x.CaseCode).Should().Equal(Enumerable.Range(1, 12).Select(x => $"MC-REF-{x:D3}"));
-        regimes.Should().OnlyContain(row => !row.IsAuthoritative && !row.IsCompleteEnumeration);
-        conditions.Should().OnlyContain(row => !row.IsAuthoritative && !row.IsCompleteEnumeration);
+        conditions.Select(x => x.CaseCode).Should().OnlyHaveUniqueItems();
+        regimes.Should().OnlyContain(row => !row.IsAuthoritative);
+        conditions.Should().OnlyContain(row => !row.IsAuthoritative);
         new RegimeDiscoveryDecisionReferenceGenerator().Generate().Should().BeEquivalentTo(regimes,
             options => options.WithStrictOrdering());
-        new MarketConditionDecisionReferenceGenerator().Generate().Should().BeEquivalentTo(conditions,
+        new MarketConditionAssessmentReferenceGenerator().Generate().Should().BeEquivalentTo(conditions,
             options => options.WithStrictOrdering());
     }
 
@@ -59,8 +60,8 @@ public sealed class PipelineDecisionReferenceTests : IDisposable
         MessagePackSerializer.Deserialize<RegimeDiscoveryDecisionReferenceDto[]>(
             MessagePackSerializer.Serialize(regimes)).Should().BeEquivalentTo(regimes,
                 options => options.WithStrictOrdering());
-        var conditions = new MarketConditionDecisionReferenceGenerator().Generate();
-        MessagePackSerializer.Deserialize<MarketConditionDecisionReferenceDto[]>(
+        var conditions = new MarketConditionAssessmentReferenceGenerator().Generate();
+        MessagePackSerializer.Deserialize<MarketConditionAssessmentReferenceRow[]>(
             MessagePackSerializer.Serialize(conditions)).Should().BeEquivalentTo(conditions,
                 options => options.WithStrictOrdering());
     }
@@ -73,9 +74,9 @@ public sealed class PipelineDecisionReferenceTests : IDisposable
         Map(typeof(RegimeDiscoveryQueryActor), "_receiveMap").Keys.Cast<Type>()
             .Should().Contain(typeof(GetRegimeDiscoveryDecisionReferenceQuery));
         Map(typeof(MarketConditionQueryActor), "_parseMap").Keys.Cast<string>()
-            .Should().Contain(GetMarketConditionDecisionReferenceQuery.Verb);
+            .Should().Contain(GetMarketConditionAssessmentReferenceQuery.Verb);
         Map(typeof(MarketConditionQueryActor), "_receiveMap").Keys.Cast<Type>()
-            .Should().Contain(typeof(GetMarketConditionDecisionReferenceQuery));
+            .Should().Contain(typeof(GetMarketConditionAssessmentReferenceQuery));
     }
 
     [Fact]
@@ -85,14 +86,14 @@ public sealed class PipelineDecisionReferenceTests : IDisposable
         var conditionFile = Path.Combine(_directory, "conditions.csv");
         var regimes = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
         regimes[0] = regimes[0] with { Name = "Bullish, \"quoted\"\r\nreference" };
-        var conditions = new MarketConditionDecisionReferenceGenerator().Generate();
+        var conditions = new MarketConditionAssessmentReferenceGenerator().Generate();
 
         var previousCulture = CultureInfo.CurrentCulture;
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-CA");
             await new RegimeDiscoveryDecisionReferenceCsvAdapter().ExportAsync(regimes, regimeFile);
-            await new MarketConditionDecisionReferenceCsvAdapter().ExportAsync(conditions, conditionFile);
+            await new MarketConditionAssessmentCsvAdapter().ExportAsync(conditions, conditionFile);
             await new RegimeDiscoveryDecisionReferenceCsvAdapter().ExportAsync(regimes, regimeFile);
         }
         finally
@@ -106,7 +107,7 @@ public sealed class PipelineDecisionReferenceTests : IDisposable
         regimeText.Should().Contain("\"Bullish, \"\"quoted\"\"\r\nreference\"");
         regimeText.Should().Contain("0.8").And.NotContain("0,8");
         regimeText.Split("\r\n").First().Should().StartWith("PipelineStage,GeneratorVersion");
-        (await File.ReadAllLinesAsync(conditionFile)).Should().HaveCount(13);
+        (await File.ReadAllLinesAsync(conditionFile)).Should().HaveCount(31);
     }
 
     [Fact]

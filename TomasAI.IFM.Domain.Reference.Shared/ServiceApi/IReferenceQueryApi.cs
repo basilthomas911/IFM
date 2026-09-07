@@ -13,6 +13,24 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi
 {
     public interface IReferenceQueryApi
     {
+        Task<ServiceResult<Lookups.LookupDefinitionReadModel[]>> GetLookupDefinitionsAsync(string groupName, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("ConfigurationDb lookup queries are unavailable.");
+        Task<ServiceResult<string>> QueryStrategyCatalogAsync(StrategyCatalog.CatalogQueryRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("ConfigurationDb strategy catalog queries are unavailable.");
+        async Task<ServiceResult<StrategyCatalog.StrategyDeploymentChoice[]>> GetStrategyDeploymentChoicesAsync(CancellationToken cancellationToken = default)
+        {
+            var rows = new List<StrategyCatalog.StrategyDeploymentChoice>(); string? cursor = null;
+            while (true)
+            {
+                var reply = await QueryStrategyCatalogAsync(new(StrategyCatalog.CatalogQueryOperation.DeploymentChoices, StrategyCatalog.StrategyCatalogKind.Deployment, Limit: 64, AfterCode: cursor), cancellationToken);
+                if (!reply.Success || reply.Value is null) return new ServiceFailed<StrategyCatalog.StrategyDeploymentChoice[]>(1063, reply.ErrorMessage ?? "Deployment catalog unavailable.");
+                var page = StrategyCatalog.StrategyCatalogJson.Read<StrategyCatalog.StrategyDeploymentPage>(reply.Value);
+                rows.AddRange(page.Items); if (page.NextCode is null) break;
+                if (rows.Count >= 4096 || page.Items.Length == 0 || page.NextCode == cursor) throw new InvalidOperationException("Deployment catalog paging exceeded its limit.");
+                cursor = page.NextCode;
+            }
+            return new ServiceOk<StrategyCatalog.StrategyDeploymentChoice[]>(rows.ToArray());
+        }
         Task<ServiceResult<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("Trade strategy symbol queries are not implemented by this adapter.");
         Task<ServiceResult<LookupTypeCollection>> GetMarketDataDefinitionTypesAsync();

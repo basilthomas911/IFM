@@ -12,6 +12,16 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceCommandApi
 {
+    public Task<ServiceResult<Guid>> ExecuteStrategyCatalogAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogCommandRequest request, CancellationToken cancellationToken = default)
+    {
+        var command = new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand
+        {
+            CommandId = request.OperationId,
+            RequestJson = TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogJson.Write(request),
+            Subject = new ActorSubject(ActorType.Command, "TradeStrategyFamilyCommand", "Catalog", ActorEntityId.Default.Format())
+        };
+        return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
+    }
     public Task<ServiceResult<Guid>> ChangeTradeStrategyFamilyAsync(ChangeTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request); cancellationToken.ThrowIfCancellationRequested();

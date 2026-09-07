@@ -316,6 +316,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
             };
         if (type == typeof(IntrinsicTimeStrategyWorkflowView))
             return CreateWorkflowView();
+        if (type == typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentBinding))
+            return MarketCondition.AssessmentFixture.Command().WorkflowView.AssessmentBinding!;
         if (type == typeof(DateTime?))
             return new DateTime(2026, 8, 25, 15, 35, 0, DateTimeKind.Utc);
         if (type == typeof(string[]))

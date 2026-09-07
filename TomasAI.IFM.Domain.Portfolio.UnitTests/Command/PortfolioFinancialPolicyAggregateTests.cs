@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using System.Text.Json;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
@@ -121,6 +123,22 @@ public sealed class PortfolioFinancialPolicyAggregateTests
         active.Activate(Guid.NewGuid(), 1, 1, Now.AddMinutes(1), "risk-admin");
         var action = () => active.DeleteDraft(Guid.NewGuid(), 2, "invalid", false, Now.AddMinutes(2), "risk-admin");
         action.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Catalog_risk_limits_are_exact_versioned_and_legacy_zero_cannot_match_them()
+    {
+        var key = new CatalogKey(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1);
+        var second = key with { Version = 2 };
+        var policy = ValidPolicy() with { SchemaVersion = 3, TradeFamilyLimits = [Family(0) with { DefinitionVersion = 0, CatalogDeployment = key, MaximumRiskPerTrade = 500 }, Family(0) with { DefinitionVersion = 0, CatalogDeployment = second, MaximumRiskPerTrade = 1500 }] };
+        policy.Validate().Should().BeEmpty();
+        policy.ResolveEffectiveCaps(key, Envelope(), Now).MaximumRiskPerTrade.Should().Be(500);
+        policy.ResolveEffectiveCaps(second, Envelope(), Now).MaximumRiskPerTrade.Should().Be(1500);
+        policy.ResolveEffectiveCaps(key, Envelope(), Now).CatalogDeployment.Should().Be(key);
+        var legacyLookup = () => policy.ResolveEffectiveCaps(0, 0, Envelope(), Now); legacyLookup.Should().Throw<InvalidOperationException>();
+        (policy with { TradeFamilyLimits = policy.TradeFamilyLimits.Reverse().ToArray() }).CanonicalSha256().Should().Be(policy.CanonicalSha256());
+        JsonSerializer.Serialize(ValidPolicy()).Should().NotContain("CatalogDeployment");
+        (ValidPolicy() with { SchemaVersion = 3 }).Validate().Should().Contain(x => x.Contains("ConfigurationDb"));
     }
 
     internal static PortfolioFinancialPolicyReadModel ValidPolicy() => new()

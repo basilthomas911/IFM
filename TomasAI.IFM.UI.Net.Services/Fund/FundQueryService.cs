@@ -87,6 +87,16 @@ namespace TomasAI.IFM.UI.Net.Services.Fund
         public async Task GetFundPnlReportAsync(int fundId, DateOnly startDate, DateOnly endDate, Action<FundPnlReportReadModel> onCompleted)
             => await ExecuteAsync(() => _queryApi.GetFundPnlReportAsync(fundId, startDate, endDate), onCompleted);
 
+        /// <summary>Loads an inclusive-date report without shared callback state; cancellation stops local observation.</summary>
+        public async Task<FundPnlReportReadModel?> GetFundPnlReportAsync(
+            int fundId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken)
+        {
+            var result = await _queryApi.GetFundPnlReportAsync(fundId, startDate, endDate)
+                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (!result.Success) throw new InvalidOperationException($"Fund report ({result.ErrorCode}): {result.ErrorMessage}");
+            return result.Value;
+        }
+
         /// <summary>
         /// get fund win loss ratio
         /// </summary>

@@ -1,5 +1,7 @@
 # Portfolio/Fund PF-29 Qualification Evidence v1.0
 
+> **Strategy catalog direction (2026-09-06):** Family catalog and UI claims below are historical qualification evidence for the recorded PF release. They do not qualify the proposed ConfigurationDb strategy/structure/variant catalog or its future Portfolio mapping. Preserve existing integer family identities and financial permissions; TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 | Field | Value |
 | --- | --- |
 | Gate | PF-29 — Cross-pipeline qualification and regression |

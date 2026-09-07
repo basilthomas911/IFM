@@ -17,13 +17,11 @@ public sealed class MarketConditionArchitectureAndQueryTests
     [Fact]
     public void Function_maps_have_exact_request_set_and_no_legacy_actor_types_exist()
     {
-        var parse = Map(typeof(MarketConditionFunctionActor), "_parseMap");
-        var validation = Map(typeof(MarketConditionFunctionActor), "_validationMap");
-        var receive = Map(typeof(MarketConditionFunctionActor), "_receiveMap");
-
-        parse.Keys.Cast<string>().Should().Equal(ExecuteMarketConditionPipelineCommand.Verb);
-        validation.Keys.Cast<Type>().Should().Equal(typeof(ExecuteMarketConditionPipelineCommand));
-        receive.Keys.Cast<Type>().Should().Equal(typeof(ExecuteMarketConditionPipelineCommand));
+        typeof(IMarketConditionFunctionContext).GetProperties().Select(x => x.Name)
+            .Should().NotContain(["StateRepository", "FunctionProjector", "SnapshotProvider", "CalculationModel"]);
+        typeof(MarketConditionFunctionActor).Assembly.GetTypes().Select(x => x.Name).Should()
+            .NotContain(["MarketConditionCalculationModel", "MarketConditionFunctionState", "MarketConditionFunctionProjector",
+                "MarketConditionOptionUniverseAdapter", "MarketConditionOperationalHealthAdapter"]);
         var contracts = typeof(ExecuteMarketConditionPipelineCommand).Assembly;
         contracts.GetType("TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands." +
                           "StartMarketConditionPipelineCommand").Should().BeNull();
@@ -44,13 +42,17 @@ public sealed class MarketConditionArchitectureAndQueryTests
             GetMarketConditionQuery.Verb,
             GetLatestMarketConditionQuery.Verb,
             GetMarketConditionHistoryQuery.Verb,
-            GetMarketConditionDecisionReferenceQuery.Verb);
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.GetMarketConditionAssessmentQuery.Verb,
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.GetMarketConditionAssessmentHistoryQuery.Verb,
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.GetMarketConditionAssessmentReferenceQuery.Verb);
         receive.Keys.Cast<Type>().Should().BeEquivalentTo(new[]
         {
             typeof(GetMarketConditionQuery),
             typeof(GetLatestMarketConditionQuery),
             typeof(GetMarketConditionHistoryQuery),
-            typeof(GetMarketConditionDecisionReferenceQuery)
+            typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.GetMarketConditionAssessmentQuery),
+            typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.GetMarketConditionAssessmentHistoryQuery),
+            typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.GetMarketConditionAssessmentReferenceQuery)
         });
     }
 

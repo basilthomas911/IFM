@@ -302,21 +302,36 @@ public sealed class PortfolioFundCommandActor(
             _ => null
         };
         var assignment = command is AssignTradeTemplateCommand assign ? assign.Payload.Assignment : null;
+        if (mandate is { SchemaVersion: >= 3 })
+        {
+            if (referenceQueries is null) throw new InvalidOperationException("Fund selection lookup validation is unavailable.");
+            var selections = await TomasAI.IFM.Domain.Reference.Shared.Lookups.FundSelectionCatalog.LoadAsync(referenceQueries, cancellationToken);
+            selections.ValidateSelections(mandate.UnderlyingUniverse, mandate.EligibleAssetTypes, mandate.PermittedDirections, mandate.PermittedConditions);
+        }
         var references = mandate?.PermittedTradeStrategyFamilies ?? (assignment?.TradeStrategyFamily is { } family ? [family] : []);
         if (references.Length == 0) return; // Read/replay compatibility for pre-v2 clients; never resolve ambiguous names here.
         if (referenceQueries is null) throw new InvalidOperationException("Reference catalog validation is unavailable.");
-        var result = await referenceQueries.GetTradeStrategyFamiliesAsync(cancellationToken).ConfigureAwait(false);
-        if (!result.Success || result.Value is null) throw new InvalidOperationException(result.ErrorMessage ?? "Reference catalog unavailable.");
         foreach (var reference in references)
         {
-            var row = result.Value.SingleOrDefault(x => x.TradeStrategyFamilyId == reference.TradeStrategyFamilyId && x.DefinitionVersion == reference.DefinitionVersion);
-            if (row is null || row.State != TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyState.Active ||
-                result.Value.Any(x => x.TradeStrategyFamilyId == reference.TradeStrategyFamilyId && x.DefinitionVersion > reference.DefinitionVersion))
-                throw new ArgumentException("An exact referenced family is missing or inactive.");
-            if (mandate is not null && !mandate.PermittedTradeFamilies.Contains(row.SystemKey, StringComparer.Ordinal))
-                throw new ArgumentException("Fund family classification does not match its exact reference.");
-            if (assignment is not null && assignment.TradeFamily != row.SystemKey)
-                throw new ArgumentException("Assignment family classification does not match its exact reference.");
+            if (reference.CatalogDeployment is not { } key)
+                throw new ArgumentException("Legacy family permissions are read-only. Select an exact ConfigurationDb deployment.");
+            var row = await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(referenceQueries, key,
+                assignment?.Enabled == true || mandate?.OperatingState == FundOperatingState.Active, cancellationToken);
+            if (mandate is not null && (!mandate.PermittedTradeFamilies.Contains(row.Definition.Code, StringComparer.Ordinal) || mandate.DecisionHorizon != row.Definition.Horizon.ToString()))
+                throw new ArgumentException("Fund deployment classification or horizon does not match its exact reference.");
+            if (assignment is not null && (assignment.TradeFamily != row.Definition.Code || assignment.DecisionHorizon != row.Definition.Horizon.ToString() || assignment.UnderlyingUniverse.Except(row.Definition.Products.Select(p => p.Symbol), StringComparer.Ordinal).Any()))
+                throw new ArgumentException("Assignment classification, horizon or product universe does not match the exact deployment.");
+            if (assignment is not null)
+            {
+                if (assignment.TradeTemplateId != key.Id || assignment.TradeTemplateVersion != key.Version)
+                    throw new ArgumentException("Assignment template identity must equal its ConfigurationDb deployment identity.");
+                var selection = row.Definition.PipelineParameters.Where(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.TradeSelection).ToArray();
+                var composition = row.Definition.PipelineParameters.Where(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition).ToArray();
+                if (selection.Length > 1 || composition.Length > 1) throw new ArgumentException("Assignment requires one unambiguous profile per pipeline stage.");
+                if (assignment.TradeSelectionHintProfileId != (selection.SingleOrDefault()?.Id ?? Guid.Empty) || assignment.TradeSelectionHintProfileVersion != (selection.SingleOrDefault()?.Version ?? 0)
+                    || assignment.OrderCompositionProfileId != (composition.SingleOrDefault()?.Id ?? Guid.Empty) || assignment.OrderCompositionProfileVersion != (composition.SingleOrDefault()?.Version ?? 0))
+                    throw new ArgumentException("Assignment profiles must match the exact deployment bindings.");
+            }
         }
     }
 
@@ -327,7 +342,7 @@ public sealed class PortfolioFundCommandActor(
         string principal,
         CancellationToken cancellationToken) =>
         state.Aggregate.AddVersion(command.CommandId, command.Payload.ExpectedVersion, command.Payload.Mandate,
-            await ActivationAsync(state.IdValue, state.Aggregate, cancellationToken).ConfigureAwait(false), now, principal);
+            await ActivationAsync(state.IdValue, state.Aggregate, cancellationToken, command.Payload.Mandate.OperatingState == FundOperatingState.Active).ConfigureAwait(false), now, principal);
 
     async ValueTask<PortfolioFundDomainEvent?> ChangeStateAsync(
         PortfolioFundActorState state,
@@ -337,7 +352,7 @@ public sealed class PortfolioFundCommandActor(
         CancellationToken cancellationToken) =>
         state.Aggregate.ChangeState(command.CommandId, command.Payload.ExpectedVersion, command.Payload.State,
             command.Payload.Reason,
-            await ActivationAsync(state.IdValue, state.Aggregate, cancellationToken).ConfigureAwait(false), now, principal);
+            await ActivationAsync(state.IdValue, state.Aggregate, cancellationToken, command.Payload.State == FundOperatingState.Active).ConfigureAwait(false), now, principal);
 
     async ValueTask<PortfolioFundDomainEvent?> CreateManualAsync(PortfolioFundAggregate aggregate,
         CreateManualFundOrderCommand command, DateTime now, string principal, CancellationToken cancellationToken)
@@ -373,13 +388,21 @@ public sealed class PortfolioFundCommandActor(
         return aggregate.ReserveComposition(command.CommandId, aggregate.Revision, command.Payload.Request, command.Payload.Snapshot, orderId, tradeIds, now, principal);
     }
 
-    async ValueTask<FundActivationContext> ActivationAsync(PortfolioFundId id, PortfolioFundAggregate aggregate, CancellationToken cancellationToken)
+    async ValueTask<FundActivationContext> ActivationAsync(PortfolioFundId id, PortfolioFundAggregate aggregate, CancellationToken cancellationToken, bool qualifyCatalog)
     {
+        var currentAssignments = aggregate.Assignments.Where(x => x.FundMandateVersion == aggregate.Current?.FundMandateVersion).ToArray();
+        if (qualifyCatalog && referenceQueries is not null)
+            foreach (var assignment in currentAssignments.Where(x => x.Enabled))
+            {
+                var deployment = assignment.TradeStrategyFamily?.CatalogDeployment ?? throw new InvalidOperationException("Legacy assignments must be replaced before activating a Fund.");
+                await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(referenceQueries, deployment, true, cancellationToken);
+            }
+
         var portfolio = await _events.LoadPortfolioAsync(new PortfolioId(id.PortfolioId), cancellationToken).ConfigureAwait(false);
-        var enabled = aggregate.Assignments.Count(x => x.Enabled);
+        var enabled = currentAssignments.Count(x => x.Enabled);
         return new(portfolio.Current?.OperatingState == PortfolioOperatingState.Active, enabled,
-            aggregate.Assignments.Any(x => x.Enabled && x.TradeSelectionHintProfileId != Guid.Empty),
-            aggregate.Assignments.Any(x => x.Enabled && x.OrderCompositionProfileId != Guid.Empty));
+            currentAssignments.Any(x => x.Enabled && x.TradeSelectionHintProfileId != Guid.Empty),
+            currentAssignments.Any(x => x.Enabled && x.OrderCompositionProfileId != Guid.Empty));
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>

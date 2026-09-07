@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using System.Reflection;
 using FluentAssertions;
 using NSubstitute;
@@ -98,7 +99,7 @@ public sealed class PortfolioAdministrationUiSystemTests
         using var form = new PortfolioAdministrationForm();
 
         form.Text.Should().Be("Portfolio Administration");
-        form.BackColor.Should().Be(Color.FromArgb(64, 64, 64));
+        form.BackColor.Should().Be(Color.Black);
         form.ForeColor.Should().Be(Color.White);
         form.Font.Name.Should().Be("Microsoft Sans Serif");
         form.Font.Size.Should().Be(10F);
@@ -196,20 +197,20 @@ public sealed class PortfolioAdministrationUiSystemTests
     [Fact]
     [Trait("Gate", "PF-27")]
     [Trait("Category", "Portfolio")]
-    public void Risk_policy_family_limit_grid_displays_reference_name_while_preserving_family_id()
+    public void Risk_policy_limit_grid_displays_deployment_name_while_preserving_exact_reference()
     {
         using var form = new PortfolioRiskPolicyForm(
             Portfolio(), Substitute.For<IPortfolioQueryApi>(), Substitute.For<IPortfolioIdentityApi>(),
             Substitute.For<IPortfolioFinancialPolicyCommandApi>(), Substitute.For<IReferenceQueryApi>(), true);
         SetField(form, "_catalog", new[]
         {
-            TradeStrategyFamilySeed.Definitions[1].Create(2, DateTime.UtcNow, "test"),
+            Deployment(),
         });
         var policy = new PortfolioFinancialPolicyReadModel
         {
             PortfolioId = 7001, PolicyId = 9001, PolicyVersion = 1, Name = "Limits",
             OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD",
-            TradeFamilyLimits = [new() { TradeStrategyFamilyId = 2, DefinitionVersion = 1 }],
+            TradeFamilyLimits = [new() { CatalogDeployment = Deployment().Key }],
             EffectiveFromUtc = DateTime.UtcNow, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test",
         };
 
@@ -218,9 +219,9 @@ public sealed class PortfolioAdministrationUiSystemTests
         var column = grid.Columns[nameof(TradeFamilyRiskLimitReadModel.TradeStrategyFamilyId)];
         var cell = grid.Rows[0].Cells[column.Index];
 
-        column.HeaderText.Should().Be("Trade Family");
+        column.HeaderText.Should().Be("Strategy deployment");
         cell.FormattedValue.Should().Be("Weekly ES futures option vertical spread");
-        cell.Value.Should().Be(2, "the immutable policy contract still stores the reference identity");
+        ((TradeFamilyRiskLimitReadModel)grid.Rows[0].DataBoundItem).CatalogDeployment.Should().Be(Deployment().Key);
     }
 
     [Fact]
@@ -259,7 +260,7 @@ public sealed class PortfolioAdministrationUiSystemTests
         var confirmations = 0;
         using var form = new PortfolioRiskPolicyForm(Portfolio(), queries, identities, commands,
             Substitute.For<IReferenceQueryApi>(), true, () => { confirmations++; return false; });
-        SetField(form, "_catalog", new[] { TradeStrategyFamilySeed.Definitions[0].Create(1, DateTime.UtcNow, "test") });
+        SetField(form, "_catalog", new[] { Deployment() });
 
         await InvokeAsync(form, "BeginNewPolicyAsync");
         Field<TextBox>(form, "_name").Text = "Operator limits";
@@ -271,7 +272,7 @@ public sealed class PortfolioAdministrationUiSystemTests
         Field<NumericUpDown>(form, "_notional").Value = 5_000_000;
         Field<NumericUpDown>(form, "_positions").Value = 100;
         Field<NumericUpDown>(form, "_drawdown").Value = 200_000;
-        Field<DataGridView>(form, "_families").DataSource = new[] { new TradeFamilyRiskLimitReadModel { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 } };
+        Field<DataGridView>(form, "_families").DataSource = new[] { new TradeFamilyRiskLimitReadModel { CatalogDeployment = Deployment().Key, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 } };
         form.HasUnsavedChanges.Should().BeTrue();
 
         var closing = new FormClosingEventArgs(CloseReason.UserClosing, false);
@@ -285,6 +286,11 @@ public sealed class PortfolioAdministrationUiSystemTests
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         form.HasUnsavedChanges.Should().BeFalse();
     }
+
+    static StrategyDeploymentChoice Deployment() => new(
+        new(StrategyCatalogKind.Deployment, Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"), 1),
+        "WeeklyES", "Weekly ES futures option vertical spread", CatalogLifecycleStatus.Published,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly, [], [], [], []);
 
     static PortfolioReadModel Portfolio() => new()
     {

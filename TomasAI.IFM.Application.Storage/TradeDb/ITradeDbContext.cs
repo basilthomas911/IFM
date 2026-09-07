@@ -2,7 +2,7 @@
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
-public interface ITradeDbContext: IObjectRepository<TradeDbContext>, ITradeDbReadContext, ITradeDbWriteContext
+public partial interface ITradeDbContext: IObjectRepository<TradeDbContext>, ITradeDbReadContext, ITradeDbWriteContext
 {
     ITradeDbReadContext DbReader { get; }
     ITradeDbWriteContext DbWriter { get; }

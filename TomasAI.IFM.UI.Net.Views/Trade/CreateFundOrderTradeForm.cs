@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTradeForm>, IFormControl
+public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFundOrderTradeForm>, IFormControl
 {
     TradeOrderEditorViewModel? _viewModel;
     FundOrderTradeReadModel? _fundOrderTrade;

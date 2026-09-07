@@ -17,7 +17,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, ITradeOrderControl
+public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormControl, ITradeOrderControl
 {
     readonly TradeOrderEditorForm _parentControl;
     readonly IronCondorTradeOrderViewModel _viewModel;
@@ -45,7 +45,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         InitializeComponent();
         // Normalize before measuring: the host must not shrink a revealed 12-point layout.
         TradeOrderTypography.Apply(this);
-        ApplyInputPalette(this);
+        TradeOrderInputPalette.Apply(this);
         ConfigureResponsiveLegLayout();
         _parentControl = parentControl ?? throw new ArgumentNullException(nameof(parentControl));
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
@@ -91,54 +91,13 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         }
     }
 
-    static void ApplyInputPalette(Control root)
-    {
-        foreach (var control in ControlsAndSelf(root))
-        {
-            switch (control)
-            {
-                case TextBox textBox:
-                    ApplyBlackInputPalette(textBox);
-                    break;
-                case ComboBox comboBox:
-                    ApplyBlackInputPalette(comboBox);
-                    TradeOrderInputPalette.Apply(comboBox);
-                    break;
-                case NumericUpDown numericUpDown:
-                    ApplyBlackInputPalette(numericUpDown);
-                    break;
-                case DateTimePicker dateTimePicker:
-                    ApplyBlackInputPalette(dateTimePicker);
-                    dateTimePicker.CalendarForeColor = Color.White;
-                    dateTimePicker.CalendarMonthBackground = Color.Black;
-                    dateTimePicker.CalendarTitleBackColor = Color.Black;
-                    dateTimePicker.CalendarTitleForeColor = Color.White;
-                    dateTimePicker.CalendarTrailingForeColor = Color.Gray;
-                    break;
-            }
-        }
-
-        static void ApplyBlackInputPalette(Control control)
-        {
-            control.BackColor = Color.Black;
-            control.ForeColor = Color.White;
-        }
-
-        static IEnumerable<Control> ControlsAndSelf(Control parent)
-        {
-            yield return parent;
-            foreach (Control child in parent.Controls)
-            foreach (var descendant in ControlsAndSelf(child))
-                yield return descendant;
-        }
-    }
-
     static void DrawBlackComboBoxItem(object? sender, DrawItemEventArgs e)
         => TradeOrderInputPalette.DrawBlackComboBoxItem(sender, e);
 
     void ConfigureResponsiveLegLayout()
     {
         ConfigureCompactVerticalLayout();
+        ConfigureOrderInputLayout();
         pnlTradeStrategy.Dock = DockStyle.Top;
         foreach (ColumnStyle column in pnlTradeStrategy.ColumnStyles)
         {
@@ -166,6 +125,38 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         ConfigureSplitValues(panel3, txtLeg3ExpectedOTMProbability, txtLeg3ActualOTMProbability);
         ConfigureSplitValues(panel9, txtLeg1MaxLossLimit, txtLeg1MinProfitLimit);
         ConfigureSplitValues(panel10, txtLeg3MaxLossLimit, txtLeg3MinProfitLimit);
+    }
+
+    void ConfigureOrderInputLayout()
+    {
+        // Fixed designer X coordinates can put Asset Price outside a narrower host.
+        var row = new TableLayoutPanel
+        {
+            Name = "orderInputs", Location = new Point(0, ddlOrderType.Top),
+            Size = new Size(ClientSize.Width, 32), ColumnCount = 11, RowCount = 1,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+            Margin = Padding.Empty, Padding = Padding.Empty
+        };
+        row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Control[] controls = [lblOrderType, ddlOrderType, lblQuantity, nudQuantity,
+            lblPrice, ddlPrice, btnBid, btnMid, btnAsk, lblAssetPrice, txtAssetPrice];
+        for (var index = 0; index < controls.Length; index++)
+        {
+            var control = controls[index];
+            row.ColumnStyles.Add(index switch
+            {
+                1 or 5 => new ColumnStyle(SizeType.Percent, 30),
+                3 => new ColumnStyle(SizeType.Percent, 15),
+                10 => new ColumnStyle(SizeType.Percent, 25),
+                6 or 7 or 8 => new ColumnStyle(SizeType.Absolute, 52),
+                _ => new ColumnStyle(SizeType.AutoSize)
+            });
+            control.Dock = DockStyle.None;
+            control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            if (control is Label label) label.AutoSize = true;
+            row.Controls.Add(control, index, 0);
+        }
+        Controls.Add(row);
     }
 
     void ConfigureCompactVerticalLayout()

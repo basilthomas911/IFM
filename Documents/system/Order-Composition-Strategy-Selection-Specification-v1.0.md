@@ -1,12 +1,14 @@
 # Order Composition Strategy Selection Specification v1.0
 
+> **Strategy catalog direction (2026-09-06):** The target catalog separates trading logic from structure and variant. TradeSelection will supply exact strategy/deployment/structure/variant versions; Composer builds one unit using the required supported builder. Desired coverage includes Long/Short futures, all four credit/debit verticals and Long/Short iron condors with independent Balanced/Bullish/Bearish bias. Existing three-profile algorithms below are a limited baseline, not complete support for these variants. Leg count and expiry constraints are per structure; Jade Lizards and double calendars require explicit builder/data/risk capabilities. TradeSelection implementation is on hold; no algorithms are changed by this document update. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
 | Item | Value |
 | --- | --- |
 | Specification ID | `OC-SELECT-v1` |
 | Date | 2026-09-05 |
 | Status | Requested policy design; proposed financial profiles for review; not live-authorized or implemented by this document |
 | Scope | ES monthly four-leg iron condor, weekly two-leg vertical, daily one-leg outright futures |
-| Authorities | [TradeSelection design](TradeSelection-High-Level-Design-v0.1.md), [Portfolio/Fund design](Portfolio-Fund-High-Level-Design-v0.1.md) |
+| Authorities | [TradeSelection design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-High-Level-Design-v0.1.md), [Portfolio/Fund design](Portfolio-Fund-High-Level-Design-v0.1.md) |
 | Dependencies | [Stage 4 pricing](Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md), [Stage 4 implementation plan](Market-Data-Resiliency-Stage-4-Implementation-Plan-v1.0.md), [approved ownership mappings](Stage4-Durable-Pricing-Dependency-Decisions.md) |
 | Construction/sizing authority | [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md): Composer constructs one unit for the selected family; Portfolio Risk Manager determines final units and reserves risk |
 
@@ -23,7 +25,8 @@ The existing workflow design separates these responsibilities:
 
 | Stage/authority | Responsibility |
 | --- | --- |
-| MarketCondition | Accepted, expiring market condition and direction/bias |
+| RegimeDiscovery | Accepted market direction/phase and regime evidence for the triggering horizon |
+| MarketCondition | Accepted, expiring market-only assessment for that horizon; no strategy-family or variant selection |
 | TradeSelection | Select/validate the Fund-assigned versioned template and composition-policy reference |
 | OrderComposition | Build one complete unit: exact contracts, expiry, strikes, leg ratios, candidate prices and per-unit economics |
 | Portfolio / RiskManagement | Issue construction constraints; determine final strategy-unit quantity using current limits/capacity; independently validate and atomically reserve/approve risk |

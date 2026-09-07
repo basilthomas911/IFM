@@ -31,7 +31,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
-public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMAppLiveViewAdapter
+public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormControl, IIFMAppLiveViewAdapter
 {
     static readonly TimeSpan PresentationShutdownTimeout = TimeSpan.FromSeconds(10);
     const double DefaultSidePanelWidthRatio = 0.22;
@@ -77,6 +77,9 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             ToolTipText = "Read central pipeline and dataset-worker health independently of UI market updates."
         };
         operationsHealth.Click += (_, _) => _navigator.ShowModal<MarketDataOperationsHealthForm>();
+        var strategyObservation = new ToolStripButton("Strategy observation") { Name="strategyObservationButton",DisplayStyle=ToolStripItemDisplayStyle.Text };
+        strategyObservation.Click += (_, _) => _navigator.ShowModal<TomasAI.IFM.UI.Net.Views.Strategy.StrategyObservationForm>();
+        toolStrip1.Items.Add(strategyObservation);
         toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(marketDataFeedHealthIndicator) + 1, operationsHealth);
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
@@ -230,9 +233,6 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.MarketDataFeedHealthState):
                 RenderMarketDataFeedState();
                 break;
-            case nameof(IFMAppViewModel.IsSystemOnlyNavigation):
-                RenderMenuState();
-                break;
             case nameof(IFMAppViewModel.StatusLine):
                 RenderStatusLine();
                 break;
@@ -287,14 +287,13 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 
     private void RenderMenuState()
     {
-        // Navigation is an application-shell capability. Only the live feed action below is
-        // conditional on trading-session/market-data readiness.
-        var generalNavigationEnabled = !_viewModel.IsSystemOnlyNavigation;
-        tradeButton.Enabled = generalNavigationEnabled;
-        marketDataButton.Enabled = generalNavigationEnabled;
-        fundButton.Enabled = generalNavigationEnabled;
-        portfolioButton.Enabled = generalNavigationEnabled;
-        referenceButton.Enabled = generalNavigationEnabled;
+        // Keep screens accessible during feed outages and outside trading hours.
+        // Feed commands and order actions enforce their own availability rules.
+        tradeButton.Enabled = true;
+        marketDataButton.Enabled = true;
+        fundButton.Enabled = true;
+        portfolioButton.Enabled = true;
+        referenceButton.Enabled = true;
         systemAdminButton.Enabled = true;
         RenderMarketDataFeedState();
     }
@@ -307,7 +306,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         marketDataFeedButton.ToolTipText = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.Enabled = _viewModel.CanToggleMarketDataFeed;
         (marketDataFeedButton.BackColor, marketDataFeedButton.ForeColor) =
-            MarketDataFeedColors(_viewModel.IsMarketDataFeedActive);
+            MarketDataFeedColors(marketDataFeedButton.Enabled);
         marketDataFeedHealthIndicator.Text = _viewModel.MarketDataFeedHealthIndicatorText;
         marketDataFeedHealthIndicator.AccessibleName = _viewModel.MarketDataFeedHealthIndicatorText;
         marketDataFeedHealthIndicator.AccessibleDescription = _viewModel.MarketDataFeedStateText;
@@ -317,10 +316,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     }
 
     internal static (Color Background, Color Foreground) MarketDataFeedColors(
-        bool isMarketDataFeedActive)
-        => isMarketDataFeedActive
-            ? (Color.Black, Color.Red)
-            : (Color.Black, Color.LimeGreen);
+        bool enabled)
+        => (Color.Black, DarkTradingTheme.ButtonTextColor(enabled));
 
     internal static (Color Background, Color Foreground) MarketDataFeedHealthColors(
         MarketDataFeedHealthState state)
@@ -612,7 +609,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                 _appRoot.Services.PortfolioFundCommands,
                 _appRoot.Services.PortfolioIdentities,
                 _appRoot.Services.PortfolioPolicyCommands,
-                _appRoot.Services.ReferenceQueries));
+                _appRoot.Services.ReferenceQueries,
+                fundQueries: _appRoot.Services.FundQueries));
     }
 
     private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)

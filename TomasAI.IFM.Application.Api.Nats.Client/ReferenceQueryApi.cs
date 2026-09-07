@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -15,6 +16,21 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceQueryApi
 {
+    public Task<ServiceResult<LookupDefinitionReadModel[]>> GetLookupDefinitionsAsync(string groupName, CancellationToken cancellationToken = default)
+    {
+        var query = new GetLookupDefinitionsQuery { GroupName = groupName,
+            Subject = new ActorSubject(ActorType.Query, GetLookupDefinitionsQuery.Actor, GetLookupDefinitionsQuery.Verb, ActorEntityId.Default.Format()) };
+        return RequestAsync<GetLookupDefinitionsQuery, LookupDefinitionReadModel[]>(query.Subject, query, cancellationToken).AsTask();
+    }
+    public Task<ServiceResult<string>> QueryStrategyCatalogAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogQueryRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery
+        {
+            RequestJson = TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogJson.Write(request),
+            Subject = new ActorSubject(ActorType.Query, "ReferenceQuery", "StrategyCatalog", ActorEntityId.Default.Format())
+        };
+        return RequestAsync<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery, string>(query.Subject, query, cancellationToken).AsTask();
+    }
     public Task<ServiceResult<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
     {
         var query = new GetTradeStrategySymbolsQuery { Family = family, Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, ActorEntityId.Default.Format()) };

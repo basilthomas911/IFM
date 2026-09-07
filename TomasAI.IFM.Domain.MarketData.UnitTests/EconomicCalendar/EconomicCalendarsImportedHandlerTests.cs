@@ -49,6 +49,11 @@ public sealed class EconomicCalendarsImportedHandlerTests
         completed.Should().NotBeNull();
         completed!.EconomicCalendars.Should().ContainSingle();
         completed.CountryCodes.Should().Equal(" us ", "CA");
+        completed.DownloadOutcome!.Validate();
+        completed.DownloadOutcome.Scope.Should().Be("CA,US");
+        completed.DownloadOutcome.DownloadedRecordCount.Should().Be(1);
+        completed.DownloadOutcome.PersistedRecordCount.Should().Be(1);
+        completed.DownloadOutcome.ImportCommandId.Should().Be(request.CommandId);
         await context.DidNotReceiveWithAnyArgs()
             .SendAsync<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(default!);
     }
@@ -97,7 +102,10 @@ public sealed class EconomicCalendarsImportedHandlerTests
             Arg.Is<EconomicCalendarsImportedFailEvent>(value =>
                 value.CommandId == request.CommandId
                 && value.ImportedDate == request.ImportedDate
-                && value.CountryCodes.SequenceEqual(request.CountryCodes)));
+                && value.CountryCodes.SequenceEqual(request.CountryCodes)
+                && value.DownloadOutcome != null
+                && value.DownloadOutcome.DownloadedRecordCount == 1
+                && value.DownloadOutcome.PersistedRecordCount == null));
         await context.DidNotReceiveWithAnyArgs()
             .SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(default!);
     }

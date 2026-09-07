@@ -4,7 +4,7 @@ using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
-public sealed class PortfolioEditorForm : Form
+public sealed class PortfolioEditorForm : DarkTradingForm
 {
     readonly TextBox _id = PortfolioUiStyle.TextBox("Portfolio ID", true);
     readonly TextBox _name = PortfolioUiStyle.TextBox("Portfolio name");

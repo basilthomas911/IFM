@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 
 namespace TomasAI.IFM.Framework.Storage;
 
@@ -34,6 +34,11 @@ public interface IObjectRepositoryProvider
             .AsTask()
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
+
+    Task<QueryPage<TResult>> GetPageAsync<TResult>(IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> mapper, int pageSize, byte[]? pagingState,
+        CancellationToken cancellationToken)
+        => throw new NotSupportedException("This provider does not support explicit paging.");
 
     // query methods...
     IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(

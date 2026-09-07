@@ -2,7 +2,7 @@ using TomasAI.IFM.UI.Net.Services.Application;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemInfo;
 
-public partial class SystemWaitView : Form
+public partial class SystemWaitView : DarkTradingForm
 {
     readonly CommandResponseEventService _eventModel;
     readonly CancellationTokenSource _lifetimeCancellation = new();

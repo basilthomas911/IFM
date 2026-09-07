@@ -39,8 +39,8 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             panel1 = new Panel();
             lblMaturityDate = new Label();
             ddlTradeType = new ComboBox();
-            dtpTradeDate = new DateTimePicker();
-            dtpMaturityDate = new DateTimePicker();
+            dtpTradeDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
+            dtpMaturityDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             pnlTradeState = new Panel();
             lblTradeState = new Label();
             txtTradeState = new TextBox();

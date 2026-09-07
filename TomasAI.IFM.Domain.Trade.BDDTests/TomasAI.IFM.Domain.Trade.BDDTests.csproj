@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -32,4 +32,5 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+<ItemGroup><Compile Include="..\test-support\MarketAssessmentTestScenario.cs" Link="Support\MarketAssessmentTestScenario.cs" /></ItemGroup>
 </Project>

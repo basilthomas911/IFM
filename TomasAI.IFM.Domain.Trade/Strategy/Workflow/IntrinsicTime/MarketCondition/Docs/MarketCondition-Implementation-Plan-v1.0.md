@@ -1,13 +1,51 @@
 # Market Condition Implementation Plan v1.0
 
+> **Strategy catalog direction (2026-09-06):** Reusable strategy-family/structure/variant definitions are planned in ConfigurationDb and are downstream TradeSelection concerns. Current MarketCondition remains market-only for the single ITI-triggering Daily, Weekly or Monthly horizon. Historical family hints and family-scoped rules in superseded designs do not return to the assessment path. Recorded gate evidence is unchanged and does not qualify the new catalog. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+
+> Historical design only. The earlier Market Condition executable implementation was removed on 2026-09-06. See [assessment-only design v0.4](MarketCondition-High-Level-Design-v0.4.md) for current behavior.
+
+
+> **Superseded on 2026-09-05 by [Implementation Plan v2.0](MarketCondition-Implementation-Plan-v2.0.md).**
+> MC-00 through MC-22 and the PDR records below are historical qualification of
+> legacy behavior. They do not qualify the revised descriptive assessment, which has a
+> separate MC-R00 through MC-R09 migration plan with every gate still Planned.
+> Preserve these records and old persisted contracts; use v2.0 for new work.
+
 | Item | Value |
 |---|---|
-| Status | Implemented and qualified; MC-00 through MC-22 complete |
+| Status | MC-00 through MC-22 core implementation qualified; 2026-09-05 broker-boundary alignment pending |
 | Created | 2026-08-28 |
 | Source design | `MarketCondition-High-Level-Design-v0.1.md` |
 | Authoritative specification | `MarketCondition-Specification-v1.0.md` |
 | Architecture reference | `Regime-Discovery-Implementation-v1.0.md` and the system FunctionActor conventions |
 | Implementation target | .NET 10 / C# actor-based Intrinsic Time Strategy Workflow |
+
+## Broker sequencing amendment — 2026-09-05
+
+Actual IBKR connectivity is not implemented. Implement the **IBKR emulator
+first**, using the shared broker order-execution and account contracts; actual
+IBKR adapters and connection qualification follow later.
+
+The MC-00 through MC-22 results below are historical qualification of the
+implemented core and its then-current placeholder gate. They do not qualify
+an IBKR connection, an emulator, or the revised broker boundary.
+
+Pending follow-up work:
+
+1. Remove broker readiness as a Market Condition requirement while preserving
+   market-data feed/cache, freshness, session, and liquidity checks.
+2. Update the operational-health adapter, host registration, tests, and new
+   immutable parameter-set versions so `IbkrSession` no longer blocks market
+   analysis. Do not mark the placeholder healthy or rewrite published versions.
+3. Implement readiness at the execution boundary for the selected emulator
+   before any simulated order submission; later use the actual IBKR adapter
+   through the same contracts.
+4. Verify that market evaluation can run without an actual broker connection,
+   and that unavailable emulator/broker execution still prevents submission.
+
+This amendment updates documentation only. Current runtime behavior still
+uses `UnavailableMarketConditionBrokerReadiness` and the default
+`IbkrSession` requirement.
 
 ## 1. Objective
 
@@ -693,8 +731,14 @@ production-enabled while any gate is Partial or Blocked.
 
 MC-00 through MC-22 are closed. `TomasAI.IFM.Application.Api.Server` enables the qualified live ITI-trigger route,
 while test hosts remain disabled unless a scenario opts in. This is controlled workflow enablement, not trading
-authority: the registered IBKR readiness source deliberately remains fail-closed until a real broker connection
-authority replaces it, and later trade-selection/order stages retain their own independent safety boundaries.
+authority: the registered IBKR readiness source is an unavailable placeholder,
+not an implemented broker connection. The 2026-09-05 amendment supersedes the
+earlier plan to connect this Market Condition gate directly to IBKR. The next
+broker implementation is the IBKR emulator, with readiness checked at order
+execution; actual IBKR connectivity follows later. Until that separate
+code/configuration work is completed, the current placeholder gate remains
+unchanged. Later trade-selection/order stages retain their own independent
+safety boundaries.
 ## PDR-01 through PDR-08 decision-reference amendment
 
 Market Condition now supports the shared Pipeline Decision Reference design. Its Query actor handles

@@ -111,4 +111,9 @@ public sealed record MarketConditionResult
         get => _outputHints is null ? [] : [.. _outputHints];
         init => _outputHints = value is null ? null : [.. value];
     }
+    /// <summary>Retains the captured import evidence through completion, projection and restart.</summary>
+    [Key(35)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public MarketConditionCalendarDownloadEvidence? CalendarDownloadEvidence { get; init; }
 }

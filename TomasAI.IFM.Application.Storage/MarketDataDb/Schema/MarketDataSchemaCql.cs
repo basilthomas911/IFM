@@ -2,6 +2,31 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateMarketDataDownloadLogTable = """
+CREATE TABLE IF NOT EXISTS market_data_download_log (
+    dataset text,
+    provider text,
+    scope text,
+    value_date date,
+    requested_at_utc timestamp,
+    import_command_id uuid,
+    log_command_id uuid,
+    source_terminal_event_id uuid,
+    schema_version smallint,
+    status text,
+    started_at_utc timestamp,
+    finished_at_utc timestamp,
+    elapsed_milliseconds bigint,
+    downloaded_record_count bigint,
+    persisted_record_count bigint,
+    error_code text,
+    error_message text,
+    payload_sha256 text,
+    projected_at_utc timestamp,
+    PRIMARY KEY ((dataset, provider, scope, value_date), requested_at_utc, import_command_id)
+) WITH CLUSTERING ORDER BY (requested_at_utc DESC, import_command_id DESC);
+""";
+
     public const string CreateFuturesEodObservationTable = """
     CREATE TABLE IF NOT EXISTS futures_eod_observation (
         seriesKey text, yearMonth int, valueDate date, contractId text,

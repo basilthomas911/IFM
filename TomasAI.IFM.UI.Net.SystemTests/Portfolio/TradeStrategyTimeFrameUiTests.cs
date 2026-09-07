@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using System.Reflection;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -46,7 +47,7 @@ public sealed class TradeStrategyTimeFrameUiTests
     [Fact]
     public void Saving_mandate_uses_selected_enum_name_and_rejects_no_selection()
     {
-        using var form = new FundMandateEditorForm(1, 2, catalog: [TradeStrategyFamilySeed.Definitions[1].Create(71, DateTime.UtcNow, "test")]);
+        using var form = new FundMandateEditorForm(1, 2, catalog: [new StrategyDeploymentChoice(new(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1), "Weekly-ES", "Weekly ES", CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(71, "ES", "XCME", "USD")], ["FuturesOption"], [], [])]);
         ((CheckedListBox)Field(form, "_families")).SetItemChecked(0, true);
         foreach (var (field, text) in new[] { ("_code", "weekly"), ("_name", "Weekly Fund"), ("_objective", "Test"),
                      ("_underlyings", "ES"), ("_assets", "FuturesOptions"), ("_directions", "Bullish"), ("_conditions", "Directional") })

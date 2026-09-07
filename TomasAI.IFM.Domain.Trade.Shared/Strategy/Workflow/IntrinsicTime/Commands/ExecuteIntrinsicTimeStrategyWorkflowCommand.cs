@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -53,6 +54,8 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
     [Key(15)] public int FundId { get; init; }
     [Key(16)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
     [Key(17)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(18)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
+
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(ExecuteIntrinsicTimeStrategyWorkflowCommand);
@@ -106,7 +109,7 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
         string regimeDiscoveryParameterPayloadSha256,
         int fundId = 0,
         MarketConditionParameterSet? marketConditionParameterSet = null,
-        string marketConditionParameterPayloadSha256 = "")
+        string marketConditionParameterPayloadSha256 = "", MarketConditionAssessmentBinding? assessmentBinding = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -126,5 +129,6 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
         FundId = fundId;
         MarketConditionParameterSet = marketConditionParameterSet ?? new();
         MarketConditionParameterPayloadSha256 = marketConditionParameterPayloadSha256 ?? string.Empty;
+        AssessmentBinding = assessmentBinding;
     }
 }

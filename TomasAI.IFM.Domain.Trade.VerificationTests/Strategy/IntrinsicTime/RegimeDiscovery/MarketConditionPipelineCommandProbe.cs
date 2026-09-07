@@ -16,12 +16,12 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.Regi
 /// <summary>Observes the committed revision that is the sole authority for Market Condition Function dispatch.</summary>
 public sealed class MarketConditionPipelineCommandProbe(IServiceProvider services)
 {
-    readonly ConcurrentDictionary<string, ExecuteMarketConditionPipelineCommand> _commands = new();
+    readonly ConcurrentDictionary<string, ExecuteMarketConditionAssessmentCommand> _commands = new();
 
     public int Count(IntrinsicTimeStrategyWorkflowEntityId entityId)
         => _commands.ContainsKey(entityId.Format()) ? 1 : 0;
 
-    public async Task<ExecuteMarketConditionPipelineCommand> WaitAsync(
+    public async Task<ExecuteMarketConditionAssessmentCommand> WaitAsync(
         IntrinsicTimeStrategyWorkflowEntityId entityId,
         TimeSpan timeout)
     {
@@ -41,12 +41,12 @@ public sealed class MarketConditionPipelineCommandProbe(IServiceProvider service
                     WorkflowRevision = view.WorkflowRevision,
                     State = view
                 };
-                var executionId = MarketConditionExecutionEntityId.Create(view.EntityId, view.WorkflowId);
-                var command = new ExecuteMarketConditionPipelineCommand
+                var executionId = new MarketConditionAssessmentExecutionId(view.EntityId, view.WorkflowId);
+                var command = new ExecuteMarketConditionAssessmentCommand
                 {
                     CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Function, ExecuteMarketConditionPipelineCommand.Actor,
-                        ExecuteMarketConditionPipelineCommand.Verb, executionId.Format()),
+                    Subject = new ActorSubject(ActorType.Function, ExecuteMarketConditionAssessmentCommand.Actor,
+                        ExecuteMarketConditionAssessmentCommand.Verb, executionId.Format()),
                     EntityId = executionId,
                     InputWorkflowRevision = view.WorkflowRevision,
                     WorkflowView = view,
@@ -55,11 +55,13 @@ public sealed class MarketConditionPipelineCommandProbe(IServiceProvider service
                     CausationId = snapshot.Id,
                     RequestedAtUtc = view.UpdatedAtUtc,
                     ExpiresAtUtc = view.ExpiresAtUtc,
-                    ParameterSet = view.MarketConditionParameterSet,
-                    ParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
+                    ParameterSet = view.AssessmentBinding!.Parameters,
+                    ParameterPayloadSha256 = view.AssessmentBinding!.PayloadSha256,
                     TargetHorizon = view.TriggerEvent.EntityId.TimePeriod,
-                    FundId = view.FundId,
-                    InstrumentRoot = view.MarketConditionParameterSet.InstrumentRoot
+                    InstrumentRoot = view.AssessmentBinding!.Parameters.InstrumentRoot,
+                    MarketProfileId = view.AssessmentBinding.Parameters.MarketProfileId,
+                    RegimeResultEnvelope = view.RegimeDiscovery.Result!,
+                    RegimePayloadSha256 = view.RegimeDiscovery.Result!.PayloadSha256
                 };
                 return _commands.GetOrAdd(entityId.Format(), command);
             }
