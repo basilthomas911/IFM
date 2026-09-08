@@ -37,7 +37,7 @@ public sealed class MarketConditionAlignmentTests
         var resultKey = typeof(MarketConditionAssessmentCompletedEvent).GetProperty(nameof(completed.Result))!.GetCustomAttribute<KeyAttribute>()!.IntKey!.Value;
         reader.ReadArrayHeader().Should().BeGreaterThan(resultKey);
         for (var i=0; i<resultKey; i++) reader.Skip();
-        reader.ReadArrayHeader().Should().Be(10);
+        reader.ReadArrayHeader().Should().Be(11);
         for (var i=0; i<4; i++) reader.Skip();
         reader.ReadBytes()!.Value.Length.Should().Be(0);
         for (var i=0; i<4; i++) reader.Skip();

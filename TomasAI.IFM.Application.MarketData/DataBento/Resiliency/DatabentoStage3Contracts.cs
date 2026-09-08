@@ -19,7 +19,7 @@ public sealed record DatabentoStage3Options
     public TimeSpan WorkerQualificationTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public int MaximumProcessReplacementsPerIncident { get; init; } = 3;
     public TimeSpan ProcessReplacementWindow { get; init; } = TimeSpan.FromMinutes(15);
-    public int ControlFrameMaximumBytes { get; init; } = 256 * 1024;
+    public int ControlFrameMaximumBytes { get; init; } = 1024 * 1024;
 
     public DatabentoStage3Options Validate()
     {
@@ -37,7 +37,7 @@ public sealed record DatabentoStage3Options
             || WorkerQualificationTimeout <= TimeSpan.Zero
             || MaximumProcessReplacementsPerIncident is < 1 or > 10
             || ProcessReplacementWindow <= TimeSpan.FromMinutes(2)
-            || ControlFrameMaximumBytes is < 4096 or > 256 * 1024)
+            || ControlFrameMaximumBytes is < 4096 or > 1024 * 1024)
             throw new InvalidOperationException("Databento Stage 3 resiliency options are invalid.");
         return this;
     }

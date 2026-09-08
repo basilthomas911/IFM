@@ -5,6 +5,11 @@ namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 
 public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve
 {
+    /// <inheritdoc/>
+    public TreasuryContinuousRateResult GetContinuouslyCompoundedAnnualRate(
+        TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy)
+        => ReferenceData.TreasuryRateConversion.Convert(snapshot, tenor, policy);
+
     private const string ProviderSource = "FinancialModelingPrep";
     private readonly FinancialModelingPrepOptions _options;
     private readonly FinancialModelingPrepHttpClient _client;
@@ -69,7 +74,6 @@ public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve
         DateOnly toInclusive,
         CancellationToken cancellationToken)
     {
-        var retrievedAtUtc = _timeProvider.GetUtcNow();
         var results = new Dictionary<DateOnly, TreasuryCurveSnapshot>();
 
         foreach (var chunk in FinancialModelingPrepProviderUtilities.ChunkRange(
@@ -86,6 +90,8 @@ public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve
             var providerRows = FinancialModelingPrepProviderUtilities.DeserializeArray<FinancialModelingPrepTreasuryRateDto>(
                 payload,
                 "Treasury-rate");
+            // Observation begins when the response is available, not when the HTTP request was started.
+            var retrievedAtUtc = _timeProvider.GetUtcNow();
 
             foreach (var providerRow in providerRows)
             {

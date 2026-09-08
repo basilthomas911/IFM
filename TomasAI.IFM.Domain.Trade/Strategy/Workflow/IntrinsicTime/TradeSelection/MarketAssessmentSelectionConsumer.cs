@@ -16,7 +16,7 @@ public sealed record AssessmentSelectionDecision(AssessmentSelectionCandidate[] 
 /// <summary>Selector-side suitability boundary. The caller supplies a frozen, versioned mandate and strategy candidates.</summary>
 public sealed class MarketAssessmentSelectionConsumer
 {
-    public static string MandateHash(FundMandateReadModel mandate) => Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(mandate.DefensiveCopy())));
+    public static string MandateHash(FundMandateReadModel mandate) => Convert.ToHexString(SHA256.HashData(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.SerializeHistoricalContent(mandate.DefensiveCopy())));
     public AssessmentSelectionDecision Select(StartTradeSelectionPipelineCommand command,FundMandateReadModel frozenMandate,
         string mandatePayloadSha256,IReadOnlyCollection<AssessmentSelectionCandidate> candidates,DateTime now)
     {

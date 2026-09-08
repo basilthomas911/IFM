@@ -86,9 +86,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             [StrategyWorkflowStage.MarketCondition] = ExecuteMarketConditionAsync,
             [StrategyWorkflowStage.TradeSelection] = ExecuteSelectionAsync,
             [StrategyWorkflowStage.OrderComposition] = static (context, snapshot) =>
-                ExecuteLaterPipelineAsync<StartOrderCompositionPipelineCommand>(
-                    context, snapshot, StartOrderCompositionPipelineCommand.Actor,
-                    StartOrderCompositionPipelineCommand.Verb, StartOrderCompositionPipelineCommand.ErrorId),
+                OrderComposer.Realtime.ExecuteOrderComposition.ExecuteAsync(snapshot, RequireEventContext(context)),
             [StrategyWorkflowStage.RiskManagement] = static (context, snapshot) =>
                 ExecuteLaterPipelineAsync<StartRiskManagementPipelineCommand>(
                     context, snapshot, StartRiskManagementPipelineCommand.Actor,

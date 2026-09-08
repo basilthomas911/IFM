@@ -13,7 +13,81 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 /// <summary>Real synthetic-native child processes, not mocked manifest acknowledgments.</summary>
 public sealed class DatasetWorkerManifestIntegrationTests
 {
-    static readonly DateOnly Date = new(2026, 9, 4);
+    [Fact]
+    public async Task Durable_runtime_restores_committed_future_after_worker_replacement_and_retains_it_across_rollover()
+    {
+        var desired = new DatasetDesiredSubscriptionRegistry(); var admissions = new DatasetWorkerAdmissionRegistry();
+        var store = Substitute.For<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore>();
+        var plans = Substitute.For<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore>();
+        var original = Registration("ES20261218", "GLBX.MDP3") with { OnTheRun = false, Rollover = false };
+        var plan = new TomasAI.IFM.Application.MarketData.Pricing.CompositionRoutePlan(1, "", "GLBX.MDP3", default, [],
+            [new(original.DomainContractId, "ES", "GLBX.MDP3", "XCME", "USD", DateTimeOffset.UtcNow.AddDays(40), 50, .25m, new('a', 64))],
+            [DatasetSubscriptionContract.FromRegistration(original)], null, null, null).Seal();
+        plans.ReadAsync(plan.PlanId, Arg.Any<CancellationToken>()).Returns(plan);
+        var lease = new TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableSubscriptionLease(Guid.NewGuid(), 1,
+            TomasAI.IFM.Application.MarketData.Contracts.SubscriptionLeasePurpose.Position,
+            new("Databento", "GLBX.MDP3", original.DomainContractId, "mbp-1", TomasAI.IFM.Application.MarketData.Contracts.SubscriptionAssetKind.Futures, PricingPlanId: plan.PlanId));
+        var authority = new TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableAuthorityState("position/test", 1, Guid.NewGuid(), new('a', 64),
+            new("TradePosition", "test", "all"), TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableAuthorityStatus.Active, "CommittedActive", [lease]);
+        var committed = new TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableSubscriptionSnapshot(1, "IFM", "GLBX.MDP3", 1, [authority]);
+        store.ReadAsync("IFM", "GLBX.MDP3", Arg.Any<CancellationToken>()).Returns(_ => committed);
+        store.ReadPendingOutboxAsync("IFM", "GLBX.MDP3", 100, Arg.Any<CancellationToken>()).Returns([]);
+        await using var recovery = new DatasetWorkerProcessRecoveryService(Options(), admissions, desiredSubscriptions: desired, durableIntent: store);
+        var manifest = desired.Set("GLBX.MDP3", Date, [original]);
+        var started = await recovery.StartOwnedAsync(Request(manifest));
+        await using var discovery = new TomasAI.IFM.Application.MarketData.Pricing.QualifiedCompositionDiscovery(
+            new(Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>()),
+            Substitute.For<TomasAI.IFM.Application.MarketData.Pricing.IOptionPricingContextProvider>(), recovery);
+        using var runtime = new TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime(store, plans, new(store), admissions,
+            desired, recovery, discovery, Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>>());
+        Assert.True((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
+        var reset = await recovery.ResetOwnedAsync(Reset(started), default);
+        Assert.True(reset.Succeeded, reset.Detail);
+        var restored = await runtime.ReconcileOnceAsync(default);
+        Assert.True(restored!.AllRoutesReady); Assert.NotEqual(started.GenerationId, restored.GenerationId);
+        desired.Set("GLBX.MDP3", Date, [Registration("ES20270319", "GLBX.MDP3")]);
+        Assert.False((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
+        Assert.True((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
+        Assert.True(desired.TryGet("GLBX.MDP3", Date, out var rolled));
+        Assert.Contains(rolled.Contracts, x => x.DomainContractId == original.DomainContractId && !x.OnTheRun);
+        committed = committed with { Revision = 2, Authorities = [authority with { SourceVersion = 2, SourceEventId = Guid.NewGuid(),
+            Status = TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableAuthorityStatus.Terminal, Leases = [] }] };
+        Assert.False((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
+        Assert.True((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
+        Assert.True(desired.TryGet("GLBX.MDP3", Date, out var terminal));
+        Assert.Equal("ES20270319", Assert.Single(terminal.Contracts).DomainContractId);
+        await runtime.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task Composition_api_rejects_synthetic_clock_quotes_and_replaced_worker_generation()
+    {
+        var desired = new DatasetDesiredSubscriptionRegistry();
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        await using var recovery = new DatasetWorkerProcessRecoveryService(Options(), admissions, desiredSubscriptions: desired);
+        var manifest = desired.Set("GLBX.MDP3", Date, [Registration("ES20261218", "GLBX.MDP3")]);
+        var started = await recovery.StartOwnedAsync(Request(manifest));
+        TomasAI.IFM.Application.MarketData.Pricing.ICompositionMarketDataApi api = recovery;
+        var at = DateTimeOffset.UtcNow;
+        var capture = new TomasAI.IFM.Application.MarketData.Pricing.CompositionSnapshotRequest(Guid.NewGuid(), "future-scope", "Daily",
+            started.GenerationId, default, at.AddSeconds(10), false, Futures:
+            [new("ES20261218", "ES", "GLBX.MDP3", "XCME", "USD", at.AddDays(30), 50, .25m, new string('a', 64))]);
+        TomasAI.IFM.Application.MarketData.Pricing.CompositionSnapshotResult result;
+        do
+        {
+            result = await api.CaptureAsync("GLBX.MDP3", capture, default);
+            if (result.Failure?.Code == "QuoteUnavailable") await Task.Delay(20);
+        } while (result.Failure?.Code == "QuoteUnavailable" && DateTimeOffset.UtcNow < capture.DeadlineUtc);
+        // Native SyntheticCi records deliberately use its performance clock, not Unix market event time.
+        // The actual process/API path must reject these for composition; do not relabel receipt time as event time.
+        Assert.Null(result.Snapshot);
+        Assert.Equal("StaleData", result.Failure!.Code);
+        var reset = await recovery.ResetOwnedAsync(Reset(started), default);
+        Assert.True(reset.Succeeded, reset.Detail);
+        await Assert.ThrowsAsync<TomasAI.IFM.Application.MarketData.Pricing.CompositionMarketSourceException>(() => api.CaptureAsync("GLBX.MDP3", capture, default));
+    }
+    // Keep the manifest epoch aligned with the native synthetic producer's current session.
+    static readonly DateOnly Date = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(DateTimeOffset.UtcNow);
 
     [Fact]
     public async Task Worker_applies_complete_revision_once_and_rejects_old_manifest()

@@ -10,13 +10,16 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Tra
 public sealed class TradeSelectionArchitectureTests
 {
     [Fact]
-    public void Function_and_query_maps_are_frozen_and_cover_exact_contract_sets()
+    public async Task Function_and_query_maps_are_frozen_and_cover_exact_contract_sets()
     {
         var function=typeof(TradeSelectionFunctionActor);
         function.BaseType!.Name.Should().StartWith("BaseEventSourceFunctionActor");
-        foreach(var name in new[]{"_parseMap","_validationMap","_receiveMap"})
+        foreach(var name in new[]{"_parseMap","_receiveMap","_eventMap"})
             Map(function,name).GetType().FullName.Should().Contain("Frozen");
-        Keys(function,"_parseMap").Should().Equal("Execute");Keys(function,"_validationMap").Should().Equal(typeof(ExecuteTradeSelectionPipelineCommand));Keys(function,"_receiveMap").Should().Equal(typeof(ExecuteTradeSelectionPipelineCommand));
+        Keys(function,"_parseMap").Should().Equal("Execute");Keys(function,"_receiveMap").Should().Equal(typeof(ExecuteTradeSelectionPipelineCommand));
+        var fixture = new TradeSelectionFunctionTests.FunctionFixture(await TradeSelectionFixture.Command());
+        var validation = function.GetField("_validationMap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(fixture.actor)!;
+        validation.GetType().FullName.Should().Contain("Frozen");
         Keys(typeof(TradeSelectionQueryActor),"_receiveMap").Should().BeEquivalentTo(Keys(typeof(TradeSelectionQueryActor),"_exceptionMap"));
     }
     [Fact]

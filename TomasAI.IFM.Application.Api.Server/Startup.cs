@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
@@ -490,6 +491,12 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.ITradeStrategySymbolStore, TradeStrategySymbolStore>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.IInstrumentDefinitionStore>(provider =>
                 provider.GetRequiredService<IDbContextFactory>().ReferenceDb.InstrumentDefinitions);
+            services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>(provider =>
+                provider.GetRequiredService<IDbContextFactory>().ReferenceDb.OptionPricingConventions);
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.EuropeanOptionUniverse>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.TreasuryPricingProvider>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IOptionPricingContextProvider,
+                TomasAI.IFM.Application.MarketData.Pricing.OptionPricingContextProvider>();
             services.AddTradeStrategySymbolCatalog();
             services.AddSingleton<ITradeStrategyFamilyCatalogStore, TradeStrategyFamilyCatalogStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
@@ -505,6 +512,16 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ConfigurationDbContext>() as IConfigurationDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!);
             services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore,
+                TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresDurableSubscriptionIntentStore>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.DurableSubscriptionDelivery>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessEventJournal,
+                TomasAI.IFM.Application.Storage.EventSourceDb.PostgresCommittedBusinessEventJournal>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessSubscriptionSource,
+                TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CommittedCompositionSubscriptionSource>();
+            services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore,
+                TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresCompositionRoutePlanStore>();
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
@@ -716,6 +733,19 @@ public static class Startup
             services.AddSingleton<DatasetWorkerAdmissionRegistry>();
             services.AddSingleton<DatasetPublicationIngress>();
             services.AddSingleton<DatasetWorkerProcessRecoveryService>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionMarketDataApi>(provider =>
+                provider.GetRequiredService<DatasetWorkerProcessRecoveryService>());
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionPreparationStore>(provider =>
+                new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(
+                    provider.GetRequiredService<IDbContextFactory>().MarketDataDb));
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.CompositionPreparationService>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.QualifiedCompositionDiscovery>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.CompositionMarketPreparation>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.IDurableCompositionReconciler>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>());
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionDiscoveryHandoff>();
+            services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>());
             services.AddSingleton<IDatabentoDatasetProcessRecovery>(provider =>
                 provider.GetRequiredService<DatasetWorkerProcessRecoveryService>());
             services.AddSingleton<MarketDataOperationsHealthService>();
@@ -825,6 +855,9 @@ public static class Startup
         _siContainer.AddRegistration<IMarketConditionFunctionContext>(
             _siContainer.GetCurrentRegistrations().Single(registration =>
                 registration.ServiceType == typeof(IFunctionActorContext<MarketConditionFunctionActor>)).Registration);
+        _siContainer.AddRegistration<ITradeSelectionFunctionContext>(
+            _siContainer.GetCurrentRegistrations().Single(registration =>
+                registration.ServiceType == typeof(IFunctionActorContext<TradeSelectionFunctionActor>)).Registration);
         _siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);

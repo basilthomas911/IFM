@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using MessagePack;
+using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
@@ -20,7 +22,13 @@ public enum DatasetWorkerMessageKind : byte
     StartAccepted = 13,
     ApplySubscriptionManifest = 14,
     SubscriptionManifestApplied = 15,
-    ManifestRejected = 16
+    ManifestRejected = 16,
+    AcquireOptionChain = 17,
+    ReleaseOptionChain = 18,
+    OptionChainResult = 19,
+    CaptureCompositionSnapshot = 20,
+    CompositionSnapshotResult = 21,
+    ApplyOptionChainOwnership = 22
 }
 
 [MessagePackObject]
@@ -44,6 +52,11 @@ public sealed record DatasetWorkerControlFrame
     [Key(14)] public long ManifestRevision { get; init; }
     [Key(15)] public string ManifestFingerprint { get; init; } = string.Empty;
     [Key(16)] public DatasetWorkerDiagnostics? Diagnostics { get; init; }
+    [Key(17)] public WorkerOptionChainRequest? OptionChain { get; init; }
+    [Key(18)] public WorkerOptionChainRelease? OptionChainRelease { get; init; }
+    [Key(19)] public WorkerOptionChainResult? OptionChainResult { get; init; }
+    [Key(20)] public CompositionSnapshotRequest? CompositionRequest { get; init; }
+    [Key(21)] public CompositionSnapshotResult? CompositionResult { get; init; }
 }
 
 public static class DatasetWorkerFrameCodec
@@ -55,7 +68,7 @@ public static class DatasetWorkerFrameCodec
         CancellationToken cancellationToken)
     {
         Validate(frame);
-        var payload = MessagePackSerializer.Serialize(frame);
+        var payload = MessagePackSerializer.Serialize(frame, MessagePackBinarySerializer.ContentOptions);
         if (payload.Length > maximumBytes)
             throw new InvalidDataException($"Worker control frame exceeds {maximumBytes} bytes.");
         var prefix = new byte[sizeof(int)];
@@ -78,7 +91,7 @@ public static class DatasetWorkerFrameCodec
         var payload = GC.AllocateUninitializedArray<byte>(length);
         await stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
         var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload,
-            MessagePackSerializerOptions.Standard.WithSecurity(MessagePackSecurity.UntrustedData))
+            MessagePackBinarySerializer.ContentOptions.WithSecurity(MessagePackSecurity.UntrustedData))
             ?? throw new InvalidDataException("Worker control frame is empty.");
         Validate(frame);
         return frame;
@@ -109,6 +122,20 @@ public static class DatasetWorkerFrameCodec
                 || manifest.Fingerprint != frame.ManifestFingerprint)
                 throw new InvalidDataException("Worker manifest identity does not match its control frame.");
         }
+        if (frame.OptionChain is { } chain && (chain.GenerationId != frame.GenerationId || chain.ValueDate != frame.ValueDate
+            || chain.Options.IsDefaultOrEmpty || chain.Options.Length > 512
+            || chain.Options.Any(x => x?.Pricing?.Contract?.Dataset != frame.Dataset)))
+            throw new InvalidDataException("Option chain scope does not match the worker identity.");
+        if (frame.CompositionRequest is { } capture && capture.GenerationId != frame.GenerationId
+            || frame.OptionChainRelease is { } release && release.GenerationId != frame.GenerationId)
+            throw new InvalidDataException("Option operation belongs to another generation.");
+        if (frame.Kind == DatasetWorkerMessageKind.AcquireOptionChain && frame.OptionChain is null
+            || frame.Kind == DatasetWorkerMessageKind.ReleaseOptionChain && (frame.OptionChainRelease is null || frame.OptionChainRelease.Ownership is not null)
+            || frame.Kind == DatasetWorkerMessageKind.ApplyOptionChainOwnership && (frame.OptionChainRelease?.Ownership is null || frame.OptionChainRelease.LeaseId != Guid.Empty)
+            || frame.Kind == DatasetWorkerMessageKind.OptionChainResult && frame.OptionChainResult is null
+            || frame.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot && frame.CompositionRequest is null
+            || frame.Kind == DatasetWorkerMessageKind.CompositionSnapshotResult && frame.CompositionResult is null)
+            throw new InvalidDataException("Option operation requires its typed payload.");
         if (frame.Diagnostics is { } diagnostics)
         {
             diagnostics.Validate();

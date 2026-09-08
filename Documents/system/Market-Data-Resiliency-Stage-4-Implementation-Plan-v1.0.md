@@ -5,18 +5,22 @@
 | Plan ID | `MDR-S4-IMP` |
 | Status | Owner-approved offline sequencing exception; disabled Stage 4 development in progress; full acceptance remains open |
 | Date | 2026-09-04 |
-| Scope | Resilient live option-chain and futures streaming with strategy/order/position-owned ticker leases; ES monthly iron condors, weekly vertical spreads and daily outright futures |
+| Scope | Resilient ES futures and verified European-style ES option-chain streaming with strategy/order/position-owned ticker leases; current catalog variants on one triggering Daily, Weekly or Monthly horizon |
 | Requirements authority | [Four-stage roadmap, section 8](Market-Data-Reliability-Three-Stage-Implementation-Plan-v1.0.md#8-stage-4--resilient-option-chain-streaming-and-strategy-owned-ticker-leases) (`OCR-01` through `OCR-07`) |
 | Recovery authority | [Stage 3 specification](Market-Data-Resiliency-Stage-3-Specification-v1.0.md) |
 | Current recovery evidence | [Stage 3 implementation record](Market-Data-Resiliency-Stage-3-Implementation-Record-v1.0.md) |
 | Execution evidence | [Stage 4 implementation record](Market-Data-Resiliency-Stage-4-Implementation-Record-v1.0.md) |
 | Pricing rules | [Stage 4 pricing specification](Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md): owner decisions recorded 2026-09-05; implementation/qualification pending |
-| Selection policies | [Order Composition selection specification](Order-Composition-Strategy-Selection-Specification-v1.0.md): owner requested active selection for all three profiles; financial profile proposals remain reviewable |
-| Unit construction | [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md): accepted selected strategy + construction policy + live market snapshot build one unit for each of the three families; Portfolio Risk Manager owns final sizing |
+| Selection and unit construction | [Current Order Composition specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Specification-v1.0.md): exact accepted catalog intent + policy + qualified market snapshot build one normalized unit; Portfolio Risk Manager owns final sizing |
+| Composition prerequisites | [Prerequisite implementation plan](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Prerequisite-Implementation-Plan-v1.0.md): OCP-00..07 maps pricing, metadata, ownership and snapshot work to existing Stage 4 gates |
 | Implementation prerequisite | Stage 3 acceptance for rollout; owner-approved exception `S4-EX-01` permits disabled implementation and offline tests before that acceptance |
 | Enablement | Disabled by default; synthetic qualification first; separate live/production approval |
 
 ## 1. What Stage 4 is specifically about
+
+**2026-09-08 implementation continuation:** the [OCP record](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Prerequisite-Implementation-Record-v1.0.md) records concrete committed workflow/option-order/option-position projection, per-event PostgreSQL receipts, persisted exact reconstruction plans, startup reconciliation, durable pricing-context refresh and selected-leg discovery-release receipts. Mapped workflow acceptance commits saved dispatch before sending. Real storage, controlled-feed pricing and supervised process-replacement tests provide distinct evidence. Approved clock synchronization and bounded native working-set reservations resolved the observed machine blockers; strict native DataBento live quotes passed. Full priced live recovery and reviewed production reference inputs remain unqualified. These additions do not close every S4G gate or remove existing enablement guards.
+
+**2026-09-07 authority alignment:** composition now follows the linked OrderComposer specification. The three named profiles below are historical examples, not a family-to-timeframe constraint: all twelve catalog variants may use any one triggering Daily/Weekly/Monthly horizon. Options must be verified European-style ES futures options; do not classify by root/horizon. The pricing specification governs non-interpolated daily Treasury rates, product-specific fractional time and Failed for missing/invalid required pricing inputs. Legacy composition policy/profile language in this plan is subordinate to those current documents. S4G-08 joint composer integration is downstream of defining the producer/consumer contracts; completing it is not a prerequisite to write the full composer implementation document. Existing Stage 3/4 operational acceptance and rollout guards are unchanged.
 
 Stage 3 replaces a failed dataset process. Stage 4 retains and reconstructs the live option chains,
 individual option/futures contracts and pricing dependencies that strategies and open positions need inside

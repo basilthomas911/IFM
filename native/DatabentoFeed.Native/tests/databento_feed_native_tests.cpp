@@ -9,6 +9,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
@@ -692,6 +693,19 @@ void test_process_wide_watchdog_snapshot_is_complete() {
 } // namespace
 
 int main() {
+#if defined(_WIN32)
+    // Explicit opt-in: a sandbox may strip the process working-set privilege.
+    if (GetEnvironmentVariableA("IFM_NATIVE_LOCK_QUALIFICATION", nullptr, 0) != 0) {
+        constexpr std::string_view dataset = "SYNTHETIC";
+        auto config = make_config(1, 8u << 20);
+        config.flags = DBF_CONFIG_LOCK_RING_MEMORY | DBF_CONFIG_REQUIRE_LOCKED_MEMORY;
+        std::array<dbf_feed_t*, 2> feeds{};
+        for (auto& feed : feeds) require(dbf_feed_create(&config,
+            reinterpret_cast<const std::uint8_t*>(dataset.data()), static_cast<std::uint32_t>(dataset.size()), &feed));
+        for (auto feed : feeds) require(dbf_feed_destroy(feed));
+        std::cout << "concurrent required ring locks passed" << std::endl;
+    }
+#endif
     std::cout << "test_layouts" << std::endl;
     test_layouts();
     std::cout << "test_publisher_mapping_selector_uses_scoped_instrument_identity" << std::endl;

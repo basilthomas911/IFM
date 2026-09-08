@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using System.Collections.Concurrent;
 using FluentAssertions;
 using MessagePack;
@@ -23,6 +24,8 @@ using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSe
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
 
@@ -43,6 +46,9 @@ public sealed partial class TradeSelectionRuntimeTests
         {
             var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
             container.RegisterInstance(projector);
+            container.RegisterSingleton<ICompositionPreparationStore>(() => new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(
+                container.GetInstance<IDbContextFactory>().MarketDataDb));
+            services.AddSingleton(_ => container.GetInstance<ICompositionPreparationStore>());
         });
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
@@ -63,8 +69,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 EntityId = c.WorkflowEntityId, WorkflowId = c.WorkflowId, InputWorkflowRevision = c.InputWorkflowRevision,
                 SourceEventId = result.ResultId, CorrelationId = c.CorrelationId, CausationId = result.ResultId,
                 CompletedAtUtc = DateTime.UtcNow,
-                Result = StrategyStageResultEnvelope.Create(result.ResultId, nameof(TradeSelectionResult), 1,
-                    MessagePackSerializer.Serialize(result), c.AssessmentResultEnvelope.MarketDataAsOfUtc, result.ProducedAtUtc)
+                Result = StrategyStageResultEnvelope.CreateSelection(result)
             };
             var seed = new WorkflowStrategyStateUpdatedEvent
             {
@@ -116,6 +121,25 @@ public sealed partial class TradeSelectionRuntimeTests
             var afterRestart = await repository.LoadStateAsync(callback);
             afterRestart.CurrentView!.CompositionHandoff!.Reservation!.Order.OrderId.Should().Be(scope + 1);
             probe.Commands.Should().BeEmpty("notification was withheld after durable reservation acceptance");
+            // Complete-empty market evidence exercises durable preparation without inventing live prices.
+            // A real composer evaluates this as NoCandidate; this probe tests only the saved dispatch boundary.
+            var preparations = factory.Services.GetRequiredService<ICompositionPreparationStore>();
+            var at = DateTimeOffset.UtcNow;
+            var marketRequest = new CompositionSnapshotRequest(Guid.NewGuid(), "complete-empty-test", reserved.State.TriggerEvent.EntityId.TimePeriod.ToString(),
+                Guid.NewGuid(), at, at.AddSeconds(5), false);
+            var marketSnapshot = new MarketCompositionSnapshot(1, marketRequest.SnapshotId, marketRequest.ScopeId, "complete-empty-v1", marketRequest.Horizon,
+                marketRequest.GenerationId, at, at.AddSeconds(5), [], "");
+            marketSnapshot = marketSnapshot with { Digest = PricingSemanticHash.Compute(marketSnapshot) };
+            var preparation = new CompositionPreparation(1, CompositionPreparationAcceptance.Key(reserved.State), "GLBX.MDP3",
+                marketRequest, marketSnapshot, at, "");
+            preparation = preparation with { Digest = PricingSemanticHash.Compute(preparation) };
+            await preparations.CommitAsync(preparation, default);
+            await Notify(producer, reserved);
+            var acceptedPreparation = await UntilSnapshot(snapshots, x => x.State.CompositionDispatch is not null);
+            probe.Commands.Should().BeEmpty("acceptance committed before its dispatch notification");
+            var persistedPreparation = await repository.LoadStateAsync(callback);
+            persistedPreparation.CurrentView!.CompositionDispatch!.MarketEvidence!.PreparationSha256.Should().Be(preparation.Digest);
+            reserved = acceptedPreparation;
             await Notify(producer, reserved);
             await probe.First.Task.WaitAsync(TimeSpan.FromSeconds(10));
             var start = probe.Commands.Values.Single();
@@ -129,7 +153,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 ExpectedStage = StrategyWorkflowStage.OrderComposition, RequestedAtUtc = DateTime.UtcNow, RequestedBy = "recovery"
             };
             await producer.SendAsync<RedispatchCurrentStrategyPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(redispatch.Subject, redispatch, redispatch.EntityId);
-            var replay = await UntilSnapshot(snapshots, x => x.Id != reserved.Id && x.State.CurrentStage == StrategyWorkflowStage.OrderComposition);
+            var replay = await UntilSnapshot(snapshots, x => x.CommandId == redispatch.CommandId && x.State.CurrentStage == StrategyWorkflowStage.OrderComposition);
             await Notify(producer, replay);
             await probe.Second.Task.WaitAsync(TimeSpan.FromSeconds(10));
             probe.Commands.Should().ContainSingle();

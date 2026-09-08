@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -645,6 +646,9 @@ public static class Startup
         siContainer.AddRegistration<IMarketConditionFunctionContext>(
             siContainer.GetCurrentRegistrations().Single(registration =>
                 registration.ServiceType == typeof(IFunctionActorContext<MarketConditionFunctionActor>)).Registration);
+        siContainer.AddRegistration<ITradeSelectionFunctionContext>(
+            siContainer.GetCurrentRegistrations().Single(registration =>
+                registration.ServiceType == typeof(IFunctionActorContext<TradeSelectionFunctionActor>)).Registration);
         siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);

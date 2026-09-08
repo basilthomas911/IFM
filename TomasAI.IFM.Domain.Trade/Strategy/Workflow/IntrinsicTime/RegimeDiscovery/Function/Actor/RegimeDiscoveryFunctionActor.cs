@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -39,7 +40,7 @@ public sealed class RegimeDiscoveryFunctionActor(
         {
             [ExecuteRegimeDiscoveryPipelineCommand.Verb] =
                 message => message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>()!
-        };
+        }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>>
         _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
@@ -62,7 +63,7 @@ public sealed class RegimeDiscoveryFunctionActor(
                     .ValidateRegimeDiscoveryTargetHorizon(request.TargetHorizon)
                     .ValidateRegimeDiscoveryConsistency(request);
             }
-        };
+        }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, Func<
         ExecuteRegimeDiscoveryPipelineCommand,
@@ -79,7 +80,7 @@ public sealed class RegimeDiscoveryFunctionActor(
         {
             [typeof(ExecuteRegimeDiscoveryPipelineCommand)] =
                 (request, context, dispatchEvent, cancellationToken) => request.ExecuteAsync(context, dispatchEvent, cancellationToken)
-        };
+        }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, TimeProvider,
         FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>> _eventMap =
@@ -88,7 +89,19 @@ public sealed class RegimeDiscoveryFunctionActor(
         {
             [typeof(RegimeDiscoveryPipelineCompletedEvent)] = (input, _) => input.Complete(),
             [typeof(RegimeDiscoveryPipelineFailedEvent)] = (input, clock) => input.Fail(clock)
-        };
+        }.ToFrozenDictionary();
+
+    static readonly IReadOnlyDictionary<Type, Func<ExecuteRegimeDiscoveryPipelineCommand, FunctionFailureStage,
+        IRegimeDiscoveryFunctionContext, FunctionExecutionPolicy>> _executionPolicyMap =
+        new Dictionary<Type, Func<ExecuteRegimeDiscoveryPipelineCommand, FunctionFailureStage,
+            IRegimeDiscoveryFunctionContext, FunctionExecutionPolicy>>
+        {
+            [typeof(ExecuteRegimeDiscoveryPipelineCommand)] = static (request, stage, context) => request.ResolveExecutionPolicy(stage, context)
+        }.ToFrozenDictionary();
+
+    /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
+    protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteRegimeDiscoveryPipelineCommand request, FunctionFailureStage stage)
+        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
 
     protected override ExecuteRegimeDiscoveryPipelineCommand ParseMessage(
         IFunctionActorContext<RegimeDiscoveryFunctionActor> context,

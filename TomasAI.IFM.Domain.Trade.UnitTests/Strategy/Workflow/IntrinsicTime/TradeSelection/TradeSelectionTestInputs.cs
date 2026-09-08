@@ -9,7 +9,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection;
 internal static class TradeSelectionTestInputs
 {
-    internal static StrategyStageResultEnvelope Envelope(TradeSelectionResult r)=>StrategyStageResultEnvelope.Create(r.ResultId,nameof(TradeSelectionResult),1,MessagePackSerializer.Serialize(r),r.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc,r.ProducedAtUtc);
+    internal static StrategyStageResultEnvelope Envelope(TradeSelectionResult r)=>StrategyStageResultEnvelope.CreateSelection(r);
     internal static ExecuteTradeSelectionPipelineCommand Bind(ExecuteTradeSelectionPipelineCommand c,TradeSelectionBinding b)
     {
         b=TradeSelectionContracts.Seal(b);

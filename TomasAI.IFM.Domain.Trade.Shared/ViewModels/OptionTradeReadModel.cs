@@ -162,6 +162,9 @@ public partial record OptionTradeReadModel
     [Key(20)]
     public TradeFillReadModel[]? TradeFills { get; private set; }
 
+    /// <summary>Exact reviewed market inputs transferred from composition; absent on legacy trades.</summary>
+    [Key(21)] public Strategy.Workflow.IntrinsicTime.Model.CompositionContractSelection? CompositionContracts { get; init; }
+
     /// <summary>
     /// Adds option legs to the trade.
     /// </summary>

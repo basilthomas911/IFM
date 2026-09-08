@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using System.Security.Cryptography;
@@ -9,7 +11,7 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
 /// <summary>
-/// Carries a versioned stage result: typed Regime Discovery or Market Condition content, or a legacy opaque payload.
+/// Carries a versioned stage result: typed Regime Discovery, Market Condition or Trade Selection content, or a legacy opaque payload.
 /// </summary>
 /// <remarks>
 /// The workflow validates and stores versioned result content without interpreting stage-specific decisions.
@@ -63,6 +65,51 @@ public sealed record StrategyStageResultEnvelope
         }
     }
 
+    [IgnoreMember, JsonIgnore] TradeSelectionResult? _selectionResult;
+    [IgnoreMember, JsonIgnore] (string Hash, int Size) _selectionFingerprint;
+    public const string TypedSelectionContentType = "application/vnd.ifm.trade-selection.v1";
+
+    /// <summary>Typed selector content at the appended wire key; legacy payload bytes remain empty.</summary>
+    [Key(10)]
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TradeSelectionResult? SelectionResult
+    {
+        get => _selectionResult?.CopyContent();
+        init
+        {
+            _selectionResult = value?.CopyContent();
+            _selectionFingerprint = _selectionResult?.ContentFingerprint() ?? default;
+        }
+    }
+
+    /// <summary>Creates a typed result with the frozen selector's uncompressed content budget.</summary>
+    public static StrategyStageResultEnvelope CreateSelection(TradeSelectionResult result, int maximumPayloadBytes = 262144)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.ResultId == Guid.Empty || result.SchemaVersion != 1 || maximumPayloadBytes is <= 0 or > 524288)
+            throw new ArgumentException("A versioned selection identity and supported content budget are required.");
+        var envelope = new StrategyStageResultEnvelope
+        {
+            ResultId = result.ResultId, ResultType = nameof(TradeSelectionResult), SchemaVersion = result.SchemaVersion,
+            ContentType = TypedSelectionContentType, SelectionResult = result,
+            MarketDataAsOfUtc = result.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc, ProducedAtUtc = result.ProducedAtUtc
+        };
+        if (envelope.ContentSize > maximumPayloadBytes)
+            throw new ArgumentOutOfRangeException(nameof(result), "Selection content exceeds its configured limit.");
+        return envelope with { PayloadSha256 = envelope._selectionFingerprint.Hash };
+    }
+
+    /// <summary>Reads typed selection content or historical MessagePack bytes after integrity checks.</summary>
+    public TradeSelectionResult ReadSelectionResult()
+    {
+        if (ResultType != nameof(TradeSelectionResult) || !HasValidPayloadSha256())
+            throw new ArgumentException("Invalid selection envelope.");
+        if (_selectionResult is not null) return SelectionResult!;
+        if (ContentType != "application/x-msgpack") throw new ArgumentException("Unsupported legacy selection encoding.");
+        return MessagePackBinarySerializer.Shared.Deserialize<TradeSelectionResult>(_payload)!;
+    }
+
     /// <summary>Creates a typed assessment envelope; transport and storage serialize the outer event.</summary>
     public static StrategyStageResultEnvelope CreateAssessment(MarketConditionAssessmentResult result)
     {
@@ -87,13 +134,13 @@ public sealed record StrategyStageResultEnvelope
             throw new ArgumentException("Invalid assessment result envelope.");
         if (_assessmentResult is not null) return AssessmentResult!;
         if (ContentType != "application/x-msgpack") throw new ArgumentException("Unsupported legacy assessment encoding.");
-        return MessagePackSerializer.Deserialize<MarketConditionAssessmentResult>(_payload);
+        return MessagePackBinarySerializer.Shared.Deserialize<MarketConditionAssessmentResult>(_payload)!;
     }
 
     /// <summary>Gets the canonical typed-content size or legacy encoded payload size used by the stage budget.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
-    /// <summary>Gets whether either supported result representation is populated.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _selectionResult is not null ? _selectionFingerprint.Size : _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
+    /// <summary>Gets whether a supported result representation is populated.</summary>
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
 
     /// <summary>Creates a typed Regime envelope without serializing an inner message payload.</summary>
     /// <param name="result">The result whose typed fields, metadata and fingerprint are carried by the outer message.</param>
@@ -123,7 +170,7 @@ public sealed record StrategyStageResultEnvelope
         if (_regimeResult is not null) return RegimeResult!;
         if (ContentType != "application/x-msgpack")
             throw new ArgumentException("Unsupported legacy Regime result encoding.");
-        return MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(_payload);
+        return MessagePackBinarySerializer.Shared.Deserialize<RegimeDiscoveryResult>(_payload)!;
     }
 
     /// <summary>Compares validated content and its envelope metadata without serializing either envelope.</summary>
@@ -238,6 +285,14 @@ public sealed record StrategyStageResultEnvelope
     {
         if (PayloadSha256 is not { Length: SHA256.HashSizeInBytes * 2 })
             return false;
+        if (_selectionResult is not null)
+        {
+            if (_regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType != TypedSelectionContentType ||
+                ResultType != nameof(TradeSelectionResult) || ResultId != _selectionResult.ResultId || SchemaVersion != _selectionResult.SchemaVersion ||
+                ProducedAtUtc != _selectionResult.ProducedAtUtc || MarketDataAsOfUtc != _selectionResult.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc)
+                return false;
+            return string.Equals(PayloadSha256, _selectionFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+        }
         if (_assessmentResult is not null)
         {
             if (_regimeResult is not null || _payload.Length != 0 || ContentType != TypedAssessmentContentType ||
@@ -254,7 +309,7 @@ public sealed record StrategyStageResultEnvelope
                 return false;
             return string.Equals(PayloadSha256, _regimeFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
-        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType) return false;
+        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType or TypedSelectionContentType) return false;
 
         try
         {

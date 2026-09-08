@@ -29,6 +29,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
+            [AcceptOrderCompositionPreparationCommand.Verb] = message => message.AsCommand<AcceptOrderCompositionPreparationCommand>()!,
             [ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb] =
                 message => message.AsCommand<ExecuteIntrinsicTimeStrategyWorkflowCommand>()!,
             [CompleteRegimeDiscoveryCommand.Verb] = message => message.AsCommand<CompleteRegimeDiscoveryCommand>()!,
@@ -54,6 +55,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
+            [typeof(AcceptOrderCompositionPreparationCommand)] = command =>
+            {
+                var typed = (AcceptOrderCompositionPreparationCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName).CaptureCommandValidation(() =>
+                    {
+                        if (typed.WorkflowId.Value == Guid.Empty || typed.InputWorkflowRevision < 1 || typed.Evidence is null
+                            || typed.Evidence.WorkflowId != typed.WorkflowId.Value || typed.Evidence.PreparationRevision != typed.InputWorkflowRevision)
+                            throw new ArgumentException("Exact preparation identity is required.");
+                    });
+            },
             [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = command =>
             {
                 var typed = (ExecuteIntrinsicTimeStrategyWorkflowCommand)command;
@@ -198,45 +210,47 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand,
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
-        IntrinsicTimeStrategyWorkflowCommandState, ServiceResult<GuidResult>>> _receiveMap =
+        IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand,
             ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
-            IntrinsicTimeStrategyWorkflowCommandState, ServiceResult<GuidResult>>>()
+            IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>>()
         {
+            [typeof(AcceptOrderCompositionPreparationCommand)] = static (command, context, state) =>
+                ((AcceptOrderCompositionPreparationCommand)command).ExecuteAsync(context, state),
             [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) =>
-                ((ExecuteIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state),
+                ValueTask.FromResult(((ExecuteIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state)),
             [typeof(CompleteRegimeDiscoveryCommand)] = static (command, context, state) =>
-                ((CompleteRegimeDiscoveryCommand)command).Execute(context, state),
+                ValueTask.FromResult(((CompleteRegimeDiscoveryCommand)command).Execute(context, state)),
             [typeof(CompleteMarketConditionCommand)] = static (command, context, state) =>
-                ((CompleteMarketConditionCommand)command).Execute(context, state),
-            [typeof(RedispatchCurrentStrategyPipelineCommand)] = static (command,context,state)=>((RedispatchCurrentStrategyPipelineCommand)command).Execute(context,state),
-            [typeof(CompleteTradeSelectionReservationCommand)] = static (command,context,state)=>((CompleteTradeSelectionReservationCommand)command).Execute(context,state),
+                ValueTask.FromResult(((CompleteMarketConditionCommand)command).Execute(context, state)),
+            [typeof(RedispatchCurrentStrategyPipelineCommand)] = static (command,context,state)=>ValueTask.FromResult(((RedispatchCurrentStrategyPipelineCommand)command).Execute(context,state)),
+            [typeof(CompleteTradeSelectionReservationCommand)] = static (command,context,state)=>ValueTask.FromResult(((CompleteTradeSelectionReservationCommand)command).Execute(context,state)),
             [typeof(CompleteTradeSelectionCommand)] = static (command, context, state) =>
-                ((CompleteTradeSelectionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((CompleteTradeSelectionCommand)command).Execute(context, state)),
             [typeof(CompleteOrderCompositionCommand)] = static (command, context, state) =>
-                ((CompleteOrderCompositionCommand)command).Execute(context, state),
+                ((CompleteOrderCompositionCommand)command).ExecutePreparedAsync(context, state),
             [typeof(CompleteRiskManagementCommand)] = static (command, context, state) =>
-                ((CompleteRiskManagementCommand)command).Execute(context, state),
+                ValueTask.FromResult(((CompleteRiskManagementCommand)command).Execute(context, state)),
             [typeof(FailRegimeDiscoveryCommand)] = static (command, context, state) =>
-                ((FailRegimeDiscoveryCommand)command).Execute(context, state),
+                ValueTask.FromResult(((FailRegimeDiscoveryCommand)command).Execute(context, state)),
             [typeof(FailMarketConditionCommand)] = static (command, context, state) =>
-                ((FailMarketConditionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((FailMarketConditionCommand)command).Execute(context, state)),
             [typeof(FailTradeSelectionCommand)] = static (command, context, state) =>
-                ((FailTradeSelectionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((FailTradeSelectionCommand)command).Execute(context, state)),
             [typeof(FailOrderCompositionCommand)] = static (command, context, state) =>
-                ((FailOrderCompositionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((FailOrderCompositionCommand)command).Execute(context, state)),
             [typeof(FailRiskManagementCommand)] = static (command, context, state) =>
-                ((FailRiskManagementCommand)command).Execute(context, state),
+                ValueTask.FromResult(((FailRiskManagementCommand)command).Execute(context, state)),
             [typeof(TimeoutMarketConditionCommand)] = static (command, context, state) =>
-                ((TimeoutMarketConditionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((TimeoutMarketConditionCommand)command).Execute(context, state)),
             [typeof(TimeoutTradeSelectionCommand)] = static (command, context, state) =>
-                ((TimeoutTradeSelectionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((TimeoutTradeSelectionCommand)command).Execute(context, state)),
             [typeof(TimeoutOrderCompositionCommand)] = static (command, context, state) =>
-                ((TimeoutOrderCompositionCommand)command).Execute(context, state),
+                ValueTask.FromResult(((TimeoutOrderCompositionCommand)command).Execute(context, state)),
             [typeof(TimeoutRiskManagementCommand)] = static (command, context, state) =>
-                ((TimeoutRiskManagementCommand)command).Execute(context, state),
+                ValueTask.FromResult(((TimeoutRiskManagementCommand)command).Execute(context, state)),
             [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) =>
-                ((CancelIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state)
+                ValueTask.FromResult(((CancelIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state))
         };
 
     /// <summary>Gets the workflow Command actor name.</summary>
@@ -302,7 +316,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         ArgumentNullException.ThrowIfNull(command);
         var state = (IntrinsicTimeStrategyWorkflowCommandState)actorState;
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
-        return ValueTask.FromResult(receive(command, context, state));
+        return receive(command, context, state);
     }
 
     /// <inheritdoc />

@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <param name="Outcome">Optional domain calculation outcome interpreted by the mapped handler.</param>
 /// <param name="Exception">The exception raised by the Function lifecycle, when applicable.</param>
 /// <param name="Stage">The lifecycle stage that failed.</param>
+/// <param name="Phase">Distinguishes outcome construction from committed/replayed completion observation.</param>
 /// <param name="IsConflict">Whether existing completed state conflicts with the incoming request.</param>
 public sealed record FunctionEventContext<TRequest>(
     Type EventType,
@@ -16,5 +17,14 @@ public sealed record FunctionEventContext<TRequest>(
     object? Outcome = null,
     Exception? Exception = null,
     FunctionFailureStage Stage = FunctionFailureStage.Unknown,
-    bool IsConflict = false)
+    bool IsConflict = false,
+    FunctionEventPhase Phase = FunctionEventPhase.Outcome)
     where TRequest : class, ICommand;
+
+/// <summary>Local lifecycle meaning of a Function event-map callback; never serialized on the wire.</summary>
+public enum FunctionEventPhase : byte
+{
+    Outcome,
+    Committed,
+    Replayed
+}

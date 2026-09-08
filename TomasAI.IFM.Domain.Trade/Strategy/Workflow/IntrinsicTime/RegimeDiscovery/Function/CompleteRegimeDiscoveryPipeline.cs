@@ -19,6 +19,8 @@ public static class CompleteRegimeDiscoveryPipeline
     {
         ArgumentNullException.ThrowIfNull(input);
         var command = input.Request ?? throw new InvalidOperationException("Completion requires a decoded request.");
+        if (input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed && input.Outcome is RegimeDiscoveryPipelineCompletedEvent committed)
+            return FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>.Complete(committed);
         var outcome = input.Outcome as RegimeDiscoveryExecutionCompleted
             ?? throw new InvalidOperationException("Completion requires a successful Regime Discovery outcome.");
         var completed = new RegimeDiscoveryPipelineCompletedEvent

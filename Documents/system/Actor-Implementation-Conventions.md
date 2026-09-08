@@ -1102,7 +1102,7 @@ parity.
 
 ### 13.3 FunctionActor convention
 
-**2026-09-07 alignment:** Market Condition and Trade Selection use the shared `BaseEventSourceFunctionActor`. Function actors use the mapped conventions below; Regime Discovery and Market Condition implement the terminal `_eventMap` described here. A custom `IFunctionActor` host that duplicates the lifecycle does not satisfy this convention. Stage-specific load/projection/persistence hooks may preserve deadlines; they must not reorder the lifecycle or add Function event publication.
+**2026-09-07 alignment:** Market Condition and Trade Selection use the shared `BaseEventSourceFunctionActor`. Function actors use the mapped conventions below; Regime Discovery, Market Condition and Trade Selection implement the terminal `_eventMap` described here. A custom `IFunctionActor` host that duplicates the lifecycle does not satisfy this convention. Actor-specific execution policy is selected through `_executionPolicyMap`; actors must not calculate deadlines or construct lifecycle callback contexts in overrides. The base owns lifecycle enforcement and never publishes Function events.
 
 A FunctionActor executes bounded calculation work as one Core NATS request/reply operation. Its
 request is an ordinary `ICommand<TEntityId>`, but its subject uses `ActorType.Function`. The typed
@@ -1132,7 +1132,7 @@ it must not construct events or contain domain failure messages, result serializ
 assembly. Missing mappings and handlers returning null, non-terminal, or wrong-type results fail closed.
 
 `FunctionEventContext<TRequest>` carries the target event type, nullable decoded request, optional
-calculation outcome, exception, stage, and conflict indicator. It is local dispatch data, not a wire
+calculation outcome, exception, stage, conflict indicator, and explicit `FunctionEventPhase`. It is local dispatch data, not a wire
 message or a new durable event. Dispatch uses the target type because the event has not yet been
 constructed. The `_receiveMap` supplies the execution extension with a callback to the same event
 dispatcher, so calculation completion, expected failure, and timeout all use `_eventMap`. The base
@@ -1144,15 +1144,40 @@ Regime Discovery completion carries `StrategyStageResultEnvelope.RegimeResult` a
 its Complete extension does not encode an inner payload. The outer transport/event-store serializer
 handles that object. Typed field fingerprints retain content/conflict checks; legacy byte envelopes
 remain readable. The Scylla projection encodes its existing blob column at the storage boundary.
- Complete/Fail
-extensions build terminal candidates only; they do not publish, project, or save. Regime Discovery
-uses `CompleteRegimeDiscoveryPipeline` and `FailRegimeDiscoveryPipeline`, including workflow transport
-failure conversion through the shared domain event dispatcher. Market Condition follows the same terminal dispatch pattern with Execute/Complete/Fail assessment extensions. Trade Selection failure hooks remain supported by the base compatibility adapter and have not yet migrated to a terminal event map.
-
+Complete/Fail extensions build terminal candidates and observe existing completions; they do not publish, project, or save. Regime Discovery uses `CompleteRegimeDiscoveryPipeline` and `FailRegimeDiscoveryPipeline`, including workflow transport failures. All three production Function actors implement exact terminal maps. The base's old failure-factory adapter remains only for compatibility with test fixtures; new production actors must use mapped handlers.
 
 Market Condition injects `IMarketConditionFunctionContext` directly, including its calculation-model dependency. The domain and generic context interfaces share one singleton registration. Its result uses appended envelope `AssessmentResult` key 9 and an empty legacy `Payload`; canonical assessment JSON is fingerprint input only, never an embedded result payload. Legacy byte envelopes remain readable at the compatibility boundary. Calculation and completion handlers do not serialize messages.
 
-The base exposes a clock and optional per-stage deadline policy. Market Condition supplies those values while the base enforces cancellation, exact-boundary timeout and late-worker observation. Loading has a fresh read budget for expired completed replay. Success telemetry is dispatched through the completed map only after a deadline-fenced append; replay does not record another success. No domain actor deadline helper or parallel lifecycle implementation is needed.
+#### Typed execution policy and lifecycle observation - 2026-09-07
+
+Every Function actor declares a frozen `static readonly _executionPolicyMap`, keyed by the exact request CLR type. A map delegate calls a domain extension in that actor's `Function` folder. The extension returns the local `FunctionExecutionPolicy` value containing a non-null `TimeProvider Clock` and nullable absolute UTC `DeadlineUtc`. Null explicitly means the stage is unbounded; a missing map entry or null policy is an error, never an unbounded fallback. The policy is not serialized or persisted.
+
+The actor override contains only:
+
+```csharp
+protected override FunctionExecutionPolicy ResolveExecutionPolicy(TRequest request, FunctionFailureStage stage)
+    => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+```
+
+The example uses the actor's concrete request/context types. The base accepts only Loading, Execution, Projection and Persistence policy requests. It resolves policy once immediately before each operation, then owns timing, linked cancellation, exact-boundary timeout, cancellation propagation and late-worker observation. Clock reads used to derive deadlines, stage conditionals, parameter access, arithmetic and actor-specific defaults belong in the mapped policy extension. Domain actors must not override `GetFunctionDeadline`, `FunctionTimeProvider`, `OnFunctionCommitted` or `OnFunctionReplayed`; these hooks have been removed. No deadline helper class or duplicated domain timer race is permitted.
+
+| Production Function | Mapped extension | Loading | Execution | Projection/persistence |
+| --- | --- | --- | --- | --- |
+| Regime Discovery | `ResolveRegimeDiscoveryExecutionPolicy` | Explicitly unbounded | Original request expiry | Explicitly unbounded |
+| Market Condition | `ResolveMarketConditionExecutionPolicy` | Domain clock now plus frozen maximum execution budget | Original request expiry | Original request expiry |
+| Trade Selection | `ResolveTradeSelectionExecutionPolicy` | Domain clock now plus frozen common-policy execution budget | Original request expiry | Original request expiry |
+
+These choices preserve existing timing scope. Regime Discovery previously timed only capture/calculation; its timer mechanics now live in the base, while its mapped failure extension retains timeout code 23103 and `RegimeDiscoveryExecutionTimedOut`. A future change to bound its load/project/append stages is a domain policy change in the extension, not a reason to reintroduce actor logic. Market Condition/Trade Selection retain their fresh loading budget so an expired completed request can replay without extending the deadline for new work.
+
+After a successful append, the base constructs `FunctionEventContext<TRequest>` with `Phase=Committed`; after a matching completed replay it constructs `Phase=Replayed`. Both route through the actor's existing `_eventMap` to its Complete extension. `Phase=Outcome` remains the default for constructing calculation outcomes and failures. A conflict produces a failed outcome and no successful replay observation. The actor performs only event-map dispatch; it does not allocate or interpret these lifecycle callback contexts.
+
+The Complete extension owns domain telemetry and returns the exact original completed event for observations. It must not recalculate, create a new event identity, publish, project, append, or turn replay into a second successful execution. The base checks identity and logs observer failures while retaining the original committed/replayed response; telemetry must not replace durable completion with failure.
+
+All five maps (`_parseMap`, `_validationMap`, `_receiveMap`, `_executionPolicyMap`, `_eventMap`) are part of the Function convention. The validation map may be instance-owned to capture a typed capability registry, but remains frozen. Architecture tests discover all production Function subclasses and require exact policy-map coverage and absence of the removed hooks. Lifecycle tests cover stage resolution, timeout/cancellation, commit versus replay, conflicts, and failing completion observers. The 2026-09-07 policy alignment passed 895 targeted unit, BDD, registration, verification and live Function runtime cases; the API Server build had zero warnings/errors. See [current evidence](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Implementation-Evidence-v1.0.md) for suite counts and the separate full-workflow fixture limitations.
+
+Trade Selection injects `ITradeSelectionFunctionContext` with its `ITradeSelectionCalculator` model. Its frozen validation map captures the context's capability registry; all validation and catalog loops live in list extensions. Separate Execute/Complete/Fail handlers use `_eventMap`, including workflow transport errors and commit/replay telemetry. Its typed result is envelope key 10 (`SelectionResult`), with no nested byte payload. The existing binding/result content budgets are measured using shared uncompressed MessagePack options, separately from configured LZ4 wire length, before projection. Storage/paging use the shared compression-aware serializer; legacy envelopes and historical digests retain explicit compatibility support.
+
+`MessagePackBinarySerializer.Options` is the common resolver/compression configuration for binary and NATS transport. Domain calculations do not serialize result messages. Boundary measurements use shared serializer support; defensive copies and canonical hashes use typed content. A size check must not silently substitute compressed wire bytes for a content budget, and a completed result must pass its limits before durable effects. The base dispatches explicit Replayed/Committed event-map phases without domain observation overrides.
 
 Function `ValidateAsync` performs argument and cancellation checks, calls the inherited
 `ValidateMappedCommand(request, _validationMap)`, and returns `ValueTask.CompletedTask`.
@@ -1184,8 +1209,7 @@ the original completion without executing or projecting again; a conflicting ret
 The initial completed append uses expected stream version zero to prevent two committed
 completions for one Function execution stream.
 
-The effective Function deadline is the earliest of the request deadline, owning workflow deadline,
-and any frozen execution deadline. Exact-boundary timeout wins over completion. Caller cancellation
+For bounded stages, domain extensions select an absolute deadline from the validated request and frozen policy. Requests already constrain their deadline to the owning workflow budget. Exact-boundary timeout wins over completion. Caller cancellation
 remains distinguishable from a Function timeout, and late workers must be cancelled and observed so
 they cannot start subsequent projection/persistence stages or leak an unobserved exception after the request has terminated. An already-started storage write may commit after client cancellation; callers must reconcile authoritative state, not assume timeout rolled back the database.
 
@@ -1206,6 +1230,10 @@ Reserving a command ID would incorrectly suppress a retry after a non-durable fa
 - [ ] Receive dispatch accepts only exact registered request types.
 - [ ] Terminal dispatch uses exact completed/failed event types and separate extension handlers.
 - [ ] Event-map tests reject missing mappings, null/non-terminal results, and incompatible event types.
+- [ ] A frozen `_executionPolicyMap` covers every exact request type; policy overrides contain dispatch only.
+- [ ] Policy extensions return a non-null clock and an explicit UTC deadline or unbounded policy for each stage.
+- [ ] The base owns timer races and cancellation; actor-specific timer/deadline helpers are absent.
+- [ ] Committed/replayed phases use `_eventMap` and return the original completion; observation faults cannot replace it.
 - [ ] Calculation failure performs no projection and no Function-state save.
 - [ ] Timeout returns a typed failed event and performs no projection or save.
 - [ ] Projection failure returns a typed failed event and performs no save.
@@ -1236,6 +1264,13 @@ Existing entity-ID types retain their current representation until a separate sy
 For each approved conversion, validation must cover compilation, equality and hashing, default-value rejection, formatting and parsing, message round trips, storage round trips, actor routing, and the affected unit, BDD, and integration suites. A conversion must preserve the externally observable identity format and behavior unless a separately approved migration explicitly changes them.
 
 ## 14. Related documents
+
+- [Order Composition detailed specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Specification-v1.0.md) applies the current Function convention to a planned fourth decision stage; it is not an implemented actor.
+- Order Composition prerequisite acceptance now uses a typed asynchronous Command extension in the workflow receive map. Its Model validates the immutable Scylla evidence and constructs dispatch; the actor remains a dispatcher. PostgreSQL acceptance precedes Realtime delivery of the saved request. This is workflow orchestration, not a substitute for the planned five-map composer Function actor.
+- Prepared Order Composition completion maps to `ExecutePreparedAsync`, which checks the selected contracts against the accepted immutable Scylla preparation before appending workflow completion. The selected set uses append-only keys: completion command 13, workflow view 31, compatibility state 27 and option-trade model 21. It is a typed contract, not a nested serialized payload.
+- Durable market ownership must be derived from committed business events. `CommittedCompositionSubscriptionSource` reloads the exact event-log identity and real source version, resolves exact persisted route plans, and emits a complete source snapshot. Delta delivery still requires contiguous source versions; explicitly identified complete snapshots may cover intermediate non-ownership events. Unknown retains leases; explicit terminal facts release only their owner. A UI deletion is not position-close authority.
+- `CommittedCompositionSubscriptionProjector` keeps durable per-event delivery receipts separately from conventional workflow UI notification. Its receipt-based scan includes late commits; a global event-number cursor would risk skipping a transaction that commits late. Position acquisition commits before working-order release. A separate durable handoff receipt remains pending until the current worker union is realized and the exact saved discovery lease has been released or its generation has been destroyed.
+- `DurableCompositionRuntime` restores current PostgreSQL ownership and immutable route plans through the supervised dataset owner. Core rollover registrations and durable future dependencies are merged atomically. Pricing reference refresh runs outside the quote callback and never recaptures accepted workflow evidence. Worker generation/revision fences and existing live-enablement guards remain authoritative.
 
 - [Actor Message Types and Delivery Conventions](Actor-Message-Types-and-Delivery-Conventions.md)
 - [Actor Event Streaming and Paged Query Contracts](Actor-Event-Streaming-and-Paged-Query-Contracts.md)

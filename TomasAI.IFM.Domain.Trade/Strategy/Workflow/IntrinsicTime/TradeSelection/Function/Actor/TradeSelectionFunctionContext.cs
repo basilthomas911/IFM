@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -12,6 +13,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelectio
 
 public interface ITradeSelectionFunctionContext : IFunctionActorContext<TradeSelectionFunctionActor>
 {
+    ITradeSelectionCalculator CalculationModel { get; }
     IStrategyCatalogCapabilities Capabilities {get;}
     TimeProvider TimeProvider { get; }
     ILogger<TradeSelectionFunctionActor> Logger { get; }
@@ -32,6 +34,7 @@ public sealed class TradeSelectionFunctionContext : FunctionActorContext,
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>>());
         _projector = new(() => Container.Resolve<IFunctionProjector<TradeSelectionFunctionCompletedEvent>>());
     }
+    public ITradeSelectionCalculator CalculationModel { get; } = new TradeSelectionEvaluator();
     public ILogger<TradeSelectionFunctionActor> Logger { get; }
     public IStrategyCatalogCapabilities Capabilities => Container.Resolve<IStrategyCatalogCapabilities>();
     public TimeProvider TimeProvider { get; }

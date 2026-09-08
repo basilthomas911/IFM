@@ -18,7 +18,7 @@ public static class ExecuteRegimeDiscoveryPipeline
     /// <param name="command">The validated execution request, including frozen parameters and workflow identity.</param>
     /// <param name="context">The Function context providing the clock, snapshot provider, and calculation model.</param>
     /// <param name="dispatchEvent">The actor callback that resolves its exact-type terminal event map.</param>
-    /// <param name="cancellationToken">Cancellation forwarded to the calculation worker and deadline timer.</param>
+    /// <param name="cancellationToken">Caller/deadline cancellation supplied by the base and forwarded to capture and calculation.</param>
     /// <returns>A completed candidate or failed response for the owning Function actor to handle.</returns>
     /// <exception cref="ArgumentNullException">The domain context is null.</exception>
     /// <remarks>This method does not project, persist, or publish the result; those responsibilities remain with the actor lifecycle.</remarks>
@@ -32,70 +32,9 @@ public static class ExecuteRegimeDiscoveryPipeline
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return await ExecuteAtomicAsync(
-            command,
-            context.TimeProvider,
-            token => CaptureAndCalculateAsync(command, context, token),
-            (delay, token) => Task.Delay(delay, context.TimeProvider, token),
-            dispatchEvent,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>Resolves a calculation worker and its deadline timer into one terminal Function response.</summary>
-    /// <param name="command">The execution request containing the fixed UTC deadline and response metadata.</param>
-    /// <param name="timeProvider">The clock used to check expiry before work starts and after work completes.</param>
-    /// <param name="worker">The asynchronous calculation invoked with a linked cancellation token.</param>
-    /// <param name="timeoutDelay">The timer factory for the remaining duration and its linked cancellation token.</param>
-    /// <param name="dispatchEvent">The actor callback that resolves its exact-type terminal event map.</param>
-    /// <param name="cancellationToken">Caller cancellation linked to both the worker and the timer.</param>
-    /// <returns>The mapped worker outcome, or a timeout failure when the timer wins or the deadline has been reached.</returns>
-    /// <exception cref="ArgumentNullException">A required command, clock, worker, or timer factory is null.</exception>
-    /// <exception cref="InvalidOperationException">The worker returns an unsupported outcome type.</exception>
-    /// <remarks>
-    /// Expiry at the exact deadline takes precedence over a completed calculation. When the timer wins,
-    /// the worker is cancelled and observed without delaying the timeout response. When the worker wins,
-    /// its exception or cancellation propagates to the caller. Atomicity refers to selecting a terminal
-    /// response, not to a database transaction.
-    /// </remarks>
-    internal static async Task<FunctionResult<
-        RegimeDiscoveryPipelineCompletedEvent,
-        RegimeDiscoveryPipelineFailedEvent>> ExecuteAtomicAsync(
-        ExecuteRegimeDiscoveryPipelineCommand command,
-        TimeProvider timeProvider,
-        Func<CancellationToken, Task<RegimeDiscoveryExecutionOutcome>> worker,
-        Func<TimeSpan, CancellationToken, Task> timeoutDelay,
-        Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>,
-            FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> dispatchEvent,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(timeProvider);
-        ArgumentNullException.ThrowIfNull(worker);
-        ArgumentNullException.ThrowIfNull(timeoutDelay);
-        ArgumentNullException.ThrowIfNull(dispatchEvent);
-
-        var now = UtcNow(timeProvider);
-        if (now >= command.ExpiresAtUtc)
-            return dispatchEvent(new(typeof(RegimeDiscoveryPipelineFailedEvent), command, TimeoutOutcome(now)));
-
-        using var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        using var timerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var workerTask = worker(workerCancellation.Token);
-        var timeoutTask = timeoutDelay(command.ExpiresAtUtc - now, timerCancellation.Token);
-        var winner = await Task.WhenAny(workerTask, timeoutTask).ConfigureAwait(false);
-        if (winner == timeoutTask)
-        {
-            workerCancellation.Cancel();
-            _ = ObserveLateWorkerAsync(workerTask);
-            return dispatchEvent(new(typeof(RegimeDiscoveryPipelineFailedEvent), command, TimeoutOutcome(UtcNow(timeProvider))));
-        }
-
-        timerCancellation.Cancel();
-        var outcome = await workerTask.ConfigureAwait(false);
-        now = UtcNow(timeProvider);
-        if (now >= command.ExpiresAtUtc)
-            return dispatchEvent(new(typeof(RegimeDiscoveryPipelineFailedEvent), command, TimeoutOutcome(now)));
-
+        cancellationToken.ThrowIfCancellationRequested();
+        var outcome = await CaptureAndCalculateAsync(command, context, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         return outcome switch
         {
             RegimeDiscoveryExecutionCompleted completed => dispatchEvent(new(typeof(RegimeDiscoveryPipelineCompletedEvent), command, completed)),
@@ -156,38 +95,8 @@ public static class ExecuteRegimeDiscoveryPipeline
                 snapshotResult.Snapshot.SnapshotId);
     }
 
-    /// <summary>Creates the standard fixed-deadline timeout outcome with error code 23103.</summary>
-    /// <param name="now">The UTC time at which expiry was observed.</param>
-    /// <returns>A timeout failure with a data-area reason and an empty snapshot identifier.</returns>
-    static RegimeDiscoveryExecutionFailed TimeoutOutcome(DateTime now)
-        => new(now, "Regime Discovery exceeded its fixed workflow deadline.", "Timeout", 23103,
-            [new RegimeDiscoveryReason
-            {
-                Code = "RegimeDiscoveryExecutionTimedOut",
-                Severity = RegimeReasonSeverity.Failure,
-                Area = RegimeEvidenceArea.Data
-            }], Guid.Empty);
-
-    /// <summary>Reads the supplied clock as a UTC <see cref="DateTime"/>.</summary>
-    /// <param name="provider">The execution clock, which may be substituted for deterministic tests.</param>
-    /// <returns>The clock's current time with <see cref="DateTimeKind.Utc"/>.</returns>
+    /// <summary>Reads the domain clock when stamping captured evidence and calculated outcomes.</summary>
     static DateTime UtcNow(TimeProvider provider) => provider.GetUtcNow().UtcDateTime;
-
-    /// <summary>Observes a worker that continues after the timeout response has been selected.</summary>
-    /// <param name="workerTask">The outstanding calculation task whose eventual completion must be observed.</param>
-    /// <returns>A task that completes after the worker settles, suppressing its cancellation or exception.</returns>
-    /// <remarks>The worker's late outcome is discarded and cannot replace the already selected timeout response.</remarks>
-    static async Task ObserveLateWorkerAsync(Task<RegimeDiscoveryExecutionOutcome> workerTask)
-    {
-        try
-        {
-            await workerTask.ConfigureAwait(false);
-        }
-        catch
-        {
-            // The timeout result is definitive. Observation only prevents a late fault from becoming unobserved.
-        }
-    }
 
     /// <summary>Maps a snapshot availability issue to a stable Regime Discovery data-failure reason.</summary>
     /// <param name="observation">The signal observation containing availability, timeframe, and signal identity.</param>

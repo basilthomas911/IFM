@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using System.Threading.Channels;
+using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 
 namespace TomasAI.IFM.Application.MarketData.Subscriptions;
 
@@ -21,6 +22,8 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
     DateTimeOffset admissionUtc;
     long admissionTimestamp;
     long revision;
+    long durableRevision = -1;
+    string? durableDigest;
     int sweepQueued;
     int disposed;
 
@@ -92,6 +95,10 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
     }
     public Task<bool> SweepAsync() => SubmitControl(new(Kind.Sweep, null));
 
+    /// <summary>Installs committed PostgreSQL intent. The caller reads storage before entering this pump.</summary>
+    public Task<bool> ApplyDurableAsync(DurableSubscriptionSnapshot snapshot)
+        => SubmitControl(new(Kind.Durable, DurableSubscriptionContract.Freeze(snapshot)));
+
     Task<SubscriptionLeaseResult> Submit(Work work)
     {
         if (work.Cancellation.IsCancellationRequested || Volatile.Read(ref disposed) != 0)
@@ -126,6 +133,12 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
                     continue;
                 }
                 SweepExpired();
+                if (work.Kind == Kind.Durable)
+                {
+                    work.Completion.TrySetResult(Result(work, ApplyDurable((DurableSubscriptionSnapshot)work.Payload!)
+                        ? SubscriptionResultCode.DesiredAccepted : SubscriptionResultCode.Conflict));
+                    continue;
+                }
                 if (work.Kind == Kind.Query)
                 {
                     if (BeforeCommit(work) is { } expiredQuery)
@@ -194,6 +207,39 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
         // resurrect that ID. Durable 30-day result storage is a separate, not-yet-installed boundary.
         operations.Add(work.OperationId, new(work.Kind, work.Payload!, result, validUntil));
         return result;
+    }
+
+    bool ApplyDurable(DurableSubscriptionSnapshot snapshot)
+    {
+        if (snapshot.Scope != scope || snapshot.Dataset != dataset || snapshot.Revision < durableRevision) return false;
+        var digest = DurableSubscriptionContract.Digest(snapshot);
+        if (snapshot.Revision == durableRevision) return digest == durableDigest;
+        var durable = snapshot.Authorities.SelectMany(authority => authority.Leases.Select(lease =>
+        {
+            var ticker = lease.Ticker;
+            var key = new SubscriptionTickerKey(ticker.ProviderScope, ticker.Dataset, ticker.ContractId, ticker.Schema, ticker.AssetKind);
+            var underlying = ticker.UnderlyingContractId is null ? null : new SubscriptionTickerKey(ticker.ProviderScope,
+                ticker.Dataset, ticker.UnderlyingContractId, ticker.Schema, SubscriptionAssetKind.Futures);
+            return new SubscriptionLeaseView(new(HostEpochId, lease.LeaseId, lease.LeaseVersion),
+                new(scope, new(authority.Owner.WorkflowType, authority.Owner.WorkflowId, authority.Owner.LegId)),
+                new SubscriptionTarget(key, underlying), lease.Purpose, null);
+        })).ToArray();
+        var ephemeral = leases.Values.Where(x => !x.View.IsDurable).ToArray();
+        if (durable.Any(x => ephemeral.Any(e => e.View.Token.LeaseId == x.Token.LeaseId))) return false;
+        var candidate = new DesiredSubscriptionManifest(HostEpochId, scope, dataset, valueDate,
+            checked(revision + 1), ephemeral.Select(x => x.View).Concat(durable));
+        if (candidate.Leases.Count > policy.MaximumLeases
+            || candidate.Routes.Count(x => x.Ticker.AssetKind == SubscriptionAssetKind.FuturesOption) > policy.MaximumOptions
+            || candidate.Routes.Count(x => x.Ticker.AssetKind == SubscriptionAssetKind.Futures) > policy.MaximumFutures) return false;
+        // Build and validate everything before one atomic publication. Unknown sources retain the leases saved in PostgreSQL.
+        leases.Clear();
+        foreach (var entry in ephemeral) leases.Add(entry.View.Token.LeaseId, entry);
+        foreach (var entry in durable) leases.Add(entry.Token.LeaseId, new(entry, time.GetTimestamp()));
+        durableRevision = snapshot.Revision;
+        durableDigest = digest;
+        revision = candidate.Revision;
+        Volatile.Write(ref current, candidate);
+        return true;
     }
 
     SubscriptionLeaseResult Acquire(Work work, SubscriptionAcquireRequest request)
@@ -374,7 +420,7 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
         await pump.ConfigureAwait(false);
     }
 
-    enum Kind { Acquire, AcquireBatch, Renew, Release, Availability, Sweep, TimerSweep, Query }
+    enum Kind { Acquire, AcquireBatch, Renew, Release, Availability, Sweep, TimerSweep, Query, Durable }
     sealed record Entry(SubscriptionLeaseView View, long RenewedAtTimestamp);
     sealed record RememberedOperation(Kind Kind, object Payload, SubscriptionLeaseResult Result, DateTimeOffset DeadlineUtc);
     sealed class Work(Kind kind, object? payload, Guid operationId = default, Guid correlationId = default,

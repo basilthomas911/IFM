@@ -1,5 +1,29 @@
 # TradeSelection Implementation Plan v1.1
 
+## Composition prerequisite continuation - 2026-09-08 UTC
+
+The existing reservation handoff now passes through mapped market-preparation acceptance before durable Start dispatch. Real NATS/PostgreSQL/Scylla verification covers withheld notification, reload and identical retry bytes. Construction policy schema 2 pins a finite reviewed `marketData` universe; schema 1 preserves its prior shape/hash. The selector remains responsible only for strategy intent. Final composer Function construction, concrete durable business-source adapters, automatic route/context restoration and live qualification remain open in the [OCP record](../../OrderComposer/Docs/OrderComposition-Prerequisite-Implementation-Record-v1.0.md).
+
+## Typed execution-policy alignment - 2026-09-07
+
+The Function actor now has five maps, including exact-command `_executionPolicyMap`. Its `ResolveExecutionPolicy` override only calls the base mapped dispatcher. A `Resolve*ExecutionPolicy` extension in `Function/` returns the typed clock/deadline policy. No actor override reads policy settings, computes deadlines or constructs commit/replay callback contexts. The base enforces timers/cancellation and routes `FunctionEventPhase.Committed`/`Replayed` through `_eventMap`; Complete handlers observe and return the same completed event. Observation faults are logged without replacing durable completion. See [system actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md), section 13.3, for the normative contract.
+
+Loading keeps a fresh bounded replay-read budget; execution, projection and append retain the original request deadline.
+
+
+## Function actor and serialization alignment ? 2026-09-07
+
+Trade Selection follows the Regime Discovery/Market Condition Function convention. `TradeSelectionFunctionActor` injects `ITradeSelectionFunctionContext`; the domain and closed generic interfaces share the same singleton in both hosts. The context exposes `ITradeSelectionCalculator`, implemented by `Model/TradeSelectionEvaluator`. Calculations retain the exact catalog/fund authority, all twelve variant rules and single Daily/Weekly/Monthly triggering horizon.
+
+The actor uses frozen `_parseMap`, `_validationMap`, `_receiveMap`, `_executionPolicyMap` and `_eventMap`. Validation calls base `ValidateMappedCommand` and ordered `List<ValidationError>` extensions with local FluentValidation adapters, shared cross-field evidence rules and registered capability validation. The validation map is instance-owned to capture its context capability registry; its keys/delegates remain immutable. `ValidateAsync` contains no catalog loop. `Function/ExecuteTradeSelectionPipeline`, `CompleteTradeSelectionPipeline` and `FailTradeSelectionPipeline` own domain execution, event construction, reasons and telemetry. Workflow transport failures also enter the terminal event map. The base owns deadline/cancellation/late-worker mechanics; loading has a fresh bounded read budget for expired replay, while new execution/projection/append use the request deadline. Commit and replay observations go through the completion map without repeating projection or saving.
+
+New completions carry typed `SelectionResult` at appended `StrategyStageResultEnvelope` MessagePack key 10, with empty legacy `Payload` and media type `application/vnd.ifm.trade-selection.v1`. Existing keys 0?9 remain unchanged. Typed content uses a canonical semantic fingerprint and defensive collection access. Legacy eight-field byte envelopes remain readable. Consumers, workflow acceptance, handoff, query readers and projection use the representation-aware contract reader. Existing producers and consumers must be upgraded together before enabling typed-only writes.
+
+The shared `MessagePackBinarySerializer.Options` owns the ContractlessStandard resolver and Lz4BlockArray settings used by both binary and NATS serializers; NATS retains direct output-writer serialization. Storage event/result blobs, workflow-state reads and paging tokens use the shared compression-aware serializer. `result_sha256` retains the envelope digest: a semantic fingerprint for typed content, a byte digest for old opaque content. Projection compares normalized completed evidence across old/new envelope representations, ignoring only EventId stream sequencing. Historical candidate-set and mandate byte digests explicitly use the shared uncompressed compatibility encoding; original Portfolio/catalog hash algorithms remain unchanged.
+
+Command copying/normalization and typed evidence comparisons do not serialize and deserialize domain messages. Explicit trigger normalization preserves historical null-string and UTC defaults; invariant decimal fingerprinting preserves numeric meaning. Size checks call shared measurement support: existing binding/result budgets count uncompressed MessagePack content, and the 1 MiB request/completed-event cap also checks the configured encoded representation. LZ4 compression cannot make oversized content admissible. Completion validation and result-size rejection occur before projection or persistence. Frozen count limits still reject overflow without truncating candidates. Serialization for measurement does not create an inner message payload.
+
+
 | Item | Value |
 | --- | --- |
 | Revised | 2026-09-07 |
@@ -121,7 +145,7 @@ Update workflow realtime activation, Execute command/handler, snapshot persisten
 
 **Specification:** sections 4, 7-12, 17-18. **Dependency:** TS-01; TS-02 factories support test authoring.
 
-Add Selector/TradeSelectionEvaluator with `Evaluate(validatedFrozenInput, workflowFrozenEvaluationTime)`, rule predicates, capability dispatch, result assembly and deterministic summaries. It has no database, broker, provider, mutable-cache or current-clock dependency. Use trusted evaluator versions only.
+Add Model/TradeSelectionEvaluator with `Evaluate(validatedFrozenInput, workflowFrozenEvaluationTime)`, rule predicates, capability dispatch, result assembly and deterministic summaries. It has no database, broker, provider, mutable-cache or current-clock dependency. Use trusted evaluator versions only.
 
 Implement global rules G01-G21, per-candidate C01-C09, optional complete specialized rule replacement and exact side/bias/premium direction semantics. Balanced condors map to Neutral permission; Long/Short do not stand for bullish/bearish options intent. Use decimal confidence comparisons and retain all applicable ordered reasons.
 
@@ -145,15 +169,18 @@ Use prepared CQL and stable source event IDs/sequences/timestamps. Detect confli
 
 **Specification:** sections 6, 10-13, 16. **Dependencies:** TS-01/03/04/07a.
 
-Add Selector/Function/Actor/TradeSelectionFunctionActor inheriting BaseEventSourceFunctionActor and its typed context. Add Function state/repository and ExecuteTradeSelectionPipeline command extension. Declare immutable static readonly _parseMap, _validationMap and exact-type _receiveMap with manifest parity; use ParseMappedFunction and ResolveMappedFunctionHandler. Do not duplicate transport, mailbox lifecycle, state loading or reply in the domain extension. Use new Function request/completed/failed contracts, the TradeSelectionPipelineFunction/Execute route and existing bounded context. Historical selector Command/Realtime contracts remain readable but inactive on the new path.
+Add Selector/Function/Actor/TradeSelectionFunctionActor inheriting BaseEventSourceFunctionActor and its typed context. Add Function state/repository and ExecuteTradeSelectionPipeline command extension. Declare frozen _parseMap, _validationMap, _receiveMap and exact terminal _eventMap with manifest parity; use ParseMappedFunction and ResolveMappedFunctionHandler. Do not duplicate transport, mailbox lifecycle, state loading or reply in the domain extension. Use new Function request/completed/failed contracts, the TradeSelectionPipelineFunction/Execute route and existing bounded context. Historical selector Command/Realtime contracts remain readable but inactive on the new path.
 
 Implement these explicit targets under Selector:
 
 | Target | Role |
 | --- | --- |
-| `Function/Actor/TradeSelectionFunctionActor.cs` | Shared-base inheritance, three immutable maps and stage overrides |
+| `Function/Actor/TradeSelectionFunctionActor.cs` | Shared-base inheritance, five immutable maps and mapping-only overrides |
 | `Function/Actor/TradeSelectionFunctionContext.cs` | Typed actor context and explicit dependencies |
-| `Function/Extensions/ExecuteTradeSelectionPipeline.cs` | Mapped command extension invoking the pure evaluator |
+| `Function/ExecuteTradeSelectionPipeline.cs` | Mapped command extension invoking the context calculation model and terminal callback |
+| `Function/CompleteTradeSelectionPipeline.cs` | Typed completion construction, boundary limits and committed/replay telemetry |
+| `Function/FailTradeSelectionPipeline.cs` | Mapped contract/calculation/lifecycle/transport failures |
+| `Model/TradeSelectionEvaluator.cs` | Actual deterministic calculations behind `ITradeSelectionCalculator` |
 | `Function/State/TradeSelectionFunctionState.cs` | Completed-only fingerprint/idempotency state |
 | `Function/State/TradeSelectionFunctionStateRepository.cs` | Load and optimistic completed append without command denormalization |
 | `Function/Projector/TradeSelectionFunctionProjector.cs` | Synchronous candidate-completion projection, no mailbox or publication |
@@ -251,3 +278,7 @@ TS-01 through TS-08 are complete for the isolated selector scope. The actual Fun
 - [Shared Function lifecycle](../../../../../../TomasAI.IFM.Shared/EventModelActor/BaseEventSourceFunctionActor.cs), [event-source persistence](../../../../../../TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceActorDbContext.cs), [Function convention](../../../../../../Documents/system/Actor-Implementation-Conventions.md#133-functionactor-convention), [API startup](../../../../../../TomasAI.IFM.Application.Api.Server/Startup.cs).
 
 Implementation and runtime qualification on 2026-09-07; see the evidence document for exact commands and results.
+
+## Downstream Order Composition alignment - 2026-09-07
+
+The [Order Composition specification v1.0](../../OrderComposer/Docs/OrderComposition-Specification-v1.0.md) defines the downstream exact-contract boundary using the current five-map Function convention. It preserves accepted single-horizon upstream evidence, exact Fund-authorized selection/catalog versions and committed business-ID reservation. Composition produces one normalized unit for any of the twelve variants on Daily, Weekly or Monthly; Portfolio Risk Management owns final units and financial approval. No family policy is introduced into Regime Discovery or Market Condition. Composition gates are planned; this cross-reference does not change upstream qualification status or claim combined pipeline readiness.

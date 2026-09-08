@@ -1,4 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using System.Collections.Immutable;
+using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
@@ -7,7 +9,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 /// the serialized watchdog is the only caller allowed to request replacement.
 /// </summary>
 public sealed class DatasetWorkerProcessRecoveryService :
-    IDatabentoDatasetProcessRecovery, IAsyncDisposable
+    IDatabentoDatasetProcessRecovery, IAsyncDisposable, Pricing.ICompositionMarketDataApi
 {
     sealed class Entry(
         DatasetWorkerStartRequest request,
@@ -27,6 +29,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
     readonly Func<DatabentoStage3Options, DatasetWorkerProcessSupervisor> supervisorFactory;
     readonly DatabentoTerminalFaultSignal? terminalFaultSignal;
     readonly DatasetWorkerCurrentValues? currentValues;
+    readonly IDurableSubscriptionIntentStore? durableIntent;
     public DatasetDesiredSubscriptionRegistry DesiredSubscriptions { get; }
 
     public DatasetWorkerProcessRecoveryService(
@@ -36,12 +39,14 @@ public sealed class DatasetWorkerProcessRecoveryService :
         DatabentoTerminalFaultSignal? terminalFaultSignal = null,
         Func<DatabentoStage3Options, DatasetWorkerProcessSupervisor>? supervisorFactory = null,
         DatasetDesiredSubscriptionRegistry? desiredSubscriptions = null,
-        DatasetWorkerCurrentValues? currentValues = null)
+        DatasetWorkerCurrentValues? currentValues = null,
+        IDurableSubscriptionIntentStore? durableIntent = null)
     {
         this.options = options.Validate();
         this.admissions = admissions ?? throw new ArgumentNullException(nameof(admissions));
         this.terminalFaultSignal = terminalFaultSignal;
         this.currentValues = currentValues;
+        this.durableIntent = durableIntent;
         DesiredSubscriptions = desiredSubscriptions ?? new DatasetDesiredSubscriptionRegistry();
         Func<DatasetPublicationEnvelope, CancellationToken, ValueTask>? ingress =
             publicationIngress is null
@@ -60,6 +65,48 @@ public sealed class DatasetWorkerProcessRecoveryService :
             lock (gate)
                 return entries.Values.Select(entry => entry.Supervisor.Current).ToArray();
         }
+    }
+
+    public Task<Pricing.WorkerOptionChainResult> AcquireAsync(string dataset, Pricing.WorkerOptionChainRequest request, CancellationToken cancellationToken)
+        => UseGenerationAsync(dataset, request.GenerationId, worker => worker.AcquireOptionChainAsync(request, cancellationToken), cancellationToken);
+
+    public Task<Pricing.WorkerOptionChainResult> ReleaseAsync(string dataset, Pricing.WorkerOptionChainRelease request, CancellationToken cancellationToken)
+        => request.Ownership is not null
+            ? throw new UnauthorizedAccessException("Business ownership must be read from committed intent by the parent adapter.")
+            : UseGenerationAsync(dataset, request.GenerationId, worker => worker.ReleaseOptionChainAsync(request, cancellationToken), cancellationToken);
+
+    /// <summary>Derives worker ownership from committed PostgreSQL rows. Callers supply no owner, purpose or lease claim.</summary>
+    public async Task<Pricing.WorkerOptionChainResult> ApplyBusinessOwnershipAsync(string authorityScope, string dataset,
+        Pricing.WorkerOptionChainRequest chain, CancellationToken cancellationToken)
+    {
+        var store = durableIntent ?? throw new InvalidOperationException("Durable subscription persistence is unavailable.");
+        var snapshot = await store.ReadAsync(authorityScope, dataset, cancellationToken).ConfigureAwait(false);
+        var update = Pricing.CommittedOptionChainOwnership.Create(snapshot, chain);
+        return await UseGenerationAsync(dataset, chain.GenerationId,
+            worker => worker.ApplyOptionChainOwnershipAsync(update, cancellationToken), cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<Pricing.CompositionSnapshotResult> CaptureAsync(string dataset, Pricing.CompositionSnapshotRequest request, CancellationToken cancellationToken)
+        => UseGenerationAsync(dataset, request.GenerationId, worker => worker.CaptureCompositionSnapshotAsync(request, cancellationToken), cancellationToken);
+
+    async Task<T> UseGenerationAsync<T>(string dataset, Guid generation, Func<DatasetWorkerProcessSupervisor, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        Entry entry;
+        lock (gate)
+        {
+            if (stopping || !entries.TryGetValue(dataset, out entry!)) throw new Pricing.CompositionMarketSourceException("Recovering");
+        }
+        await entry.Lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsOwned(entry) || !admissions.TryGet(dataset, out var admitted) || admitted.GenerationId != generation
+                || !entry.Supervisor.Current.Healthy) throw new Pricing.CompositionMarketSourceException("Recovering");
+            var result = await operation(entry.Supervisor).ConfigureAwait(false);
+            if (!admissions.TryGet(dataset, out var after) || after != admitted)
+                throw new Pricing.CompositionMarketSourceException("Recovering");
+            return result;
+        }
+        finally { entry.Lifecycle.Release(); }
     }
 
     public bool HasExited(string dataset, Guid expectedGeneration)

@@ -17,7 +17,8 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class SupervisedHostPublisherLifecycleTests
 {
-    static readonly DateOnly ValueDate = new(2026, 9, 4);
+    // The native synthetic producer uses the live clock; its epoch must use that clock's session date.
+    static readonly DateOnly ValueDate = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(DateTimeOffset.UtcNow);
     const string ContractId = "ES20261218";
 
     [Fact]

@@ -7,9 +7,13 @@
 | Status | Owner pricing requirements recorded; implementation design; not implemented/qualified by this document |
 | Gates | `S4G-00`, `S4G-04`, `S4G-08` |
 | Parent | [Stage 4 implementation plan](Market-Data-Resiliency-Stage-4-Implementation-Plan-v1.0.md) |
-| Consumer | [Order Composition selection specification](Order-Composition-Strategy-Selection-Specification-v1.0.md) |
+| Consumer | [Current Order Composition specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Specification-v1.0.md) |
+| Prerequisite implementation | [Order Composition prerequisite plan](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Prerequisite-Implementation-Plan-v1.0.md) |
+| Current pricing evidence | [Prerequisite implementation record](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Prerequisite-Implementation-Record-v1.0.md): conversion, explicit-T, concrete committed-source projection, durable ownership/reconstruction/context refresh, supervised snapshots and mapped workflow acceptance implemented; strict native live quotes passed; full priced live qualification and reviewed reference publication remain open |
 
 ## 1. Owner decisions and limits of approval
+
+**2026-09-07 scope alignment:** the owner restricted the initial option universe to verified European-style ES options on futures. American and unknown styles do not qualify; a verified per-series mapping is required, not an ES-root or workflow-horizon assumption. Outright futures are independent of option pricing on any triggering Daily, Weekly or Monthly horizon. The current OrderComposer specification replaces historical three-profile/family-to-horizon assumptions. P1-P6 below remain the pricing authority; the linked prerequisite plan maps their implementation and distinguishes document readiness, offline runtime evidence and live qualification.
 
 The owner specified these requirements on 2026-09-05:
 
@@ -55,8 +59,8 @@ not silently become `N / 252`, `N / 365`, or a guessed calendar duration.
 ### Verified source distinction
 
 `TreasuryRatePoint.RatePercent` currently stores percentage points; `DecimalRate` only divides by
-100. The current `ITreasuryCurve` exposes `GetLatestAsync` and `GetRangeAsync`, not a continuous-rate
-function. FMP's official endpoint documents latest/historical Treasury data, but the public page
+100. `ITreasuryCurve` now also exposes `GetContinuouslyCompoundedAnnualRate` through the prerequisite
+implementation; existing fetch APIs and percentage semantics are preserved. FMP's official endpoint documents latest/historical Treasury data, but the public page
 does not specify a compounding convention. The adapter must establish which series its fields
 represent before assigning convention metadata. [FMP Treasury Rates API](https://site.financialmodelingprep.com/developer/docs/stable/treasury-rates).
 
@@ -131,9 +135,9 @@ empty configuration is not verified production calendar coverage. Reuse its boun
 suitable; supply and version complete product-calendar data. Treasury publication uses a separate
 calendar from CME trading. Toronto holidays alone do not determine either calendar.
 
-The current `Black76.OptionCalculator` accepts `DateOnly` and computes days/365. Add an explicit
-year-fraction path and carry it through managed and native pricing, keeping legacy behavior
-compatible. Do not round intraday expiry away before invoking the calculator. Black-76's European
+`Black76.OptionCalculator` retains its legacy `DateOnly` days/365 constructor and now also accepts a
+positive finite explicit year fraction through the prerequisite implementation. The new path reuses
+the same managed/native calculation. Do not round intraday expiry away before invoking the calculator. Black-76's European
 exercise assumption must match the selected product; American-style options return
 `PricingModelUnsupported` until an appropriate model is separately qualified.
 

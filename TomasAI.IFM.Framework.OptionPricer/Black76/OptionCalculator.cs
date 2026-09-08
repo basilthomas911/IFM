@@ -7,10 +7,14 @@ using TomasAI.IFM.Framework.OptionPricer.Interop;
 /// </summary>
 /// <remarks>
 /// The calculator is immutable, thread-safe, and contains no shared mutable state. Time to expiry uses
-/// Actual/365 Fixed and the supplied rate is interpreted as a continuously compounded annual rate.
+/// Actual/365 Fixed in the legacy DateOnly constructor; the explicit year-fraction constructor preserves
+/// the caller's qualified contract convention. The supplied rate is continuously compounded annual decimal.
 /// </remarks>
 public readonly struct OptionCalculator
 {
+    /// <summary>Process-pinned engine identity for pricing provenance and replay compatibility.</summary>
+    public static string EngineVersion => OptionPricerBackend.UseRust ? "Black76.Rust/v1" : "Black76.Managed/v1";
+
     private const double DaysPerYear = 365.0;
     private const double MaximumVolatility = 4.0;
     private const double PriceTolerance = 1e-10;
@@ -24,6 +28,16 @@ public readonly struct OptionCalculator
     public OptionCalculator(DateOnly valueDate, DateOnly maturityDate)
     {
         _timeToExpiry = (maturityDate.DayNumber - valueDate.DayNumber) / DaysPerYear;
+    }
+
+    /// <summary>Creates a calculator with a contract-qualified fractional time to expiry.</summary>
+    /// <param name="timeToExpiry">Positive finite years under the caller's explicit day-count convention.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The option is expired or the year fraction is invalid.</exception>
+    public OptionCalculator(double timeToExpiry)
+    {
+        if (!double.IsFinite(timeToExpiry) || timeToExpiry <= 0)
+            throw new ArgumentOutOfRangeException(nameof(timeToExpiry));
+        _timeToExpiry = timeToExpiry;
     }
 
     /// <summary>

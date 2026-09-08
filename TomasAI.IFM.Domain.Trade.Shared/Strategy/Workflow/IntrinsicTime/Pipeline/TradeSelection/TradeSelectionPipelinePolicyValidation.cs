@@ -15,7 +15,9 @@ public static partial class TradeSelectionContracts
             case CatalogPipelineParameterKind.TradeSelection:
                 var selection=TradeSelectionPolicy.Read(row.PayloadJson);identity=(selection.ParameterSetId,selection.Version,TradeSelectionPolicy.Hash(selection));break;
             case CatalogPipelineParameterKind.OrderComposition:
-                var composition=SelectionConstructionPolicy.Read(row.PayloadJson);identity=(composition.ParameterSetId,composition.Version,composition.Hash());break;
+                var composition=SelectionConstructionPolicy.Read(row.PayloadJson);
+                Require(composition.SchemaVersion==row.SchemaVersion,"TS.CONTRACT.SCHEMA","Construction schema metadata differs from its payload.");
+                identity=(composition.ParameterSetId,composition.Version,composition.Hash());break;
             case CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow:
                 var activation=TradeSelectionActivation.Read(row.PayloadJson);identity=(activation.ParameterSetId,activation.Version,activation.Hash());break;
             case CatalogPipelineParameterKind.RegimeDiscovery:

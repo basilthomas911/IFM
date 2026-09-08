@@ -49,6 +49,9 @@ public static class FailRegimeDiscoveryPipeline
                 string.IsNullOrWhiteSpace(outcome.DiagnosticData)
                     ? string.Join(',', outcome.Reasons.Select(reason => reason.Code)) : outcome.DiagnosticData,
                 outcome.FailedAtUtc);
+        else if (input.Exception is TimeoutException)
+            failed = CreateFailedEvent(command, 23103,
+                "Regime Discovery exceeded its fixed workflow deadline.", "Timeout", "RegimeDiscoveryExecutionTimedOut", now);
         else if (input.Exception is { } exception)
             failed = CreateFailedEvent(command, command.ErrorCode,
                 input.Stage == FunctionFailureStage.Projection

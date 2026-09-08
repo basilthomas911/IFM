@@ -4,6 +4,23 @@ use std::ptr;
 
 use databento_feed_native::*;
 
+#[test]
+fn required_concurrent_ring_locks_fit_the_process_working_set() {
+    if std::env::var("IFM_NATIVE_LOCK_QUALIFICATION").as_deref() != Ok("1") { return; }
+    let mut value = config(0, 1024);
+    value.ring_memory_bytes = 8 * 1024 * 1024;
+    value.flags = CONFIG_LOCK_RING_MEMORY | CONFIG_REQUIRE_LOCKED_MEMORY;
+    let mut first = ptr::null_mut();
+    let mut second = ptr::null_mut();
+    unsafe {
+        assert_eq!(dbf_feed_create(&value, ptr::null(), 0, &mut first), OK);
+        let status = dbf_feed_create(&value, ptr::null(), 0, &mut second);
+        assert_eq!(dbf_feed_destroy(first.cast()), OK);
+        assert_eq!(status, OK);
+        assert_eq!(dbf_feed_destroy(second.cast()), OK);
+    }
+}
+
 fn config(record_count: u32, ring_records: u64) -> FeedConfigV1 {
     FeedConfigV1 {
         struct_size: size_of::<FeedConfigV1>() as u32,

@@ -133,7 +133,10 @@ public abstract class BaseEventSourceFunctionActor<
                     terminal = HandleFunctionEvent(_context,
                         new(typeof(TFailedEvent), request, IsConflict: true));
                 else
+                {
                     terminal = FunctionResult<TCompletedEvent, TFailedEvent>.Complete(state.CompletedEvent);
+                    ObserveCompletedFunction(request, state.CompletedEvent, FunctionEventPhase.Replayed);
+                }
             }
             else
             {
@@ -159,7 +162,7 @@ public abstract class BaseEventSourceFunctionActor<
                         await RunFunctionStageAsync(request, stage,
                             token => SaveFunctionStateAsync(_context, threadId, state, request, completed, token),
                             cancellationToken).ConfigureAwait(false);
-                        OnFunctionCommitted(request, completed);
+                        ObserveCompletedFunction(request, completed, FunctionEventPhase.Committed);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
@@ -194,23 +197,50 @@ public abstract class BaseEventSourceFunctionActor<
         await message.ReplyAsync(reply).ConfigureAwait(false);
     }
 
-    /// <summary>Clock used by the optional lifecycle deadline policy.</summary>
-    protected virtual TimeProvider FunctionTimeProvider => TimeProvider.System;
+    /// <summary>Resolves a stage policy through the derived actor's exact-command policy map.</summary>
+    protected abstract FunctionExecutionPolicy ResolveExecutionPolicy(TRequest request, FunctionFailureStage stage);
 
-    /// <summary>Returns the deadline for a lifecycle stage, or null when the actor owns its execution budget.</summary>
-    protected virtual DateTime? GetFunctionDeadline(TRequest request, FunctionFailureStage stage) => null;
+    /// <summary>Dispatches a typed policy extension and rejects unsupported stages, commands or missing policies.</summary>
+    protected static FunctionExecutionPolicy DispatchMappedExecutionPolicy<TContext>(TRequest request,
+        FunctionFailureStage stage, TContext context,
+        IReadOnlyDictionary<Type, Func<TRequest, FunctionFailureStage, TContext, FunctionExecutionPolicy>> map)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(map);
+        if (stage is not (FunctionFailureStage.Loading or FunctionFailureStage.Execution or FunctionFailureStage.Projection or FunctionFailureStage.Persistence))
+            throw new ArgumentOutOfRangeException(nameof(stage), "Execution policy applies only to executable lifecycle stages.");
+        if (!map.TryGetValue(request.GetType(), out var handler))
+            throw new InvalidOperationException($"No Function execution policy is registered for exact command type {request.GetType()}.");
+        return handler(request, stage, context) ?? throw new InvalidOperationException("The mapped Function execution policy is missing.");
+    }
 
-    /// <summary>Observes a completion after persistence succeeds within its deadline; replay does not invoke this hook.</summary>
-    protected virtual void OnFunctionCommitted(TRequest request, TCompletedEvent completed) { }
+    /// <summary>Notifies the event map after a successful append or matching replay without changing the durable outcome.</summary>
+    void ObserveCompletedFunction(TRequest request, TCompletedEvent completed, FunctionEventPhase phase)
+    {
+        try
+        {
+            var observation = HandleFunctionEvent(_context, new(typeof(TCompletedEvent), request, completed,
+                Stage: phase == FunctionEventPhase.Committed ? FunctionFailureStage.Persistence : FunctionFailureStage.Loading,
+                Phase: phase));
+            if (!observation.IsCompleted || !ReferenceEquals(observation.Completed, completed))
+                throw new InvalidOperationException("A completion observer must return the original completed event.");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Function {Phase} observation failed for {CommandId}; the completed outcome is unchanged.", phase, request.CommandId);
+        }
+    }
 
     /// <summary>Enforces stage cancellation and exact-boundary expiry without allowing late work to resume the lifecycle.</summary>
     async ValueTask<T> RunFunctionStageAsync<T>(TRequest request, FunctionFailureStage stage,
         Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken)
     {
         callerToken.ThrowIfCancellationRequested();
-        var deadline = GetFunctionDeadline(request, stage);
+        var policy = ResolveExecutionPolicy(request, stage)
+            ?? throw new InvalidOperationException("Function execution policy is required.");
+        var deadline = policy.DeadlineUtc;
         if (deadline is null) return await operation(callerToken).ConfigureAwait(false);
-        var clock = FunctionTimeProvider;
+        var clock = policy.Clock;
         var remaining = deadline.Value - clock.GetUtcNow().UtcDateTime;
         if (remaining <= TimeSpan.Zero) throw new TimeoutException();
         using var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
@@ -269,11 +299,11 @@ public abstract class BaseEventSourceFunctionActor<
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Loads completed-only state; a derived actor may bound the read without changing replay order.</summary>
+    /// <summary>Loads completed-only state within the loading policy enforced by the base lifecycle.</summary>
     protected virtual ValueTask<TState> LoadFunctionStateAsync(TRequest request, CancellationToken cancellationToken)
         => _stateRepository.LoadStateAsync(request, cancellationToken);
 
-    /// <summary>Projects a candidate completion before persistence; a derived actor may enforce its deadline.</summary>
+    /// <summary>Projects a candidate completion before persistence within the base-enforced stage policy.</summary>
     protected virtual ValueTask ProjectFunctionResultAsync(
         TRequest request, TCompletedEvent completed, CancellationToken cancellationToken)
         => _functionProjector?.ProjectAsync(completed, cancellationToken) ?? ValueTask.CompletedTask;
@@ -350,6 +380,8 @@ public abstract class BaseEventSourceFunctionActor<
     protected virtual FunctionResult<TCompletedEvent, TFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<TActor> context, FunctionEventContext<TRequest> input)
     {
+        if (input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed && input.Outcome is TCompletedEvent completed)
+            return FunctionResult<TCompletedEvent, TFailedEvent>.Complete(completed);
         if (input.EventType != typeof(TFailedEvent))
             throw new InvalidOperationException($"No Function event handler is registered for {input.EventType}.");
         return FunctionResult<TCompletedEvent, TFailedEvent>.Fail(input.IsConflict

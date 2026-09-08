@@ -1,3 +1,7 @@
+using NSubstitute;
+using Microsoft.Extensions.Logging.Abstractions;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -66,28 +70,21 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
         var command = Command(Now.AddMinutes(2));
         var worker = new TaskCompletionSource<RegimeDiscoveryExecutionOutcome>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var timer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var dispatched = new List<Type>();
-        var execution = ExecuteRegimeDiscoveryPipeline.ExecuteAtomicAsync(
-            command, new MutableTimeProvider(Now), _ => worker.Task, (_, _) => timer.Task,
-            input =>
-            {
-                dispatched.Add(input.EventType);
-                return RegimeDiscoveryFunctionActor.MapEvent(input, new MutableTimeProvider(Now));
-            });
-        timer.SetResult();
+        var clock = new MutableTimeProvider(Now);
+        var execution = Execute(command, clock, _ => worker.Task);
+        await clock.TimerReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        clock.FireTimer();
         var result = await execution;
         worker.SetResult(Completed(command));
         await worker.Task;
-        dispatched.Should().Equal(typeof(RegimeDiscoveryPipelineFailedEvent));
 
         result.Failed!.ErrorCode.Should().Be(23103);
         result.Completed.Should().BeNull();
     }
 
     [Fact]
-    public async Task Completion_at_exact_deadline_maps_only_a_timeout_failure()
+    public async Task Completion_at_exact_deadline_returns_only_a_timeout_failure()
     {
         var command = Command(Now.AddMinutes(2));
         var clock = new MutableTimeProvider(Now);
@@ -118,18 +115,60 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
         state.TryComplete(completed, command).Should().BeFalse();
     }
 
-    static Task<TomasAI.IFM.Shared.EventSourcing.FunctionResult<
-        RegimeDiscoveryPipelineCompletedEvent,
-        RegimeDiscoveryPipelineFailedEvent>> Execute(
-        ExecuteRegimeDiscoveryPipelineCommand command,
-        TimeProvider clock,
+    static async Task<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> Execute(
+        ExecuteRegimeDiscoveryPipelineCommand command, TimeProvider clock,
         Func<CancellationToken, Task<RegimeDiscoveryExecutionOutcome>> worker)
-        => ExecuteRegimeDiscoveryPipeline.ExecuteAtomicAsync(
-            command,
-            clock,
-            worker,
-            (_, cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken),
-            input => RegimeDiscoveryFunctionActor.MapEvent(input, clock));
+    {
+        var actor = new DeadlineTestActor(clock, worker);
+        var message = Substitute.For<IActorMessage>();
+        message.Subject.Returns(command.Subject);
+        message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>().Returns(command);
+        ServiceResult<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>? reply = null;
+        message.ReplyAsync(Arg.Do<ServiceResult<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>>(value => reply = value)).Returns(ValueTask.CompletedTask);
+        await actor.HandleMessageAsync(message);
+        return reply!.Value!;
+    }
+
+    // Tests exercise the shared lifecycle timer with the production policy and terminal maps.
+    sealed class DeadlineTestActor : BaseEventSourceFunctionActor<DeadlineTestActor, ExecuteRegimeDiscoveryPipelineCommand,
+        RegimeDiscoveryExecutionEntityId, IntrinsicTimeStrategyWorkflowEntityId, RegimeDiscoveryFunctionState,
+        RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>
+    {
+        readonly IRegimeDiscoveryFunctionContext domain = Substitute.For<IRegimeDiscoveryFunctionContext>();
+        readonly Func<CancellationToken, Task<RegimeDiscoveryExecutionOutcome>> worker;
+        static readonly IReadOnlyDictionary<Type, Func<ExecuteRegimeDiscoveryPipelineCommand, FunctionFailureStage, IRegimeDiscoveryFunctionContext, FunctionExecutionPolicy>> _executionPolicyMap =
+            new Dictionary<Type, Func<ExecuteRegimeDiscoveryPipelineCommand, FunctionFailureStage, IRegimeDiscoveryFunctionContext, FunctionExecutionPolicy>>
+            { [typeof(ExecuteRegimeDiscoveryPipelineCommand)] = (command, stage, context) => command.ResolveExecutionPolicy(stage, context) };
+        public DeadlineTestActor(TimeProvider clock, Func<CancellationToken, Task<RegimeDiscoveryExecutionOutcome>> execute)
+            : base(ContextForTest(), Repository(), null, NullLogger<DeadlineTestActor>.Instance)
+        { domain.TimeProvider.Returns(clock); worker = execute; }
+        static IFunctionActorContext<DeadlineTestActor> ContextForTest() => new DeadlineTestContext();
+        sealed class DeadlineTestContext : IFunctionActorContext<DeadlineTestActor>
+        {
+            public ActorMailboxId ActorId { get; } = new(ActorType.Function, RegimeDiscoveryFunctionActor.ActorName);
+            public IContainerInstance Container => throw new NotSupportedException();
+        }
+        static IEventSourceFunctionStateRepository<RegimeDiscoveryFunctionState, ExecuteRegimeDiscoveryPipelineCommand> Repository()
+        {
+            var repository = Substitute.For<IEventSourceFunctionStateRepository<RegimeDiscoveryFunctionState, ExecuteRegimeDiscoveryPipelineCommand>>();
+            repository.LoadStateAsync(Arg.Any<ExecuteRegimeDiscoveryPipelineCommand>(), Arg.Any<CancellationToken>()).Returns(_ => ValueTask.FromResult(new RegimeDiscoveryFunctionState()));
+            return repository;
+        }
+        protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteRegimeDiscoveryPipelineCommand request, FunctionFailureStage stage)
+            => DispatchMappedExecutionPolicy(request, stage, domain, _executionPolicyMap);
+        protected override ExecuteRegimeDiscoveryPipelineCommand ParseMessage(IFunctionActorContext<DeadlineTestActor> context, IActorMessage message)
+            => message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>()!;
+        protected override FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> HandleFunctionEvent(
+            IFunctionActorContext<DeadlineTestActor> context, FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand> input)
+            => RegimeDiscoveryFunctionActor.MapEvent(input, domain.TimeProvider);
+        protected override async ValueTask<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> ExecuteFunctionAsync(
+            IFunctionActorContext<DeadlineTestActor> context, RegimeDiscoveryFunctionState state, ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken token)
+        {
+            var outcome = await worker(token);
+            return RegimeDiscoveryFunctionActor.MapEvent(new(outcome is RegimeDiscoveryExecutionCompleted
+                ? typeof(RegimeDiscoveryPipelineCompletedEvent) : typeof(RegimeDiscoveryPipelineFailedEvent), request, outcome), domain.TimeProvider);
+        }
+    }
 
     static RegimeDiscoveryExecutionCompleted Completed(ExecuteRegimeDiscoveryPipelineCommand command)
         => new(new RegimeDiscoveryResult
@@ -177,5 +216,16 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
         DateTimeOffset _now = new(value);
         public override DateTimeOffset GetUtcNow() => _now;
         public void Advance(TimeSpan elapsed) => _now += elapsed;
+        public TaskCompletionSource TimerReady { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TimerCallback? callback; object? state;
+        public override ITimer CreateTimer(TimerCallback action, object? callbackState, TimeSpan dueTime, TimeSpan period)
+        { callback = action; state = callbackState; TimerReady.TrySetResult(); return new TestTimer(); }
+        public void FireTimer() => callback!(state);
+        sealed class TestTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
     }
 }

@@ -67,4 +67,8 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(27)] public Pipeline.TradeSelection.TradeSelectionBinding? SelectionBinding { get; init; }
     [Key(28)] public Pipeline.TradeSelection.WorkflowCompositionHandoffState? CompositionHandoff { get; init; }
     [Key(29)] public Pipeline.Commands.ExecuteTradeSelectionPipelineCommand? SelectionDispatch { get; init; }
+    /// <summary>Complete dispatch committed only after immutable market preparation has been verified.</summary>
+    [Key(30)] public Pipeline.Commands.StartOrderCompositionPipelineCommand? CompositionDispatch { get; init; }
+    /// <summary>Selected contracts committed by Order Composition for durable business ownership.</summary>
+    [Key(31)] public CompositionContractSelection? CompositionContracts { get; init; }
 }

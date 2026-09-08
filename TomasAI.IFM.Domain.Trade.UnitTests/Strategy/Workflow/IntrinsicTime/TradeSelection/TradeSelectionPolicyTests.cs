@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using MessagePack;
@@ -8,6 +9,33 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection;
 public sealed class TradeSelectionPolicyTests
 {
+    [Fact]
+    public void Construction_version_one_preserves_its_exact_json_and_hash_without_an_added_null_member()
+    {
+        var policy = ConstructionPolicy();
+        var json = policy.Serialize();
+        json.Should().NotContain("marketData");
+        JsonNode.Parse(json)!.AsObject().Count.Should().Be(10);
+        SelectionConstructionPolicy.Read(json).Hash().Should().Be(policy.Hash());
+        var invalid = policy with { MarketData = System.Text.Json.JsonSerializer.SerializeToElement(new { }) };
+        Action read = () => invalid.Validate(); read.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void Construction_version_two_pins_explicit_market_scope_and_rejects_unknown_fields(bool unknown)
+    {
+        var market = JsonNode.Parse("""{"SchemaVersion":1,"Dataset":"GLBX.MDP3","Root":"ES","ValueDate":"2026-09-08","IncludeOptions":false,"ScopeComplete":true,"MaturityDate":"0001-01-01","Options":[],"Futures":[{"ContractId":"ESU6"}]}""")!;
+        if (unknown) market["UnreviewedOverride"] = true;
+        var policy = ConstructionPolicy() with { SchemaVersion = 2, MarketData = System.Text.Json.JsonSerializer.SerializeToElement(market) };
+        if (unknown) { Action validate = () => policy.Validate(); validate.Should().Throw<ArgumentException>(); }
+        else SelectionConstructionPolicy.Read(policy.Serialize()).Hash().Should().Be(policy.Hash());
+    }
+
+    static SelectionConstructionPolicy ConstructionPolicy() => new()
+    { SchemaVersion = 1, ParameterSetId = Guid.NewGuid(), Version = 1, MaximumLegs = 4, MinimumDaysToExpiry = 7,
+        MaximumDaysToExpiry = 90, MinimumWingWidth = 0, MaximumWingWidth = 10, DeltaUnits = "UnderlyingEquivalent", MaximumDeltaTolerance = .1m };
+
     [Fact]
     public void Engineering_manifest_has_exactly_three_stable_fully_explicit_profiles()
     {

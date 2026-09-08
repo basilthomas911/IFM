@@ -28,7 +28,8 @@ public enum OptionGreeksFailureReason
     InvalidRiskFreeRate = 10,
     NoArbitrageViolation = 11,
     SolverDidNotConverge = 12,
-    NonFiniteResult = 13
+    NonFiniteResult = 13,
+    PricingContextUnavailable = 14
 }
 
 /// <summary>
@@ -64,7 +65,13 @@ public readonly record struct OptionGreeksSnapshot(
     long OptionPriceSourceSequence,
     DateTimeOffset FuturesPriceTimestamp,
     DateTimeOffset OptionPriceTimestamp,
-    DateTimeOffset CalculatedAtUtc);
+    DateTimeOffset CalculatedAtUtc)
+{
+    /// <summary>Structured prerequisite/solver failure; numeric outputs remain absent.</summary>
+    public Pricing.OptionPricingFailure? PricingFailure { get; init; }
+    /// <summary>Exact immutable reference and quote context used by this calculation.</summary>
+    public string? PricingContextDigest { get; init; }
+}
 
 /// <summary>
 /// Atomically couples the latest option quote with the calculation produced

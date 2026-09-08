@@ -1,5 +1,12 @@
 Regime Discovery Specification
 
+## Typed execution-policy alignment - 2026-09-07
+
+The Function actor has five frozen maps, including exact-command `_executionPolicyMap`. Its `ResolveExecutionPolicy` override only calls the base mapped dispatcher. A `Resolve*ExecutionPolicy` extension in `Function/` returns the typed clock/deadline policy. No actor override reads policy settings, computes deadlines or constructs commit/replay callback contexts. The base enforces timers/cancellation and routes `FunctionEventPhase.Committed`/`Replayed` through `_eventMap`; Complete handlers observe and return the same completed event. Observation faults are logged without replacing durable completion. See [system actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md), section 13.3, for the normative contract.
+
+Regime Discovery preserves its existing execution-only deadline scope: loading, projection and append explicitly return an unbounded policy; execution uses the original request expiry. The base now owns the timer race. Timeout code 23103 and RegimeDiscoveryExecutionTimedOut are preserved.
+
+
 Design Specification v1.0
 
 | Item \| Value \|
@@ -1117,3 +1124,7 @@ implementation must preserve those established boundaries.
 through `MarketRegimeFusionModel`. The query performs no storage access, live specialist request, event publication,
 or workflow continuation. Its output is a design and verification reference only, never a whitelist or calculation
 input. See `../../Docs/Pipeline-Decision-Reference-Queries-v1.0.md` for the shared PDR contract.
+
+## Downstream Order Composition alignment - 2026-09-07
+
+The [Order Composition specification v1.0](../../OrderComposer/Docs/OrderComposition-Specification-v1.0.md) defines the downstream exact-contract boundary using the current five-map Function convention. It preserves accepted single-horizon upstream evidence, exact Fund-authorized selection/catalog versions and committed business-ID reservation. Composition produces one normalized unit for any of the twelve variants on Daily, Weekly or Monthly; Portfolio Risk Management owns final units and financial approval. No family policy is introduced into Regime Discovery or Market Condition. Composition gates are planned; this cross-reference does not change upstream qualification status or claim combined pipeline readiness.

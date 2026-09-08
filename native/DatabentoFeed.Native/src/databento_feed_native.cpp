@@ -169,9 +169,50 @@ void release_pages(void* memory, std::size_t bytes) noexcept {
 #endif
 }
 
+#if defined(_WIN32)
+// VirtualLock is bounded by the process minimum working set. Reserve only this
+// DLL's concurrent rings plus overhead; never change machine/user privileges.
+std::mutex locked_pages_mutex;
+std::size_t locked_ring_bytes{};
+SIZE_T original_working_min{}, original_working_max{};
+SIZE_T reserved_working_min{}, reserved_working_max{};
+
+void restore_working_set_if_owned(SIZE_T minimum, SIZE_T maximum) noexcept {
+    SIZE_T current_min{}, current_max{};
+    if (GetProcessWorkingSetSize(GetCurrentProcess(), &current_min, &current_max)
+        && current_min == reserved_working_min && current_max == reserved_working_max) {
+        SetProcessWorkingSetSize(GetCurrentProcess(), minimum, maximum);
+    }
+}
+#endif
+
 bool lock_pages(void* memory, std::size_t bytes) noexcept {
 #if defined(_WIN32)
-    return VirtualLock(memory, bytes) != FALSE;
+    std::lock_guard guard{locked_pages_mutex};
+    SIZE_T minimum{}, maximum{};
+    if (!GetProcessWorkingSetSize(GetCurrentProcess(), &minimum, &maximum)) return false;
+    if (locked_ring_bytes == 0) {
+        original_working_min = minimum;
+        original_working_max = maximum;
+    }
+    constexpr SIZE_T overhead = 1u << 20;
+    if (bytes > std::numeric_limits<SIZE_T>::max() - overhead - original_working_min
+        || locked_ring_bytes > std::numeric_limits<SIZE_T>::max() - overhead - original_working_min - bytes) return false;
+    const SIZE_T required = original_working_min + locked_ring_bytes + bytes + overhead;
+    const SIZE_T next_min = std::max(minimum, required);
+    const SIZE_T next_max = std::max(maximum, next_min);
+    const bool changed = next_min != minimum || next_max != maximum;
+    if (changed && !SetProcessWorkingSetSize(GetCurrentProcess(), next_min, next_max)) return false;
+    reserved_working_min = next_min;
+    reserved_working_max = next_max;
+    if (!VirtualLock(memory, bytes)) {
+        if (changed) restore_working_set_if_owned(minimum, maximum);
+        reserved_working_min = minimum;
+        reserved_working_max = maximum;
+        return false;
+    }
+    locked_ring_bytes += bytes;
+    return true;
 #else
     return mlock(memory, bytes) == 0;
 #endif
@@ -179,7 +220,10 @@ bool lock_pages(void* memory, std::size_t bytes) noexcept {
 
 void unlock_pages(void* memory, std::size_t bytes) noexcept {
 #if defined(_WIN32)
+    std::lock_guard guard{locked_pages_mutex};
     VirtualUnlock(memory, bytes);
+    locked_ring_bytes -= bytes;
+    if (locked_ring_bytes == 0) restore_working_set_if_owned(original_working_min, original_working_max);
 #else
     munlock(memory, bytes);
 #endif

@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -48,8 +48,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             // An unknown transport outcome is recoverable through the saved dispatch. Do not reject a
             // possibly committed Function result while the workflow can still accept its replay.
             if (ex is not TradeSelectionValidationException && clock.GetUtcNow().UtcDateTime < snapshot.State.ExpiresAtUtc) throw;
-            terminal = FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>.Fail(ExecuteTradeSelectionPipeline.CreateFailedEvent(execute,
-                ex is TradeSelectionValidationException validation ? validation.ReasonCode : "TS.TRANSPORT.FAILED", clock));
+            terminal = TradeSelectionFunctionActor.MapEvent(new(typeof(TradeSelectionFunctionFailedEvent), execute,
+                Exception: ex is TradeSelectionValidationException ? ex : new TradeSelectionValidationException("TS.TRANSPORT.FAILED", ex.Message)), clock);
         }
         if (terminal.IsCompleted)
         {

@@ -51,6 +51,7 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
     [Key(14)] public StrategyStageResultEnvelope? AcceptedSelection {get;init;}
     [Key(15)] public TradeSelectionBinding? SelectionBinding {get;init;}
     [Key(16)] public FundCompositionReservationResult? Reservation {get;init;}
+    [Key(17)] public CompositionEvidenceReference? MarketEvidence { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(StartOrderCompositionPipelineCommand);
@@ -101,7 +102,8 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
         Guid correlationId,
         Guid causationId,
         DateTime requestedAtUtc,
-        DateTime? expectedCompletionAtUtc,StrategyStageResultEnvelope? acceptedSelection=null,TradeSelectionBinding? selectionBinding=null,FundCompositionReservationResult? reservation=null)
+        DateTime? expectedCompletionAtUtc,StrategyStageResultEnvelope? acceptedSelection=null,TradeSelectionBinding? selectionBinding=null,FundCompositionReservationResult? reservation=null,
+        CompositionEvidenceReference? marketEvidence = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -118,5 +120,6 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
         RequestedAtUtc = requestedAtUtc;
         ExpectedCompletionAtUtc = expectedCompletionAtUtc;
         AcceptedSelection=acceptedSelection;SelectionBinding=selectionBinding;Reservation=reservation;
+        MarketEvidence = marketEvidence;
     }
 }

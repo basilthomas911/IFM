@@ -356,6 +356,23 @@ public sealed class Stage4DurableIntentPostgresTests(Stage4DurableIntentPostgres
         ExpectedRevision = revision, SourceVersion = sourceVersion
     };
 
+    [Fact]
+    public async Task Complete_committed_snapshots_cover_source_gaps_without_relaxing_delta_ordering()
+    {
+        var first = Mutation(fixture.NewScope(), "snapshot-owner", 0, 1, Options(4));
+        first = first with { SourceVersion = 12, CompleteSourceSnapshot = true };
+        (await fixture.Store.ApplyAsync(first)).Code.Should().Be(DurableIntentResultCode.Committed);
+        var smaller = Next(first, 1, 25) with { Adds = first.Adds.Take(2).ToArray() };
+        (await fixture.Store.ApplyAsync(smaller)).Code.Should().Be(DurableIntentResultCode.Committed);
+        (await fixture.Store.ReadAsync(first.Scope, Dataset)).Authorities[0].Leases.Should().HaveCount(2);
+        var unknown = Next(smaller, 2, 31) with { Adds = [], Status = DurableAuthorityStatus.Unknown };
+        (await fixture.Store.ApplyAsync(unknown)).Code.Should().Be(DurableIntentResultCode.Committed);
+        (await fixture.Store.ReadAsync(first.Scope, Dataset)).Authorities[0].Leases.Should().HaveCount(2);
+        var delta = Next(unknown, 3, 40) with { CompleteSourceSnapshot = false };
+        (await fixture.Store.ApplyAsync(delta)).Code.Should().Be(DurableIntentResultCode.AuthorityGap);
+        (await fixture.ReadRetiredLeaseCountAsync(first.Scope)).Should().Be(2);
+    }
+
     private static DurableSubscriptionLease[] Options(int count) => Enumerable.Range(0, count).Select(index =>
         new DurableSubscriptionLease(Guid.NewGuid(), 1, SubscriptionLeasePurpose.Position,
             new("Databento", Dataset, "ES-OPTION-" + index, "mbp-1", SubscriptionAssetKind.FuturesOption, "ES20261218"))).ToArray();

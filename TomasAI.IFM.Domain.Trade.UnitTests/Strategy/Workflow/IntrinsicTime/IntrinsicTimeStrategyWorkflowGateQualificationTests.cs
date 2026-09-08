@@ -98,7 +98,7 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         var handlers = typeof(ExecuteIntrinsicTimeStrategyWorkflow).Assembly.GetTypes()
             .Where(type => type.Namespace == typeof(ExecuteIntrinsicTimeStrategyWorkflow).Namespace)
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
-            .Where(method => method.Name == "Execute" && method.IsDefined(typeof(ExtensionAttribute), false))
+            .Where(method => method.Name is "Execute" or "ExecuteAsync" && method.IsDefined(typeof(ExtensionAttribute), false))
             .ToArray();
 
         handlers.Select(method => method.GetParameters()[0].ParameterType)

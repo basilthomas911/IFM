@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using MessagePack;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
@@ -25,11 +25,10 @@ public static partial class TradeSelectionContracts
     public static bool Utc(DateTime value)=>value!=default && value.Kind==DateTimeKind.Utc;
     public static string KeyText(CatalogKey key)=>$"{(short)key.Kind:D2}.{key.Id:D}.{key.Version:D10}";
     public static string CandidateIdentity(SelectionCandidateBinding c)=>$"{c.DeploymentKey.Id:D}.{c.DeploymentKey.Version:D10}.{c.StrategyKey.Id:D}.{c.StrategyKey.Version:D10}.{c.StructureKey.Id:D}.{c.StructureKey.Version:D10}.{c.VariantKey.Id:D}.{c.VariantKey.Version:D10}.{c.Product.ProductId:D10}.{c.AssignmentVersion:D20}";
-    public static string WireHash<T>(T value)=>Convert.ToHexStringLower(SHA256.HashData(MessagePackSerializer.Serialize(value)));
+    public static string WireHash<T>(T value)=>Convert.ToHexStringLower(SHA256.HashData(MessagePackBinarySerializer.SerializeHistoricalContent(value)));
     // JSON event storage can normalize decimal scale (1m -> 1.0m). Hash numeric meaning
     // for typed evidence; envelope PayloadSha256 protects typed content or legacy payload bytes.
-    public static string EvidenceHash<T>(T value)=>MarketConditionAssessmentHash.Compute(
-        MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value))).ToLowerInvariant();
+    public static string EvidenceHash<T>(T value)=>MarketConditionAssessmentHash.Compute(value).ToLowerInvariant();
     public static string BindingHash(TradeSelectionBinding b)=>EvidenceHash(b with { PayloadSha256="" });
     public static string CandidateHash(SelectionCandidateBinding c,SelectionDeploymentSnapshot graph)
     {
@@ -63,7 +62,7 @@ public static partial class TradeSelectionContracts
         Require(p.ParameterSetId==b.CommonPolicy.Id && p.Version==b.CommonPolicy.Version && TradeSelectionPolicy.Hash(p)==b.CommonPolicy.PayloadSha256,"TS.CONTRACT.HASH","Common policy identity/hash mismatch.");
         Require(Utc(b.FrozenAtUtc) && Utc(b.ValidUntilUtc) && b.ValidUntilUtc>b.FrozenAtUtc && b.TradeDatePolicy=="UTC.TriggerCreatedDate.Test.v1","TS.CONTRACT.VALUE_RANGE","Invalid binding times/date policy.");
         Require(b.Candidates.Length<=p.MaximumCandidates && b.CatalogDefinitions.Length<=p.MaximumCatalogDefinitions && b.DeploymentSnapshots.Length<=p.MaximumAssignments && b.PortfolioSnapshot.Assignments.Length<=p.MaximumAssignments,"TS.CONFIG.CANDIDATE_LIMIT","Binding count limit exceeded.");
-        Require(MessagePackSerializer.Serialize(b).Length<=p.MaximumBindingPayloadBytes,"TS.CONTRACT.PAYLOAD_SIZE","Binding byte limit exceeded.");
+        Require(MessagePackBinarySerializer.MeasureContent(b)<=p.MaximumBindingPayloadBytes,"TS.CONTRACT.PAYLOAD_SIZE","Binding byte limit exceeded.");
         Require(b.PayloadSha256==BindingHash(b),"TS.CONTRACT.HASH","Binding hash mismatch.");
         var portfolio=b.PortfolioSnapshot;
         ValidateAuthority(portfolio,b);
@@ -97,7 +96,9 @@ public static partial class TradeSelectionContracts
         }
         foreach(var policy in b.PipelinePolicies)
         {
-            Require(Enum.IsDefined(policy.Kind) && policy.Id!=Guid.Empty && policy.Version>0 && policy.SchemaVersion==1 && policy.Status==CatalogLifecycleStatus.Published && policy.EffectiveFromUtc is not null && policy.EffectiveFromUtc<=b.FrozenAtUtc && (policy.RetiredAtUtc is null || policy.RetiredAtUtc>b.FrozenAtUtc),"TS.CONFIG.INVALID","Pipeline policy is not exact published evidence.");
+            Require(Enum.IsDefined(policy.Kind) && policy.Id!=Guid.Empty && policy.Version>0
+                && (policy.SchemaVersion==1 || policy.Kind==CatalogPipelineParameterKind.OrderComposition && policy.SchemaVersion==2)
+                && policy.Status==CatalogLifecycleStatus.Published && policy.EffectiveFromUtc is not null && policy.EffectiveFromUtc<=b.FrozenAtUtc && (policy.RetiredAtUtc is null || policy.RetiredAtUtc>b.FrozenAtUtc),"TS.CONFIG.INVALID","Pipeline policy is not exact published evidence.");
             ValidatePipelinePolicy(policy);
         }
         foreach(var candidate in b.Candidates) ValidateCandidate(b,candidate,nodes,p);
@@ -134,45 +135,66 @@ public static partial class TradeSelectionContracts
         Require(assignment is not null && assignment.SchemaVersion==3 && assignment.TradeTemplateId==c.DeploymentKey.Id && assignment.TradeTemplateVersion==c.DeploymentKey.Version && assignment.Priority==c.AssignmentPriority && assignment.TradeSelectionHintProfileId==c.SelectionPolicyReference.Id && assignment.TradeSelectionHintProfileVersion==c.SelectionPolicyReference.Version && assignment.OrderCompositionProfileId==c.CompositionPolicyReference.Id && assignment.OrderCompositionProfileVersion==c.CompositionPolicyReference.Version,"TS.CONTRACT.IDENTITY","Candidate assignment/profile identity mismatch.");
     }
     public static (TradeSelectionParameterSet Policy,MarketConditionAssessmentResult Assessment,RegimeDiscoveryResult Regime) ValidateRequest(ExecuteTradeSelectionPipelineCommand c)
+        => ValidateRequestEvidence(c, null);
+
+    /// <summary>Appends cross-field evidence errors while sharing the same rules with non-actor contract consumers.</summary>
+    internal static (TradeSelectionParameterSet Policy,MarketConditionAssessmentResult Assessment,RegimeDiscoveryResult Regime) ValidateRequestEvidence(
+        ExecuteTradeSelectionPipelineCommand c, List<TomasAI.IFM.Shared.Validation.ValidationError>? errors)
+
     {
-        Require(c is not null && c.SchemaVersion==1 && c.CommandId!=Guid.Empty && !c.PostEvents,"TS.CONTRACT.SCHEMA","A schema-1 Function request is required.");
-        Require(c.Subject.ActorType==ActorType.Function && c.Subject.Name==ExecuteTradeSelectionPipelineCommand.Actor && c.Subject.Verb==ExecuteTradeSelectionPipelineCommand.Verb && c.Subject.EntityId==c.EntityId.Format(),"TS.CONTRACT.IDENTITY","Function subject mismatch.");
+        void Check(bool valid, string code, string message)
+        {
+            if (errors is null) Require(valid, code, message);
+            else if (!valid) errors.Add(new(code, code + ": " + message));
+        }
+        Check(c is not null && c.SchemaVersion==1 && c.CommandId!=Guid.Empty && !c.PostEvents,"TS.CONTRACT.SCHEMA","A schema-1 Function request is required.");
+        Check(c.Subject.ActorType==ActorType.Function && c.Subject.Name==ExecuteTradeSelectionPipelineCommand.Actor && c.Subject.Verb==ExecuteTradeSelectionPipelineCommand.Verb && c.Subject.EntityId==c.EntityId.Format(),"TS.CONTRACT.IDENTITY","Function subject mismatch.");
         var v=c.WorkflowView; var p=ValidateBinding(c.SelectionBinding);
-        Require(c.EntityId.InputWorkflowRevision==c.InputWorkflowRevision && c.InputWorkflowRevision>0 && c.WorkflowId==v.WorkflowId && c.WorkflowEntityId==v.EntityId && c.InputWorkflowRevision==v.WorkflowRevision && c.WorkflowId.Value==c.SelectionBinding.PortfolioSnapshot.WorkflowId && v.SelectionBinding?.PayloadSha256==c.SelectionBinding.PayloadSha256,"TS.CONTRACT.IDENTITY","Frozen workflow identity mismatch.");
-        Require(v.Status==WorkflowStrategyMachineStatus.Started && v.CurrentStage==StrategyWorkflowStage.TradeSelection && c.TriggerEvent.Id==v.TriggerEventId && c.TriggerEvent.EntityId==v.TriggerEvent.EntityId && c.TriggerEvent.EntityId.TimePeriod==p.TargetHorizon,"TS.UPSTREAM.INVALID","Workflow stage/trigger/horizon mismatch.");
-        Require(c.RegimeResultEnvelope.PayloadSha256==v.RegimeDiscovery.Result?.PayloadSha256 && c.AssessmentResultEnvelope.PayloadSha256==v.MarketCondition.Result?.PayloadSha256,"TS.UPSTREAM.INVALID","Upstream envelopes differ from accepted workflow.");
-        Require(c.CorrelationId!=Guid.Empty && c.CorrelationId==v.CorrelationId && c.CorrelationId==c.SelectionBinding.PortfolioSnapshot.CorrelationId && c.CausationId!=Guid.Empty,
+        Check(c.EntityId.InputWorkflowRevision==c.InputWorkflowRevision && c.InputWorkflowRevision>0 && c.WorkflowId==v.WorkflowId && c.WorkflowEntityId==v.EntityId && c.InputWorkflowRevision==v.WorkflowRevision && c.WorkflowId.Value==c.SelectionBinding.PortfolioSnapshot.WorkflowId && v.SelectionBinding?.PayloadSha256==c.SelectionBinding.PayloadSha256,"TS.CONTRACT.IDENTITY","Frozen workflow identity mismatch.");
+        Check(v.Status==WorkflowStrategyMachineStatus.Started && v.CurrentStage==StrategyWorkflowStage.TradeSelection && c.TriggerEvent.Id==v.TriggerEventId && c.TriggerEvent.EntityId==v.TriggerEvent.EntityId && c.TriggerEvent.EntityId.TimePeriod==p.TargetHorizon,"TS.UPSTREAM.INVALID","Workflow stage/trigger/horizon mismatch.");
+        Check(c.RegimeResultEnvelope.PayloadSha256==v.RegimeDiscovery.Result?.PayloadSha256 && c.AssessmentResultEnvelope.PayloadSha256==v.MarketCondition.Result?.PayloadSha256,"TS.UPSTREAM.INVALID","Upstream envelopes differ from accepted workflow.");
+        Check(c.CorrelationId!=Guid.Empty && c.CorrelationId==v.CorrelationId && c.CorrelationId==c.SelectionBinding.PortfolioSnapshot.CorrelationId && c.CausationId!=Guid.Empty,
             "TS.CONTRACT.IDENTITY","Workflow correlation/causation mismatch.");
-        Require(v.RegimeDiscovery.ProcessingStatus==StrategyActorProcessingStatus.Completed && v.MarketCondition.ProcessingStatus==StrategyActorProcessingStatus.Completed
+        Check(v.RegimeDiscovery.ProcessingStatus==StrategyActorProcessingStatus.Completed && v.MarketCondition.ProcessingStatus==StrategyActorProcessingStatus.Completed
             && v.TradeSelection.ProcessingStatus==StrategyActorProcessingStatus.Processing && v.TradeSelection.InputWorkflowRevision==c.InputWorkflowRevision,
             "TS.UPSTREAM.INVALID","Upstream results must have been accepted and selection must be processing.");
-        Require(WireHash(c.TriggerEvent)==WireHash(v.TriggerEvent) && c.RegimeResultEnvelope.HasSameContent(v.RegimeDiscovery.Result) && c.AssessmentResultEnvelope.HasSameContent(v.MarketCondition.Result),"TS.UPSTREAM.INVALID","Accepted input metadata differs.");
+        Check(EvidenceHash(c.TriggerEvent)==EvidenceHash(v.TriggerEvent) && c.RegimeResultEnvelope.HasSameContent(v.RegimeDiscovery.Result) && c.AssessmentResultEnvelope.HasSameContent(v.MarketCondition.Result),"TS.UPSTREAM.INVALID","Accepted input metadata differs.");
         var assessment=MarketConditionAssessmentContracts.ReadResult(c.AssessmentResultEnvelope);
         MarketConditionAssessmentContracts.ValidateAcceptance(assessment,v,v.MarketCondition.InputWorkflowRevision);
-        Require(assessment.Assessment.Availability==AssessmentAvailability.Available && !assessment.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade),"TS.UPSTREAM.NOT_ELIGIBLE","Assessment is unavailable or restricted.");
-        Require(c.RegimeResultEnvelope.HasValidPayloadSha256() && c.RegimeResultEnvelope.ResultType==nameof(RegimeDiscoveryResult),"TS.UPSTREAM.INVALID","Invalid regime envelope.");
+        Check(assessment.Assessment.Availability==AssessmentAvailability.Available && !assessment.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade),"TS.UPSTREAM.NOT_ELIGIBLE","Assessment is unavailable or restricted.");
+        Check(c.RegimeResultEnvelope.HasValidPayloadSha256() && c.RegimeResultEnvelope.ResultType==nameof(RegimeDiscoveryResult),"TS.UPSTREAM.INVALID","Invalid regime envelope.");
         var regime=c.RegimeResultEnvelope.ReadRegimeResult();
-        Require(Utc(c.RequestedAtUtc) && Utc(c.EvaluatedAtUtc) && Utc(c.ExpiresAtUtc) && c.EvaluatedAtUtc>=c.RequestedAtUtc && c.EvaluatedAtUtc<c.ExpiresAtUtc && c.ExpiresAtUtc<=v.ExpiresAtUtc && c.ExpiresAtUtc<=c.SelectionBinding.ValidUntilUtc && c.ExpiresAtUtc<=assessment.Assessment.ValidUntilUtc && c.ExpiresAtUtc<=c.RequestedAtUtc.AddMilliseconds(p.MaximumExecutionMilliseconds),"TS.TIME.EXPIRED","Invalid execution times/deadline.");
+        Check(Utc(c.RequestedAtUtc) && Utc(c.EvaluatedAtUtc) && Utc(c.ExpiresAtUtc) && c.EvaluatedAtUtc>=c.RequestedAtUtc && c.EvaluatedAtUtc<c.ExpiresAtUtc && c.ExpiresAtUtc<=v.ExpiresAtUtc && c.ExpiresAtUtc<=c.SelectionBinding.ValidUntilUtc && c.ExpiresAtUtc<=assessment.Assessment.ValidUntilUtc && c.ExpiresAtUtc<=c.RequestedAtUtc.AddMilliseconds(p.MaximumExecutionMilliseconds),"TS.TIME.EXPIRED","Invalid execution times/deadline.");
         var future=c.EvaluatedAtUtc.AddSeconds(p.FutureClockSkewSeconds);
-        Require(c.SelectionBinding.FrozenAtUtc<=c.EvaluatedAtUtc && v.UpdatedAtUtc<=future && v.StartedAtUtc<=future && c.TriggerEvent.CreatedOn<=future
+        Check(c.SelectionBinding.FrozenAtUtc<=c.EvaluatedAtUtc && v.UpdatedAtUtc<=future && v.StartedAtUtc<=future && c.TriggerEvent.CreatedOn<=future
             && c.RegimeResultEnvelope.ProducedAtUtc<=future && c.AssessmentResultEnvelope.ProducedAtUtc<=future,"TS.TIME.CLOCK_SKEW","Frozen evidence is in the future.");
         foreach(var row in c.SelectionBinding.PipelinePolicies)
         {
             if(row.Kind==CatalogPipelineParameterKind.RegimeDiscovery)
-                Require(row.Id==v.RegimeDiscoveryParameterSet.ParameterSetId && row.Version==v.RegimeDiscoveryParameterSet.Version && row.PayloadSha256==v.RegimeDiscoveryParameterPayloadSha256,"TS.CONFIG.PROFILE_MISMATCH","Deployment regime profile differs from accepted upstream.");
+                Check(row.Id==v.RegimeDiscoveryParameterSet.ParameterSetId && row.Version==v.RegimeDiscoveryParameterSet.Version && row.PayloadSha256==v.RegimeDiscoveryParameterPayloadSha256,"TS.CONFIG.PROFILE_MISMATCH","Deployment regime profile differs from accepted upstream.");
             if(row.Kind==CatalogPipelineParameterKind.MarketConditionAssessment)
-                Require(row.Id==assessment.ParameterSetId && row.Version==assessment.ParameterSetVersion && row.PayloadSha256==assessment.ParameterPayloadSha256,"TS.CONFIG.PROFILE_MISMATCH","Deployment assessment profile differs from accepted upstream.");
+                Check(row.Id==assessment.ParameterSetId && row.Version==assessment.ParameterSetVersion && row.PayloadSha256==assessment.ParameterPayloadSha256,"TS.CONFIG.PROFILE_MISMATCH","Deployment assessment profile differs from accepted upstream.");
         }
-        Require(c.SelectionBinding.RequestedTradeDate==DateOnly.FromDateTime(c.TriggerEvent.CreatedOn) && Utc(c.TriggerEvent.CreatedOn),"TS.CONTRACT.IDENTITY","Trade date must use the original UTC trigger.");
-        Require(MessagePackSerializer.Serialize(c).Length<=MaximumTransportBytes,"TS.CONTRACT.PAYLOAD_SIZE","Function transport limit exceeded.");
+        Check(c.SelectionBinding.RequestedTradeDate==DateOnly.FromDateTime(c.TriggerEvent.CreatedOn) && Utc(c.TriggerEvent.CreatedOn),"TS.CONTRACT.IDENTITY","Trade date must use the original UTC trigger.");
+        Check(MessagePackBinarySerializer.MeasureContent(c)<=MaximumTransportBytes && MessagePackBinarySerializer.MeasureEncoded(c)<=MaximumTransportBytes,"TS.CONTRACT.PAYLOAD_SIZE","Function transport limit exceeded.");
         return (p,assessment,regime);
     }
+    /// <summary>Compares projected completion evidence across legacy and typed envelopes, ignoring only stream sequence.</summary>
+    public static bool SameCompletion(Events.TradeSelectionFunctionCompletedEvent left, Events.TradeSelectionFunctionCompletedEvent right)
+    {
+        var leftResult = ReadResult(left.Result);
+        var rightResult = ReadResult(right.Result);
+        var a = left with { EventId = 0, Result = StrategyStageResultEnvelope.CreateSelection(leftResult, 524288) };
+        var b = right with { EventId = 0, Result = StrategyStageResultEnvelope.CreateSelection(rightResult, 524288) };
+        return EvidenceHash(a) == EvidenceHash(b);
+    }
+
     public static TradeSelectionResult ReadResult(StrategyStageResultEnvelope envelope)
     {
-        Require(envelope is not null && envelope.ResultType==nameof(TradeSelectionResult) && envelope.SchemaVersion==1 && envelope.ContentType=="application/x-msgpack" && envelope.HasValidPayloadSha256() && envelope.Payload.Length<=524288,"TS.RESULT.INVALID","Invalid selector result envelope.");
-        var result=MessagePackSerializer.Deserialize<TradeSelectionResult>(envelope.Payload);
+        Require(envelope is not null && envelope.ResultType==nameof(TradeSelectionResult) && envelope.SchemaVersion==1 && envelope.HasValidPayloadSha256() && envelope.ContentSize<=524288,"TS.RESULT.INVALID","Invalid selector result envelope.");
+        var result=envelope.ReadSelectionResult();
         var p=ValidateBinding(result.DecisionContext.SelectionBinding);
-        Require(result.SchemaVersion==1 && result.ResultId==envelope.ResultId && result.ResultId==result.InvocationId && result.ProducedAtUtc==envelope.ProducedAtUtc && envelope.MarketDataAsOfUtc==result.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc && envelope.Payload.Length<=p.MaximumResultPayloadBytes && result.Outcome is SelectionOutcome.Selected or SelectionOutcome.NoTrade && (result.SelectedCandidate is not null)==(result.Outcome==SelectionOutcome.Selected) && result.SummaryText.Length<=2048 && result.CompatibilityScore is null,"TS.RESULT.INVALID","Invalid selector result invariants.");
+        Require(result.SchemaVersion==1 && result.ResultId==envelope.ResultId && result.ResultId==result.InvocationId && result.ProducedAtUtc==envelope.ProducedAtUtc && envelope.MarketDataAsOfUtc==result.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc && envelope.ContentSize<=p.MaximumResultPayloadBytes && result.Outcome is SelectionOutcome.Selected or SelectionOutcome.NoTrade && (result.SelectedCandidate is not null)==(result.Outcome==SelectionOutcome.Selected) && result.SummaryText.Length<=2048 && result.CompatibilityScore is null,"TS.RESULT.INVALID","Invalid selector result invariants.");
         ValidateResultEvidence(result,p);
         return result;
     }

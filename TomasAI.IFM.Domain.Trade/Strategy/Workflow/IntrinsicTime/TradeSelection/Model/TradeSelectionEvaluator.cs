@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using MessagePack;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -9,12 +9,22 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts;
 
-namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
+namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 
 /// <summary>Deterministic selection over frozen authority and accepted market evidence. Performs no I/O.</summary>
-public static class TradeSelectionEvaluator
+/// <summary>Pure deterministic selector calculation contract.</summary>
+public interface ITradeSelectionCalculator
+{
+    TradeSelectionResult Calculate(ExecuteTradeSelectionPipelineCommand command);
+}
+
+/// <summary>Evaluates the frozen, fund-authorized catalog candidates for one triggering timeframe.</summary>
+public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
 {
     static readonly JsonSerializerOptions EvidenceJson = new() { Converters = { new JsonStringEnumConverter() } };
+    /// <summary>Calculates a selection using only the supplied frozen evidence.</summary>
+    public TradeSelectionResult Calculate(ExecuteTradeSelectionPipelineCommand command) => Evaluate(command);
+
     public static TradeSelectionResult Evaluate(ExecuteTradeSelectionPipelineCommand command)
     {
         var (policy, assessmentResult, regimeResult) = ValidateRequest(command);
@@ -118,7 +128,7 @@ public static class TradeSelectionEvaluator
             SummaryText=intent is null?FormattableString.Invariant($"{policy.TargetHorizon} {policy.InstrumentRoot}: NoTrade ({reason}); {candidates.Length} candidate(s) evaluated."):
                 FormattableString.Invariant($"{policy.TargetHorizon} {policy.InstrumentRoot}: selected {nodes[intent.DeploymentKey].Code}/{nodes[intent.VariantKey].Code} ({intent.Side}, {intent.Bias}, {intent.PremiumMode}); confidence {confidence:F6}.")
         };
-        Require(result.SummaryText.Length<=2048 && MessagePackSerializer.Serialize(result).Length<=policy.MaximumResultPayloadBytes,"TS.CONTRACT.PAYLOAD_SIZE","Complete selector result exceeds its limit.");
+        Require(result.SummaryText.Length<=2048 && MessagePackBinarySerializer.MeasureContent(result)<=policy.MaximumResultPayloadBytes,"TS.CONTRACT.PAYLOAD_SIZE","Complete selector result exceeds its limit.");
         return result;
     }
     public static string NormalizeDirection(string value)=>value switch {"Up" or "Long" or "Bullish"=>"Bullish","Down" or "Short" or "Bearish"=>"Bearish","Neutral"=>"Neutral",_=>throw new TradeSelectionValidationException("TS.CONFIG.PERMISSION","Unknown Fund direction permission.")};

@@ -68,6 +68,12 @@ public interface IDatabentoMarketDataEpoch : IAsyncDisposable
         DateOnly maturityDate,
         string[] optionContractIds);
     Task<bool> StopOptionChainAsync(string futuresContractId, DateOnly maturityDate);
+    Task<Pricing.WorkerOptionChainResult> AcquireOptionChainAsync(Pricing.WorkerOptionChainRequest request, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Qualified worker chains are unavailable.");
+    Task<Pricing.WorkerOptionChainResult> ReleaseOptionChainAsync(Pricing.WorkerOptionChainRelease request, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Qualified worker chains are unavailable.");
+    Task<Pricing.CompositionSnapshotResult> CaptureCompositionSnapshotAsync(Pricing.CompositionSnapshotRequest request, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Worker composition snapshots are unavailable.");
 }
 
 public readonly record struct DatabentoMarketDataEpochHealth(

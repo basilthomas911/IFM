@@ -14,6 +14,35 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 /// <summary>Handles successful Order Composition completion.</summary>
 public static class CompleteOrderComposition
 {
+    /// <summary>Verifies selected legs against the accepted immutable snapshot before the actor appends completion.</summary>
+    public static async ValueTask<ServiceResult<GuidResult>> ExecutePreparedAsync(this CompleteOrderCompositionCommand command,
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
+    {
+        var current = state.CurrentView;
+        if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition }
+            || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision
+            || context.TimeProvider.GetUtcNow().UtcDateTime >= current.ExpiresAtUtc)
+            return command.Execute(context, state);
+        if (current?.CompositionDispatch?.MarketEvidence is { } evidence
+            && current.WorkflowId == command.WorkflowId && current.WorkflowRevision == command.InputWorkflowRevision
+            && current.CurrentStage == StrategyWorkflowStage.OrderComposition
+            && current.Status == WorkflowStrategyMachineStatus.Started && context.TimeProvider.GetUtcNow().UtcDateTime < current.ExpiresAtUtc)
+        {
+            var selected = command.SelectedContracts ?? throw new InvalidDataException("Prepared composition requires exact selected contracts.");
+            selected.Validate();
+            var prepared = await new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(context.DbFactory.MarketDataDb)
+                .ReadAsync(new(evidence.WorkflowId, evidence.PreparationRevision, evidence.InputSha256), default).ConfigureAwait(false)
+                ?? throw new InvalidDataException("Accepted composition evidence is unavailable.");
+            TomasAI.IFM.Application.MarketData.Pricing.CompositionPreparationService.Validate(prepared);
+            if (prepared.Digest != evidence.PreparationSha256 || prepared.Request.ScopeId != selected.PricingPlanId
+                || selected.ContractIds.Any(id => !prepared.Snapshot.Instruments.Any(x => x.Instrument.ContractId == id)))
+                throw new InvalidDataException("Selected contracts differ from accepted market evidence.");
+        }
+        else if (command.SelectedContracts is not null)
+            throw new InvalidDataException("Selected contracts require accepted market evidence.");
+        return command.Execute(context, state);
+    }
+
     /// <summary>Records the Order Composition result and selects Risk Management.</summary>
     public static ServiceResult<GuidResult> Execute(this CompleteOrderCompositionCommand command,
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
@@ -56,6 +85,7 @@ public static class CompleteOrderComposition
         {
             CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
             CurrentStage = StrategyWorkflowStage.RiskManagement,
+            CompositionContracts = command.SelectedContracts,
             OrderComposition = current.OrderComposition with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,

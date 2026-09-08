@@ -272,6 +272,71 @@ public sealed class FunctionActorLifecycleTests
         dispatch.Should().Throw<InvalidOperationException>().WithMessage("*incompatible terminal result*");
     }
 
+    [Fact]
+    public async Task Policy_is_resolved_for_each_stage_and_completed_observation_does_not_repeat_on_replay()
+    {
+        var request = new TestRequest(); var calls = new List<string>(); var state = new TestState();
+        var actor = new TestFunctionActor(new TestRepository(state, calls), new TestProjector(calls),
+            (_, c) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(c)));
+        var stages = new List<FunctionFailureStage>();
+        actor.Policy = (_, stage) => { stages.Add(stage); return new(TimeProvider.System, null); };
+        await actor.HandleMessageAsync(new TestMessage(request));
+        await actor.HandleMessageAsync(new TestMessage(request));
+        stages.Should().Equal(FunctionFailureStage.Loading, FunctionFailureStage.Execution, FunctionFailureStage.Projection,
+            FunctionFailureStage.Persistence, FunctionFailureStage.Loading);
+        actor.Observations.Should().Equal(FunctionEventPhase.Committed, FunctionEventPhase.Replayed);
+        actor.Executions.Should().Be(1); calls.Should().Equal("project", "save");
+        await actor.HandleMessageAsync(new TestMessage(request with { CommandId = Guid.NewGuid() }));
+        actor.Observations.Should().HaveCount(2, "a conflicting replay does not observe a successful completion");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Observer_failure_cannot_replace_a_durable_completion_or_replay(bool replay)
+    {
+        var request = new TestRequest(); var state = new TestState(); var completed = Completed(request);
+        if (replay) state.TryComplete(completed, request);
+        var actor = new TestFunctionActor(new TestRepository(state, []), null,
+            (_, _) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(completed)) { FailObservation = true };
+        var message = new TestMessage(request); await actor.HandleMessageAsync(message);
+        message.Reply!.Value!.Completed.Should().BeSameAs(completed);
+        actor.Observations.Should().Equal(replay ? FunctionEventPhase.Replayed : FunctionEventPhase.Committed);
+    }
+
+    [Fact]
+    public async Task Expired_loading_policy_prevents_loading_or_executing()
+    {
+        var repo = new TestRepository(new TestState(), []);
+        var actor = new TestFunctionActor(repo, null, (_, request) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)));
+        actor.Policy = (_, _) => new(TimeProvider.System, DateTime.UtcNow.AddMinutes(-1));
+        var message = new TestMessage(new TestRequest()); await actor.HandleMessageAsync(message);
+        repo.Loads.Should().Be(0); actor.Executions.Should().Be(0);
+        message.Reply!.Value!.IsFailed.Should().BeTrue(); actor.Observations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Policy_rejects_null_clock_and_non_utc_or_default_deadlines()
+    {
+        FluentActions.Invoking(() => new FunctionExecutionPolicy(null!, null)).Should().Throw<ArgumentNullException>();
+        FluentActions.Invoking(() => new FunctionExecutionPolicy(TimeProvider.System, DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified))).Should().Throw<ArgumentException>();
+        FluentActions.Invoking(() => new FunctionExecutionPolicy(TimeProvider.System, default(DateTime))).Should().Throw<ArgumentException>();
+        new FunctionExecutionPolicy(TimeProvider.System, null).DeadlineUtc.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("null")]
+    [InlineData("stage")]
+    public void Policy_dispatch_rejects_missing_exact_key_null_policy_and_nonexecution_stages(string scenario)
+    {
+        var map = new Dictionary<Type, Func<TestRequest, FunctionFailureStage, TimeProvider, FunctionExecutionPolicy>>
+        { [scenario == "missing" ? typeof(ICommand) : typeof(TestRequest)] = (_, _, clock) => scenario == "null" ? null! : new(clock, null) };
+        Action act = () => TestFunctionActor.DispatchPolicy(new TestRequest(),
+            scenario == "stage" ? FunctionFailureStage.Validation : FunctionFailureStage.Execution, map);
+        act.Should().Throw<Exception>();
+    }
+
     static TestFunctionActor ValidationActor() => new(
         new TestRepository(new TestState(), []), null, (_, request) =>
             FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)));
@@ -337,6 +402,29 @@ public sealed class FunctionActorLifecycleTests
             FunctionEventContext<TestRequest> input,
             IReadOnlyDictionary<Type, Func<FunctionEventContext<TestRequest>, TimeProvider, FunctionResult<TestCompletedEvent, TestFailedEvent>>> map)
             => DispatchMappedFunctionEvent(input, TimeProvider.System, map);
+
+        public Func<TestRequest, FunctionFailureStage, FunctionExecutionPolicy> Policy { get; set; } = (_, _) => new(TimeProvider.System, null);
+        static readonly IReadOnlyDictionary<Type, Func<TestRequest, FunctionFailureStage, TestFunctionActor, FunctionExecutionPolicy>> _executionPolicyMap =
+            new Dictionary<Type, Func<TestRequest, FunctionFailureStage, TestFunctionActor, FunctionExecutionPolicy>>
+            { [typeof(TestRequest)] = (request, stage, actor) => actor.Policy(request, stage) };
+        protected override FunctionExecutionPolicy ResolveExecutionPolicy(TestRequest request, FunctionFailureStage stage)
+            => DispatchMappedExecutionPolicy(request, stage, this, _executionPolicyMap);
+        public List<FunctionEventPhase> Observations { get; } = [];
+        public bool FailObservation { get; set; }
+        protected override FunctionResult<TestCompletedEvent, TestFailedEvent> HandleFunctionEvent(
+            IFunctionActorContext<TestFunctionActor> context, FunctionEventContext<TestRequest> input)
+        {
+            if (input.Phase != FunctionEventPhase.Outcome)
+            {
+                Observations.Add(input.Phase);
+                if (FailObservation) throw new InvalidOperationException("Injected observer failure");
+            }
+            return base.HandleFunctionEvent(context, input);
+        }
+
+        public static FunctionExecutionPolicy DispatchPolicy(TestRequest request, FunctionFailureStage stage,
+            IReadOnlyDictionary<Type, Func<TestRequest, FunctionFailureStage, TimeProvider, FunctionExecutionPolicy>> map)
+            => DispatchMappedExecutionPolicy(request, stage, TimeProvider.System, map);
 
         public int Executions { get; private set; }
 

@@ -81,6 +81,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         FrozenDictionary<string, TickAggregationService>.Empty;
     private int _started;
     private int _disposed;
+    private int _optionChainFault;
+    private readonly Dictionary<string, Pricing.WorkerOptionChainRuntime> _qualifiedChains = new(StringComparer.Ordinal);
 
     internal DatabentoMarketDataEpoch(
         DateOnly valueDate,
@@ -161,7 +163,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
 
     public bool IsFeedUp(TimeSpan timeout)
     {
-        if (timeout <= TimeSpan.Zero || Volatile.Read(ref _started) == 0)
+        if (timeout <= TimeSpan.Zero || Volatile.Read(ref _started) == 0 || Volatile.Read(ref _optionChainFault) != 0)
             return false;
 
         var startedAt = Stopwatch.GetTimestamp();
@@ -345,6 +347,13 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             // provider drain. Realtime work already queued by the feed can then
             // observe a typed stopped-epoch result instead of reacquiring routes.
             Volatile.Write(ref _started, 0);
+            var chainFailures = new List<Exception>();
+            foreach (var chain in _qualifiedChains.Values)
+            {
+                try { await chain.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception exception) { chainFailures.Add(exception); }
+            }
+            _qualifiedChains.Clear();
             _optionRoutes.Clear();
             _liveRouter.Clear();
             var stopTasks = Volatile.Read(ref _aggregationsByDataset).Values
@@ -365,6 +374,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             var failures = stopResults.Where(static exception => exception is not null)
                 .Cast<Exception>()
                 .ToList();
+            failures.AddRange(chainFailures);
             _lastPrices?.Invalidate();
             if (failures.Count != 0)
                 throw new AggregateException("The DataBento epoch stop failed.", failures);
@@ -396,6 +406,9 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             if (previous.GenerationId != request.ExpectedGenerationId)
                 return new(request.Dataset, request.ExpectedGenerationId, previous.GenerationId, true,
                     "A newer dataset generation already owns the route; stale reset was ignored.");
+
+            if (_qualifiedChains.Remove(request.Dataset, out var chainRuntime))
+                await chainRuntime.DisposeAsync().ConfigureAwait(false);
 
             var contracts = _catalog!.ResolvedContracts.Where(contract =>
                     string.Equals(contract.Dataset, request.Dataset, StringComparison.Ordinal))
@@ -650,6 +663,91 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         // Phase A deliberately performs no reservation or provider allocation:
         // the immutable FMP-derived session rate is a required start input.
         throw new MarketDataPricingInputUnavailableException("Treasury curve session rate");
+    }
+
+    public async Task<Pricing.WorkerOptionChainResult> AcquireOptionChainAsync(Pricing.WorkerOptionChainRequest request, CancellationToken cancellationToken)
+    {
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureRunning();
+            if (request.Options.IsDefaultOrEmpty) return new(false, new("InvalidChainRequest", "Options", "", "A complete qualified scope is required."));
+            var dataset = request.Options[0].Pricing.Contract.Dataset;
+            if (!_aggregationsByDataset.TryGetValue(dataset, out var aggregation) || aggregation.GenerationId != request.GenerationId)
+                return new(false, new("Recovering", "Generation", "", "Dataset generation does not match."));
+            if (!_qualifiedChains.TryGetValue(dataset, out var runtime))
+            {
+                runtime = new(aggregation.GenerationId, ValueDate, _feeds, _options.FeedOptions with { Dataset = dataset }, aggregation, _lastPrices!, _timeProvider,
+                    detail => { Volatile.Write(ref _optionChainFault, 1); _terminalFaultHandler?.Invoke(detail); });
+                _qualifiedChains.Add(dataset, runtime);
+            }
+            return await runtime.AcquireAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    public async Task<Pricing.WorkerOptionChainResult> ReleaseOptionChainAsync(Pricing.WorkerOptionChainRelease request, CancellationToken cancellationToken)
+    {
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureRunning();
+            var dataset = _aggregationsByDataset.FirstOrDefault(x => x.Value.GenerationId == request.GenerationId).Key;
+            return dataset is not null && _qualifiedChains.TryGetValue(dataset, out var runtime)
+                ? await runtime.ReleaseAsync(request, cancellationToken).ConfigureAwait(false)
+                : new(false, new("Recovering", "Generation", "", "Dataset generation does not match."));
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    public async Task<Pricing.CompositionSnapshotResult> CaptureCompositionSnapshotAsync(Pricing.CompositionSnapshotRequest request, CancellationToken cancellationToken)
+    {
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureRunning();
+            var dataset = _aggregationsByDataset.FirstOrDefault(x => x.Value.GenerationId == request.GenerationId).Key;
+            if (dataset is not null && !request.IncludeOptions)
+            {
+                var source = new Pricing.WorkerFuturesCompositionSource(_lastPrices!, ValueDate, request.GenerationId,
+                    id => _aggregationByContractId.TryGetValue(id, out var owner) && owner.GenerationId == request.GenerationId
+                        && _catalog!.FindFutures(id) is not null);
+                return await CaptureWorkerSourceAsync(source, request, cancellationToken).ConfigureAwait(false);
+            }
+            if (dataset is null || !_qualifiedChains.TryGetValue(dataset, out var runtime))
+                return new(null, new("ChainUnavailable", "Scope", "", "No qualified chain owns this scope."));
+            return await CaptureWorkerSourceAsync(runtime, request, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    async Task<Pricing.CompositionSnapshotResult> CaptureWorkerSourceAsync(Pricing.ICompositionMarketSource source,
+        Pricing.CompositionSnapshotRequest request, CancellationToken cancellationToken)
+    {
+        if (request.EvaluatedAtUtc == default)
+        {
+            try
+            {
+                // Freeze all observations first, then choose the one worker valuation instant.
+                // Reading a moving cache after a host timestamp would admit future observations or fail every fast feed.
+                var page = await source.ReadAsync(request, null, cancellationToken).ConfigureAwait(false);
+                source = new FrozenCompositionSource(page);
+                request = request with { EvaluatedAtUtc = _timeProvider.GetUtcNow() };
+            }
+            catch (Pricing.CompositionMarketSourceException ex)
+            { return new(null, new(ex.Code, "Snapshot", "", "Worker snapshot source is unavailable.")); }
+        }
+        return await new Pricing.MarketCompositionSnapshotProvider(source, _timeProvider).CaptureAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    sealed class FrozenCompositionSource(Pricing.CompositionMarketPage page) : Pricing.ICompositionMarketSource
+    {
+        public Task<Pricing.CompositionMarketPage> ReadAsync(Pricing.CompositionSnapshotRequest request, string? continuation, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (continuation is not null) throw new Pricing.CompositionMarketSourceException("IncompleteChain");
+            return Task.FromResult(page);
+        }
     }
 
     public Task<bool> StopOptionChainAsync(

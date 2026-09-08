@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Channels;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Pricing;
 
 if (!DatasetWorkerArguments.TryParse(args, out var worker, out var error))
 {
@@ -31,7 +32,7 @@ using var stopping = new CancellationTokenSource();
 
 await WriteAsync(DatasetWorkerMessageKind.WorkerHello, healthy: false,
     "Dataset worker control host started.", Guid.NewGuid());
-var supervisor = await DatasetWorkerFrameCodec.ReadAsync(input, 256 * 1024, stopping.Token);
+var supervisor = await DatasetWorkerFrameCodec.ReadAsync(input, 1024 * 1024, stopping.Token);
 if (supervisor.Kind != DatasetWorkerMessageKind.SupervisorHello
     || supervisor.WorkerInstanceId != worker.WorkerInstanceId
     || supervisor.Dataset != worker.Dataset
@@ -72,6 +73,38 @@ try
 
         switch (command.Kind)
         {
+            case DatasetWorkerMessageKind.AcquireOptionChain:
+            case DatasetWorkerMessageKind.ReleaseOptionChain:
+            case DatasetWorkerMessageKind.ApplyOptionChainOwnership:
+            case DatasetWorkerMessageKind.CaptureCompositionSnapshot:
+                try
+                {
+                    if (command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot)
+                    {
+                        var captured = await datasetRuntime!.CaptureCompositionSnapshotAsync(command.CompositionRequest!, stopping.Token);
+                        await WriteAsync(DatasetWorkerMessageKind.CompositionSnapshotResult, datasetRuntime.IsHealthy,
+                            "Composition snapshot evaluated.", command.CorrelationId, compositionResult: captured);
+                    }
+                    else
+                    {
+                        var result = command.Kind == DatasetWorkerMessageKind.AcquireOptionChain
+                            ? await datasetRuntime!.AcquireOptionChainAsync(command.OptionChain!, stopping.Token)
+                            : await datasetRuntime!.ReleaseOptionChainAsync(command.OptionChainRelease!, stopping.Token);
+                        await WriteAsync(DatasetWorkerMessageKind.OptionChainResult, datasetRuntime.IsHealthy,
+                            "Option chain operation evaluated.", command.CorrelationId, chainResult: result);
+                    }
+                }
+                catch (Exception exception) when (!stopping.IsCancellationRequested)
+                {
+                    var failure = new TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure(
+                        "WorkerOperationFailed", "Chain", "", exception.GetType().Name);
+                    await WriteAsync(command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot
+                        ? DatasetWorkerMessageKind.CompositionSnapshotResult : DatasetWorkerMessageKind.OptionChainResult,
+                        datasetRuntime?.IsHealthy == true, "Option operation failed.", command.CorrelationId,
+                        chainResult: command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot ? null : new(false, failure),
+                        compositionResult: command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot ? new(null, failure) : null);
+                }
+                break;
             case DatasetWorkerMessageKind.StartManifest:
             case DatasetWorkerMessageKind.ApplySubscriptionManifest:
             case DatasetWorkerMessageKind.CooperativeReset:
@@ -147,7 +180,7 @@ async Task ReadCommandsAsync()
     {
         while (!stopping.IsCancellationRequested)
         {
-            var command = await DatasetWorkerFrameCodec.ReadAsync(input, 256 * 1024, stopping.Token);
+            var command = await DatasetWorkerFrameCodec.ReadAsync(input, 1024 * 1024, stopping.Token);
             await commands.Writer.WriteAsync(command, stopping.Token);
         }
     }
@@ -227,7 +260,9 @@ async ValueTask WriteAsync(
     DatasetWorkerMessageKind kind,
     bool healthy,
     string detail,
-    Guid correlationId)
+    Guid correlationId,
+    WorkerOptionChainResult? chainResult = null,
+    CompositionSnapshotResult? compositionResult = null)
 {
     // A failed reconstruction may own an unaccepted epoch while the control identity
     // still names its predecessor. Do not attach cross-generation diagnostics.
@@ -248,8 +283,10 @@ async ValueTask WriteAsync(
         ManifestRevision = currentManifest?.Revision ?? 0,
         ManifestFingerprint = currentManifest?.Fingerprint ?? string.Empty,
         Diagnostics = diagnostics,
+        OptionChainResult = chainResult,
+        CompositionResult = compositionResult,
         BootstrapToken = bootstrapToken
-    }, 256 * 1024, stopping.Token);
+    }, 1024 * 1024, stopping.Token);
 }
 
 bool ValidSupervisorFrame(DatasetWorkerControlFrame frame)

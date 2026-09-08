@@ -6,6 +6,10 @@ namespace TomasAI.IFM.Framework.MarketData.Contracts;
 /// </summary>
 public interface ITreasuryCurve
 {
+    /// <summary>Converts an already observed curve using an explicitly verified source convention; no I/O.</summary>
+    TreasuryContinuousRateResult GetContinuouslyCompoundedAnnualRate(
+        TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy);
+
     /// <summary>
     /// Gets the newest curve whose value date is on or before
     /// <paramref name="asOfDate"/>.

@@ -1,8 +1,15 @@
 # Market Condition Detailed Specification v2.0
 
+## Typed execution-policy alignment - 2026-09-07
+
+The Function actor has five frozen maps, including exact-command `_executionPolicyMap`. Its `ResolveExecutionPolicy` override only calls the base mapped dispatcher. A `Resolve*ExecutionPolicy` extension in `Function/` returns the typed clock/deadline policy. No actor override reads policy settings, computes deadlines or constructs commit/replay callback contexts. The base enforces timers/cancellation and routes `FunctionEventPhase.Committed`/`Replayed` through `_eventMap`; Complete handlers observe and return the same completed event. Observation faults are logged without replacing durable completion. See [system actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md), section 13.3, for the normative contract.
+
+Loading keeps a fresh bounded replay-read budget; execution, projection and append retain the original request deadline.
+
+
 ## Function actor alignment - 2026-09-07
 
-Market Condition uses the Regime Discovery actor conventions: immutable `_parseMap`, `_validationMap`, `_receiveMap`, and an exact completed/failed `_eventMap`. Parsing uses `ParseMappedFunction`; validation uses `ValidateMappedCommand` and ordered `List<ValidationError>` extensions with structured FluentValidation adapters. Validation aggregates invalid identities, missing/null nested inputs, trace IDs, timestamps, parameters, hashes, horizon and frozen upstream consistency before loading state.
+Market Condition uses the Regime Discovery actor conventions: frozen `_parseMap`, `_validationMap`, `_receiveMap`, `_executionPolicyMap`, and an exact completed/failed `_eventMap`. Parsing uses `ParseMappedFunction`; validation uses `ValidateMappedCommand` and ordered `List<ValidationError>` extensions with structured FluentValidation adapters. Validation aggregates invalid identities, missing/null nested inputs, trace IDs, timestamps, parameters, hashes, horizon and frozen upstream consistency before loading state.
 
 `IMarketConditionFunctionContext` is injected directly and shares the generic context singleton registration in both hosts. It supplies `IMarketConditionAssessmentCalculator`; actual assessment calculations and decision rules remain in `Model/MarketConditionAssessmentCalculator.cs`. The calculator copies the upstream decision as typed content without a MessagePack round trip.
 
@@ -580,3 +587,7 @@ Calendar authority is explicitly frozen as EconomicCalendar/FMP, scopes `ALL,US`
 Scylla `market_condition_assessment` is keyed by workflow UUID. `market_condition_assessment_by_profile` partitions by market profile/root/horizon and orders by evaluated time descending then workflow UUID ascending. Both store the typed completed payload plus a SHA-256 checksum. Reads verify the checksum, envelope and sealed snapshot. Exact lookup, bounded before-time history (1–100 rows) and latest-within-horizon are distinct from the legacy fund-based read paths; the current UI loads the latest 25 entries and does not offer cursor pagination.
 
 The completed-only PostgreSQL Function stream remains authoritative. Neither Scylla table alone proves workflow acceptance. Observation compares the completed result ID/hash with accepted workflow state and marks unaccepted projections explicitly.
+
+## Downstream Order Composition alignment - 2026-09-07
+
+The [Order Composition specification v1.0](../../OrderComposer/Docs/OrderComposition-Specification-v1.0.md) defines the downstream exact-contract boundary using the current five-map Function convention. It preserves accepted single-horizon upstream evidence, exact Fund-authorized selection/catalog versions and committed business-ID reservation. Composition produces one normalized unit for any of the twelve variants on Daily, Weekly or Monthly; Portfolio Risk Management owns final units and financial approval. No family policy is introduced into Regime Discovery or Market Condition. Composition gates are planned; this cross-reference does not change upstream qualification status or claim combined pipeline readiness.

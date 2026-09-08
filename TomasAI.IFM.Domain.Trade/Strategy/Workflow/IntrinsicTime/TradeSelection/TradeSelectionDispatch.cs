@@ -25,7 +25,7 @@ public static class TradeSelectionDispatch
             SelectionBinding=binding,RegimeResultEnvelope=view.RegimeDiscovery.Result!,AssessmentResultEnvelope=view.MarketCondition.Result!
         };
         // Normalize historical trigger constructor defaults once, before persisting the dispatch.
-        command=MessagePack.MessagePackSerializer.Deserialize<ExecuteTradeSelectionPipelineCommand>(MessagePack.MessagePackSerializer.Serialize(command));
+        command=command.NormalizeContent();
         TradeSelectionContracts.ValidateRequest(command);return command;
     }
 }

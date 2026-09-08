@@ -10,6 +10,7 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("composition_preparation", CompositionPreparationStore.CreateTable, "DROP TABLE IF EXISTS composition_preparation;"),
         new("futures_eod_observation", MarketDataSchemaCql.CreateFuturesEodObservationTable, "DROP TABLE IF EXISTS futures_eod_observation;"),
         new("futures_trade_session_bar", MarketDataSchemaCql.CreateFuturesTradeSessionBarTable, "DROP TABLE IF EXISTS futures_trade_session_bar;"),
         new("futures_ema_signal", MarketDataSchemaCql.CreateFuturesEmaSignalTable, "DROP TABLE IF EXISTS futures_ema_signal;"),

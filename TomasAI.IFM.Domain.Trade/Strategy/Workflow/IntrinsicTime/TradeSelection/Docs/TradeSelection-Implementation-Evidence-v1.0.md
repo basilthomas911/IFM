@@ -1,5 +1,55 @@
 # Trade Selection implementation and qualification evidence
 
+## Typed execution-policy verification - 2026-09-07
+
+All three production Function actors now use a frozen exact-command `_executionPolicyMap` and mapping-only `ResolveExecutionPolicy` override. Domain `Function/Resolve*ExecutionPolicy` extensions return `FunctionExecutionPolicy`; the base owns timeout/cancellation and creates Committed/Replayed event-map callbacks. Regime Discovery retains execution-only timing; Market Condition and Trade Selection retain a fresh loading budget and original expiry for subsequent stages. No actor-specific deadline helper or timer race remains. The system convention in section 13.3 is authoritative.
+
+Validation for this change:
+
+| Suite | Passed cases |
+| --- | ---: |
+| Domain.Trade.UnitTests (complete suite) | 784 |
+| Shared FunctionActorLifecycleTests | 25 |
+| Domain.Trade.BDDTests (complete suite) | 31 |
+| TradeSelectionContextRegistrationTests | 3 |
+| Focused Regime Discovery / Market Assessment / Trade Selection verification | 44 |
+| Live Function runtime over isolated NATS, PostgreSQL and ScyllaDB | 8 |
+| **Total targeted cases passed** | **895** |
+
+The focused verification filter includes `MarketAssessmentQualificationTests`, `TradeSelectionQualificationTests`, and RegimeDiscovery tests, excluding `RegimeDiscoveryWorkflowVerificationTests` and `RegimeDiscoveryFailureVerificationTests`. The API Server build passed with zero warnings and errors. New tests enforce policy-map coverage across all production Function actors, each stage's timing scope, malformed/missing policies, exact-boundary expiry, caller cancellation, late-worker fencing, and completion identity despite observer failure.
+
+The eight live runtime cases include all five existing Trade Selection cases plus Market Condition completion/persistence/replay (one capture only) and expired-policy failures for both Regime Discovery and Market Condition with no completed state. These use the real production Function actors and serializers, an isolated JetStream broker on port 14222, local PostgreSQL/ScyllaDB, and a controlled assessment snapshot provider. The temporary broker was removed after verification.
+
+Full signal-to-workflow qualification is not claimed by these results. A broader verification attempt failed during test-host startup because TradeStrategyFamilyCreationService was not registered. With the existing Trade/Analytics domain filter, the older workflow fixture then failed before Function dispatch because it does not provision the exact Trade Selection workflow activation now required by the realtime entry point; that rerun was stopped. Those fixtures require current catalog/Portfolio/activation setup before combined pipeline qualification. No production activation requirement was bypassed.
+
+
+
+## Full Function alignment verification ? 2026-09-07
+
+Trade Selection now uses the same Function conventions as Regime Discovery and Market Condition: injected typed context/model, five frozen maps, list-extension validation through `ValidateMappedCommand`, separate Execute/Complete/Fail handlers, base-owned deadlines and mapped terminal/commit/replay handling. New results use typed envelope key 10; transport/storage/paging use shared MessagePack configuration with explicit legacy-read support. Command normalization and defensive copies are typed operations. Content budgets remain uncompressed and are checked separately from encoded transport size before projection/persistence.
+
+| Verification | Passed | Scope |
+| --- | ---: | --- |
+| Trade unit suite | 777 | Existing selector/Regime/Market Condition/workflow regression plus 15 alignment cases: shared compressed outer-event serialization, old eight-field envelopes/storage, historical fingerprints, semantic projection idempotency, defensive collections, mapped failure categories, null validation, model failure/deadline, paging and compressible oversized-result rejection before writes |
+| Trade BDD | 31 | Business Selected/NoTrade and workflow behavior with typed results |
+| Shared Function lifecycle | 17 | Lifecycle order, replay, conflict and terminal dispatch |
+| Context registration integration | 3 | Actual host registration scan for Regime Discovery, Market Condition and Trade Selection; domain/generic singleton aliases and calculation dependencies |
+| Assessment/Trade Selection qualification | 10 | Deterministic evidence, one timeframe and downstream selector behavior |
+| Binary serialization unit suite | 11 | Shared serializer compatibility |
+| NATS messaging unit suite | 93 | Includes cross-decoding and identical compressed bytes between direct NATS writer and standard binary serializer |
+| Live Trade Selection integration | 5 | NATS request/reply, Scylla typed projection and idempotency/query/paging, PostgreSQL completed append and replay/conflict, orphan projection recovery after append failure, policy lifecycle, assignment paging and durable pending/reserved handoff recovery |
+| **Total** | **947** | **Zero failed or skipped in these final runs** |
+
+API build: `dotnet build TomasAI.IFM.Application.Api.Server --no-restore --verbosity quiet` ? zero warnings and errors. `git diff --check` passes.
+
+Reproduction: run `dotnet test <project> --no-restore` for Trade.UnitTests, Trade.BDDTests, Framework.Serialization.UnitTests and Framework.Messaging.Nats.UnitTests. Shared.UnitTests uses `FullyQualifiedName~FunctionActorLifecycleTests`; Trade.IntegratedTests registration uses `FullyQualifiedName~ContextRegistrationTests`; Trade.VerificationTests uses `FullyQualifiedName~MarketAssessmentQualificationTests|FullyQualifiedName~TradeSelectionQualificationTests`. Live integration uses `FullyQualifiedName~TradeSelectionRuntimeTests|FullyQualifiedName~TradeSelectionHandoffRuntimeTests` with local PostgreSQL/Scylla/Redis test stores and isolated JetStream on `127.0.0.1:14222`. The temporary `nats:2.12.0-alpine` broker was stopped and removed afterward.
+
+These are real infrastructure tests with frozen fixture market/catalog evidence and explicit fixture-only downstream capability validators. They do not establish live feed/broker readiness, implement Order Composition, or qualify the combined five-stage pipeline. Test records use the existing test databases and isolated identities. Local logs are `.test-results/trade-selection-alignment-{unit,bdd,shared,registration,qualification,serialization,nats,runtime,api-build}.log`; the earlier `build.log` is a superseded intermediate failed build.
+
+The design, specification, implementation plan and system actor conventions describe this final behavior. Producers/consumers must be deployed together for new typed-only writes. Historical result and event blobs remain readable, and semantic duplicate comparison accepts equivalent old/new envelope representations while preserving all metadata except the ignored stream EventId.
+
+## Prior gate evidence (historical)
+
 Date: 2026-09-07. Scope: TS-01 through TS-08 of the catalog-aligned implementation plan. TS-01 through TS-08 are code complete and passed the scoped qualification below. The broader legacy-host failure is recorded separately; no full-repository or combined live qualification is claimed.
 
 ## Implemented behavior
@@ -8,7 +58,7 @@ The workflow binds one triggering Daily, Weekly or Monthly horizon to an exact p
 
 The pure evaluator supports long/short futures, four credit/debit vertical signatures and six long/short iron condors with balanced/bullish/bearish bias. Selection uses Fund priority, variant preference and explicit stable identity tie breakers. Every result contains the accepted upstream context, exact catalog/parameter identities, global gate evidence and ordered candidate evidence. No quotes, option-chain lookup, broker call or cross-timeframe synthesis occurs in the selector.
 
-`TradeSelectionFunctionActor` uses `BaseEventSourceFunctionActor`, three frozen maps, a typed context and domain extension, completed-only PostgreSQL state and synchronous Scylla projection. A projected candidate row is not evidence of workflow acceptance. The exact invocation/result/history APIs distinguish unknown acceptance and suspected orphan projections.
+`TradeSelectionFunctionActor` uses `BaseEventSourceFunctionActor`, five frozen maps, a typed context/model and mapped domain extensions, completed-only PostgreSQL state and synchronous Scylla projection. A projected candidate row is not evidence of workflow acceptance. The exact invocation/result/history APIs distinguish unknown acceptance and suspected orphan projections.
 
 Workflow acceptance recomputes the full decision from its saved dispatch. Selected persists ReservationPending before calling Portfolio. The request uses the selected deployment GUID/version, the original authority revision and one PrimaryTrade instruction, irrespective of option leg count. The workflow advances only after validating and saving a committed reservation. NoTrade never allocates order/trade identities. Expiry/cancellation cannot reopen the workflow through a late callback.
 

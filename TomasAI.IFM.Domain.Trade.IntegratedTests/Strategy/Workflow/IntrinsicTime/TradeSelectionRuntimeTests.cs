@@ -46,8 +46,12 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
             var first=await producer.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand,TradeSelectionExecutionId,FunctionResult<TradeSelectionFunctionCompletedEvent,TradeSelectionFunctionFailedEvent>>(c.Subject,c,c.EntityId);
             first.Success.Should().BeTrue(first.ErrorMessage);first.Value!.IsCompleted.Should().BeTrue(first.Value.Failed?.ErrorMessage);
             var completed=first.Value.Completed!;
+            completed.Result.Payload.IsEmpty.Should().BeTrue();
+            completed.Result.SelectionResult.Should().NotBeNull();
             var projection=await database.TradeDb.GetTradeSelectionInvocationAsync(c.WorkflowId,c.CommandId);
             projection.Should().NotBeNull();projection!.Result.PayloadSha256.Should().Be(completed.Result.PayloadSha256);
+            projection.Result.SelectionResult.Should().NotBeNull();
+            await database.TradeDb.UpsertTradeSelectionAsync(projection with { EventId = 123 });
             var container=factory.Services.GetRequiredService<SimpleInjector.Container>();
             var state=await container.GetInstance<IEventSourceFunctionStateRepository<TradeSelectionFunctionState,ExecuteTradeSelectionPipelineCommand>>().LoadStateAsync(c);
             state.IsCompleted.Should().BeTrue();state.Matches(c).Should().BeTrue();

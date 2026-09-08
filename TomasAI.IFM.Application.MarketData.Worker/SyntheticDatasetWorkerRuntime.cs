@@ -19,6 +19,12 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
     }
 
     public Guid GenerationId { get; }
+    public Task<MarketData.Pricing.WorkerOptionChainResult> AcquireOptionChainAsync(MarketData.Pricing.WorkerOptionChainRequest request, CancellationToken token)
+        => epoch.AcquireOptionChainAsync(request, token);
+    public Task<MarketData.Pricing.WorkerOptionChainResult> ReleaseOptionChainAsync(MarketData.Pricing.WorkerOptionChainRelease request, CancellationToken token)
+        => epoch.ReleaseOptionChainAsync(request, token);
+    public Task<MarketData.Pricing.CompositionSnapshotResult> CaptureCompositionSnapshotAsync(MarketData.Pricing.CompositionSnapshotRequest request, CancellationToken token)
+        => epoch.CaptureCompositionSnapshotAsync(request, token);
     public bool IsHealthy => epoch.IsFeedUp(TimeSpan.FromSeconds(1));
     public DatasetWorkerDiagnostics GetDiagnostics()
     {

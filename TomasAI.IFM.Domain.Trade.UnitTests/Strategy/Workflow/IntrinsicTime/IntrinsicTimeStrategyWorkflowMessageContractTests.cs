@@ -35,6 +35,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
 
     static readonly string[] ExpectedCommandNames =
     [
+        nameof(AcceptOrderCompositionPreparationCommand),
         nameof(CancelIntrinsicTimeStrategyWorkflowCommand),
         nameof(CompleteMarketConditionCommand),
         nameof(CompleteOrderCompositionCommand),
@@ -326,6 +327,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
 
         if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
         if(type==typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult)) return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
+        if(type==typeof(CompositionEvidenceReference)) return new CompositionEvidenceReference(Guid.NewGuid(), 1, new('a',64), Guid.NewGuid(), new('b',64), DateTimeOffset.UtcNow);
+        if(type==typeof(CompositionContractSelection)) return new CompositionContractSelection(new('c',64), ["ES-leg-a", "ES-leg-b"]);
         throw new InvalidOperationException(
             $"No ITSW-3 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

@@ -165,6 +165,8 @@ public sealed class DatasetDesiredSubscriptionRegistry
     public const int MaximumDatasets = 16;
     readonly object gate = new();
     readonly Dictionary<string, DatasetSubscriptionManifest> manifests = new(StringComparer.Ordinal);
+    readonly Dictionary<string, DatasetSubscriptionContract[]> core = new(StringComparer.Ordinal);
+    readonly Dictionary<string, DatasetSubscriptionContract[]> durable = new(StringComparer.Ordinal);
 
     public DatasetSubscriptionManifest Set(
         string dataset,
@@ -177,12 +179,18 @@ public sealed class DatasetDesiredSubscriptionRegistry
         var candidate = new DatasetSubscriptionManifest(dataset, valueDate, 1, bounded);
         lock (gate)
         {
+            var original = candidate.Contracts.ToArray();
+            candidate = new DatasetSubscriptionManifest(dataset, valueDate, 1,
+                Merge(original, durable.GetValueOrDefault(dataset) ?? []));
             if (manifests.TryGetValue(dataset, out var current))
             {
                 if (valueDate < current.ValueDate)
                     throw new InvalidOperationException("A past value date cannot replace a dataset's current desired subscriptions.");
                 if (valueDate == current.ValueDate && current.Contracts.SequenceEqual(candidate.Contracts))
+                {
+                    core[dataset] = original;
                     return current;
+                }
                 candidate = new DatasetSubscriptionManifest(dataset, valueDate,
                     checked(current.Revision + 1), candidate.Contracts);
             }
@@ -190,8 +198,45 @@ public sealed class DatasetDesiredSubscriptionRegistry
                 throw new InvalidOperationException("The desired dataset registry has reached its bounded capacity.");
 
             manifests[dataset] = candidate;
+            core[dataset] = original;
             return candidate;
         }
+    }
+
+    /// <summary>Atomically overlays committed dependencies without replacing concurrent rollover roles.</summary>
+    public DatasetSubscriptionManifest SetDurable(string dataset, DateOnly valueDate,
+        IReadOnlyList<DatasetSubscriptionContract> registrations)
+    {
+        if (registrations.Count > DatasetSubscriptionManifest.MaximumContracts
+            || registrations.Any(x => x.OnTheRun || x.Rollover || x.Dataset != dataset))
+            throw new ArgumentException("Durable dependencies cannot assign core futures roles.");
+        var copy = registrations.ToArray();
+        lock (gate)
+        {
+            if (!manifests.TryGetValue(dataset, out var current) || current.ValueDate != valueDate)
+                throw new InvalidOperationException("Current native manifest is unavailable.");
+            var merged = Merge(core[dataset], copy);
+            var candidate = new DatasetSubscriptionManifest(dataset, valueDate, checked(current.Revision + 1), merged);
+            durable[dataset] = copy;
+            if (current.Contracts.SequenceEqual(candidate.Contracts)) return current;
+            return manifests[dataset] = candidate;
+        }
+    }
+
+    static DatasetSubscriptionContract[] Merge(IReadOnlyList<DatasetSubscriptionContract> baseline,
+        IReadOnlyList<DatasetSubscriptionContract> pinned)
+    {
+        var result = baseline.ToDictionary(x => x.DomainContractId, StringComparer.Ordinal);
+        foreach (var item in pinned)
+        {
+            if (result.TryGetValue(item.DomainContractId, out var existing))
+            {
+                if ((existing with { OnTheRun = false, Rollover = false }) != item)
+                    throw new InvalidDataException("Durable and core provider mappings conflict.");
+            }
+            else result.Add(item.DomainContractId, item);
+        }
+        return result.Values.OrderBy(x => x.DomainContractId, StringComparer.Ordinal).ToArray();
     }
 
     public bool TryGet(string dataset, DateOnly valueDate, out DatasetSubscriptionManifest manifest)

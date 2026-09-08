@@ -399,6 +399,10 @@ internal sealed class FakeTickAggregationStatus
 
 internal sealed class FakeTreasuryCurve : ITreasuryCurve
 {
+    public TreasuryContinuousRateResult GetContinuouslyCompoundedAnnualRate(
+        TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy)
+        => TomasAI.IFM.Framework.MarketData.ReferenceData.TreasuryRateConversion.Convert(snapshot, tenor, policy);
+
     internal int QueryCount { get; private set; }
     internal decimal RiskFreeRate { get; set; } = 0.04m;
 

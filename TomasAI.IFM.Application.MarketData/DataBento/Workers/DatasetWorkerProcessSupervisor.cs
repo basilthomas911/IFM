@@ -296,13 +296,34 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         throw new Win32Exception(error, "Unable to signal the owned dataset process group.");
     }
 
+    /// <summary>Installs resolved pricing inputs and temporary ownership in the existing dataset worker.</summary>
+    public async Task<Pricing.WorkerOptionChainResult> AcquireOptionChainAsync(Pricing.WorkerOptionChainRequest request, CancellationToken cancellationToken)
+        => (await SendAndReceiveAsync(DatasetWorkerMessageKind.AcquireOptionChain, DatasetWorkerMessageKind.OptionChainResult,
+            cancellationToken, optionChain: request).ConfigureAwait(false)).OptionChainResult!;
+
+    public async Task<Pricing.WorkerOptionChainResult> ReleaseOptionChainAsync(Pricing.WorkerOptionChainRelease request, CancellationToken cancellationToken)
+        => (await SendAndReceiveAsync(DatasetWorkerMessageKind.ReleaseOptionChain, DatasetWorkerMessageKind.OptionChainResult,
+            cancellationToken, optionRelease: request).ConfigureAwait(false)).OptionChainResult!;
+
+    /// <summary>A distinct operation prevents an older worker from acknowledging ownership as a simple release.</summary>
+    public async Task<Pricing.WorkerOptionChainResult> ApplyOptionChainOwnershipAsync(Pricing.WorkerOptionChainRelease request, CancellationToken cancellationToken)
+        => (await SendAndReceiveAsync(DatasetWorkerMessageKind.ApplyOptionChainOwnership, DatasetWorkerMessageKind.OptionChainResult,
+            cancellationToken, optionRelease: request).ConfigureAwait(false)).OptionChainResult!;
+
+    public async Task<Pricing.CompositionSnapshotResult> CaptureCompositionSnapshotAsync(Pricing.CompositionSnapshotRequest request, CancellationToken cancellationToken)
+        => (await SendAndReceiveAsync(DatasetWorkerMessageKind.CaptureCompositionSnapshot, DatasetWorkerMessageKind.CompositionSnapshotResult,
+            cancellationToken, composition: request).ConfigureAwait(false)).CompositionResult!;
+
     async Task<DatasetWorkerControlFrame> SendAndReceiveAsync(
         DatasetWorkerMessageKind request,
         DatasetWorkerMessageKind expected,
         CancellationToken cancellationToken,
         TimeSpan? timeout = null,
         bool allowGenerationChange = false,
-        DatasetSubscriptionManifest? manifest = null)
+        DatasetSubscriptionManifest? manifest = null,
+        Pricing.WorkerOptionChainRequest? optionChain = null,
+        Pricing.WorkerOptionChainRelease? optionRelease = null,
+        Pricing.CompositionSnapshotRequest? composition = null)
     {
         manifest?.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -313,7 +334,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             await commands.WaitAsync(deadline.Token).ConfigureAwait(false);
             acquired = true;
             var correlationId = Guid.NewGuid();
-            await SendCoreAsync(request, request.ToString(), deadline.Token, manifest, correlationId)
+            await SendCoreAsync(request, request.ToString(), deadline.Token, manifest, correlationId, optionChain, optionRelease, composition)
                 .ConfigureAwait(false);
             var response = await DatasetWorkerFrameCodec.ReadAsync(responsePipe!,
                 options.ControlFrameMaximumBytes, deadline.Token).ConfigureAwait(false);
@@ -374,7 +395,9 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     }
 
     ValueTask SendCoreAsync(DatasetWorkerMessageKind kind, string detail, CancellationToken cancellationToken,
-        DatasetSubscriptionManifest? manifest = null, Guid? correlationId = null)
+        DatasetSubscriptionManifest? manifest = null, Guid? correlationId = null,
+        Pricing.WorkerOptionChainRequest? optionChain = null, Pricing.WorkerOptionChainRelease? optionRelease = null,
+        Pricing.CompositionSnapshotRequest? composition = null)
     {
         var current = identity ?? throw new InvalidOperationException("Dataset worker has not started.");
         return DatasetWorkerFrameCodec.WriteAsync(commandPipe!, new()
@@ -390,6 +413,9 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             Detail = detail,
             BootstrapToken = bootstrapToken,
             Manifest = manifest,
+            OptionChain = optionChain,
+            OptionChainRelease = optionRelease,
+            CompositionRequest = composition,
             ManifestRevision = manifest?.Revision ?? current.ManifestRevision,
             ManifestFingerprint = manifest?.Fingerprint ?? current.Manifest?.Fingerprint ?? string.Empty
         }, options.ControlFrameMaximumBytes, cancellationToken);

@@ -584,7 +584,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             TradeSelection = CloneStage(source.TradeSelection),
             OrderComposition = CloneStage(source.OrderComposition),
             RiskManagement = CloneStage(source.RiskManagement),
-            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch)
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch), CompositionDispatch = CopySelection(source.CompositionDispatch)
         };
 
     static IntrinsicTimeStrategyWorkflowView CloneView(IntrinsicTimeStrategyWorkflowView source)
@@ -599,7 +599,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
             AssessmentBinding = source.AssessmentBinding,
-            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch)
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch), CompositionDispatch = CopySelection(source.CompositionDispatch)
         };
 
     static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source)
@@ -641,7 +641,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
             MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256,
             AssessmentBinding = source.AssessmentBinding,
-            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch)
+            CompositionContracts = source.CompositionContracts,
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch), CompositionDispatch = CopySelection(source.CompositionDispatch)
         };
 
     static StrategyWorkflowStageState CloneStage(StrategyWorkflowStageState source)

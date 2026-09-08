@@ -13,10 +13,7 @@ public sealed class NatsMessagePackSerializer<T> : INatsSerializer<T>
 {
     public static NatsMessagePackSerializer<T> Default { get; } = new();
 
-    static readonly MessagePackSerializerOptions Options =
-        MessagePackSerializerOptions.Standard
-            .WithResolver(ContractlessStandardResolver.Instance)
-            .WithCompression(MessagePackCompression.Lz4BlockArray);
+    static MessagePackSerializerOptions Options => TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Options;
 
     NatsMessagePackSerializer()
     {

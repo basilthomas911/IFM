@@ -2,6 +2,7 @@
 
 use core::ffi::c_void;
 use core::ptr;
+use std::sync::Mutex;
 
 use crate::abi::{
     NO_MEMORY, NUMA_CONFIGURATION_FAILED, OK, OS_ERROR, Status, TIMEOUT, WAIT_INFINITE,
@@ -56,6 +57,8 @@ unsafe extern "system" {
     fn VirtualLock(address: *mut c_void, size: usize) -> i32;
     fn VirtualUnlock(address: *mut c_void, size: usize) -> i32;
     fn GetCurrentProcess() -> Handle;
+    fn GetProcessWorkingSetSize(process: Handle, minimum: *mut usize, maximum: *mut usize) -> i32;
+    fn SetProcessWorkingSetSize(process: Handle, minimum: usize, maximum: usize) -> i32;
     fn CreateEventW(
         attributes: *const c_void,
         manual_reset: i32,
@@ -172,7 +175,24 @@ impl Pages {
         self.ptr.cast()
     }
     pub fn lock(&mut self) -> bool {
+        if self.locked { return true; }
+        let Ok(mut budget) = LOCK_BUDGET.lock() else { return false; };
+        let (mut minimum, mut maximum) = (0, 0);
+        let process = unsafe { GetCurrentProcess() };
+        if unsafe { GetProcessWorkingSetSize(process, &mut minimum, &mut maximum) } == 0 { return false; }
+        if budget.bytes == 0 { budget.original = (minimum, maximum); }
+        let Some(required) = budget.original.0.checked_add(budget.bytes)
+            .and_then(|n| n.checked_add(self.bytes)).and_then(|n| n.checked_add(1 << 20)) else { return false; };
+        let next = (minimum.max(required), maximum.max(minimum.max(required)));
+        let changed = next != (minimum, maximum);
+        if changed && unsafe { SetProcessWorkingSetSize(process, next.0, next.1) } == 0 { return false; }
+        budget.reserved = next;
         self.locked = unsafe { VirtualLock(self.ptr.cast(), self.bytes) != 0 };
+        if self.locked { budget.bytes += self.bytes; }
+        else {
+            if changed { restore_working_set(&budget, (minimum, maximum)); }
+            budget.reserved = (minimum, maximum);
+        }
         self.locked
     }
 }
@@ -181,9 +201,28 @@ impl Drop for Pages {
     fn drop(&mut self) {
         unsafe {
             if self.locked {
-                let _ = VirtualUnlock(self.ptr.cast(), self.bytes);
+                if let Ok(mut budget) = LOCK_BUDGET.lock() {
+                    let _ = VirtualUnlock(self.ptr.cast(), self.bytes);
+                    budget.bytes -= self.bytes;
+                    if budget.bytes == 0 { restore_working_set(&budget, budget.original); }
+                }
             }
             let _ = VirtualFree(self.ptr.cast(), 0, MEM_RELEASE);
+        }
+    }
+}
+
+// Bounded to concurrently owned rings; this changes only the current process,
+// never token privileges or machine policy. Do not overwrite another component's allowance.
+struct LockBudget { bytes: usize, original: (usize, usize), reserved: (usize, usize) }
+static LOCK_BUDGET: Mutex<LockBudget> = Mutex::new(LockBudget { bytes: 0, original: (0, 0), reserved: (0, 0) });
+fn restore_working_set(budget: &LockBudget, target: (usize, usize)) {
+    let (mut minimum, mut maximum) = (0, 0);
+    unsafe {
+        let process = GetCurrentProcess();
+        if GetProcessWorkingSetSize(process, &mut minimum, &mut maximum) != 0
+            && (minimum, maximum) == budget.reserved {
+            let _ = SetProcessWorkingSetSize(process, target.0, target.1);
         }
     }
 }

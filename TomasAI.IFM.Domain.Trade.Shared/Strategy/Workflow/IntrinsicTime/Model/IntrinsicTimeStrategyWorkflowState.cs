@@ -101,4 +101,7 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     [Key(23)] public TradeSelectionBinding? SelectionBinding {get;init;}
     [Key(24)] public WorkflowCompositionHandoffState? CompositionHandoff {get;init;}
     [Key(25)] public ExecuteTradeSelectionPipelineCommand? SelectionDispatch {get;init;}
+    [Key(26)] public StartOrderCompositionPipelineCommand? CompositionDispatch { get; init; }
+    /// <summary>Selected contracts retained in the compatibility projection.</summary>
+    [Key(27)] public CompositionContractSelection? CompositionContracts { get; init; }
 }

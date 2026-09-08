@@ -307,6 +307,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
         if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding))return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
         if(type==typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult))return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
+        if(type==typeof(CompositionEvidenceReference)) return new CompositionEvidenceReference(Guid.NewGuid(), 1, new('a',64), Guid.NewGuid(), new('b',64), DateTimeOffset.UtcNow);
         throw new InvalidOperationException(
             $"No ITSW-4 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

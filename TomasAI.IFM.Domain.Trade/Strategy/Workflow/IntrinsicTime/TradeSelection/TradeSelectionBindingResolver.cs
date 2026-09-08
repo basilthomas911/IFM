@@ -30,7 +30,7 @@ public sealed class TradeSelectionBindingResolver(IConfigurationDbContext config
             foreach(var source in graph.Definitions)
             {
                 var node=SelectionCatalogTransport.From(source);
-                if(nodes.TryGetValue(node.Key,out var prior))Require(WireHash(prior)==WireHash(node),"TS.CONTRACT.HASH","Conflicting shared catalog node.");
+                if(nodes.TryGetValue(node.Key,out var prior))Require(EvidenceHash(prior)==EvidenceHash(node),"TS.CONTRACT.HASH","Conflicting shared catalog node.");
                 else nodes.Add(node.Key,node);
                 Require(nodes.Count<=policy.MaximumCatalogDefinitions,"TS.CONFIG.CANDIDATE_LIMIT","Too many catalog nodes.");
                 foreach(var parameter in node.PipelineParameters)await AddPolicy(Reference(parameter)).ConfigureAwait(false);

@@ -3,58 +3,70 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
-
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 
-/// <summary>Mapped, completed-only Trade Selection Function with deadline-bounded lifecycle stages.</summary>
-public sealed class TradeSelectionFunctionActor(IFunctionActorContext<TradeSelectionFunctionActor> actorContext)
+/// <summary>Mapped, completed-only selection Function with deadline-bounded lifecycle stages.</summary>
+public sealed class TradeSelectionFunctionActor(ITradeSelectionFunctionContext actorContext)
     : BaseEventSourceFunctionActor<TradeSelectionFunctionActor, ExecuteTradeSelectionPipelineCommand,
         TradeSelectionExecutionId, IntrinsicTimeStrategyWorkflowEntityId, TradeSelectionFunctionState,
         TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>(
-            actorContext, Typed(actorContext).StateRepository, Typed(actorContext).FunctionProjector, Typed(actorContext).Logger)
+            actorContext ?? throw new ArgumentNullException(nameof(actorContext)),
+            actorContext.StateRepository, actorContext.FunctionProjector, actorContext.Logger)
 {
+    readonly ITradeSelectionFunctionContext _context = actorContext;
+
     public const string ActorName = ExecuteTradeSelectionPipelineCommand.Actor;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ExecuteTradeSelectionPipelineCommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ExecuteTradeSelectionPipelineCommand>>(StringComparer.Ordinal)
         {
-            [ExecuteTradeSelectionPipelineCommand.Verb] = static message =>
-            {
-                var request = message.AsCommand<ExecuteTradeSelectionPipelineCommand>()!;
-                if (request is not null && message.Subject.EntityId != request.EntityId.Format())
-                    throw new ArgumentException("Trade Selection transport subject mismatch.");
-                return request!;
-            }
+            [ExecuteTradeSelectionPipelineCommand.Verb] = static message => message.AsCommand<ExecuteTradeSelectionPipelineCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly IReadOnlyDictionary<Type, Func<ExecuteTradeSelectionPipelineCommand, List<ValidationError>>> _validationMap =
-        new Dictionary<Type, Func<ExecuteTradeSelectionPipelineCommand, List<ValidationError>>>
+    readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(ExecuteTradeSelectionPipelineCommand)] = static request => new List<ValidationError>()
-                .ValidateCommandId(request.CommandId, request.CommandName)
-                .ValidateEntityId(request.EntityId, request.CommandName)
-                .CaptureCommandValidation(() => TradeSelectionContracts.ValidateRequest(request))
+            [typeof(ExecuteTradeSelectionPipelineCommand)] = command =>
+            {
+                var request = (ExecuteTradeSelectionPipelineCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(request.CommandId, request.CommandName)
+                    .ValidateSelectionFields(request)
+                    .ValidateSelectionConsistency(request)
+                    .ValidateSelectionCapabilities(request, actorContext.Capabilities);
+            }
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, Func<ExecuteTradeSelectionPipelineCommand,
-        ITradeSelectionFunctionContext, CancellationToken,
+        ITradeSelectionFunctionContext,
+        Func<FunctionEventContext<ExecuteTradeSelectionPipelineCommand>, FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>, CancellationToken,
         ValueTask<FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>>> _receiveMap =
-        new Dictionary<Type, Func<ExecuteTradeSelectionPipelineCommand, ITradeSelectionFunctionContext, CancellationToken,
+        new Dictionary<Type, Func<ExecuteTradeSelectionPipelineCommand, ITradeSelectionFunctionContext,
+        Func<FunctionEventContext<ExecuteTradeSelectionPipelineCommand>, FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>, CancellationToken,
             ValueTask<FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>>>
         {
-            [typeof(ExecuteTradeSelectionPipelineCommand)] = static (request, context, token) => request.ExecuteAsync(context, token)
+            [typeof(ExecuteTradeSelectionPipelineCommand)] = static (request, context, dispatchEvent, token) => request.ExecuteAsync(context, dispatchEvent, token)
         }.ToFrozenDictionary();
 
-    ITradeSelectionFunctionContext ActorContext => Typed(Context);
+    static readonly IReadOnlyDictionary<Type, Func<ExecuteTradeSelectionPipelineCommand, FunctionFailureStage,
+        ITradeSelectionFunctionContext, FunctionExecutionPolicy>> _executionPolicyMap =
+        new Dictionary<Type, Func<ExecuteTradeSelectionPipelineCommand, FunctionFailureStage,
+            ITradeSelectionFunctionContext, FunctionExecutionPolicy>>
+        {
+            [typeof(ExecuteTradeSelectionPipelineCommand)] = static (request, stage, context) => request.ResolveExecutionPolicy(stage, context)
+        }.ToFrozenDictionary();
+
+    /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
+    protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteTradeSelectionPipelineCommand request, FunctionFailureStage stage)
+        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
 
     protected override ExecuteTradeSelectionPipelineCommand ParseMessage(
         IFunctionActorContext<TradeSelectionFunctionActor> context, IActorMessage message)
@@ -63,123 +75,36 @@ public sealed class TradeSelectionFunctionActor(IFunctionActorContext<TradeSelec
     protected override ValueTask ValidateAsync(IFunctionActorContext<TradeSelectionFunctionActor> context,
         ActorThreadId threadId, ExecuteTradeSelectionPipelineCommand request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_validationMap.TryGetValue(request.GetType(), out var validate))
-            throw new InvalidOperationException($"No validation is registered for {request.GetType().Name}.");
-        var errors = validate(request);
-        if (errors.Count != 0)
-            throw new CommandValidationException(request.ErrorCode, string.Join(Environment.NewLine, errors.Select(error => error.ErrorMessage)));
-        var graph=request.SelectionBinding.CatalogDefinitions.ToDictionary(x=>x.Key,SelectionCatalogTransport.ToSource);
-        try
-        {
-            foreach(var node in graph.Values)
-            {
-                foreach(var capability in node.Definition.Capabilities)ActorContext.Capabilities.Validate(capability,node.Definition,graph);
-                if(node.Definition.Key.Kind==TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.ParameterSet)
-                    foreach(var validator in graph[node.Definition.Parent!].Definition.Capabilities.Where(x=>x.Role=="validator"))ActorContext.Capabilities.Validate(validator,node.Definition,graph);
-            }
-        }
-        catch(TradeSelectionValidationException){throw;}
-        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
-        { throw new TradeSelectionValidationException("TS.CONFIG.CAPABILITY_UNSUPPORTED",ex.Message); }
+        ValidateMappedCommand(request, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    protected override async ValueTask<TradeSelectionFunctionState> LoadFunctionStateAsync(
-        ExecuteTradeSelectionPipelineCommand request, CancellationToken cancellationToken)
-    {
-        // Completed replies can replay after expiry; the read still has a bounded execution budget.
-        var deadline = ActorContext.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(
-            TradeSelectionContracts.CommonPolicy(request.SelectionBinding).MaximumExecutionMilliseconds);
-        var state = await WithinDeadlineAsync(deadline,
-            token => base.LoadFunctionStateAsync(request, token), cancellationToken).ConfigureAwait(false);
-        if (state.Matches(request)) TradeSelectionTelemetry.Replay();
-        return state;
-    }
+    static readonly IReadOnlyDictionary<Type, Func<FunctionEventContext<ExecuteTradeSelectionPipelineCommand>, TimeProvider,
+        FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>> _eventMap =
+        new Dictionary<Type, Func<FunctionEventContext<ExecuteTradeSelectionPipelineCommand>, TimeProvider,
+            FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>>
+        {
+            [typeof(TradeSelectionFunctionCompletedEvent)] = static (input, clock) => input.Complete(clock),
+            [typeof(TradeSelectionFunctionFailedEvent)] = static (input, clock) => input.Fail(clock)
+        }.ToFrozenDictionary();
 
+    /// <summary>Dispatches the request through the receive map with the shared terminal-event callback.</summary>
     protected override ValueTask<FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>> ExecuteFunctionAsync(
         IFunctionActorContext<TradeSelectionFunctionActor> context, TradeSelectionFunctionState state,
         ExecuteTradeSelectionPipelineCommand request, CancellationToken cancellationToken)
-    {
-        var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        return WithinDeadlineAsync(request.ExpiresAtUtc, token => receive(request, ActorContext, token), cancellationToken);
-    }
+        => ResolveMappedFunctionHandler(request, _receiveMap)(request, _context,
+            input => HandleFunctionEvent(context, input), cancellationToken);
 
-    protected override ValueTask ProjectFunctionResultAsync(ExecuteTradeSelectionPipelineCommand request,
-        TradeSelectionFunctionCompletedEvent completed, CancellationToken cancellationToken)
-        => WithinDeadlineAsync(request.ExpiresAtUtc, token => base.ProjectFunctionResultAsync(request, completed, token), cancellationToken);
+    /// <summary>Dispatches lifecycle failures and execution outcomes through the exact terminal-event map.</summary>
+    protected override FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> HandleFunctionEvent(
+        IFunctionActorContext<TradeSelectionFunctionActor> context, FunctionEventContext<ExecuteTradeSelectionPipelineCommand> input)
+        => MapEvent(input, _context.TimeProvider);
 
-    protected override async ValueTask SaveFunctionStateAsync(IFunctionActorContext<TradeSelectionFunctionActor> context,
-        ActorThreadId threadId, TradeSelectionFunctionState state, ExecuteTradeSelectionPipelineCommand request,
-        TradeSelectionFunctionCompletedEvent completedEvent, CancellationToken cancellationToken)
-    {
-        await WithinDeadlineAsync(request.ExpiresAtUtc,
-            token => base.SaveFunctionStateAsync(context, threadId, state, request, completedEvent, token), cancellationToken).ConfigureAwait(false);
-        TradeSelectionTelemetry.Record(TradeSelectionContracts.ReadResult(completedEvent.Result),
-            Math.Max(0, (ActorContext.TimeProvider.GetUtcNow().UtcDateTime - request.RequestedAtUtc).TotalMilliseconds));
-    }
-
-    protected override TradeSelectionFunctionFailedEvent CreateConflictFailedEvent(ExecuteTradeSelectionPipelineCommand request)
-    {
-        TradeSelectionTelemetry.Failure("TS.CONTRACT.CONFLICTING_DUPLICATE");
-        return ExecuteTradeSelectionPipeline.CreateFailedEvent(request,"TS.CONTRACT.CONFLICTING_DUPLICATE",ActorContext.TimeProvider);
-    }
-
-    protected override TradeSelectionFunctionFailedEvent CreateFailedEvent(ExecuteTradeSelectionPipelineCommand? request,
-        Exception exception, FunctionFailureStage stage)
-    {
-        var reason = exception is TradeSelectionValidationException validation ? validation.ReasonCode
-            : exception is TimeoutException ? "TS.TIME.EXPIRED" : stage switch
-            {
-                FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "TS.PERSISTENCE.FAILED",
-                FunctionFailureStage.Projection => "TS.PROJECTION.FAILED",
-                FunctionFailureStage.Execution => "TS.CALCULATION.FAILED",
-                _ => "TS.CONTRACT.INVALID"
-            };
-        TradeSelectionTelemetry.Failure(reason);
-        return ExecuteTradeSelectionPipeline.CreateFailedEvent(request, reason, ActorContext.TimeProvider);
-    }
-
-    /// <summary>Bounds one lifecycle operation and observes a dependency that finishes after cancellation.</summary>
-    async ValueTask<T> WithinDeadlineAsync<T>(DateTime deadline, Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken)
-    {
-        callerToken.ThrowIfCancellationRequested();
-        var clock = ActorContext.TimeProvider;
-        var remaining = deadline - clock.GetUtcNow().UtcDateTime;
-        if (remaining <= TimeSpan.Zero) throw new TimeoutException();
-        using var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
-        var task = operation(workerCancellation.Token).AsTask();
-        try
-        {
-            var result = await task.WaitAsync(remaining, clock, callerToken).ConfigureAwait(false);
-            callerToken.ThrowIfCancellationRequested();
-            if (clock.GetUtcNow().UtcDateTime >= deadline) throw new TimeoutException();
-            return result;
-        }
-        catch
-        {
-            workerCancellation.Cancel();
-            _ = ObserveAsync(task);
-            throw;
-        }
-    }
-
-    /// <summary>Applies the same deadline to projection and completed append.</summary>
-    async ValueTask WithinDeadlineAsync(DateTime deadline, Func<CancellationToken, ValueTask> operation, CancellationToken callerToken)
-        => await WithinDeadlineAsync(deadline, async token =>
-        {
-            await operation(token).ConfigureAwait(false);
-            return true;
-        }, callerToken).ConfigureAwait(false);
-
-    /// <summary>Consumes a late dependency exception without resuming later lifecycle stages.</summary>
-    static async Task ObserveAsync(Task task)
-    {
-        try { await task.ConfigureAwait(false); }
-        catch { /* The request already returned failure or propagated caller cancellation. */ }
-    }
-
-    static ITradeSelectionFunctionContext Typed(IFunctionActorContext<TradeSelectionFunctionActor> context)
-        => context as ITradeSelectionFunctionContext
-           ?? throw new ArgumentException($"Context must implement {nameof(ITradeSelectionFunctionContext)}.", nameof(context));
+    /// <summary>Resolves terminal handlers for Function outcomes and workflow transport failures.</summary>
+    internal static FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> MapEvent(
+        FunctionEventContext<ExecuteTradeSelectionPipelineCommand> input, TimeProvider clock)
+        => DispatchMappedFunctionEvent(input, clock, _eventMap);
 }

@@ -1,5 +1,28 @@
 # Market Condition gate evidence v2.0
 
+## Typed execution-policy verification - 2026-09-07
+
+All three production Function actors now use a frozen exact-command `_executionPolicyMap` and mapping-only `ResolveExecutionPolicy` override. Domain `Function/Resolve*ExecutionPolicy` extensions return `FunctionExecutionPolicy`; the base owns timeout/cancellation and creates Committed/Replayed event-map callbacks. Regime Discovery retains execution-only timing; Market Condition and Trade Selection retain a fresh loading budget and original expiry for subsequent stages. No actor-specific deadline helper or timer race remains. The system convention in section 13.3 is authoritative.
+
+Validation for this change:
+
+| Suite | Passed cases |
+| --- | ---: |
+| Domain.Trade.UnitTests (complete suite) | 784 |
+| Shared FunctionActorLifecycleTests | 25 |
+| Domain.Trade.BDDTests (complete suite) | 31 |
+| TradeSelectionContextRegistrationTests | 3 |
+| Focused Regime Discovery / Market Assessment / Trade Selection verification | 44 |
+| Live Function runtime over isolated NATS, PostgreSQL and ScyllaDB | 8 |
+| **Total targeted cases passed** | **895** |
+
+The focused verification filter includes `MarketAssessmentQualificationTests`, `TradeSelectionQualificationTests`, and RegimeDiscovery tests, excluding `RegimeDiscoveryWorkflowVerificationTests` and `RegimeDiscoveryFailureVerificationTests`. The API Server build passed with zero warnings and errors. New tests enforce policy-map coverage across all production Function actors, each stage's timing scope, malformed/missing policies, exact-boundary expiry, caller cancellation, late-worker fencing, and completion identity despite observer failure.
+
+The eight live runtime cases include all five existing Trade Selection cases plus Market Condition completion/persistence/replay (one capture only) and expired-policy failures for both Regime Discovery and Market Condition with no completed state. These use the real production Function actors and serializers, an isolated JetStream broker on port 14222, local PostgreSQL/ScyllaDB, and a controlled assessment snapshot provider. The temporary broker was removed after verification.
+
+Full signal-to-workflow qualification is not claimed by these results. A broader verification attempt failed during test-host startup because TradeStrategyFamilyCreationService was not registered. With the existing Trade/Analytics domain filter, the older workflow fixture then failed before Function dispatch because it does not provision the exact Trade Selection workflow activation now required by the realtime entry point; that rerun was stopped. Those fixtures require current catalog/Portfolio/activation setup before combined pipeline qualification. No production activation requirement was bypassed.
+
+
 
 ## Full Regime Discovery convention alignment - 2026-09-07
 

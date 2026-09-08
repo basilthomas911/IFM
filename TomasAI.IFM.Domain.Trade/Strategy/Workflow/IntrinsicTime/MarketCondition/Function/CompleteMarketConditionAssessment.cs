@@ -16,9 +16,9 @@ public static class CompleteMarketConditionAssessment
         this FunctionEventContext<ExecuteMarketConditionAssessmentCommand> input, TimeProvider clock)
     {
         var c = input.Request ?? throw new ArgumentException("Completion requires its command.");
-        if (input.Outcome is MarketConditionAssessmentCompletedEvent committed && input.Stage == FunctionFailureStage.Persistence)
+        if (input.Outcome is MarketConditionAssessmentCompletedEvent committed && input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
         {
-            MarketConditionTelemetry.RecordAssessment(MarketConditionAssessmentContracts.ReadResult(committed.Result),
+            if (input.Phase == FunctionEventPhase.Committed) MarketConditionTelemetry.RecordAssessment(MarketConditionAssessmentContracts.ReadResult(committed.Result),
                 Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
             return FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Complete(committed);
         }

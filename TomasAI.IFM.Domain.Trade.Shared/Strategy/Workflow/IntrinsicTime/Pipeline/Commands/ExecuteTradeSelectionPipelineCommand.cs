@@ -40,12 +40,20 @@ public sealed record ExecuteTradeSelectionPipelineCommand : ICommand<TradeSelect
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     [IgnoreMember] public DateTime OriginatedOn => RequestedAtUtc;
     [IgnoreMember] public string OriginatedBy => EventSource;
-    public string Fingerprint()
+    /// <summary>Hashes canonical typed fields while preserving historical trigger constructor defaults.</summary>
+    public string Fingerprint() => MarketConditionAssessmentHash.Compute(NormalizeContent());
+
+    /// <summary>Copies command/trigger records without serializing the command a second time.</summary>
+    public ExecuteTradeSelectionPipelineCommand NormalizeContent() => this with
     {
-        // Older trigger constructors normalize nullable diagnostic strings to empty strings on receipt.
-        // Fingerprint the canonical wire value so a retransmission has the same identity.
-        var canonical = MessagePackSerializer.Deserialize<ExecuteTradeSelectionPipelineCommand>(MessagePackSerializer.Serialize(this));
-        // PostgreSQL JSON round trips may normalize decimal scale. Preserve numeric meaning in the identity.
-        return MarketConditionAssessmentHash.Compute(canonical);
-    }
+        TriggerEvent = NormalizeTrigger(TriggerEvent),
+        WorkflowView = WorkflowView with { TriggerEvent = NormalizeTrigger(WorkflowView.TriggerEvent) }
+    };
+
+    static FuturesItiSignalGeneratedEvent NormalizeTrigger(FuturesItiSignalGeneratedEvent trigger) => trigger with
+    {
+        AggregateId = trigger.AggregateId ?? "", EventSource = trigger.EventSource ?? "", CreatedBy = trigger.CreatedBy ?? "",
+        ReceivedOn = trigger.ReceivedOn.Kind == DateTimeKind.Local ? trigger.ReceivedOn.ToUniversalTime() : DateTime.SpecifyKind(trigger.ReceivedOn, DateTimeKind.Utc),
+        CreatedOn = trigger.CreatedOn.Kind == DateTimeKind.Local ? trigger.CreatedOn.ToUniversalTime() : DateTime.SpecifyKind(trigger.CreatedOn, DateTimeKind.Utc)
+    };
 }

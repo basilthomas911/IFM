@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -78,7 +79,7 @@ public sealed class TradeSelectionFunctionTests
         public string FailAt="";
         public Func<ValueTask>? Project;
         public TradeSelectionFunctionCompletedEvent? Committed;
-        readonly TradeSelectionFunctionActor actor;
+        internal readonly TradeSelectionFunctionActor actor;
         public FunctionFixture(ExecuteTradeSelectionPipelineCommand c)
         {
             Command=c;Clock=new(c.EvaluatedAtUtc);
@@ -91,6 +92,7 @@ public sealed class TradeSelectionFunctionTests
             Context.ActorId.Returns(new ActorMailboxId(ActorType.Function,TradeSelectionFunctionActor.ActorName));Context.StateRepository.Returns(repo);Context.FunctionProjector.Returns(projector);Context.TimeProvider.Returns(Clock);Context.Logger.Returns(Substitute.For<ILogger<TradeSelectionFunctionActor>>());
             var fixtures=c.SelectionBinding.CatalogDefinitions.SelectMany(x=>x.Capabilities).Where(x=>x.Role is "builder" or "risk").Select(x=>new CatalogCapability(x.Role,x.Code,x.Version)).Distinct().Select(x=>(IStrategyCatalogCapabilityValidator)new FixtureOnlyDownstreamCapability(x));
             Context.Capabilities.Returns(new StrategyCatalogCapabilityRegistry(TradeSelectionCatalogCapabilities.Create().Concat(fixtures)));
+            Context.CalculationModel.Returns(new TradeSelectionEvaluator());
             actor=new(Context);
         }
         void Step(string step){Order.Add(step);if(FailAt==step)throw new InvalidOperationException("Injected "+step);}

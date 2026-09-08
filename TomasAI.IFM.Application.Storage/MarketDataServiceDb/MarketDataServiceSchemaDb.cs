@@ -15,6 +15,10 @@ public sealed class MarketDataServiceSchemaDb(IDbConnectionSettings settings, IL
             "DROP TABLE IF EXISTS market_data_service.futures_rollover_contract_assignment;"),
         new("watchdog_status_log", MarketDataServiceSchemaSql.CreateWatchdogLog,
             "DROP TABLE IF EXISTS market_data_service.watchdog_status_log;"),
+        new("stage4_subscription_intent", Subscriptions.Stage4SubscriptionSchemaSql.Create,
+            "DROP TABLE IF EXISTS market_data_service.stage4_intent_outbox, market_data_service.stage4_authority_watermark, market_data_service.stage4_lease_identity, market_data_service.stage4_intent_operation, market_data_service.stage4_intent_current;"),
+        new("composition_route_plan", Subscriptions.PostgresCompositionRoutePlanStore.CreateTable,
+            "DROP TABLE IF EXISTS market_data_service.composition_route_plan;"),
         new("dataset_incident", MarketDataServiceSchemaSql.CreateDatasetIncidents,
             "DROP TABLE IF EXISTS market_data_service.dataset_incident_transition; DROP TABLE IF EXISTS market_data_service.dataset_incident_current;")
     ];

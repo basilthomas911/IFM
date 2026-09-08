@@ -21,6 +21,8 @@ public sealed class EventSourceSchemaDb(IDbConnectionSettings connectionSettings
         new("event_log", EventSourceSchemaSql.CreateEventLogTable, "DROP TABLE IF EXISTS public.event_log;"),
         new("command_log", EventSourceSchemaSql.CreateCommandLog, "DROP TABLE IF EXISTS public.command_log;"),
         new("event_projector_state", EventSourceSchemaSql.CreateEventProjectorState, "DROP TABLE IF EXISTS public.event_projector_state;"),
+        new("business_subscription_projection_receipt", PostgresCommittedBusinessEventJournal.CreateTable,
+            "DROP TABLE IF EXISTS business_subscription_projection_receipt;"),
         new("event_projector_state_reliability_v2", EventSourceSchemaSql.CreateEventProjectorStateReliabilityV2, EventSourceSchemaSql.DropEventProjectorStateReliabilityV2),
         new("event_projector_outbox_v2", EventSourceSchemaSql.CreateEventProjectorOutboxV2, "DROP TABLE IF EXISTS public.event_projector_outbox;"),
         new("event_stream_version_projector_checkpoint_v3", EventSourceSchemaSql.CreateEventStreamVersionAndProjectorCheckpointV3, EventSourceSchemaSql.DropEventStreamVersionAndProjectorCheckpointV3),

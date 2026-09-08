@@ -67,6 +67,18 @@ public sealed class MarketConditionFunctionActor(IMarketConditionFunctionContext
             [typeof(ExecuteMarketConditionAssessmentCommand)] = static (request, context, dispatchEvent, token) => request.ExecuteAsync(context, dispatchEvent, token)
         }.ToFrozenDictionary();
 
+    static readonly IReadOnlyDictionary<Type, Func<ExecuteMarketConditionAssessmentCommand, FunctionFailureStage,
+        IMarketConditionFunctionContext, FunctionExecutionPolicy>> _executionPolicyMap =
+        new Dictionary<Type, Func<ExecuteMarketConditionAssessmentCommand, FunctionFailureStage,
+            IMarketConditionFunctionContext, FunctionExecutionPolicy>>
+        {
+            [typeof(ExecuteMarketConditionAssessmentCommand)] = static (request, stage, context) => request.ResolveExecutionPolicy(stage, context)
+        }.ToFrozenDictionary();
+
+    /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
+    protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteMarketConditionAssessmentCommand request, FunctionFailureStage stage)
+        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+
     protected override ExecuteMarketConditionAssessmentCommand ParseMessage(
         IFunctionActorContext<MarketConditionFunctionActor> context, IActorMessage message)
         => ParseMappedFunction(context, message, _parseMap);
@@ -97,23 +109,10 @@ public sealed class MarketConditionFunctionActor(IMarketConditionFunctionContext
         => ResolveMappedFunctionHandler(request, _receiveMap)(request, _context,
             input => HandleFunctionEvent(context, input), cancellationToken);
 
-    /// <summary>Provides the domain clock to the base lifecycle.</summary>
-    protected override TimeProvider FunctionTimeProvider => _context.TimeProvider;
-
-    /// <summary>Allows expired replay through a bounded load, and fences all new work at the execution deadline.</summary>
-    protected override DateTime? GetFunctionDeadline(ExecuteMarketConditionAssessmentCommand request, FunctionFailureStage stage)
-        => stage == FunctionFailureStage.Loading
-            ? _context.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(request.ParameterSet.MaximumExecutionMilliseconds)
-            : request.ExpiresAtUtc;
-
     /// <summary>Dispatches lifecycle failures and execution outcomes through the exact terminal-event map.</summary>
     protected override FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<MarketConditionFunctionActor> context, FunctionEventContext<ExecuteMarketConditionAssessmentCommand> input)
         => MapEvent(input, _context.TimeProvider);
-
-    /// <summary>Records commit telemetry through the completion extension after the deadline-fenced append succeeds.</summary>
-    protected override void OnFunctionCommitted(ExecuteMarketConditionAssessmentCommand request, MarketConditionAssessmentCompletedEvent completed)
-        => MapEvent(new(typeof(MarketConditionAssessmentCompletedEvent), request, completed, Stage: FunctionFailureStage.Persistence), _context.TimeProvider);
 
     /// <summary>Resolves terminal handlers for Function outcomes and workflow transport failures.</summary>
     internal static FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> MapEvent(

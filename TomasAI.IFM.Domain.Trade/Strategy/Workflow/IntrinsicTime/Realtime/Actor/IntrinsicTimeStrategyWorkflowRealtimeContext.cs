@@ -32,6 +32,10 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
     IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
     IPortfolioQueryApi PortfolioQueries {get;}
     IPortfolioFundCommandApi PortfolioCommands {get;}
+    Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations
+        => throw new InvalidOperationException("Composition preparation storage is not configured.");
+    Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation
+        => throw new InvalidOperationException("Composition market preparation is not configured.");
 
     /// <summary>Gets the atomic signal snapshot provider used by the live-readiness gate.</summary>
     IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider { get; }
@@ -46,6 +50,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
     public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IPortfolioFundCommandApi PortfolioCommands => Container.Resolve<IPortfolioFundCommandApi>();
+    public Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations
+        => Container.Resolve<Application.MarketData.Pricing.ICompositionPreparationStore>();
+    public Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation
+        => Container.Resolve<Application.MarketData.Pricing.CompositionMarketPreparation>();
     readonly Lazy<IConfigurationDbContext> _configurationDb;
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> _regimeDiscoverySnapshotProvider;
     /// <summary>Initializes the realtime context.</summary>

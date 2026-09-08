@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;

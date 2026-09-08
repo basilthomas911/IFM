@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;

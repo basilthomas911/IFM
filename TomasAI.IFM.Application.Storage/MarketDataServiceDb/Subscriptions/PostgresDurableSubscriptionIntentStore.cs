@@ -254,13 +254,18 @@ public sealed class PostgresDurableSubscriptionIntentStore : IDurableSubscriptio
         if (source is not null && input.SourceVersion < source.SourceVersion) return DurableIntentResultCode.StaleAuthority;
         if (source is not null && input.SourceVersion == source.SourceVersion)
             return source.FactDigest == factDigest ? DurableIntentResultCode.AlreadyApplied : DurableIntentResultCode.AuthorityConflict;
-        if (input.SourceVersion != (source?.SourceVersion ?? 0) + 1) return DurableIntentResultCode.AuthorityGap;
+        // Deltas require contiguous delivery. A separately identified complete committed snapshot
+        // carries the real source watermark and can safely cover intermediate non-ownership events.
+        if (!input.CompleteSourceSnapshot && input.SourceVersion != (source?.SourceVersion ?? 0) + 1)
+            return DurableIntentResultCode.AuthorityGap;
         if (input.ExpectedRevision != current.Revision) return DurableIntentResultCode.RevisionConflict;
         if (current.Revision == long.MaxValue) return DurableIntentResultCode.CapacityExceeded;
         var leases = source?.Leases.ToDictionary(value => value.LeaseId) ?? [];
         if (input.Status == DurableAuthorityStatus.Terminal) leases.Clear();
         else if (input.Status == DurableAuthorityStatus.Active)
         {
+            if (input.CompleteSourceSnapshot)
+                foreach (var id in leases.Keys.Where(id => !input.Adds.Any(x => x.LeaseId == id)).ToArray()) leases.Remove(id);
             foreach (var release in input.Releases)
             {
                 if (!leases.TryGetValue(release.LeaseId, out var existing) || existing.LeaseVersion != release.ExpectedLeaseVersion)

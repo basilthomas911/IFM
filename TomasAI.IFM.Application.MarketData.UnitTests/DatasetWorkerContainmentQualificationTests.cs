@@ -19,6 +19,7 @@ public sealed class DatasetContainmentQualificationCollection;
 [Collection("Dataset containment qualification")]
 public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper output)
 {
+    static readonly DateOnly ValueDate = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(DateTimeOffset.UtcNow);
     [Fact]
     public async Task Forced_stop_terminates_exact_worker_and_descendant_processes()
         => await StopTreeAsync(hang: true);
@@ -174,7 +175,7 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
 
     static DatasetWorkerStartRequest Request(bool helper = false)
     {
-        var manifest = new DatasetDesiredSubscriptionRegistry().Set("GLBX.MDP3", new DateOnly(2026, 9, 4),
+        var manifest = new DatasetDesiredSubscriptionRegistry().Set("GLBX.MDP3", ValueDate,
             [new DatabentoContractRegistration
             {
                 DomainContractId = "ES20261218", ProviderContractName = "ES20261218", Dataset = "GLBX.MDP3",
@@ -192,7 +193,7 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
     }
 
     static DatabentoDatasetResetRequest Reset(DatasetWorkerProcessSnapshot current) => new(
-        current.Dataset, current.GenerationId, new DateOnly(2026, 9, 4),
+        current.Dataset, current.GenerationId, ValueDate,
         DatabentoDatasetFailureReason.NativeDrainStalled, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), Guid.NewGuid());
 
     static DatabentoStage3Options Options() => new()

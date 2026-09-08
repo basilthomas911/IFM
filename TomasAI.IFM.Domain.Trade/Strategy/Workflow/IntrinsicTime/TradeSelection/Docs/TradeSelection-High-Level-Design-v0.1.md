@@ -1,5 +1,25 @@
 # TradeSelection High-Level Design
 
+## Typed execution-policy alignment - 2026-09-07
+
+The Function actor now has five maps, including exact-command `_executionPolicyMap`. Its `ResolveExecutionPolicy` override only calls the base mapped dispatcher. A `Resolve*ExecutionPolicy` extension in `Function/` returns the typed clock/deadline policy. No actor override reads policy settings, computes deadlines or constructs commit/replay callback contexts. The base enforces timers/cancellation and routes `FunctionEventPhase.Committed`/`Replayed` through `_eventMap`; Complete handlers observe and return the same completed event. Observation faults are logged without replacing durable completion. See [system actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md), section 13.3, for the normative contract.
+
+Loading keeps a fresh bounded replay-read budget; execution, projection and append retain the original request deadline.
+
+
+## Function actor and serialization alignment ? 2026-09-07
+
+Trade Selection follows the Regime Discovery/Market Condition Function convention. `TradeSelectionFunctionActor` injects `ITradeSelectionFunctionContext`; the domain and closed generic interfaces share the same singleton in both hosts. The context exposes `ITradeSelectionCalculator`, implemented by `Model/TradeSelectionEvaluator`. Calculations retain the exact catalog/fund authority, all twelve variant rules and single Daily/Weekly/Monthly triggering horizon.
+
+The actor uses frozen `_parseMap`, `_validationMap`, `_receiveMap`, `_executionPolicyMap` and `_eventMap`. Validation calls base `ValidateMappedCommand` and ordered `List<ValidationError>` extensions with local FluentValidation adapters, shared cross-field evidence rules and registered capability validation. The validation map is instance-owned to capture its context capability registry; its keys/delegates remain immutable. `ValidateAsync` contains no catalog loop. `Function/ExecuteTradeSelectionPipeline`, `CompleteTradeSelectionPipeline` and `FailTradeSelectionPipeline` own domain execution, event construction, reasons and telemetry. Workflow transport failures also enter the terminal event map. The base owns deadline/cancellation/late-worker mechanics; loading has a fresh bounded read budget for expired replay, while new execution/projection/append use the request deadline. Commit and replay observations go through the completion map without repeating projection or saving.
+
+New completions carry typed `SelectionResult` at appended `StrategyStageResultEnvelope` MessagePack key 10, with empty legacy `Payload` and media type `application/vnd.ifm.trade-selection.v1`. Existing keys 0?9 remain unchanged. Typed content uses a canonical semantic fingerprint and defensive collection access. Legacy eight-field byte envelopes remain readable. Consumers, workflow acceptance, handoff, query readers and projection use the representation-aware contract reader. Existing producers and consumers must be upgraded together before enabling typed-only writes.
+
+The shared `MessagePackBinarySerializer.Options` owns the ContractlessStandard resolver and Lz4BlockArray settings used by both binary and NATS serializers; NATS retains direct output-writer serialization. Storage event/result blobs, workflow-state reads and paging tokens use the shared compression-aware serializer. `result_sha256` retains the envelope digest: a semantic fingerprint for typed content, a byte digest for old opaque content. Projection compares normalized completed evidence across old/new envelope representations, ignoring only EventId stream sequencing. Historical candidate-set and mandate byte digests explicitly use the shared uncompressed compatibility encoding; original Portfolio/catalog hash algorithms remain unchanged.
+
+Command copying/normalization and typed evidence comparisons do not serialize and deserialize domain messages. Explicit trigger normalization preserves historical null-string and UTC defaults; invariant decimal fingerprinting preserves numeric meaning. Size checks call shared measurement support: existing binding/result budgets count uncompressed MessagePack content, and the 1 MiB request/completed-event cap also checks the configured encoded representation. LZ4 compression cannot make oversized content admissible. Completion validation and result-size rejection occur before projection or persistence. Frozen count limits still reject overflow without truncating candidates. Serialization for measurement does not create an inner message payload.
+
+
 | Item | Value |
 | --- | --- |
 | Revision | 0.8 / 2026-09-07 |
@@ -139,3 +159,7 @@ Source/document review: 2026-09-07. No runtime qualification is claimed by this 
 ## Implementation alignment ? 2026-09-07
 
 The catalog-backed selector now implements the Function actor boundary, frozen authority and accepted upstream evidence, all twelve basic variants, deterministic Selected/NoTrade decisions, Scylla history/query projections, and workflow-owned reservation handoff. The workflow stores its exact Function dispatch and pending reservation before sending them. Recovery resends those saved identities; only an accepted selected result with a committed valid Portfolio reservation can advance to Order Composition. See the specification section 23 and implementation evidence for operational boundaries and test results. Combined five-operator qualification and observation UI remain separate work.
+
+## Downstream Order Composition alignment - 2026-09-07
+
+The [Order Composition specification v1.0](../../OrderComposer/Docs/OrderComposition-Specification-v1.0.md) defines the downstream exact-contract boundary using the current five-map Function convention. It preserves accepted single-horizon upstream evidence, exact Fund-authorized selection/catalog versions and committed business-ID reservation. Composition produces one normalized unit for any of the twelve variants on Daily, Weekly or Monthly; Portfolio Risk Management owns final units and financial approval. No family policy is introduced into Regime Discovery or Market Condition. Composition gates are planned; this cross-reference does not change upstream qualification status or claim combined pipeline readiness.

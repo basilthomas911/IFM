@@ -1,6 +1,6 @@
 namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
 
-/// <summary>Additive schema, deliberately not registered in application startup. Explicit test application only.</summary>
+/// <summary>Additive durable ownership, idempotency, authority watermark and delivery outbox schema.</summary>
 public static class Stage4SubscriptionSchemaSql
 {
     public const string Create = """

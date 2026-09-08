@@ -1,3 +1,4 @@
+using TomasAI.IFM.Framework.Serialization;
 using System.Collections.Frozen;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -42,7 +43,7 @@ public sealed class TradeSelectionQueryActor(IQueryActorContext<TradeSelectionQu
         var completed=await services.DbFactory.TradeDb.GetTradeSelectionInvocationAsync(workflowId,invocationId,token)??throw new KeyNotFoundException("Exact selector invocation not found.");
         var result=TradeSelectionContracts.ReadResult(completed.Result);await Authorize(access,result.PortfolioId,result.FundId,token);
         var workflow=await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(workflowId,token);
-        var view=workflow is null?null:MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(workflow.StatePayload);
+        var view=workflow is null?null:MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(workflow.StatePayload);
         var accepted=view?.TradeSelection.Result?.PayloadSha256==completed.Result.PayloadSha256 && view.TradeSelection.SourceEventId==completed.Id;
         return new(completed,accepted,view is null,!accepted && view is {Status:not WorkflowStrategyMachineStatus.Started});
     }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
@@ -15,7 +16,8 @@ public enum DurableIntentResultCode
 /// <summary>Canonical ticker intent only; no prices, provider instrument IDs or native handles.</summary>
 public sealed record DurableSubscriptionTicker(
     string ProviderScope, string Dataset, string ContractId, string Schema,
-    SubscriptionAssetKind AssetKind, string? UnderlyingContractId = null);
+    SubscriptionAssetKind AssetKind, string? UnderlyingContractId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PricingPlanId = null);
 
 public sealed record DurableSubscriptionOwner(string WorkflowType, string WorkflowId, string LegId);
 public sealed record DurableSubscriptionLease(
@@ -32,7 +34,8 @@ public sealed record DurableAuthorityMutation(
     string Scope, string Dataset, Guid OperationId, Guid CorrelationId, long ExpectedRevision,
     string SourceId, long SourceVersion, Guid SourceEventId, DurableSubscriptionOwner Owner,
     DurableAuthorityStatus Status, string ReasonCode,
-    IReadOnlyList<DurableSubscriptionLease> Adds, IReadOnlyList<DurableSubscriptionRelease> Releases);
+    IReadOnlyList<DurableSubscriptionLease> Adds, IReadOnlyList<DurableSubscriptionRelease> Releases,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool CompleteSourceSnapshot = false);
 
 public sealed record DurableAuthorityState(
     string SourceId, long SourceVersion, Guid SourceEventId, string FactDigest,
@@ -52,8 +55,8 @@ public sealed record DurableSubscriptionOutboxItem(
     DateTimeOffset CreatedAtUtc);
 
 /// <summary>
-/// Standalone, disabled-by-default persistence boundary. Storage/transport exceptions leave commit
-/// outcome uncertain: reconcile by OperationId. No production coordinator/authority is registered.
+/// Durable persistence boundary. Storage/transport exceptions leave commit outcome uncertain:
+/// reconcile by OperationId. Public lease callers cannot authenticate themselves as business authorities.
 /// </summary>
 public interface IDurableSubscriptionIntentStore
 {
@@ -93,6 +96,8 @@ public static class DurableSubscriptionContract
             throw new ArgumentException("A durable mutation requires bounded identities, valid versions and status.");
         var adds = BoundedCopy(value.Adds, MaximumOwnerLeases);
         var releases = BoundedCopy(value.Releases, MaximumOwnerLeases);
+        if (value.CompleteSourceSnapshot && releases.Length != 0)
+            throw new ArgumentException("A complete committed source snapshot cannot contain lease deltas.");
         if (adds.Any(lease => lease is null) || releases.Any(release => release is null)
             || adds.Select(lease => lease.LeaseId).Distinct().Count() != adds.Length
             || releases.Select(release => release.LeaseId).Distinct().Count() != releases.Length
@@ -154,7 +159,9 @@ public static class DurableSubscriptionContract
     public static string RequestDigest(DurableAuthorityMutation frozen) => Digest(frozen);
 
     /// <summary>Transport operation/correlation/revision do not change the identity of a source fact.</summary>
-    public static string FactDigest(DurableAuthorityMutation frozen) => Digest(new
+    public static string FactDigest(DurableAuthorityMutation frozen) => frozen.CompleteSourceSnapshot
+        ? Digest(new { Mode = "CommittedSnapshot/v1", frozen.Scope, frozen.Dataset, frozen.SourceId, frozen.SourceVersion,
+            frozen.SourceEventId, frozen.Owner, frozen.Status, frozen.ReasonCode, frozen.Adds }) : Digest(new
     {
         frozen.Scope, frozen.Dataset, frozen.SourceId, frozen.SourceVersion, frozen.SourceEventId,
         frozen.Owner, frozen.Status, frozen.ReasonCode, frozen.Adds, frozen.Releases
@@ -187,6 +194,8 @@ public static class DurableSubscriptionContract
             || lease.Purpose is not (SubscriptionLeasePurpose.Strategy or SubscriptionLeasePurpose.WorkingOrder or SubscriptionLeasePurpose.Position))
             throw new ArgumentException("Only valid durable ticker leases can be persisted.");
         var ticker = lease.Ticker;
+        if (ticker.PricingPlanId is { } planId && (planId.Length != 64 || !planId.All(Uri.IsHexDigit)))
+            throw new ArgumentException("Pricing reconstruction requires an exact plan identity.");
         _ = new SubscriptionTickerKey(ticker.ProviderScope, ticker.Dataset, ticker.ContractId, ticker.Schema, ticker.AssetKind);
         if (ticker.Dataset != dataset) throw new ArgumentException("Ticker is outside the mutation dataset.");
         if (ticker.AssetKind == SubscriptionAssetKind.FuturesOption)

@@ -44,6 +44,8 @@ public sealed record CompleteOrderCompositionCommand : ICommand<IntrinsicTimeStr
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(12)] public DateTime CompletedAtUtc { get; init; }
+    /// <summary>Exact selected contracts; required for the prepared market-evidence path.</summary>
+    [Key(13)] public CompositionContractSelection? SelectedContracts { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteOrderCompositionCommand);
@@ -92,7 +94,8 @@ public sealed record CompleteOrderCompositionCommand : ICommand<IntrinsicTimeStr
         StrategyStageResultEnvelope result,
         Guid correlationId,
         Guid causationId,
-        DateTime completedAtUtc)
+        DateTime completedAtUtc,
+        CompositionContractSelection? selectedContracts = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +110,6 @@ public sealed record CompleteOrderCompositionCommand : ICommand<IntrinsicTimeStr
         CorrelationId = correlationId;
         CausationId = causationId;
         CompletedAtUtc = completedAtUtc;
+        SelectedContracts = selectedContracts;
     }
 }

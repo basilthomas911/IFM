@@ -1,5 +1,35 @@
 # Regime Discovery Implementation Specification
 
+## Typed execution-policy verification - 2026-09-07
+
+All three production Function actors now use a frozen exact-command `_executionPolicyMap` and mapping-only `ResolveExecutionPolicy` override. Domain `Function/Resolve*ExecutionPolicy` extensions return `FunctionExecutionPolicy`; the base owns timeout/cancellation and creates Committed/Replayed event-map callbacks. Regime Discovery retains execution-only timing; Market Condition and Trade Selection retain a fresh loading budget and original expiry for subsequent stages. No actor-specific deadline helper or timer race remains. The system convention in section 13.3 is authoritative.
+
+Validation for this change:
+
+| Suite | Passed cases |
+| --- | ---: |
+| Domain.Trade.UnitTests (complete suite) | 784 |
+| Shared FunctionActorLifecycleTests | 25 |
+| Domain.Trade.BDDTests (complete suite) | 31 |
+| TradeSelectionContextRegistrationTests | 3 |
+| Focused Regime Discovery / Market Assessment / Trade Selection verification | 44 |
+| Live Function runtime over isolated NATS, PostgreSQL and ScyllaDB | 8 |
+| **Total targeted cases passed** | **895** |
+
+The focused verification filter includes `MarketAssessmentQualificationTests`, `TradeSelectionQualificationTests`, and RegimeDiscovery tests, excluding `RegimeDiscoveryWorkflowVerificationTests` and `RegimeDiscoveryFailureVerificationTests`. The API Server build passed with zero warnings and errors. New tests enforce policy-map coverage across all production Function actors, each stage's timing scope, malformed/missing policies, exact-boundary expiry, caller cancellation, late-worker fencing, and completion identity despite observer failure.
+
+The eight live runtime cases include all five existing Trade Selection cases plus Market Condition completion/persistence/replay (one capture only) and expired-policy failures for both Regime Discovery and Market Condition with no completed state. These use the real production Function actors and serializers, an isolated JetStream broker on port 14222, local PostgreSQL/ScyllaDB, and a controlled assessment snapshot provider. The temporary broker was removed after verification.
+
+Full signal-to-workflow qualification is not claimed by these results. A broader verification attempt failed during test-host startup because TradeStrategyFamilyCreationService was not registered. With the existing Trade/Analytics domain filter, the older workflow fixture then failed before Function dispatch because it does not provision the exact Trade Selection workflow activation now required by the realtime entry point; that rerun was stopped. Those fixtures require current catalog/Portfolio/activation setup before combined pipeline qualification. No production activation requirement was bypassed.
+
+
+## Typed execution-policy alignment - 2026-09-07
+
+The Function actor has five frozen maps, including exact-command `_executionPolicyMap`. Its `ResolveExecutionPolicy` override only calls the base mapped dispatcher. A `Resolve*ExecutionPolicy` extension in `Function/` returns the typed clock/deadline policy. No actor override reads policy settings, computes deadlines or constructs commit/replay callback contexts. The base enforces timers/cancellation and routes `FunctionEventPhase.Committed`/`Replayed` through `_eventMap`; Complete handlers observe and return the same completed event. Observation faults are logged without replacing durable completion. See [system actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md), section 13.3, for the normative contract.
+
+Regime Discovery preserves its existing execution-only deadline scope: loading, projection and append explicitly return an unbounded policy; execution uses the original request expiry. The base now owns the timer race. Timeout code 23103 and RegimeDiscoveryExecutionTimedOut are preserved.
+
+
 Implementation Specification v1.0
 
 | Item | Value |
@@ -765,3 +795,7 @@ handler invokes `RegimeDiscoveryDecisionReferenceGenerator`, which constructs th
 anchors and delegates every calculated Decision to `MarketRegimeFusionModel`. It replies with typed MessagePack DTOs
 and does not call `DbFactory`. `IntrinsicTimePipelineDecisionReferenceQueryApi` supplies the NATS client boundary;
 `RegimeDiscoveryDecisionReferenceCsvAdapter` performs optional caller-side file export.
+
+## Downstream Order Composition alignment - 2026-09-07
+
+The [Order Composition specification v1.0](../../OrderComposer/Docs/OrderComposition-Specification-v1.0.md) defines the downstream exact-contract boundary using the current five-map Function convention. It preserves accepted single-horizon upstream evidence, exact Fund-authorized selection/catalog versions and committed business-ID reservation. Composition produces one normalized unit for any of the twelve variants on Daily, Weekly or Monthly; Portfolio Risk Management owns final units and financial approval. No family policy is introduced into Regime Discovery or Market Condition. Composition gates are planned; this cross-reference does not change upstream qualification status or claim combined pipeline readiness.

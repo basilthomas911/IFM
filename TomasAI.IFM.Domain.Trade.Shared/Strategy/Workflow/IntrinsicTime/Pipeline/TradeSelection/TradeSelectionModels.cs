@@ -310,6 +310,19 @@ public sealed record TradeSelectionResult
     [Key(20)] public DateTime ValidUntilUtc { get; init; }
     [Key(21)] public SelectionPipelinePolicyReference CommonPolicyReference { get; init; }
     [Key(22)] public string SummaryText { get; init; } = string.Empty;
+    /// <summary>Copies owned collections; nested records expose only init setters and defensive collection accessors.</summary>
+    public TradeSelectionResult CopyContent() => this with
+    {
+        GlobalEvidence = GlobalEvidence, CandidateDecisions = CandidateDecisions,
+        DecisionContext = DecisionContext with { SelectionBinding = DecisionContext.SelectionBinding with { } },
+        SelectedCandidate = SelectedCandidate is null ? null : SelectedCandidate with { }
+    };
+
+    /// <summary>Fingerprints semantic content while measuring the established uncompressed MessagePack budget.</summary>
+    public (string Hash, int Size) ContentFingerprint() =>
+        (MarketCondition.Assessment.MarketConditionAssessmentHash.Compute(this),
+         TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.MeasureContent(this));
+
 }
 
 [MessagePackObject]
