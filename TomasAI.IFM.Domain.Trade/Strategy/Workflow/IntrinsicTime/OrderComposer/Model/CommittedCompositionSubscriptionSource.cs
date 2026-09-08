@@ -49,6 +49,7 @@ public sealed class CommittedCompositionSubscriptionSource(IEventSourceActorDbCo
             {
                 WorkflowStrategyMachineStatus.Failed or WorkflowStrategyMachineStatus.Cancelled or WorkflowStrategyMachineStatus.TimedOut => DurableAuthorityStatus.Terminal,
                 WorkflowStrategyMachineStatus.Started when selected is not null => DurableAuthorityStatus.Active,
+                WorkflowStrategyMachineStatus.Completed when workflow.State.Outcome == StrategyWorkflowOutcome.NoTrade => DurableAuthorityStatus.Terminal,
                 // Completion alone is not proof that an order owns the contracts. Retain until a committed transfer/terminal fact.
                 _ => DurableAuthorityStatus.Unknown
             };

@@ -2,24 +2,24 @@
 
 | Item | Value |
 | --- | --- |
-| Date | 2026-09-07 |
-| Status | Planned composer gates; pricing/snapshot foundation implemented separately; full runtime integration pending |
+| Date | 2026-09-08 |
+| Status | OC-01..08 code complete; automated qualification passed |
 | Authority | [Detailed specification](OrderComposition-Specification-v1.0.md) |
 | Prerequisites | [OCP-00..07 plan](OrderComposition-Prerequisite-Implementation-Plan-v1.0.md), [implementation evidence](OrderComposition-Prerequisite-Implementation-Record-v1.0.md) |
 | Actors | [System conventions section 13.3](../../../../../../Documents/system/Actor-Implementation-Conventions.md#133-functionactor-convention) |
 | Scope | Exact Fund-authorized selected catalog variant on one Daily/Weekly/Monthly trigger; ES futures or European-style ES futures options; one normalized unit |
 
-This document describes future composer implementation. The prerequisite implementation record is the source of truth for completed code/tests. No composer gate, physical option-worker routing, durable ownership handoff or live-provider readiness is implied by a reusable pricing calculation.
+This document records the composer gate scope. The [composer implementation record](OrderComposition-Implementation-Record-v1.0.md) records actual code and verification separately from the earlier prerequisite record. Automated composer qualification and operational broker/risk readiness are distinct.
 
 ## 1. Entry, dependencies and layering
 
-The market-data boundary now has explicit qualification, Treasury conversion, context refresh, Black-76 enrichment and a bounded snapshot assembler connected to supervised worker sources. A mapped workflow acceptance transition commits an evidence-linked Start request before dispatch. This is preparation integration, not the future Execute Function contract or completed composer. Concrete committed business-source projection, persisted reconstruction plans, durable startup recovery/context refresh and selected-leg discovery-release receipts are implemented. Reviewed reference publication and an initial combined live pricing/handoff/replacement canary have now passed; see the [publication record](OrderComposition-Reference-Publication-and-Qualification-v1.0.md) and [closure audit](OrderComposition-Closure-Audit-v1.0.md) for sustained qualification and the separate broader Stage 4 acceptance boundary.
+The market-data boundary now has explicit qualification, Treasury conversion, context refresh, Black-76 enrichment and a bounded snapshot assembler connected to supervised worker sources. A mapped workflow acceptance transition commits an evidence-linked Start request before dispatch. The composer now extends this preparation into a frozen Execute Function request and typed workflow acceptance. Concrete committed business-source projection, persisted reconstruction plans, durable startup recovery/context refresh and selected-leg discovery-release receipts are implemented. Reviewed reference publication and an initial combined live pricing/handoff/replacement canary have now passed; see the [publication record](OrderComposition-Reference-Publication-and-Qualification-v1.0.md) and [closure audit](OrderComposition-Closure-Audit-v1.0.md) for sustained qualification and the separate broader Stage 4 acceptance boundary.
 
 | Dependency | Entry requirement | Later acceptance requirement |
 | --- | --- | --- |
 | Regime Discovery / Market Condition / Trade Selection | Current typed completed results, exact shared catalog binding and same trigger horizon | Real workflow fixture reaches composition without legacy family/horizon fallback |
 | Portfolio reservation | Committed OrderId/primary TradeId and exact Fund assignment/version/hash | Replay, expiry, cancellation and no duplicate business IDs |
-| ConfigurationDb | Strict SelectionConstructionPolicy v1 remains compatible; v2 additionally pins a bounded reviewed marketData universe. Complete specialized OrderCompositionRules remains planned | Reviewed exact published versions; missing role or reviewed universe remains not-ready |
+| ConfigurationDb | Strict SelectionConstructionPolicy v1 remains compatible; v2 additionally pins a bounded reviewed marketData universe. Complete specialized OrderCompositionRules and strict catalog schema are implemented | Reviewed exact published versions; missing role or reviewed universe remains not-ready |
 | Market-data prerequisites | Frozen OCP contracts and failure semantics; controlled snapshot fixtures allowed | OCP-01..05 production adapters, worker ownership/recovery and complete snapshots required for actual chain consumption |
 | Risk Management | Typed boundary accepting one unapproved unit with limits | Separate sizing/risk reservation and execution authority before any submission |
 
@@ -34,7 +34,7 @@ The new reference-data mapping access path is `ReferenceDb.option_pricing_conven
 1. Add immutable OrderCompositionExecutionId using the same identity/route format pattern as TradeSelectionExecutionId. Allocate a distinct Execute Function subject; preserve historical StartOrderCompositionPipelineCommand keys/subject.
 2. Implement specification section 8's Execute manifest, keys 0..20: SchemaVersion, CommandId, Subject, PostEvents, EntityId, ErrorCode, RouteTo, InputWorkflowRevision, WorkflowContext, TriggerEvent, CorrelationId, CausationId, RequestedAtUtc, ExpiresAtUtc, EvaluatedAtUtc, AcceptedSelectionEnvelope, SelectionBinding, Reservation, CompositionBinding, MarketSnapshot, InputSha256.
 3. Append CompositionResult at envelope key 11 after checking the then-current tree; never repurpose slots 8..10. Implement the specification section 14 result/candidate manifests and explicit nested manifests for pricing, Greeks, execution bounds and reference evidence.
-4. Freeze nested snapshot domain records by copying the logical OCP fields: exact convention keys 0..23; quote keys 0..8; pricing context fields including publication-policy version; normalized instrument/value/scope fields. These are independent explicit domain contracts, not application CLR type references.
+4. Freeze nested snapshot domain records by copying the logical OCP fields: exact convention keys 0..24 (schema 2 includes premium tick rules); quote keys 0..8; pricing context fields including publication-policy version; normalized instrument/value/scope fields. These are independent explicit domain contracts, not application CLR type references.
 5. Allocate distinct numeric errors for Execute, Complete, Fail, Conflict, Timeout, projection and persistence against the current shared error registry. Allocation is part of this gate's code review; do not reuse selector errors or infer that a number is available from one folder search.
 6. Add append-only workflow preparation state and prepared-request reference fields at the next unused keys after existing SelectionDispatch. Pin the final manifests in fixtures before writing events.
 7. Use shared MessagePack serializer/measurement at boundaries and versioned semantic hashes from the specification. Decode old envelopes without a composition slot. Zero/unknown schema, malformed nested context and size overflow fail before execution.
@@ -54,7 +54,7 @@ The new reference-data mapping access path is `ReferenceDb.option_pricing_conven
 
 ## 4. OC-03: Snapshot preparation and durable dispatch
 
-**Implemented prerequisite subset, 2026-09-08 UTC:** `AcceptOrderCompositionPreparationCommand` verifies Scylla evidence under current workflow revision and commits `CompositionDispatch` before Realtime notification. Existing Start key 17 references the immutable capture. Complete-empty, conflicting/expired capture and identical replay are tested. Final Execute contracts, final composer-specific evidence and selected-leg handoff remain in this gate. Do not duplicate the accepted transition or repurpose its keys when implementing the Function.
+**Implemented prerequisite subset, 2026-09-08 UTC:** `AcceptOrderCompositionPreparationCommand` verifies Scylla evidence under current workflow revision and commits `CompositionDispatch` before Realtime notification. Existing Start key 17 references the immutable capture. Complete-empty, conflicting/expired capture and identical replay are tested. The final Execute request is now appended at workflow-view key 32 and legacy-state key 28; keys 30/26 retain preparation evidence. Selected-leg handoff uses the existing durable acquire-before-release path, including terminal discovery cleanup. Do not duplicate the accepted transition or repurpose its keys when implementing the Function.
 
 **Implement in:** existing workflow Command/Realtime maps and extensions, workflow event/state transitions, Domain.Trade application-snapshot adapter.
 
@@ -113,19 +113,16 @@ Implement signed debit/credit prices, financial-side tick rounding, natural/midp
 
 **Implement in:** TradeDb schema/context and `OrderComposer/Query` using the established QueryActor maps and access checks.
 
-Proposed CQL, finalized with DTO fixtures in OC-01:
+Implemented additive CQL; the full immutable event is retained in the invocation payload:
 
 ```sql
 CREATE TABLE IF NOT EXISTS order_composition_invocation (
-    workflow_id uuid, invocation_id uuid, portfolio_id bigint, fund_id bigint,
-    result_hash text, input_hash text, binding_hash text, outcome int,
-    evaluated_at_utc timestamp, valid_until_utc timestamp, payload blob,
+    workflow_id uuid, invocation_id uuid, result_hash text, input_hash text, payload blob,
     PRIMARY KEY ((workflow_id), invocation_id));
-
 CREATE TABLE IF NOT EXISTS order_composition_history (
-    portfolio_id bigint, fund_id bigint, value_date date,
-    evaluated_at_utc timestamp, invocation_id uuid, workflow_id uuid,
-    outcome int, result_hash text,
+    portfolio_id int, fund_id int, value_date date, evaluated_at_utc timestamp,
+    invocation_id uuid, workflow_id uuid, event_id uuid, target_horizon smallint,
+    outcome tinyint, reason_code text, result_id uuid, result_hash text,
     PRIMARY KEY ((portfolio_id, fund_id, value_date), evaluated_at_utc, invocation_id))
     WITH CLUSTERING ORDER BY (evaluated_at_utc DESC, invocation_id ASC);
 ```
@@ -152,4 +149,4 @@ Live acceptance additionally requires verified exchange/product metadata, curren
 4. OC-06/OC-07 integrate workflow acceptance and bounded evidence access.
 5. OC-08 closes actual integrated tests, then the separate live qualification gates.
 
-All OC gates are currently planned. The prerequisite record must be consulted before claiming a pricing, worker, ownership or snapshot dependency is complete. The existence of this document closes the document-production task, not those runtime gates.
+All OC gate implementations are now present. See the [composer implementation record](OrderComposition-Implementation-Record-v1.0.md) for qualification results and explicit operational boundaries. Risk approval/sizing, emulator execution, production deployment promotion, and the separately scheduled five-stage live acceptance exercise are not implied by composer completion.

@@ -13,7 +13,7 @@ public static class StrategyCatalogValidation
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        MaxDepth = 32
+        MaxDepth = 96
     };
     public const int MaximumDefinitionBytes = 262144;
     public const int MaximumChildren = 128;
@@ -165,7 +165,7 @@ public static class StrategyCatalogValidation
 
     static void ValidateShape(CatalogParameterShape s, int depth)
     {
-        Require(depth < 16 && Enum.IsDefined(s.Type), "Invalid or too deeply nested parameter shape.");
+        Require(depth < 32 && Enum.IsDefined(s.Type), "Invalid or too deeply nested parameter shape.");
         Require(s.Properties is not null && s.Required is not null && s.Choices is not null, "Shape collections cannot be null.");
         Require(s.Properties!.Count <= MaximumChildren && s.Required!.Length <= MaximumChildren && s.Choices!.Length <= MaximumChildren, "Shape is too large.");
         Require(s.Minimum is null || s.Maximum is null || s.Minimum <= s.Maximum, "Invalid numeric bounds.");
@@ -192,7 +192,7 @@ public static class StrategyCatalogValidation
 
     static void ValidateValue(CatalogParameterShape s, JsonElement v, string path, int depth)
     {
-        Require(depth < 16, "Parameter nesting exceeds limit.");
+        Require(depth < 32, "Parameter nesting exceeds limit.");
         switch (s.Type)
         {
             case CatalogValueType.Object:

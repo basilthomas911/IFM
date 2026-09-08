@@ -22,7 +22,7 @@ using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.MarketC
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection;
 internal static class TradeSelectionFixture
 {
-    public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode="LongFuture",TimeFrameType horizon=TimeFrameType.Daily, DateTime? atUtc=null, string contractId="ESZ6", int scopeId=1)
+    public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode="LongFuture",TimeFrameType horizon=TimeFrameType.Daily, DateTime? atUtc=null, string contractId="ESZ6", int scopeId=1, bool compositionReady=false, bool compositionIntegrationTiming=false)
     {
         var assessmentCommand=AssessmentFixture.Command(horizon,atUtc,contractId);
         var at=assessmentCommand.RequestedAtUtc;
@@ -49,7 +49,25 @@ internal static class TradeSelectionFixture
         var selectionRef=new SelectionPipelinePolicyReference{Kind=CatalogPipelineParameterKind.TradeSelection,Id=common.ParameterSetId,Version=1,PayloadSha256=TradeSelectionPolicy.Hash(common)};
         var deployment=StrategyCatalogExamples.New(StrategyCatalogKind.Deployment,"TestDeployment","Test deployment") with {Parent=strategy.Key,Horizon=horizon,Variants=[variant.Key],Products=[new(1,"ES","CME","USD")],Capabilities=[new("validator","StructureVariant",1)],
             PipelineParameters=[new("selection-policy",CatalogPipelineParameterKind.TradeSelection,common.ParameterSetId,1,selectionRef.PayloadSha256),new("composition-policy",CatalogPipelineParameterKind.OrderComposition,composition.ParameterSetId,1,composition.Hash())]};
-        var source=new[]{examples.Single(x=>x.Key==strategy.Families[0]),structure,strategy,variant,deployment}.Select(x=>new StoredStrategyCatalogDefinition(StrategyCatalogValidation.Freeze(x),StrategyCatalogValidation.ContentHash(x),CatalogLifecycleStatus.Published,at.AddDays(-2),"fixture",at.AddDays(-1),"fixture",null,null)).ToArray();
+        var definitions = new List<StrategyCatalogDefinition> { examples.Single(x=>x.Key==strategy.Families[0]),structure,strategy,variant,deployment };
+        if (compositionReady)
+        {
+            var authored = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionDefaultProfiles.Create([variant], horizon,
+                new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.Black76ComposerPricer().Version);
+            // Outer policy intersects the same horizon bounds; test authority is an explicit new immutable graph.
+            var compositionRule = authored.VariantRules[0];
+            authored = authored with { VariantRules = [compositionRule with { BaseParameters = compositionRule.BaseParameters with { MaximumDaysToExpiry = Math.Min(compositionRule.BaseParameters.MaximumDaysToExpiry, composition.MaximumDaysToExpiry) } }] };
+            if (compositionIntegrationTiming)
+                authored = authored with { VariantRules = [authored.VariantRules[0] with { BaseParameters = authored.VariantRules[0].BaseParameters with
+                { LoadingMilliseconds = 15000, ExecutionMilliseconds = 15000, CandidateLifetimeMilliseconds = 5000, MaximumQuoteAgeMilliseconds = 5000 } }] };
+            var settings = JsonSerializer.SerializeToElement(authored);
+            var schema = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSchema, "CompositionRulesSchema", "Composition rules schema") with
+            { Settings = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionRulesSchema.Settings(), Capabilities = [new("validator", "OrderCompositionRules", 1)] };
+            var parameters = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSet, "CompositionRules", "Composition rules") with { Parent = schema.Key, Settings = settings };
+            deployment = deployment with { Parameters = [new("OrderCompositionRules", parameters.Key)] };
+            definitions[^1] = deployment; definitions.Add(schema); definitions.Add(parameters);
+        }
+        var source=definitions.Select(x=>new StoredStrategyCatalogDefinition(StrategyCatalogValidation.Freeze(x),StrategyCatalogValidation.ContentHash(x),CatalogLifecycleStatus.Published,at.AddDays(-2),"fixture",at.AddDays(-1),"fixture",null,null)).ToArray();
         var graph=new StrategyCatalogSnapshot(deployment.Key,at,source,SelectionCatalogTransport.GraphHash(deployment.Key,source));
         var config=Substitute.For<IConfigurationDbContext>();
         config.ResolveTradeSelectionVersionAsync(common.ParameterSetId,1,selectionRef.PayloadSha256,at,Arg.Any<CancellationToken>()).Returns(new ResolvedTradeSelectionParameterSet(common,selectionRef.PayloadSha256,ConfigurationParameterSetStatus.Published,at.AddDays(-1),null));
@@ -78,6 +96,15 @@ internal static class TradeSelectionFixture
             MarketCondition=new(){ProcessingStatus=StrategyActorProcessingStatus.Completed,InputWorkflowRevision=2,Result=assessmentEnvelope},TradeSelection=new(){ProcessingStatus=StrategyActorProcessingStatus.Processing,InputWorkflowRevision=3}};
         return TradeSelectionDispatch.Create(view,Guid.NewGuid());
     }
+    internal static CatalogParameterShape Shape(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Object => new() { Type = CatalogValueType.Object, Properties = value.EnumerateObject().ToDictionary(x => x.Name, x => Shape(x.Value)), Required = value.EnumerateObject().Select(x => x.Name).ToArray() },
+        JsonValueKind.Array => new() { Type = CatalogValueType.Array, Items = value.GetArrayLength() == 0 ? new() { Type = CatalogValueType.Object } : Shape(value[0]), MaxLength = 64 },
+        JsonValueKind.String => new() { Type = CatalogValueType.String },
+        JsonValueKind.Number => new() { Type = CatalogValueType.Decimal },
+        JsonValueKind.True or JsonValueKind.False => new() { Type = CatalogValueType.Boolean },
+        _ => throw new ArgumentException("Unsupported fixture field.")
+    };
     internal static MarketConditionAssessmentSnapshot Snapshot(ExecuteMarketConditionAssessmentCommand c) => new()
     {
         SnapshotId = Guid.NewGuid(), MarketProfileId = c.MarketProfileId, InstrumentRoot = c.InstrumentRoot, TargetHorizon = c.TargetHorizon,

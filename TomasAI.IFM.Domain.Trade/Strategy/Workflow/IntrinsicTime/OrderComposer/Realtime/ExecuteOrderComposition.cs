@@ -39,22 +39,13 @@ public static class ExecuteOrderComposition
         IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
         var view = snapshot.State;
-        if (view.CompositionDispatch is { } dispatch)
+        if (view.CompositionExecution is { } execution)
         {
-            var now = context.TimeProvider.GetUtcNow();
-            TradeSelectionHandoff.ValidateStart(dispatch, now.UtcDateTime);
-            if (dispatch.MarketEvidence is not { } reference || reference.ValidUntilUtc <= now)
-                throw new CompositionMarketSourceException("AcceptedSnapshotExpired");
-            // Verify immutable storage on redispatch. Never substitute a new market capture or new IDs.
-            var saved = await context.CompositionPreparations.ReadAsync(new(reference.WorkflowId,
-                reference.PreparationRevision, reference.InputSha256), default).ConfigureAwait(false)
-                ?? throw new InvalidDataException("Accepted market preparation is missing.");
-            CompositionPreparationService.Validate(saved);
-            if (CompositionPreparationAcceptance.Reference(saved) != reference)
-                throw new InvalidDataException("Accepted market evidence changed.");
-            await context.SendAsync<StartOrderCompositionPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(dispatch, view.EntityId).ConfigureAwait(false);
+            await execution.DispatchAsync(context).ConfigureAwait(false);
             return;
         }
+        if (view.CompositionDispatch is not null)
+            throw new CompositionMarketSourceException("HistoricalCompositionRequiresNewWorkflow");
         var key = CompositionPreparationAcceptance.Key(view);
         var prepared = await context.CompositionPreparations.ReadAsync(key, default).ConfigureAwait(false);
         if (prepared is null)

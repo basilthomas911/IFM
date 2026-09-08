@@ -71,4 +71,6 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(30)] public Pipeline.Commands.StartOrderCompositionPipelineCommand? CompositionDispatch { get; init; }
     /// <summary>Selected contracts committed by Order Composition for durable business ownership.</summary>
     [Key(31)] public CompositionContractSelection? CompositionContracts { get; init; }
+    /// <summary>Frozen, accepted Function invocation; historical Start remains evidence only.</summary>
+    [Key(32)] public Pipeline.Commands.ExecuteOrderCompositionPipelineCommand? CompositionExecution { get; init; }
 }

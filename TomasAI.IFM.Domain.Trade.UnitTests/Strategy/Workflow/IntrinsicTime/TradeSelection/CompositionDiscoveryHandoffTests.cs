@@ -17,6 +17,7 @@ public sealed class CompositionDiscoveryHandoffTests
     [Theory]
     [InlineData(2, false, false)] [InlineData(2, true, false)]
     [InlineData(4, true, false)] [InlineData(4, true, true)]
+    [InlineData(0, true, false)] [InlineData(0, false, false)] [InlineData(0, true, true)]
     public async Task Discovery_release_requires_realized_ownership_and_never_recaptures_accepted_evidence(int count, bool ready, bool replaced)
     {
         var at = DateTimeOffset.UtcNow.AddMinutes(-5); // Accepted evidence may be expired; handoff must not recapture it.
@@ -31,13 +32,14 @@ public sealed class CompositionDiscoveryHandoffTests
         var prepared = new CompositionPreparation(2, key, "GLBX.MDP3", request, snapshot, at, "", new(planId, Guid.NewGuid(), generation));
         prepared = prepared with { Digest = PricingSemanticHash.Compute(prepared) };
         var workflow = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), WorkflowId = new(workflowId),
-            State = new() { CompositionContracts = selected, CompositionDispatch = new() { MarketEvidence = CompositionPreparationAcceptance.Reference(prepared) } } };
+            State = new() { Status = count == 0 ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
+                Outcome = count == 0 ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None, CompositionContracts = count == 0 ? null : selected, CompositionDispatch = new() { MarketEvidence = CompositionPreparationAcceptance.Reference(prepared) } } };
         var row = new EventLogReadModel(1, workflow.EventName, workflow.GetType().AssemblyQualifiedName!, 99, JsonConvert.SerializeObject(workflow), Guid.NewGuid(), at.ToString("O"), 6);
         var journal = Substitute.For<ICommittedBusinessEventJournal>(); journal.ReadPendingHandoffsAsync(default).Returns([row]);
         var intent = Substitute.For<IDurableSubscriptionIntentStore>();
         intent.ReadAsync("IFM", "GLBX.MDP3", default).Returns(new DurableSubscriptionSnapshot(1, "IFM", "GLBX.MDP3", 1,
             [new("IntrinsicTimeWorkflow:" + workflow.WorkflowId, 6, workflow.Id, new('c', 64), new("IntrinsicTimeWorkflow", workflow.WorkflowId.ToString(), "SelectedContracts"),
-                DurableAuthorityStatus.Active, "CommittedActive", selected.ContractIds.Select(id => new DurableSubscriptionLease(Guid.NewGuid(), 1,
+                count == 0 ? DurableAuthorityStatus.Terminal : DurableAuthorityStatus.Active, "CommittedActive", selected.ContractIds.Select(id => new DurableSubscriptionLease(Guid.NewGuid(), 1,
                     SubscriptionLeasePurpose.Strategy, new("Databento", "GLBX.MDP3", id, "mbp-1", SubscriptionAssetKind.FuturesOption, "ES-future", planId))).ToArray())]));
         var preparations = Substitute.For<ICompositionPreparationStore>(); preparations.ReadAsync(key, default).Returns(prepared);
         var market = Substitute.For<ICompositionMarketDataApi>(); market.ReleaseAsync("GLBX.MDP3", prepared.DiscoveryLease!, default).Returns(new WorkerOptionChainResult(true, null));

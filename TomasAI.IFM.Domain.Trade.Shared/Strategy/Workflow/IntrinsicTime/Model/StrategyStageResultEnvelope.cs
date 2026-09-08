@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
@@ -11,7 +12,7 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
 /// <summary>
-/// Carries a versioned stage result: typed Regime Discovery, Market Condition or Trade Selection content, or a legacy opaque payload.
+/// Carries a versioned stage result: typed Regime Discovery, Market Condition, Trade Selection or Order Composition content, or a legacy opaque payload.
 /// </summary>
 /// <remarks>
 /// The workflow validates and stores versioned result content without interpreting stage-specific decisions.
@@ -63,6 +64,50 @@ public sealed record StrategyStageResultEnvelope
             _assessmentResult = value?.CopyContent();
             _assessmentFingerprint = _assessmentResult?.ContentFingerprint() ?? default;
         }
+    }
+
+    [IgnoreMember, JsonIgnore] OrderCompositionResult? _compositionResult;
+    [IgnoreMember, JsonIgnore] (string Hash, int Size) _compositionFingerprint;
+    public const string TypedCompositionContentType = "application/vnd.ifm.order-composition.v1";
+
+    /// <summary>Typed composer content at the appended wire key; legacy payload bytes remain empty.</summary>
+    [Key(11)]
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public OrderCompositionResult? CompositionResult
+    {
+        get => _compositionResult;
+        init
+        {
+            _compositionResult = value;
+            _compositionFingerprint = _compositionResult is null ? default : (CompositionHash.Compute(_compositionResult), MessagePackBinarySerializer.MeasureContent(_compositionResult));
+        }
+    }
+
+    /// <summary>Creates a typed result with the frozen selector's uncompressed content budget.</summary>
+    public static StrategyStageResultEnvelope CreateComposition(OrderCompositionResult result, int maximumPayloadBytes = 524288)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.ResultId == Guid.Empty || result.SchemaVersion != 1 || maximumPayloadBytes is <= 0 or > 524288)
+            throw new ArgumentException("A versioned composition identity and supported content budget are required.");
+        var envelope = new StrategyStageResultEnvelope
+        {
+            ResultId = result.ResultId, ResultType = nameof(OrderCompositionResult), SchemaVersion = result.SchemaVersion,
+            ContentType = TypedCompositionContentType, CompositionResult = result,
+            MarketDataAsOfUtc = result.EvaluatedAtUtc, ProducedAtUtc = result.ProducedAtUtc
+        };
+        if (envelope.ContentSize > maximumPayloadBytes)
+            throw new ArgumentOutOfRangeException(nameof(result), "Composition content exceeds its configured limit.");
+        return envelope with { PayloadSha256 = envelope._compositionFingerprint.Hash };
+    }
+
+    /// <summary>Reads typed composition content or historical MessagePack bytes after integrity checks.</summary>
+    public OrderCompositionResult ReadCompositionResult()
+    {
+        if (ResultType != nameof(OrderCompositionResult) || !HasValidPayloadSha256())
+            throw new ArgumentException("Invalid composition envelope.");
+        if (_compositionResult is not null) return CompositionResult!;
+        throw new ArgumentException("Typed composition content is required.");
     }
 
     [IgnoreMember, JsonIgnore] TradeSelectionResult? _selectionResult;
@@ -138,9 +183,9 @@ public sealed record StrategyStageResultEnvelope
     }
 
     /// <summary>Gets the canonical typed-content size or legacy encoded payload size used by the stage budget.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _selectionResult is not null ? _selectionFingerprint.Size : _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _compositionResult is not null ? _compositionFingerprint.Size : _selectionResult is not null ? _selectionFingerprint.Size : _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
     /// <summary>Gets whether a supported result representation is populated.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
 
     /// <summary>Creates a typed Regime envelope without serializing an inner message payload.</summary>
     /// <param name="result">The result whose typed fields, metadata and fingerprint are carried by the outer message.</param>
@@ -285,6 +330,14 @@ public sealed record StrategyStageResultEnvelope
     {
         if (PayloadSha256 is not { Length: SHA256.HashSizeInBytes * 2 })
             return false;
+        if (_compositionResult is not null)
+        {
+            if (_selectionResult is not null || _regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType != TypedCompositionContentType ||
+                ResultType != nameof(OrderCompositionResult) || ResultId != _compositionResult.ResultId || SchemaVersion != _compositionResult.SchemaVersion ||
+                ProducedAtUtc != _compositionResult.ProducedAtUtc || MarketDataAsOfUtc != _compositionResult.EvaluatedAtUtc)
+                return false;
+            return string.Equals(PayloadSha256, _compositionFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+        }
         if (_selectionResult is not null)
         {
             if (_regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType != TypedSelectionContentType ||
@@ -309,7 +362,7 @@ public sealed record StrategyStageResultEnvelope
                 return false;
             return string.Equals(PayloadSha256, _regimeFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
-        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType or TypedSelectionContentType) return false;
+        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType or TypedSelectionContentType or TypedCompositionContentType) return false;
 
         try
         {

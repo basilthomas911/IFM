@@ -641,7 +641,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
             MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256,
             AssessmentBinding = source.AssessmentBinding,
-            CompositionContracts = source.CompositionContracts,
+            CompositionContracts = source.CompositionContracts, CompositionExecution = source.CompositionExecution,
             SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch), CompositionDispatch = CopySelection(source.CompositionDispatch)
         };
 

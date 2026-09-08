@@ -12,9 +12,9 @@ Current closure status and schema-2 premium tick-rule requirements: [closure aud
 | Prerequisites | [Prerequisite implementation plan v1.0](OrderComposition-Prerequisite-Implementation-Plan-v1.0.md) |
 | Actor authority | [System actor conventions, section 13.3](../../../../../../Documents/system/Actor-Implementation-Conventions.md#133-functionactor-convention) |
 
-SHALL denotes a requirement. Proposed names and wire keys describe work to implement, not existing APIs. This document does not certify production policies, market feeds, builder/risk capabilities or broker integration.
+SHALL denotes a requirement. The implementation amendment and wire manifest below identify the implemented APIs. This document does not certify production policies, market feeds, builder/risk capabilities or broker integration.
 
-Implementation amendment, 2026-09-08 UTC: prerequisite preparation now has a mapped acceptance command and durable saved Start dispatch (workflow view key 30, legacy state key 26, Start key 17 evidence reference). Preparation schema 2 adds discovery identity at key 7 while retaining historical schema-1 hashes. These implemented keys must be preserved when the proposed Execute Function contract is added. Construction-policy schema 2 pins a finite reviewed `marketData` object (explicit dataset/root/date/scope/options/futures and option pricing-reference policies); version one remains immutable and omits it. The complete proposed composer contract below remains normative future work. See the [implementation record](OrderComposition-Prerequisite-Implementation-Record-v1.0.md) for the tested subset and remaining durable lifecycle work.
+Implementation amendment, 2026-09-08: the composer Function, construction Models, exact catalog rules, durable Execute preparation, typed workflow acceptance and Scylla query projections are implemented. See [composer implementation evidence](OrderComposition-Implementation-Record-v1.0.md). Existing preparation keys remain unchanged; Execute is workflow-view key 32 / legacy-state key 28 and typed composition content is envelope key 11. Result key 19 adds the deterministic ranking tuple. Snapshot DTOs preserve the prerequisite producer's explicit contracts through a field-by-field adapter; no dependency cycle or serialized copy is introduced.
 
 ## 1. Authority and alignment decisions
 
@@ -83,7 +83,7 @@ Verified repository boundaries:
 
 Required additions: typed composition contracts, complete rules/capability validation, Models, Function/context/state/projector/query, prepared dispatch persistence and guarded acceptance. Scaffolding is not a qualified composer. Preserve historical keys and records; do not silently repoint the old Start subject or activate both routes.
 
-The [prerequisite implementation record](OrderComposition-Prerequisite-Implementation-Record-v1.0.md) documents pricing/reference contracts, explicit-T calculations, qualified temporary worker chains, supervised snapshot transport and immutable Scylla market capture storage. Durable business ownership, the mapped workflow preparation/acceptance transition and the composer are not complete. Follow the [composer implementation plan](OrderComposition-Implementation-Plan-v1.0.md) for OC-01..08, including the application-to-domain snapshot adapter and remaining nested wire manifests. A stored market capture is not an accepted workflow Execute request.
+The [prerequisite implementation record](OrderComposition-Prerequisite-Implementation-Record-v1.0.md) documents pricing/reference contracts, explicit-T calculations, qualified temporary worker chains, supervised snapshot transport and immutable Scylla market capture storage. Durable business ownership, mapped workflow preparation/acceptance and the composer are implemented; their separate records identify the verified boundaries. Follow the [composer implementation plan](OrderComposition-Implementation-Plan-v1.0.md) for OC-01..08, including the application-to-domain snapshot adapter and remaining nested wire manifests. A stored market capture is not an accepted workflow Execute request.
 
 ## 4. Catalog and policy binding
 
@@ -177,7 +177,7 @@ Preparation is a substate (PendingSnapshot, Ready, Stopped), not another decisio
 
 Before preparation acceptance, recovery may recapture: no Function input is yet authorized. Once Ready, every retry uses the identical saved request, snapshot, IDs and timestamps. A race cannot replace accepted input. Before dispatch, verify authoritative workflow state; stopped/stale workflows cannot send new work.
 
-Append nullable preparation/dispatch fields at the next unused workflow view/state keys; current view ends at key 29 SelectionDispatch. Do not reuse keys 27-29. Record both manifests in OC-01. New command IDs use existing deterministic workflow schemes.
+Append nullable preparation/dispatch fields at the next unused workflow view/state keys; the pre-composer view ends at key 31 CompositionContracts. Do not reuse keys 27-29. Record both manifests in OC-01. New command IDs use existing deterministic workflow schemes.
 
 ### 7.2 Snapshot schema and source quality
 
@@ -632,7 +632,7 @@ Unit tests own policy/math/topology/hash/actor conventions; BDD owns business bo
 | OC-07 | Scylla queries/evidence/access/observability | C24/31; paging and orphan semantics |
 | OC-08 | Integrated regression/readiness record | C32-34; exact commands/counts/revision/dependencies |
 
-All gates are Planned when this document is created. The later implementation plan sequences files, migrations, DTO manifests and fixture provisioning. Numeric tuning may follow in new immutable versions; missing required data or unqualified reference/pricer/capability contracts cannot be replaced by runtime guesses.
+The OC-01..08 implementations are recorded in the implementation record with test evidence. Numeric tuning may follow in new immutable versions; missing required data or unqualified reference/pricer/capability contracts cannot be replaced by runtime guesses.
 
 Code complete requires the gates' code and owned automated tests, no generic-success bypass, no domain logic in Function actors and no duplicated deadline/serialization mechanics. Operational readiness additionally requires qualified live snapshot/reference/pricer adapters, actual downstream risk capabilities, reviewed published deployments/assignments/activations and emulator qualification. Document completion is neither code completion nor full pipeline qualification.
 
@@ -646,3 +646,15 @@ Code complete requires the gates' code and owned automated tests, no generic-suc
 - [Selector evidence and full-workflow limitations](../../TradeSelection/Docs/TradeSelection-Implementation-Evidence-v1.0.md)
 
 2026-09-07: Created specification aligned to current catalog, one-unit selector handoff, all twelve variants/all three horizons, market-only assessment, typed upstream results, five-map Function convention and shared serialization. No production source, schema, policy data or UI changed by this document.
+
+
+## 20. Implemented contract and qualification clarifications ? 2026-09-08
+
+- `CompositionRulesSchema` authors the complete strict ParameterSchema, including nonempty adjustment/bound arrays and recursive predicates. The general catalog shape bound is now 32 levels (JSON representation bound 96), retaining the 256 KiB definition limit; composition itself remains depth 8 / 64 leaves. Existing policy version-one serialization and hashes are unchanged. Defaults are explicit authoring output and are never silently seeded or substituted at runtime.
+- The initial adaptive feature allowlist is RegimeConfidence, SelectionConfidence, ForwardPrice and ImpliedVolatility, encoded by `CompositionFeature`. ForwardPrice requires one coherent linked forward; IV is derived from qualified frozen Black-76 inputs. Other assessment/trigger properties remain immutable input evidence but are not arbitrary rule paths. Additional adaptive features require an explicit contract/version change.
+- Scope, generation, completeness token, quote/reference inputs and snapshot hash retain the prerequisite `MarketCompositionSnapshot` manifest. Product identity comes from the exact selected binding and each contract definition. Incomplete capture fails before Execute; an explicitly complete empty scope may complete as NoCandidate. The domain/app adapter preserves the original snapshot digest.
+- V1 supports full-size ES futures with multiplier 50 and outright tick 0.25, and reviewed European ES options with matching multiplier. Options retain the exact premium tick policy, including key 24 of pricing convention schema 2. Linked-forward quotes must agree across the frozen scope; option and underlying spread gates both apply.
+- Canonical semantic hashes exclude properties explicitly marked as non-contract diagnostics, including process-local UserName/OriginatedOn. The shared MessagePack serializer remains the sole binary boundary serializer. The Function context omits saved dispatch/self references; the authoritative workflow separately retains the original preparation and final Execute request.
+- Result `DecisionContext` keys 8/9 retain PortfolioId/FundId even for NoCandidate. `OrderCompositionResult` key 19 retains ranking. Candidate/leg keys remain 0..30 / 0..13. Invocation/result errors are 23024 / 24029 / 24030, and query errors are 23213..23215; stable OC reason codes distinguish failure categories.
+- Query acceptance is checked against the PostgreSQL workflow repository, never inferred from a Scylla projection. Missing/different current workflow is AcceptanceUnknown; terminal unaccepted evidence is SuspectedOrphan. Page tokens bind portfolio/fund/value-date/page-size/version and each request independently rechecks access.
+- Composition/workflow expiry precedes acceptance. NoCandidate is a completed NoTrade business stop; Composed starts risk with one unapproved unit. Temporary discovery release also handles terminal workflows without selected legs. Production risk capability publication remains separately gated.

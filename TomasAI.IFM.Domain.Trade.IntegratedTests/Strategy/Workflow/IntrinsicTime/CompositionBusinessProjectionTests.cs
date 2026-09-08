@@ -50,6 +50,20 @@ public sealed partial class CompositionBusinessProjectionTests
         Assert.Equal(0, await fixture.Projector().ProjectPendingAsync(default));
     }
 
+    [Fact]
+    public async Task Composer_NoTrade_without_selected_legs_projects_terminal_authority_for_discovery_release()
+    {
+        await using var fixture = await Fixture.Create();
+        var workflow = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), WorkflowId = new(Guid.NewGuid()), WorkflowRevision = 6,
+            State = new() { Status = WorkflowStrategyMachineStatus.Completed, Outcome = StrategyWorkflowOutcome.NoTrade } };
+        workflow = workflow with { State = workflow.State with { WorkflowId = workflow.WorkflowId, WorkflowRevision = 6, EntityId = workflow.EntityId } };
+        await fixture.Append(workflow, 6);
+        Assert.Equal(1, await fixture.Projector().ProjectPendingAsync(default));
+        var authority = Assert.Single((await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3")).Authorities);
+        Assert.Equal(DurableAuthorityStatus.Terminal, authority.Status); Assert.Empty(authority.Leases);
+        Assert.Single(await fixture.Journal.ReadPendingHandoffsAsync(default));
+    }
+
     [Theory]
     [InlineData(2)] [InlineData(4)]
     public async Task Committed_order_position_and_terminal_events_project_all_legs_and_replay_after_restart(int count)

@@ -34,6 +34,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [
         nameof(ExecuteMarketConditionAssessmentCommand),
         nameof(ExecuteMarketConditionPipelineCommand),
+        nameof(ExecuteOrderCompositionPipelineCommand),
         nameof(ExecuteRegimeDiscoveryPipelineCommand),
         nameof(ExecuteTradeSelectionPipelineCommand),
         nameof(StartOrderCompositionPipelineCommand),
@@ -47,6 +48,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(MarketConditionAssessmentFailedEvent),
         nameof(MarketConditionPipelineCompletedEvent),
         nameof(MarketConditionPipelineFailedEvent),
+        nameof(OrderCompositionFunctionCompletedEvent),
+        nameof(OrderCompositionFunctionFailedEvent),
         nameof(OrderCompositionPipelineCompletedEvent),
         nameof(OrderCompositionPipelineFailedEvent),
         nameof(OrderCompositionPipelineProcessingEvent),
@@ -115,7 +118,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [Fact]
     public void Pipeline_events_have_only_the_approved_lifecycle_shapes()
     {
-        EventTypes.Should().OnlyContain(type => (type.Name.StartsWith("TradeSelectionFunction", StringComparison.Ordinal) || type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
+        EventTypes.Should().OnlyContain(type => (type.Name.StartsWith("OrderCompositionFunction", StringComparison.Ordinal) || type.Name.StartsWith("TradeSelectionFunction", StringComparison.Ordinal) || type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
         EventTypes.Where(type => type.Name.EndsWith("ProcessingEvent", StringComparison.Ordinal)).Should()
             .OnlyContain(type => typeof(IEvent).IsAssignableFrom(type) && !typeof(ICompleteEvent).IsAssignableFrom(type));
         EventTypes.Where(type => type.Name.EndsWith("CompletedEvent", StringComparison.Ordinal)).Should()
@@ -135,7 +138,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         foreach (var type in CommandTypes)
         {
             if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
-                type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand) || type == typeof(ExecuteTradeSelectionPipelineCommand))
+                type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand) || type == typeof(ExecuteTradeSelectionPipelineCommand) || type == typeof(ExecuteOrderCompositionPipelineCommand))
             {
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
@@ -150,7 +153,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
             var command = Activator.CreateInstance(type).Should().BeAssignableTo<ICommand>().Subject;
             command!.RouteTo.Should().NotBe(BoundedContextName.Undefined, type.Name);
-            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type!=typeof(ExecuteTradeSelectionPipelineCommand), type.Name);
+            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type!=typeof(ExecuteTradeSelectionPipelineCommand) && type!=typeof(ExecuteOrderCompositionPipelineCommand), type.Name);
         }
     }
 
@@ -218,6 +221,9 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static object CreatePopulatedContract(Type type)
     {
+        if(type==typeof(ExecuteOrderCompositionPipelineCommand))return OrderComposer.CompositionFixture.Command().GetAwaiter().GetResult();
+        if(type==typeof(OrderCompositionFunctionCompletedEvent))return new OrderCompositionFunctionCompletedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid()};
+        if(type==typeof(OrderCompositionFunctionFailedEvent))return new OrderCompositionFunctionFailedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReasonCode="OC.TEST"};
         if(type==typeof(ExecuteTradeSelectionPipelineCommand))return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult();
         if(type==typeof(TradeSelectionFunctionCompletedEvent))return new TradeSelectionFunctionCompletedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid()};
         if(type==typeof(TradeSelectionFunctionFailedEvent))return new TradeSelectionFunctionFailedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReasonCode="TS.TEST"};

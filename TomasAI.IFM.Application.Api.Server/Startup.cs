@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Hazelcast;
@@ -515,7 +516,7 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences, TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogReferenceAdapter>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
-                _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()));
+                _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create())));
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
@@ -869,6 +870,9 @@ public static class Startup
         _siContainer.AddRegistration<ITradeSelectionFunctionContext>(
             _siContainer.GetCurrentRegistrations().Single(registration =>
                 registration.ServiceType == typeof(IFunctionActorContext<TradeSelectionFunctionActor>)).Registration);
+        _siContainer.AddRegistration<IOrderCompositionFunctionContext>(
+            _siContainer.GetCurrentRegistrations().Single(registration =>
+                registration.ServiceType == typeof(IFunctionActorContext<OrderCompositionFunctionActor>)).Registration);
         _siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);

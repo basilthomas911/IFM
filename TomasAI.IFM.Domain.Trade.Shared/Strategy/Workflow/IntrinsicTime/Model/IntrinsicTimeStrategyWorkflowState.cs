@@ -104,4 +104,5 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     [Key(26)] public StartOrderCompositionPipelineCommand? CompositionDispatch { get; init; }
     /// <summary>Selected contracts retained in the compatibility projection.</summary>
     [Key(27)] public CompositionContractSelection? CompositionContracts { get; init; }
+    [Key(28)] public ExecuteOrderCompositionPipelineCommand? CompositionExecution { get; init; }
 }

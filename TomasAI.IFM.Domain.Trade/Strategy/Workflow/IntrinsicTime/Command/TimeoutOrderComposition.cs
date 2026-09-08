@@ -29,6 +29,7 @@ public static class TimeoutOrderComposition
             LogStale(context, command, current); return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+        if (current.CompositionExecution is { } execution && now < execution.ExpiresAtUtc && now < current.ExpiresAtUtc) return Ok(command);
         var failure = TimeoutFailure(now);
         var updated = current with
         {
@@ -63,8 +64,8 @@ public static class TimeoutOrderComposition
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "RegimeDiscoveryTimedOut", FailedAtUtc = now
+        ErrorCode = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionFailedEvent.ErrorId, ErrorMessage = "The fixed workflow execution deadline was reached.",
+        ErrorType = "OrderCompositionTimedOut", ErrorData = "OC.TIME.EXPIRED", FailedAtUtc = now
     };
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,

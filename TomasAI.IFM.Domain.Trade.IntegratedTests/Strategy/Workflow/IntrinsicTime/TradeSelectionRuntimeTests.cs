@@ -181,7 +181,7 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222").ConfigureServices(services=>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions{Enabled=false});
-            var validators=TradeSelectionCatalogCapabilities.Create().Concat(new[]{"Future","CallVertical","PutVertical","IronCondor"}.SelectMany(code=>new[]{"builder","risk"}.Select(role=>(IStrategyCatalogCapabilityValidator)new FixtureOnlyDownstreamValidator(new(role,code,1)))));
+            var validators=TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create()).Concat(new[]{"Future","CallVertical","PutVertical","IronCondor"}.Select(code=>(IStrategyCatalogCapabilityValidator)new FixtureOnlyDownstreamValidator(new("risk",code,1))));
             var registry=new StrategyCatalogCapabilityRegistry(validators);services.RemoveAll<IStrategyCatalogCapabilities>();services.AddSingleton<IStrategyCatalogCapabilities>(registry);
             var container=(SimpleInjector.Container)services.Single(x=>x.ServiceType==typeof(SimpleInjector.Container)).ImplementationInstance!;
             var authority=Substitute.For<IPortfolioQueryApi>();

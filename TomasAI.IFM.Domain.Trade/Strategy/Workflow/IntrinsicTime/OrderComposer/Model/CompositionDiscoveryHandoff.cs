@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Subscriptions;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
@@ -18,21 +19,25 @@ public sealed class CompositionDiscoveryHandoff(ICommittedBusinessEventJournal j
             if (row.ToDomainEvent() is not WorkflowStrategyStateUpdatedEvent workflow)
                 throw new InvalidDataException("Committed workflow handoff cannot be decoded.");
             var evidence = workflow.State.CompositionDispatch?.MarketEvidence;
-            if (evidence is not null && workflow.State.CompositionContracts is { } selected)
+            var selected = workflow.State.CompositionContracts;
+            var terminal = workflow.State.Status is WorkflowStrategyMachineStatus.Failed or WorkflowStrategyMachineStatus.TimedOut or WorkflowStrategyMachineStatus.Cancelled
+                || workflow.State.Status == WorkflowStrategyMachineStatus.Completed && workflow.State.Outcome == StrategyWorkflowOutcome.NoTrade;
+            if (evidence is not null && (selected is not null || terminal))
             {
                 var realized = await runtime.ReconcileOnceAsync(cancellationToken).ConfigureAwait(false);
                 if (realized is not { AllRoutesReady: true }) return;
                 var current = await intent.ReadAsync("IFM", "GLBX.MDP3", cancellationToken).ConfigureAwait(false);
                 var owner = current.Authorities.SingleOrDefault(x => x.SourceId == BusinessSubscriptionSourceKind.IntrinsicTimeWorkflow + ":" + workflow.WorkflowId);
                 if (owner is null || owner.SourceVersion < (row.StreamVersion > 0 ? row.StreamVersion : row.EventVersion)) return;
-                if (owner.Status != DurableAuthorityStatus.Terminal
-                    && !selected.ContractIds.All(id => owner.Leases.Any(x => x.Ticker.PricingPlanId == selected.PricingPlanId && x.Ticker.ContractId == id))) return;
+                if (terminal && owner.Status != DurableAuthorityStatus.Terminal) return;
+                if (!terminal && owner.Status != DurableAuthorityStatus.Terminal
+                    && !selected!.ContractIds.All(id => owner.Leases.Any(x => x.Ticker.PricingPlanId == selected.PricingPlanId && x.Ticker.ContractId == id))) return;
                 var prepared = await preparations.ReadAsync(new(evidence.WorkflowId, evidence.PreparationRevision, evidence.InputSha256), cancellationToken).ConfigureAwait(false)
                     ?? throw new InvalidDataException("Accepted handoff preparation is unavailable.");
                 CompositionPreparationService.Validate(prepared);
                 if (prepared.Digest != evidence.PreparationSha256 || prepared.Snapshot.SnapshotId != evidence.SnapshotId
-                    || prepared.Request.ScopeId != selected.PricingPlanId
-                    || selected.ContractIds.Any(id => !prepared.Snapshot.Instruments.Any(x => x.Instrument.ContractId == id)))
+                    || selected is not null && (prepared.Request.ScopeId != selected.PricingPlanId
+                    || selected.ContractIds.Any(id => !prepared.Snapshot.Instruments.Any(x => x.Instrument.ContractId == id))))
                     throw new InvalidDataException("Handoff evidence differs from accepted preparation.");
                 if (prepared.DiscoveryLease is { } discovery && discovery.GenerationId == realized.GenerationId)
                 {

@@ -61,7 +61,7 @@ public sealed partial class TradeSelectionRuntimeTests
         {
             var scope = Random.Shared.Next(10000000, 20000000);
             var c = await TradeSelectionFixture.Command("ShortBalancedIronCondor", atUtc: DateTime.UtcNow,
-                contractId: "ES.TEST." + Guid.NewGuid().ToString("N"), scopeId: scope);
+                contractId: "ES.TEST." + Guid.NewGuid().ToString("N"), scopeId: scope, compositionReady: true, compositionIntegrationTiming: true);
             var result = TradeSelectionEvaluator.Evaluate(c);
             var complete = new CompleteTradeSelectionCommand
             {
@@ -139,26 +139,26 @@ public sealed partial class TradeSelectionRuntimeTests
             probe.Commands.Should().BeEmpty("acceptance committed before its dispatch notification");
             var persistedPreparation = await repository.LoadStateAsync(callback);
             persistedPreparation.CurrentView!.CompositionDispatch!.MarketEvidence!.PreparationSha256.Should().Be(preparation.Digest);
-            reserved = acceptedPreparation;
-            await Notify(producer, reserved);
-            await probe.First.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            var start = probe.Commands.Values.Single();
-            TradeSelectionHandoff.ValidateStart(start, DateTime.UtcNow);
-
-            // Explicit recovery republishes the exact logical composition command, not another order/trade.
-            var redispatch = new RedispatchCurrentStrategyPipelineCommand
-            {
-                CommandId = Guid.NewGuid(), Subject = Subject(RedispatchCurrentStrategyPipelineCommand.Verb, c.WorkflowEntityId),
-                EntityId = c.WorkflowEntityId, WorkflowId = c.WorkflowId, ExpectedWorkflowRevision = reserved.WorkflowRevision,
-                ExpectedStage = StrategyWorkflowStage.OrderComposition, RequestedAtUtc = DateTime.UtcNow, RequestedBy = "recovery"
-            };
-            await producer.SendAsync<RedispatchCurrentStrategyPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(redispatch.Subject, redispatch, redispatch.EntityId);
-            var replay = await UntilSnapshot(snapshots, x => x.CommandId == redispatch.CommandId && x.State.CurrentStage == StrategyWorkflowStage.OrderComposition);
-            await Notify(producer, replay);
-            await probe.Second.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            probe.Commands.Should().ContainSingle();
-            foreach (var delivery in probe.Deliveries)
-                MessagePackSerializer.Serialize(delivery).Should().Equal(MessagePackSerializer.Serialize(start));
+            var execute = persistedPreparation.CurrentView!.CompositionExecution!;
+            execute.Should().NotBeNull(); execute.MarketSnapshot.Digest.Should().Be(marketSnapshot.Digest);
+            execute.Reservation.Order.OrderId.Should().Be(scope + 1);
+            // Simulate a lost Function reply before workflow notification; recovery reuses the saved request.
+            var first = await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId,
+                FunctionResult<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionCompletedEvent,
+                    Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionFailedEvent>>(execute.Subject, execute, execute.EntityId);
+            first.Value!.IsCompleted.Should().BeTrue(first.ErrorMessage);
+            first.Value.Completed!.Result.ReadCompositionResult().Outcome.Should().Be(
+                Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.CompositionOutcome.NoCandidate);
+            await Notify(producer, acceptedPreparation);
+            var stopped = await UntilSnapshot(snapshots, x => x.State.Status == WorkflowStrategyMachineStatus.Completed
+                && x.State.Outcome == StrategyWorkflowOutcome.NoTrade);
+            var authoritative = (await repository.LoadStateAsync(callback)).CurrentView!;
+            authoritative.OrderComposition.Result!.PayloadSha256.Should().Be(first.Value.Completed.Result.PayloadSha256);
+            authoritative.RiskManagement.ProcessingStatus.Should().NotBe(StrategyActorProcessingStatus.Processing);
+            var revision = authoritative.WorkflowRevision;
+            await Notify(producer, acceptedPreparation);
+            (await repository.LoadStateAsync(callback)).CurrentView!.WorkflowRevision.Should().Be(revision);
+            probe.Commands.Should().BeEmpty("the historical Start route is not dispatched");
             restarted = await store.LoadFundAsync(fundId);
             restarted.Orders.Should().ContainSingle();
             restarted.Composition(scope + 1).Trades.Single().TradeId.Should().Be(scope + 2);

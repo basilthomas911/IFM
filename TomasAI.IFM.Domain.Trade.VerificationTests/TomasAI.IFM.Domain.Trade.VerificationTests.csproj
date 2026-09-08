@@ -44,4 +44,9 @@
  <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\TradeSelection\TradeSelectionFixture.cs" Link="Fixtures\TradeSelectionFixture.cs" />
  <Compile Include="..\TomasAI.IFM.Domain.Trade.UnitTests\Strategy\Workflow\IntrinsicTime\TradeSelection\TradeSelectionTestInputs.cs" Link="Fixtures\TradeSelectionTestInputs.cs" />
 </ItemGroup>
+<ItemGroup>
+ <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/CompositionFixture.cs" Link="Fixtures/CompositionFixture.cs" />
+ <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/CompositionFunctionFixture.cs" Link="Fixtures/CompositionFunctionFixture.cs" />
+ <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/OrderCompositionFunctionTestDriver.cs" Link="Fixtures/OrderCompositionFunctionTestDriver.cs" />
+</ItemGroup>
 </Project>

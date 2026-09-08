@@ -10,6 +10,8 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("order_composition_invocation", OrderCompositionSchemaCql.Invocation, "DROP TABLE IF EXISTS order_composition_invocation;"),
+        new("order_composition_history", OrderCompositionSchemaCql.History, "DROP TABLE IF EXISTS order_composition_history;"),
         new("option_leg", TradeSchemaCql.CreateOptionLegTable, "DROP TABLE IF EXISTS option_leg;"),
         new("option_leg_data", TradeSchemaCql.CreateOptionLegDataTable, "DROP TABLE IF EXISTS option_leg_data;"),
         new("option_trade", TradeSchemaCql.CreateOptionTradeTable, "DROP TABLE IF EXISTS option_trade;"),

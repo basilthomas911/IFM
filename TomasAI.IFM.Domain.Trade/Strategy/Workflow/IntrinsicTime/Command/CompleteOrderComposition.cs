@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -15,33 +17,9 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 public static class CompleteOrderComposition
 {
     /// <summary>Verifies selected legs against the accepted immutable snapshot before the actor appends completion.</summary>
-    public static async ValueTask<ServiceResult<GuidResult>> ExecutePreparedAsync(this CompleteOrderCompositionCommand command,
+    public static ValueTask<ServiceResult<GuidResult>> ExecutePreparedAsync(this CompleteOrderCompositionCommand command,
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
-    {
-        var current = state.CurrentView;
-        if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition }
-            || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision
-            || context.TimeProvider.GetUtcNow().UtcDateTime >= current.ExpiresAtUtc)
-            return command.Execute(context, state);
-        if (current?.CompositionDispatch?.MarketEvidence is { } evidence
-            && current.WorkflowId == command.WorkflowId && current.WorkflowRevision == command.InputWorkflowRevision
-            && current.CurrentStage == StrategyWorkflowStage.OrderComposition
-            && current.Status == WorkflowStrategyMachineStatus.Started && context.TimeProvider.GetUtcNow().UtcDateTime < current.ExpiresAtUtc)
-        {
-            var selected = command.SelectedContracts ?? throw new InvalidDataException("Prepared composition requires exact selected contracts.");
-            selected.Validate();
-            var prepared = await new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(context.DbFactory.MarketDataDb)
-                .ReadAsync(new(evidence.WorkflowId, evidence.PreparationRevision, evidence.InputSha256), default).ConfigureAwait(false)
-                ?? throw new InvalidDataException("Accepted composition evidence is unavailable.");
-            TomasAI.IFM.Application.MarketData.Pricing.CompositionPreparationService.Validate(prepared);
-            if (prepared.Digest != evidence.PreparationSha256 || prepared.Request.ScopeId != selected.PricingPlanId
-                || selected.ContractIds.Any(id => !prepared.Snapshot.Instruments.Any(x => x.Instrument.ContractId == id)))
-                throw new InvalidDataException("Selected contracts differ from accepted market evidence.");
-        }
-        else if (command.SelectedContracts is not null)
-            throw new InvalidDataException("Selected contracts require accepted market evidence.");
-        return command.Execute(context, state);
-    }
+        => ValueTask.FromResult(command.Execute(context, state));
 
     /// <summary>Records the Order Composition result and selects Risk Management.</summary>
     public static ServiceResult<GuidResult> Execute(this CompleteOrderCompositionCommand command,
@@ -61,14 +39,14 @@ public static class CompleteOrderComposition
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        if (now >= current.ExpiresAtUtc)
+        if (now >= current.ExpiresAtUtc || current.CompositionExecution is { } execution && now >= execution.ExpiresAtUtc)
         {
             var failure = TimeoutFailure(now);
             var timedOut = current with
             {
                 Status = WorkflowStrategyMachineStatus.TimedOut, WorkflowRevision = current.WorkflowRevision + 1,
                 CausationId = command.SourceEventId, UpdatedAtUtc = now, TerminalAtUtc = now,
-                StopReasonCode = "WorkflowExecutionExpired",
+                StopReasonCode = now >= current.ExpiresAtUtc ? "WorkflowExecutionExpired" : "OC.TIME.EXPIRED",
                 OrderComposition = current.OrderComposition with
                 {
                     ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
@@ -80,21 +58,42 @@ public static class CompleteOrderComposition
                 command.Subject.EntityId, timedOut.WorkflowId, timedOut.WorkflowRevision);
             return Ok(command);
         }
+        OrderCompositionResult result;
+        try
+        {
+            var accepted = current.CompositionExecution ?? throw new CompositionException("OC.RESULT.LEGACY_READ_ONLY");
+            using var deadline = new CancellationTokenSource(accepted.ExpiresAtUtc > now ? accepted.ExpiresAtUtc - now : TimeSpan.Zero);
+            result = CompositionAcceptance.Validate(accepted, command, new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()), now, deadline.Token);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OperationCanceledException)
+        {
+            var expired = ex is OperationCanceledException || ex is CompositionException { ReasonCode: "OC.TIME.EXPIRED" };
+            var invalid = current with { Status = expired ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed, Outcome = StrategyWorkflowOutcome.PipelineFailed,
+                WorkflowRevision = current.WorkflowRevision + 1, UpdatedAtUtc = now, TerminalAtUtc = now, StopReasonCode = expired ? "OC.TIME.EXPIRED" : "OC.RESULT.INVALID",
+                OrderComposition = current.OrderComposition with { ProcessingStatus = expired ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed, FailedAtUtc = now,
+                    SourceEventId = command.SourceEventId, Failure = new() { ErrorCode = 23024, ErrorType = expired ? "OrderCompositionTimedOut" : "OrderCompositionResultInvalid",
+                        ErrorMessage = expired ? "Composition validity expired before acceptance." : "Composition result failed immutable-input verification.", FailedAtUtc = now } } };
+            AppendSnapshot(state, command, current.Status, invalid, now); return Ok(command);
+        }
+        var noCandidate = result.Outcome == CompositionOutcome.NoCandidate;
         var revision = current.WorkflowRevision + 1;
         var updated = current with
         {
             CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
-            CurrentStage = StrategyWorkflowStage.RiskManagement,
+            CurrentStage = noCandidate ? StrategyWorkflowStage.OrderComposition : StrategyWorkflowStage.RiskManagement,
+            Status = noCandidate ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
+            Outcome = noCandidate ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
+            TerminalAtUtc = noCandidate ? now : null, StopReasonCode = noCandidate ? result.Reasons[0] : string.Empty,
             CompositionContracts = command.SelectedContracts,
             OrderComposition = current.OrderComposition with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
-                ContinuationDecision = StrategyWorkflowContinuationDecision.Proceed,
+                ContinuationDecision = noCandidate ? StrategyWorkflowContinuationDecision.Stop : StrategyWorkflowContinuationDecision.Proceed,
                 CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
                 SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
                 ContinuationRuleSetVersion = 1, ContinuationReasonCodes = []
             },
-            RiskManagement = new StrategyWorkflowStageState
+            RiskManagement = noCandidate ? current.RiskManagement : new StrategyWorkflowStageState
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Processing, StartedAtUtc = now,
                 InputWorkflowRevision = revision, ExpiresAtUtc = current.ExpiresAtUtc
@@ -120,8 +119,8 @@ public static class CompleteOrderComposition
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "RegimeDiscoveryTimedOut", FailedAtUtc = now
+        ErrorCode = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionFailedEvent.ErrorId, ErrorMessage = "The fixed composition or workflow execution deadline was reached.",
+        ErrorType = "OrderCompositionTimedOut", FailedAtUtc = now
     };
 
     static ServiceResult<GuidResult> Ok(CompleteOrderCompositionCommand command)

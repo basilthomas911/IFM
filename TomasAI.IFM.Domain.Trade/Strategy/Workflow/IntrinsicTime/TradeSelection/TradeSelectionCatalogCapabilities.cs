@@ -29,6 +29,7 @@ public static class TradeSelectionCatalogCapabilities
             }
             if(owner.Key.Kind==StrategyCatalogKind.Deployment)
             {
+                OrderComposer.Model.CompositionCatalogCapabilities.ValidateDeployment(owner, dependencies);
                 foreach(var key in owner.Variants)
                 {
                     var variant=dependencies[key];ValidateVariant(SelectionCatalogTransport.From(variant),SelectionCatalogTransport.From(dependencies[variant.Definition.Parent!]));

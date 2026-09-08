@@ -23,7 +23,7 @@ public sealed class TypedRegimeEnvelopeTests
         var reader = new MessagePackReader(bytes);
         reader.ReadArrayHeader().Should().BeGreaterThan(13);
         for (var i = 0; i < 13; i++) reader.Skip();
-        reader.ReadArrayHeader().Should().Be(11);
+        reader.ReadArrayHeader().Should().Be(12);
         for (var i = 0; i < 4; i++) reader.Skip();
         reader.ReadBytes()!.Value.Length.Should().Be(0);
         for (var i = 0; i < 3; i++) reader.Skip();

@@ -434,7 +434,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         MarketConditionParameterSet = view.MarketConditionParameterSet,
         MarketConditionParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
         AssessmentBinding = view.AssessmentBinding,
-        SelectionBinding = view.SelectionBinding, CompositionHandoff = view.CompositionHandoff, SelectionDispatch = view.SelectionDispatch
+        SelectionBinding = view.SelectionBinding, CompositionHandoff = view.CompositionHandoff, SelectionDispatch = view.SelectionDispatch,
+        CompositionDispatch = view.CompositionDispatch, CompositionContracts = view.CompositionContracts, CompositionExecution = view.CompositionExecution
     };
 
     static void Set(object target, string property, object? value)

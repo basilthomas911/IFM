@@ -50,4 +50,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+<ItemGroup>
+ <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/CompositionFixture.cs" Link="Fixtures/CompositionFixture.cs" />
+</ItemGroup>
 </Project>

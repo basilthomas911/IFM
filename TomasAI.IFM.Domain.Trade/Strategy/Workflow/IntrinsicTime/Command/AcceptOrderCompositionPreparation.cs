@@ -34,6 +34,7 @@ public static class AcceptOrderCompositionPreparation
             UpdatedAtUtc = now, CausationId = command.CommandId,
             OrderComposition = current.OrderComposition with { InputWorkflowRevision = dispatch.InputWorkflowRevision }
         };
+        next = next with { CompositionExecution = CompositionDispatch.Create(next, prepared, now) };
         state.Update(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
