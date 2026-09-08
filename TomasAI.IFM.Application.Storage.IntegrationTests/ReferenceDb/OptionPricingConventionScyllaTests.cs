@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Storage;
@@ -6,8 +7,14 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Framework.MarketData.Pricing;
 using TomasAI.IFM.Framework.Storage;
 using Xunit;
+using System.Collections.Immutable;
+using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Framework.MarketData.ReferenceData;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 
@@ -53,6 +60,39 @@ public sealed class OptionPricingConventionScyllaTests
             var newVersion = value with { MappingVersion = "fixture/v2", Multiplier = 100 };
             await restarted.InsertReviewedAsync(newVersion, token);
             Assert.Equal(newVersion, await restarted.GetAsync(value.ContractId, newVersion.MappingVersion, token));
+            var banded = value with { SchemaVersion = 2, MappingVersion = "fixture/v3", TickSize = .05m,
+                PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A, TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion };
+            await restarted.InsertReviewedAsync(banded, token);
+            await restarted.InsertReviewedAsync(banded, token);
+            var reloaded = await new OptionPricingConventionStore(new Repository(settings["test"], logger))
+                .GetAsync(banded.ContractId, banded.MappingVersion, token);
+            Assert.Equal(banded, reloaded);
+            Assert.Equal(.10m, OptionPremiumTicks.GetIncrement(reloaded!, 15m));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.InsertReviewedAsync(banded with
+                { PremiumTickRule = OptionPremiumTickRule.Fixed }, token));
+            await db.Use("OcpTest.BundleSchema", OptionPricingReferenceBundleStore.CreateTable).ExecuteCommandAsync(token);
+            var bundles = new OptionPricingReferenceBundleStore(db);
+            var expiry = DateOnly.FromDateTime(value.ExpirationUtc.UtcDateTime);
+            var candidate = new OptionDefinitionCandidate(value.ContractId, value.MappingVersion, value.DefinitionDigest,
+                new OptionContractDefinition { Dataset = value.Dataset, RawSymbol = value.RawSymbol, Ticker = "ES",
+                    Underlying = value.UnderlyingContractId, Instrument = new(value.PublisherId, value.InstrumentId),
+                    Right = OptionRightSelection.Call, StrikePrice = 5000, MaturityDate = expiry,
+                    ExpirationTimestampNanoseconds = checked((ulong)(value.ExpirationUtc - DateTimeOffset.UnixEpoch).Ticks * 100) });
+            var bundle = new OptionPricingReferenceBundle(1, "", value.MappingVersion, expiry,
+                new() { Dataset = value.Dataset, DomainContractId = value.UnderlyingContractId, ProviderContractName = "fixture-future",
+                    RootSymbol = "ES", AssetTypeId = AssetTypeId.Futures },
+                new(value.CalendarVersion, "America/New_York", expiry.AddDays(-1), expiry, new(18, 0), [expiry.AddDays(-1), expiry]),
+                UsTreasuryPublicationCalendar.Default2026, UsTreasuryCurve.ConversionPolicy, [candidate]).Seal();
+            await bundles.PublishAsync(bundle, token);
+            await bundles.PublishAsync(bundle, token);
+            var restoredBundle = await new OptionPricingReferenceBundleStore(new Repository(settings["test"], logger)).ReadAsync(bundle.BundleId, token);
+            Assert.Equal(bundle.BundleId, restoredBundle!.BundleId);
+            Assert.Equal(candidate, Assert.Single(restoredBundle.Definitions));
+            Assert.Single(restoredBundle.CreatePlan(4999, 5001).Options);
+            await Assert.ThrowsAsync<InvalidDataException>(() => bundles.PublishAsync((bundle with
+                { Definitions = [candidate with { DefinitionDigest = new('b', 64) }] }).Seal(), token));
+            await Assert.ThrowsAsync<InvalidDataException>(() => bundles.PublishAsync(bundle with { ProfileVersion = "tampered" }, token));
+            Assert.Throws<InvalidDataException>(() => restoredBundle.CreatePlan(5001, 5010));
         }
         finally
         {

@@ -8,6 +8,20 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests.DownloadLog;
 
 public class DownloadLogContractTests
 {
+    [Theory] [InlineData("FMP")] [InlineData("USTreasury")]
+    public void Treasury_provider_round_trips_and_partition_matches(string provider)
+    {
+        var outcome = Outcome(MarketDataDownloadDataset.TreasuryCurve) with { Provider = provider };
+        var command = new InsertMarketDataDownloadLogCommand(outcome);
+        var copy = MessagePackSerializer.Deserialize<InsertMarketDataDownloadLogCommand>(MessagePackSerializer.Serialize(command));
+        copy.Validate(); Assert.Equal(command, copy);
+        new MarketDataDownloadPartition(outcome.Dataset, provider, "US", outcome.ValueDate).Validate();
+        if (provider == "USTreasury")
+        {
+            Assert.Throws<ArgumentException>(() => (outcome with { Dataset = MarketDataDownloadDataset.EconomicCalendar }).Validate());
+            Assert.Throws<ArgumentException>(() => new MarketDataDownloadPartition(MarketDataDownloadDataset.EconomicCalendar, provider, "US", outcome.ValueDate).Validate());
+        }
+    }
     internal static MarketDataDownloadOutcome Outcome(MarketDataDownloadDataset dataset = MarketDataDownloadDataset.EconomicCalendar) => new()
     {
         Dataset = dataset, Scope = "US", ValueDate = new(2026, 9, 5), ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),

@@ -3,8 +3,9 @@ using TomasAI.IFM.Framework.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 
-public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve
+public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve, ITreasuryCurveIdentity
 {
+    public string DownloadLogProvider => "FMP";
     /// <inheritdoc/>
     public TreasuryContinuousRateResult GetContinuouslyCompoundedAnnualRate(
         TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy)

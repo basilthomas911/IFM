@@ -20,7 +20,7 @@ The owner specified these requirements on 2026-09-05:
 - Select one Treasury tenor from remaining **trading days**, without interpolation.
 - Add continuously compounded annual decimal conversion to the Treasury curve interface.
 - Use Toronto/New York time and contract-specific day-count conventions.
-- Use daily Treasury data from Financial Modeling Prep (FMP); intraday rates are unnecessary.
+- Use the official U.S. Treasury daily par/CMT XML feed; intraday rates are unnecessary. FMP remains the economic-calendar provider.
 - Missing inputs or calculation failure return **Failed with error information**, never invented values.
 
 This resolves the requested source, tenor-selection and output-rate direction. Engineering details
@@ -60,13 +60,13 @@ not silently become `N / 252`, `N / 365`, or a guessed calendar duration.
 
 `TreasuryRatePoint.RatePercent` currently stores percentage points; `DecimalRate` only divides by
 100. `ITreasuryCurve` now also exposes `GetContinuouslyCompoundedAnnualRate` through the prerequisite
-implementation; existing fetch APIs and percentage semantics are preserved. FMP's official endpoint documents latest/historical Treasury data, but the public page
-does not specify a compounding convention. The adapter must establish which series its fields
-represent before assigning convention metadata. [FMP Treasury Rates API](https://site.financialmodelingprep.com/developer/docs/stable/treasury-rates).
+implementation; existing fetch APIs and percentage semantics are preserved. `UsTreasuryCurve` now obtains
+`daily_treasury_yield_curve` directly from the [official XML feed](https://home.treasury.gov/treasury-daily-interest-rate-xml-feed).
+FMP Treasury is no longer the API's pricing/import source; its historical records are not relabeled.
 
 Treasury describes CMT par yields as semiannual bond-equivalent quotations, not effective annual
 yields, and gives effective annual yield as `(1 + y/2)^2 - 1`. This supports the conversion below
-**when the FMP field has been verified as that CMT series**. Do not apply it to Treasury bill bank
+for the directly sourced `USTreasury` par/CMT fields. Do not apply it to Treasury bill bank
 discount rates or a differently defined investment-yield series. [Treasury interest-rate FAQ](https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions).
 
 ### Conversion contract
@@ -108,9 +108,9 @@ callers. Adapt implementations/test doubles explicitly; do not silently default 
 
 Success records selected tenor, original percentage, convention and conversion-policy versions,
 continuous annual decimal, curve value date, source, source-series ID and canonical curve digest.
-Unknown convention returns `RateConventionUnsupported`. Before production wiring, pin dated FMP
-fixtures against matching official 1/2/3-month CMT observations and obtain sufficient provider
-series evidence; matching numbers alone do not prove the convention. Tests must not need API keys.
+Unknown convention fails explicitly. Pin `USTreasury-ParCmt-Semiannual/v1`, the official series and
+Treasury FAQ evidence in new contexts. Unit tests use synthetic HTTP responses; an opt-in live
+verification checks the authoritative 1/2/3-month observations without an API key.
 
 ## 4. Valuation, expiry, calendars and day count
 
@@ -147,13 +147,14 @@ exercise-style or underlying-contract shortcut. [CME weekly/EOM FAQ](https://www
 
 ## 5. Daily Treasury freshness and quote freshness
 
-FMP is the runtime source. Treasury's website is specification/fixture evidence, not an automatic
-fallback provider. Capture a current daily curve once and share it across pricing contexts;
-bounded refresh can retry a missing daily observation without polling FMP on each tick.
+The official U.S. Treasury XML feed is the runtime source. There is no automatic FMP fallback.
+Capture a current daily curve once and share it across pricing contexts; bounded asynchronous
+refresh retries a missing daily observation without network requests on each tick.
 
-Define a versioned `TreasuryPublicationPolicy` with calendar, expected publication deadline,
-FMP availability allowance, retry/backoff and maximum wait. The FMP allowance is operational
-configuration requiring verification, not an assumed Treasury/provider SLA.
+`USTreasury-2026-18ET/v1` provides a bounded 2026 publication calendar and an 18:00 Eastern application
+availability deadline, with DST and full holidays accounted for. It expires at 2027-01-01T00:00Z and
+requires a reviewed replacement before then. This application allowance is not a Treasury SLA.
+The API worker refreshes after startup, then every 30 minutes, retrying unavailable input after five minutes.
 
 ```text
 requiredValueDate = latest publication date whose configured availability deadline has passed
@@ -163,7 +164,7 @@ accept only a validated curve observable by valuation, with ValueDate >= require
 Before today's deadline, yesterday's expected published observation remains usable. On weekends
 and non-publication holidays, the last expected published rate remains usable. An earlier validated
 arrival of today's rate may be used immediately. After the deadline, a missing expected observation
-fails `TreasuryStale`; an FMP outage may use the cache only while it still qualifies. Never treat
+fails `TreasuryStale`; a Treasury outage may use the cache only while it still qualifies. Never treat
 fresh retrieval of an old observation as fresh data. No future-dated or not-yet-observed curve may
 be used. Corrections create a new digest/context even when value date is unchanged.
 
@@ -224,6 +225,7 @@ All packages need unit and integration evidence using deterministic offline fixt
 live qualification. Extend the Stage 4 runners once implemented. Documentation checks do not pass
 `S4G-04`; the current production option-chain guard remains until actual wiring is qualified.
 
-Remaining activation inputs: verified FMP series/convention metadata, publication deadline and
-allowance, product-specific expiry/calendar/day-count mappings, approved quote thresholds and
-provider/native/live evidence. These are not a request to reconsider the owner's tenor/source rules.
+The official Treasury source/conversion and bounded publication policy are implemented and live-tested;
+see the [Treasury implementation record](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Official-Treasury-Implementation-v1.0.md).
+Remaining activation inputs are product-specific expiry/calendar/day-count mappings, approved quote
+thresholds and full provider/native/live pricing evidence. Renew the Treasury publication policy before its coverage expires.

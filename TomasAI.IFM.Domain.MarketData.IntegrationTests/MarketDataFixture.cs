@@ -72,6 +72,9 @@ public class MarketDataFixture : IDisposable
             .CreateAsync([
                 "market_data_import_ownership",
                 "market_data_download_log",
+                "yield_curve_rates",
+                "yield_curve_rate_by_date",
+                "yield_curve_rate_year",
                 "economic_calendar_v2",
                 "economic_calendar_country_code",
                 "economic_calendar_cutover_v2"

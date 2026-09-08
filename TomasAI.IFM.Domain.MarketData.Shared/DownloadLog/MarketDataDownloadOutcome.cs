@@ -56,7 +56,7 @@ public sealed record MarketDataDownloadOutcome
         if (SchemaVersion != 1 || Dataset is not (MarketDataDownloadDataset.EconomicCalendar or MarketDataDownloadDataset.TreasuryCurve)
             || Status is not (MarketDataDownloadStatus.Completed or MarketDataDownloadStatus.Failed))
             throw new ArgumentException("Unsupported download schema, dataset or terminal status.");
-        if (Provider != "FMP" || ValueDate == default || string.IsNullOrWhiteSpace(Scope)
+        if (!IsSupportedProvider(Dataset, Provider) || ValueDate == default || string.IsNullOrWhiteSpace(Scope)
             || Scope != CanonicalScope(Scope == "ALL" ? [] : Scope.Split(','))
             || Dataset == MarketDataDownloadDataset.TreasuryCurve && Scope != "US")
             throw new ArgumentException("Invalid download partition.");
@@ -82,6 +82,9 @@ public sealed record MarketDataDownloadOutcome
         Validate();
         return Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(this)));
     }
+
+    public static bool IsSupportedProvider(MarketDataDownloadDataset dataset, string provider)
+        => provider == "FMP" || dataset == MarketDataDownloadDataset.TreasuryCurve && provider == "USTreasury";
 
     public static Guid LoggingCommandId(Guid importCommandId)
         => new(SHA256.HashData(Encoding.UTF8.GetBytes($"IFM.DownloadLog.v1:{importCommandId:N}")).AsSpan(0, 16));

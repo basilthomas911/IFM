@@ -548,9 +548,13 @@ Use `TimeProvider`/fake monotonic time for all policy tests; actual process test
 deadlines, not long sleeps as proof. Extend existing application/framework/Trade/UI projects and
 the Stage 3 process-test harness instead of relying solely on mocked feeds.
 
-Propose `scripts/Test-DatabentoStage4.ps1` and a matching Linux entry point once tests exist. Each
-must separate unit, PostgreSQL, synthetic-process, native and explicitly opted-in live tests. This
-document does not claim these scripts or test results exist today.
+`scripts/Test-DatabentoStage4.ps1` and its Linux entry point cover the implemented offline subset.
+`scripts/Test-OrderCompositionPrerequisites.ps1` additionally separates reference/contract tests,
+real Scylla and PostgreSQL tests, supervised-process recovery, isolated allocation-measured load
+and explicitly opted-in native live qualification. The September 2026 reviewed ES reference
+publication and actual execution records are maintained in the
+[Order Composition live register](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Live-Evidence-v1.0.md).
+The existence of a runner does not establish unexecuted platform or full-session acceptance.
 
 Synthetic load minimum: 10,000 lease operations, 100 reset/replacement cycles, configured maximum
 contracts/leases and sustained option quote load at twice the observed canary rate for 30 minutes.

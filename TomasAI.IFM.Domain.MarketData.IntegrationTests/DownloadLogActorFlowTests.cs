@@ -21,6 +21,50 @@ namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> factory, MarketDataFixture fixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFixture>
 {
+    [LiveOfficialTreasuryFact]
+    public async Task Official_live_curve_import_reaches_durable_queryable_download_log()
+    {
+        using var client = new HttpClient();
+        using var treasury = new TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve(client);
+        var row = await treasury.GetLatestAsync(DateOnly.FromDateTime(DateTime.UtcNow));
+        Assert.NotNull(row); Assert.Equal(12, row.Rates.Count);
+        var reference = Substitute.For<IReferenceDataApi>(); reference.TreasuryCurve.Returns(treasury);
+        using var focused = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData");
+            builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? "nats://127.0.0.1:14222");
+            builder.ConfigureServices(services => services.AddSingleton(reference));
+        });
+        var coordinator = new FmpMarketDataImportCoordinator(new MarketDataCommandApi(focused.Services.GetRequiredService<IActorProducer>()),
+            new FmpMarketDataImportOptions(), NullLogger<FmpMarketDataImportCoordinator>.Instance);
+        var submitted = await coordinator.ImportAsync(new(row.ValueDate, row.ValueDate, IncludeEconomicCalendar: false));
+        Assert.Equal(1, submitted.SubmittedCommands); Assert.Equal(0, submitted.RejectedSubmissions);
+        var attempt = Assert.Single(submitted.Dates);
+        var queries = focused.Services.GetRequiredService<IDownloadLogQueryApi>();
+        var partition = new MarketDataDownloadPartition(MarketDataDownloadDataset.TreasuryCurve, "USTreasury", "US", row.ValueDate);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        while (true)
+        {
+            var reply = await queries.GetStatusAsync(partition, attempt.CommandId, cancellationToken: timeout.Token);
+            Assert.True(reply.Success, reply.ErrorMessage);
+            if (reply.Value!.CompletionConfirmed)
+            {
+                Assert.Equal(1, reply.Value.SuccessfulAttempt!.Outcome.DownloadedRecordCount);
+                Assert.Equal(1, reply.Value.SuccessfulAttempt.Outcome.PersistedRecordCount);
+                Assert.True(reply.Value.SuccessfulAttempt.Outcome.ElapsedMilliseconds >= 0);
+                var stored = await fixture.MarketDataDb.GetYieldCurveRateAsync(row.ValueDate);
+                Assert.NotNull(stored);
+                Assert.Equal(row.ValueDate, stored.ValueDate);
+                Assert.Equal(decimal.ToDouble(row.Rates.Single(r => r.Tenor == TreasuryTenor.OneMonth).RatePercent), stored.OneMonth);
+                Assert.Equal(decimal.ToDouble(row.Rates.Single(r => r.Tenor == TreasuryTenor.TwoMonth).RatePercent), stored.TwoMonth);
+                Assert.Equal(decimal.ToDouble(row.Rates.Single(r => r.Tenor == TreasuryTenor.ThreeMonth).RatePercent), stored.ThreeMonth);
+                break;
+            }
+            Assert.False(reply.Value.LatestAttempt?.Outcome.Status == MarketDataDownloadStatus.Failed,
+                reply.Value.LatestAttempt?.Outcome.ErrorMessage);
+            await Task.Delay(100, timeout.Token);
+        }
+    }
     [Fact]
     public async Task Startup_import_coordinator_reaches_both_terminal_handlers_and_queryable_logs()
     {
@@ -63,8 +107,10 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         await treasury.Received(1).GetRangeAsync(date, date, Arg.Any<CancellationToken>());
     }
 
-    [Theory] [InlineData(MarketDataDownloadDataset.EconomicCalendar)] [InlineData(MarketDataDownloadDataset.TreasuryCurve)]
-    public async Task Command_projects_and_queries_then_rejects_conflicting_duplicate(MarketDataDownloadDataset dataset)
+    [Theory] [InlineData(MarketDataDownloadDataset.EconomicCalendar, "FMP")]
+    [InlineData(MarketDataDownloadDataset.TreasuryCurve, "FMP")]
+    [InlineData(MarketDataDownloadDataset.TreasuryCurve, "USTreasury")]
+    public async Task Command_projects_and_queries_then_rejects_conflicting_duplicate(MarketDataDownloadDataset dataset, string provider)
     {
         using var focused = factory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData")
@@ -73,7 +119,7 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         var now = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
         var outcome = new MarketDataDownloadOutcome
         {
-            Dataset = dataset, Scope = "US", ValueDate = new(8993, 9, 5), ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
+            Dataset = dataset, Provider = provider, Scope = "US", ValueDate = new(8993, 9, 5), ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
             RequestedAtUtc = now.AddSeconds(-2), StartedAtUtc = now.AddSeconds(-1), FinishedAtUtc = now,
             Status = MarketDataDownloadStatus.Completed, DownloadedRecordCount = 0, PersistedRecordCount = 0, ElapsedMilliseconds = 1000
         };
@@ -81,7 +127,7 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         var reply = await producer.RequestAsync<InsertMarketDataDownloadLogCommand, DownloadLogId, GuidResult>(command.Subject, command, command.EntityId);
         Assert.True(reply.Success, reply.ErrorMessage);
         var queries = new DownloadLogQueryApi(producer);
-        var partition = new MarketDataDownloadPartition(dataset, "FMP", "US", outcome.ValueDate);
+        var partition = new MarketDataDownloadPartition(dataset, provider, "US", outcome.ValueDate);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         MarketDataDownloadStatusResult? status;
         do
@@ -99,5 +145,13 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         Assert.False(conflict.Success);
         var exact = await queries.GetAttemptAsync(partition, new(outcome.RequestedAtUtc, outcome.ImportCommandId));
         Assert.True(exact.Success, exact.ErrorMessage); Assert.Equal(outcome, exact.Value!.Attempt!.Outcome);
+    }
+}
+
+public sealed class LiveOfficialTreasuryFactAttribute : FactAttribute
+{
+    public LiveOfficialTreasuryFactAttribute()
+    {
+        if (Environment.GetEnvironmentVariable("IFM_LIVE_TREASURY") != "1") Skip = "Set IFM_LIVE_TREASURY=1 to verify live Treasury acquisition through durable actors.";
     }
 }

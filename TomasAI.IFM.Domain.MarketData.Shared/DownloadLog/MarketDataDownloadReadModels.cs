@@ -14,7 +14,7 @@ public sealed record MarketDataDownloadPartition(
     public void Validate()
     {
         if (Dataset is not (MarketDataDownloadDataset.EconomicCalendar or MarketDataDownloadDataset.TreasuryCurve)
-            || Provider != "FMP" || ValueDate == default || string.IsNullOrWhiteSpace(Scope)
+            || !MarketDataDownloadOutcome.IsSupportedProvider(Dataset, Provider) || ValueDate == default || string.IsNullOrWhiteSpace(Scope)
             || Scope != MarketDataDownloadOutcome.CanonicalScope(Scope == "ALL" ? [] : Scope.Split(','))
             || Dataset == MarketDataDownloadDataset.TreasuryCurve && Scope != "US")
             throw new ArgumentException("Invalid DownloadLog query partition.");

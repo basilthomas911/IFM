@@ -639,16 +639,20 @@ public static class Startup
         siContainer.Register(typeof(IActor<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
-        // Both context contracts share the same singleton registration.
-        siContainer.AddRegistration<IRegimeDiscoveryFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration =>
-                registration.ServiceType == typeof(IFunctionActorContext<RegimeDiscoveryFunctionActor>)).Registration);
-        siContainer.AddRegistration<IMarketConditionFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration =>
-                registration.ServiceType == typeof(IFunctionActorContext<MarketConditionFunctionActor>)).Registration);
-        siContainer.AddRegistration<ITradeSelectionFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration =>
-                registration.ServiceType == typeof(IFunctionActorContext<TradeSelectionFunctionActor>)).Registration);
+        // Focused MarketData tests do not register Trade function actors or their context aliases.
+        if (domainAssemblies.Contains(TradeActorAssembly.Current))
+        {
+            // Both context contracts share the same singleton registration.
+            siContainer.AddRegistration<IRegimeDiscoveryFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration =>
+                    registration.ServiceType == typeof(IFunctionActorContext<RegimeDiscoveryFunctionActor>)).Registration);
+            siContainer.AddRegistration<IMarketConditionFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration =>
+                    registration.ServiceType == typeof(IFunctionActorContext<MarketConditionFunctionActor>)).Registration);
+            siContainer.AddRegistration<ITradeSelectionFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration =>
+                    registration.ServiceType == typeof(IFunctionActorContext<TradeSelectionFunctionActor>)).Registration);
+        }
         siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);

@@ -6,6 +6,7 @@ public interface IReferenceDbContext: IObjectRepository<ReferenceDbContext>, IRe
 {
     InstrumentDefinitionStore InstrumentDefinitions { get; }
     OptionPricingConventionStore OptionPricingConventions { get; }
+    OptionPricingReferenceBundleStore OptionPricingReferenceBundles { get; }
     IReferenceDbReadContext DbReader { get; }
     IReferenceDbWriteContext DbWriter { get; }
 }

@@ -11,6 +11,7 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("option_pricing_convention", OptionPricingConventionStore.CreateTable, "DROP TABLE IF EXISTS option_pricing_convention;"),
+        new("option_pricing_reference_bundle", OptionPricingReferenceBundleStore.CreateTable, "DROP TABLE IF EXISTS option_pricing_reference_bundle;"),
         new("instrument_definition", InstrumentDefinitionStore.CreateTable, "DROP TABLE IF EXISTS instrument_definition;"),
         new("instrument_definition_product", InstrumentDefinitionStore.CreateProductTable, "DROP TABLE IF EXISTS instrument_definition_product;"),
         new("instrument_definition_snapshot", InstrumentDefinitionStore.CreateSnapshotTable, "DROP TABLE IF EXISTS instrument_definition_snapshot;"),

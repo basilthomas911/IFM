@@ -428,8 +428,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         Guid? correlationId = null)
     {
         var current = identity!;
-        if (response.Kind != expected
-            || response.WorkerInstanceId != current.WorkerInstanceId
+        if (response.WorkerInstanceId != current.WorkerInstanceId
             || response.Dataset != current.Dataset
             || response.ValueDate != current.ValueDate
             || correlationId is { } expectedCorrelation && response.CorrelationId != expectedCorrelation
@@ -441,6 +440,16 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
                 Encoding.ASCII.GetBytes(bootstrapToken)))
             throw new InvalidDataException("Dataset worker response identity does not match the supervised process.");
         responseSequence = response.Sequence;
+        if (response.Kind != expected)
+        {
+            // Authenticate the frame before exposing a bounded rejection. A valid startup failure
+            // must not be misreported as an identity mismatch, and credentials never enter diagnostics.
+            var detail = response.Detail ?? string.Empty;
+            var key = Environment.GetEnvironmentVariable("DATABENTO_API_KEY");
+            if (!string.IsNullOrEmpty(key)) detail = detail.Replace(key, "[redacted]", StringComparison.Ordinal);
+            if (detail.Length > 4096) detail = detail[..4096];
+            throw new InvalidDataException($"Dataset worker returned {response.Kind}, expected {expected}: {detail}");
+        }
     }
 
     DatasetWorkerProcessSnapshot Snapshot()

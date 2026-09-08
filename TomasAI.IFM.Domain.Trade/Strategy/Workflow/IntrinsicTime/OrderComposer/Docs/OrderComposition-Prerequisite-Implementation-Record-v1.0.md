@@ -1,14 +1,24 @@
 # Order Composition Prerequisite Implementation Record v1.0
 
+Current closure status and schema-2 premium tick-rule requirements: [closure audit](OrderComposition-Closure-Audit-v1.0.md).
+
+The FMP Treasury source/convention blocker is superseded by the implemented, live-tested [official Treasury provider](OrderComposition-Official-Treasury-Implementation-v1.0.md). Historical results below describe the earlier FMP adapter. FMP remains the economic-calendar source; current Treasury imports/pricing use `USTreasury` with an explicit 2026 publication policy.
+
 | Item | Value |
 | --- | --- |
 | Date | 2026-09-08 |
-| Status | Concrete durable source projection, recovery and refresh implemented and tested; strict native live quotes passed; joined live pricing/reference qualification remains open |
+| Status | Runtime prerequisites complete for the reviewed scope; 4,268 definitions published, 30-minute combined live and maximum-scope controlled qualification passed; broader deployment acceptance is separate |
 | Plan | [Prerequisite plan](OrderComposition-Prerequisite-Implementation-Plan-v1.0.md) |
 | Composer document | [Order Composition implementation plan](OrderComposition-Implementation-Plan-v1.0.md) |
 | Change scope | Uncommitted working-tree implementation; preserve unrelated pre-existing actor/workflow changes |
 
 ## 1. Implemented components
+
+### Reference publication and combined qualification
+
+The [publication and qualification record](OrderComposition-Reference-Publication-and-Qualification-v1.0.md) defines the current immutable bundle, the complete 726-contract expiry scope, supported product/calendar limits, diagnostic additions and repeatable runner. The current profile is `/v2`; the initial `/v1` holiday treatment was corrected through a new immutable version. Real Scylla bundle restart/idempotency/conflict tests pass. The combined DataBento/worker/Black-76/Scylla/PostgreSQL test has passed a short canary; elapsed evidence and failed attempts remain explicit in the live register.
+
+This continuation also verifies next-value-date reconstruction using committed PostgreSQL two-/four-leg ownership and controlled UTC transport. Worker diagnostics now validate inside the observation boundary so malformed evidence cannot crash the failure-response path; unavailable evidence remains unhealthy.
 
 ### Current continuation: committed ownership and clock repair (2026-09-08)
 
@@ -140,12 +150,12 @@ dotnet build TomasAI.IFM.Application.Api.Server/TomasAI.IFM.Application.Api.Serv
 | Package | Disposition |
 | --- | --- |
 | OCP-00 | Foundation logical/wire contracts implemented and tested; full composer nested domain manifests remain OC-01 work |
-| OCP-01 | Qualifier, exact-version reference store and bounded raw-data audit implemented; complete product mappings/backfill/series qualification remain |
-| OCP-02 | Converter, interface/FMP adaptation and publication-aware provider implemented; real source convention, publication schedule and source-data admission remain unqualified |
-| OCP-03 | Explicit-T Model/enricher and temporary/durable context refresh implemented; bounded supervised snapshots are the implemented delivery contract; full priced live run remains |
-| OCP-04 | Concrete committed-source projection, plan persistence, durable startup reconciliation, selected-leg ownership and discovery-release receipts implemented; component storage/process/pricing tests pass; joined real-data recovery/soak remains |
+| OCP-01 | Qualifier, immutable reference/bundle storage and complete reviewed publication implemented: 4,268 definitions across seven September Tuesday/Thursday ES expiries; other profiles require their own reviewed publication |
+| OCP-02 | Converter and publication-aware cache now use the implemented official Treasury adapter; real 1/2/3-month source admission and explicit 2026 publication policy verified. See the official Treasury record; full combined live option-chain qualification remains separate. |
+| OCP-03 | Explicit-T Model/enricher and temporary/durable context refresh implemented; bounded supervised snapshots exercised with actual native DataBento and official Treasury; elapsed results are in the live register |
+| OCP-04 | Committed-source projection, plan persistence, startup reconciliation, selected-leg ownership and release receipts implemented; real storage, 100 supervised recovery cycles and combined live canary executed; elapsed results are in the live register |
 | OCP-05 | Supervised capture, immutable Scylla storage, mapped acceptance/dispatch and prepared completion validation implemented; actual NATS/PG/Scylla acceptance replay passes; future complete composer Function contract remains OC work |
-| OCP-06 | Partial: new focused tests, real isolated Scylla and complete MarketData/pricer regressions pass; full option-worker/composer integration and live evidence remain open |
+| OCP-06 | Repeatable unit/storage/ownership/process/load/live runner implemented. The 30-minute 512-contract managed load passed; current live-run result is in the register. Full-session/platform deployment acceptance and future composer acceptance remain separate |
 | OCP-07 | Full composer implementation document created, with prerequisite dependencies and actor conventions; composer implementation not claimed |
 
-Milestone D has produced the composer plan. The concrete ownership/recovery/refresh and workflow-preparation code previously listed as unfinished is now implemented. The joined offline test now passes for two and four legs: genuine committed PostgreSQL event -> source adapter -> durable intent/coordinator/delivery -> production ownership mapping -> real worker consumer/Black-76/snapshot -> replacement runtime -> committed position closure and final drain. Its transport is a controlled UTC feed and direct worker call; the separate supervised child-process test verifies generation/replacement/rollover mechanics. This is bounded offline evidence, not live process recovery or soak. Milestone L still requires reviewed production inputs and full live qualification. Production mappings/calendar/rate-source policy remain unpublished. The [live register](OrderComposition-Live-Evidence-v1.0.md) identifies the external evidence gap and exact remaining qualification. Broker/emulator execution and composer OC-01..08 remain downstream work.
+Milestones D and the runtime prerequisites now have implemented contracts, ownership/recovery/refresh and workflow preparation. Reviewed September mappings/calendar/rate-source policies are published. Controlled two/four-leg tests join genuine committed PostgreSQL events to pricing, replacement, next-value-date reconstruction and final drain. Actual child-process stress and a combined native live canary are separate executed evidence. The [live register](OrderComposition-Live-Evidence-v1.0.md) records sustained results, failed attempts and the distinction between bounded qualification and full-session/platform deployment acceptance. Composer OC-01..08 and broker/emulator execution remain downstream work.

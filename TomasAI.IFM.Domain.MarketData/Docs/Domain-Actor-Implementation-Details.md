@@ -396,6 +396,14 @@ Minimum failure coverage includes provider/validation/storage failures, log-comm
 
 The implementation is complete only when both datasets produce queryable terminal logs with correct value date, scope, counts and duration; the new actors and durable projector follow repository conventions; committed projection work survives process interruption; recovery does not redownload data; and all required gates pass.
 
+## Official Treasury source update (2026-09-08)
+
+The API now uses `UsTreasuryCurve` through the existing `ITreasuryCurve` contract for yield-curve imports and option pricing. FMP remains the economic-calendar provider. The asynchronous Treasury startup/refresh worker submits the existing import command; it does not write DownloadLog or Scylla directly.
+
+`ITreasuryCurveIdentity` supplies acquisition-provider identity before HTTP work starts. The mapped `YieldCurveRatesImported` extension attaches that identity to both completed and failed terminal outcomes. Those events continue through `InsertMarketDataDownloadLogCommand`, `_validationMap`, committed-event durable projection and the existing Scylla table. Provider validation now allows `USTreasury` only for `TreasuryCurve`; historical `FMP` partitions remain valid. No actor-specific lifecycle, calculation or database logic is moved into the actor class.
+
+Query `(TreasuryCurve, USTreasury, US, valueDate)` for official imports. Submission and zero-row completion are not evidence of a pricing-ready rate. Pricing separately checks actual observation date/time, source, tenor, convention and publication coverage. The existing table's provider partition key already isolates sources; no destructive schema migration is required. See the [official Treasury implementation and tests](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Official-Treasury-Implementation-v1.0.md) for rate and freshness policies.
+
 ## Solution-wide graceful cancellation
 
 The solution-wide cancellation phase is now in progress. Yield-curve command validation, state replay, repository calls, event-source storage, PostgreSQL/ScyllaDB operations, and NATS operations accept the actor token. Accepted mailbox work drains before actors and their producers stop. Event persistence and required publication become non-cancelable at the commit boundary to avoid ambiguous durable outcomes.

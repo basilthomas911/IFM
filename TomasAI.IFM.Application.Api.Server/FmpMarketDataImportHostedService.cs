@@ -49,6 +49,7 @@ public sealed class FmpMarketDataImportHostedService(
                         new FmpMarketDataImportRequest(
                             today.AddDays(-options.LookbackDays),
                             today.AddDays(options.ForwardDays),
+                            IncludeTreasury: false,
                             CountryCodes: options.CountryCodes),
                         stoppingToken).ConfigureAwait(false);
                     logger.LogInformation(

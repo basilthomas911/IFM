@@ -9,7 +9,7 @@ public static class OptionPricingQualification
     {
         ArgumentNullException.ThrowIfNull(c);
         OptionPricingFailure Fail(string code, string input) => new(code, input, c.ContractId, "Contract pricing qualification failed.");
-        if (c.SchemaVersion != 1 || at.Offset != TimeSpan.Zero || c.InstrumentId == 0 || c.PublisherId == 0
+        if (c.SchemaVersion is not (1 or 2) || !OptionPremiumTicks.IsValid(c) || at.Offset != TimeSpan.Zero || c.InstrumentId == 0 || c.PublisherId == 0
             || string.IsNullOrWhiteSpace(c.ContractId) || string.IsNullOrWhiteSpace(c.UnderlyingContractId)
             || string.IsNullOrWhiteSpace(c.RawSymbol) || string.IsNullOrWhiteSpace(c.Exchange)
             || string.IsNullOrWhiteSpace(c.MappingVersion) || string.IsNullOrWhiteSpace(c.EvidenceId)

@@ -1,5 +1,7 @@
 # Order Composition Detailed Specification v1.0
 
+Current closure status and schema-2 premium tick-rule requirements: [closure audit](OrderComposition-Closure-Audit-v1.0.md).
+
 | Item | Value |
 | --- | --- |
 | Date | 2026-09-07 |
@@ -25,7 +27,7 @@ The latest dated amendments take precedence over historical body text in these s
 | [Regime Discovery design/specification](../../RegimeDiscovery/Docs/Regime-Discovery-Specification-v1.0.md), [implementation](../../RegimeDiscovery/Docs/Regime-Discovery-Implementation-v1.0.md), [atomic workflow plan](../../RegimeDiscovery/Docs/Regime-Discovery-Atomic-Workflow-Implementation-Plan-v1.0.md) | Accepted typed Decision V2, trigger lineage and restrictions; no recalculation or additional horizon request; latest Function amendments supersede earlier topology |
 | [ConfigurationDb catalog design](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md), [implementation](../../../../../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md) | Existing normalized graph, exact versions/hashes, deployment-level parameter roles and trusted capabilities |
 | [Actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md) | Five frozen maps, list-extension validation, typed context/policy, mapped Complete/Fail handlers, Model calculations, shared boundary serialization |
-| [Stage 4 pricing specification](../../../../../../Documents/system/Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md) | Daily FMP Treasury, trading-day tenor buckets without interpolation, verified continuous-rate conversion, contract-specific fractional time, publication freshness and Failed for unusable required pricing inputs |
+| [Stage 4 pricing specification](../../../../../../Documents/system/Market-Data-Resiliency-Stage-4-Pricing-Specification-v1.0.md) | Official daily Treasury par/CMT feed, trading-day tenor buckets without interpolation, verified continuous-rate conversion, contract-specific fractional time, publication freshness and Failed for unusable required pricing inputs |
 
 This specification supersedes the following conflicting Order Composition HLD statements:
 

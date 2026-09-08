@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using System.Globalization;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared;
 
@@ -49,15 +50,19 @@ public class FuturesOptionContractId: IActorEntityId
             throw new InvalidOperationException($"FuturesOptionContractId: '{contractId}' length is less than 14");
         try
         {
-            var dateStart = contractId.Length - 13;
+            // Strikes have variable width (the published ES chain includes 10000+).
+            // Locate the right marker instead of assuming exactly four strike digits.
+            var rightIndex = Math.Max(contractId.LastIndexOf('C'), contractId.LastIndexOf('P'));
+            var dateStart = rightIndex - 8;
+            if (dateStart < 1 || !DateTime.TryParseExact(contractId.AsSpan(dateStart, 8), "yyyyMMdd",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var maturity)
+                || !int.TryParse(contractId.AsSpan(rightIndex + 1), NumberStyles.None, CultureInfo.InvariantCulture, out var strike)
+                || strike <= 0)
+                throw new FormatException();
             Symbol = contractId.Substring(0, dateStart);
-            var year = Convert.ToInt32(contractId.Substring(dateStart, 4));
-            var month = Convert.ToInt32(contractId.Substring(dateStart + 4, 2));
-            var day = Convert.ToInt32(contractId.Substring(dateStart + 6, 2));
-            MaturityDate = new DateTime(year, month, day);
-            var optionType = contractId.Substring(dateStart + 8, 1);
-            OptionType = optionType == "P" ? OptionType.Put : OptionType.Call;
-            StrikePrice = Convert.ToInt32(contractId[(dateStart + 9)..]);
+            MaturityDate = maturity;
+            OptionType = contractId[rightIndex] == 'P' ? OptionType.Put : OptionType.Call;
+            StrikePrice = strike;
         }
         catch
         {

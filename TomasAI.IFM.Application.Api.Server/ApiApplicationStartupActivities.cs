@@ -62,7 +62,7 @@ public sealed class ApiApplicationStartupActivities(
         CancellationToken cancellationToken)
     {
         var result = await referenceImportCoordinator.ImportAsync(
-            new(context.ValueDate, context.ValueDate),
+            new(context.ValueDate, context.ValueDate, IncludeTreasury: false),
             cancellationToken).ConfigureAwait(false);
         return result.RejectedSubmissions == 0
             ? ApplicationStartupActivityOutcome.Started

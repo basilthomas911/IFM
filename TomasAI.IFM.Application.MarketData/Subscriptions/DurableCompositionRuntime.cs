@@ -20,9 +20,10 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
     ICompositionRoutePlanStore plans, DurableSubscriptionDelivery delivery,
     DatasetWorkerAdmissionRegistry admissions, DatasetDesiredSubscriptionRegistry desired,
     DatasetWorkerProcessRecoveryService workers, QualifiedCompositionDiscovery discovery,
-    ILogger<DurableCompositionRuntime> logger, TimeProvider? time = null) : BackgroundService, IDurableCompositionReconciler
+    ILogger<DurableCompositionRuntime> logger, TimeProvider? time = null, string authorityScope = "IFM") : BackgroundService, IDurableCompositionReconciler
 {
-    const string Scope = "IFM";
+    readonly string Scope = !string.IsNullOrWhiteSpace(authorityScope) && authorityScope.Length <= 128
+        ? authorityScope : throw new ArgumentException("Bounded authority scope required.", nameof(authorityScope));
     const string Dataset = "GLBX.MDP3";
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly SemaphoreSlim serial = new(1, 1);

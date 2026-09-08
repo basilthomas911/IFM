@@ -17,6 +17,31 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 
 public sealed class YieldCurveRatesImportedHandlerTests
 {
+    [Theory] [InlineData(false)] [InlineData(true)]
+    public async Task Official_provider_identity_is_preserved_on_complete_and_failed_terminal_events(bool fails)
+    {
+        var date = new DateOnly(2026, 9, 4);
+        var (api, _, factory, _, context) = Dependencies();
+        var treasury = Substitute.For<ITreasuryCurve, ITreasuryCurveIdentity>();
+        ((ITreasuryCurveIdentity)treasury).DownloadLogProvider.Returns("USTreasury");
+        api.TreasuryCurve.Returns(treasury);
+        treasury.GetRangeAsync(date, date, Arg.Any<CancellationToken>()).Returns(fails
+            ? Task.FromException<IReadOnlyList<TreasuryCurveSnapshot>>(new HttpRequestException("offline"))
+            : Task.FromResult<IReadOnlyList<TreasuryCurveSnapshot>>([Curve(date) with { Source = "USTreasury" }]));
+        if (fails)
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(async () => await Request(date, ImportDuplicatePolicy.Overwrite)
+                .ExecuteAsync(context, api, factory, NullLogger<YieldCurveRateEventActor>.Instance));
+            await context.Received(1).SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
+                Arg.Is<YieldCurveRatesImportedFailEvent>(e => e.DownloadOutcome!.Provider == "USTreasury" && e.DownloadOutcome.DownloadedRecordCount == null));
+        }
+        else
+        {
+            await Request(date, ImportDuplicatePolicy.Overwrite).ExecuteAsync(context, api, factory, NullLogger<YieldCurveRateEventActor>.Instance);
+            await context.Received(1).SendAsync<YieldCurveRatesImportedCompleteEvent, YieldCurveRateEntityId>(
+                Arg.Is<YieldCurveRatesImportedCompleteEvent>(e => e.DownloadOutcome!.Provider == "USTreasury" && e.DownloadOutcome.PersistedRecordCount == 1));
+        }
+    }
     [Fact]
     public async Task ExecuteAsync_AcquiresBulkStoresAndCompletesTheAttempt()
     {

@@ -47,6 +47,7 @@ public class ReferenceDbContext(
 
     public InstrumentDefinitionStore InstrumentDefinitions => new(this, new TradeStrategySymbolStore(_dbFactory, _sequenceIdGenerator));
     public OptionPricingConventionStore OptionPricingConventions => new(this);
+    public OptionPricingReferenceBundleStore OptionPricingReferenceBundles => new(this);
 
     static bool MapToBoolean(IObjectDataRecord e)
         => e.GetBool(0);

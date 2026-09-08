@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 public enum OptionExerciseStyle { Unknown = 0, European = 1, American = 2 }
 public enum OptionSettlementStyle { Unknown = 0, DeliveryOfFuture = 1, Cash = 2 }
 public enum PricingDayCount { Unknown = 0, Actual365Fixed = 1, Actual360 = 2 }
+public enum OptionPremiumTickRule { Unspecified = 0, Fixed = 1, CmeEsGlobex358A = 2 }
 
 /// <summary>Safe diagnostic data; failed pricing never supplies usable numeric output.</summary>
 [MessagePackObject]
@@ -44,6 +45,10 @@ public sealed record OptionPricingConvention
     [Key(21)] public required string EvidenceId { get; init; }
     [Key(22)] public required DateTimeOffset EffectiveFromUtc { get; init; }
     [Key(23)] public required DateTimeOffset EffectiveUntilUtc { get; init; }
+    /// <summary>Append-only schema 2 rule. TickSize is the minimum increment when the rule has premium bands.</summary>
+    [Key(24)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public OptionPremiumTickRule PremiumTickRule { get; init; }
 }
 
 /// <summary>Explicit complete calendar coverage, including exchange value dates and pricing convention.</summary>

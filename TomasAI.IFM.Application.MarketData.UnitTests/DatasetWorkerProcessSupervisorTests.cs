@@ -9,6 +9,63 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class DatasetWorkerProcessSupervisorTests
 {
+    [CompositionSoakFact]
+    public async Task One_hundred_supervised_reset_and_process_replacement_cycles_remain_owned_and_bounded()
+    {
+        var rows = new List<object>();
+        var path = Path.ChangeExtension(Environment.GetEnvironmentVariable("IFM_OCP_LOAD_EVIDENCE")!, ".process-recovery.json");
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        await using var workers = new DatasetWorkerProcessRecoveryService(Options(), admissions);
+        var start = Request(Guid.NewGuid());
+        await workers.StartOwnedAsync(start);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        for (var cycle = 1; cycle <= 100; cycle++)
+        {
+            var old = workers.Current.Single();
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            var request = new DatabentoDatasetResetRequest(old.Dataset, old.GenerationId, start.ValueDate,
+                DatabentoDatasetFailureReason.NativeDrainStalled, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), Guid.NewGuid());
+            DatabentoDatasetResetResult result;
+            if (cycle % 10 == 0)
+            {
+                using var owned = System.Diagnostics.Process.GetProcessById(old.ProcessId);
+                owned.Kill(entireProcessTree: true); await owned.WaitForExitAsync(deadline.Token);
+                result = await workers.ReplaceProcessAsync(request, deadline.Token);
+            }
+            else result = await workers.ResetOwnedAsync(request, deadline.Token);
+            result.Succeeded.Should().BeTrue(result.Detail);
+            var current = workers.Current.Single();
+            current.GenerationId.Should().NotBe(old.GenerationId);
+            current.Healthy.Should().BeTrue(current.Detail);
+            admissions.TryGet(current.Dataset, out var admitted).Should().BeTrue();
+            admitted.GenerationId.Should().Be(current.GenerationId);
+            using var child = System.Diagnostics.Process.GetProcessById(current.ProcessId);
+            rows.Add(new { Cycle = cycle, ProcessReplaced = cycle % 10 == 0, Milliseconds = timer.Elapsed.TotalMilliseconds,
+                current.ProcessId, current.GenerationId, Rss = child.WorkingSet64, current.Diagnostics });
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(rows, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        await workers.StopAllAsync(deadline.Token);
+        workers.Current.Should().BeEmpty();
+    }
+
+    [CompositionSoakFact]
+    public async Task Frequent_health_observations_do_not_terminate_the_processing_worker()
+    {
+        await using var supervisor = new DatasetWorkerProcessSupervisor(Options());
+        await supervisor.StartAsync(Request(Guid.NewGuid()));
+        var unavailable = new List<string>();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        for (var sample = 0; sample < 10000; sample++)
+        {
+            var reply = await supervisor.GetHealthAsync(deadline.Token);
+            reply.Diagnostics.Should().NotBeNull();
+            reply.Diagnostics!.Validate();
+            if (!reply.Diagnostics.Complete && unavailable.Count < 10) unavailable.Add(reply.Diagnostics.FailureDetail);
+        }
+        supervisor.Current.Running.Should().BeTrue();
+        unavailable.Should().BeEmpty(string.Join(Environment.NewLine, unavailable));
+    }
+
     [Fact]
     public async Task Started_worker_reports_realized_native_generation_not_bootstrap_identity()
     {

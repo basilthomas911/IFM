@@ -24,8 +24,8 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 public sealed partial class CompositionBusinessProjectionTests
 {
     [Theory]
-    [InlineData(2)] [InlineData(4)]
-    public async Task Committed_legs_handoff_to_real_pricing_runtime_restore_after_replacement_and_drain_on_close(int count)
+    [InlineData(2, false)] [InlineData(4, false)] [InlineData(2, true)] [InlineData(4, true)]
+    public async Task Committed_legs_handoff_to_real_pricing_runtime_restore_after_replacement_and_drain_on_close(int count, bool advanceValueDate)
     {
         await using var fixture = await Fixture.Create();
         var plan = Plan(count, fixture.Scope);
@@ -44,23 +44,25 @@ public sealed partial class CompositionBusinessProjectionTests
         var clock = new PricingClock(); var oldGeneration = Guid.NewGuid();
         for (var replacement = 0; replacement < 2; replacement++)
         {
+            if (replacement == 1 && advanceValueDate) clock.Now = clock.Now.AddDays(1);
+            var valueDate = DateOnly.FromDateTime(clock.Now.UtcDateTime);
             // The feed is a controlled UTC transport; consumer, chain session, pricing, snapshot,
             // durable source, coordinator, ownership mapping and PostgreSQL delivery are actual implementations.
             var generation = replacement == 0 ? oldGeneration : Guid.NewGuid();
             var saved = (await fixture.Plans.ReadAsync(plan.PlanId, default))!;
-            using var feed = new PricingFeed(); using var prices = new DatabentoLastPriceStore(new(2026, 9, 8), 16);
+            using var feed = new PricingFeed(); using var prices = new DatabentoLastPriceStore(valueDate, 16);
             prices.RegisterContract("ES-future", AssetTypeId.Futures);
-            void Forward() => prices.TryUpdateQuote(new("ES-future", new(2026, 9, 8), 4999.75m, 10, 1, 5000.25m, 10, 1, 1, clock.Now, clock.Now));
+            void Forward() => prices.TryUpdateQuote(new("ES-future", valueDate, 4999.75m, 10, 1, 5000.25m, 10, 1, 1, clock.Now, clock.Now));
             Forward();
             var factory = Substitute.For<IDatabentoFeedFactory>(); factory.CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>()).Returns(feed);
             var aggregation = Substitute.For<ITickAggregationService>();
             aggregation.GetTickerStatus("ES-future").Returns(new TickAggregationTickerStatus("ES-future", true, true, true));
-            await using var worker = new WorkerOptionChainRuntime(generation, new(2026, 9, 8), factory,
+            await using var worker = new WorkerOptionChainRuntime(generation, valueDate, factory,
                 DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"), aggregation, prices, clock);
-            var request = new WorkerOptionChainRequest(saved.PlanId, Guid.NewGuid(), generation, new(2026, 9, 8), saved.MaturityDate,
+            var request = new WorkerOptionChainRequest(saved.PlanId, Guid.NewGuid(), generation, valueDate, saved.MaturityDate,
                 clock.Now.AddSeconds(60), saved.Options.Select(x => PricedDefinition(saved, x, generation, clock.Now)).ToImmutableArray());
             var acquired = await worker.AcquireAsync(request, default); Assert.True(acquired.Active, acquired.Failure?.Code);
-            await using var coordinator = new MarketDataSubscriptionCoordinator(fixture.Scope, "GLBX.MDP3", new(2026, 9, 8), timeProvider: clock);
+            await using var coordinator = new MarketDataSubscriptionCoordinator(fixture.Scope, "GLBX.MDP3", valueDate, timeProvider: clock);
             var delivery = new DurableSubscriptionDelivery(fixture.Store);
             async Task<DurableRealization> Realize(DesiredSubscriptionManifest manifest, CancellationToken token)
             {
@@ -78,6 +80,8 @@ public sealed partial class CompositionBusinessProjectionTests
                 Assert.True((await delivery.ReconcileAsync(coordinator, Realize, default)).AllRoutesReady);
                 await Release(default);
                 Assert.Equal("Recovering", (await worker.AcquireAsync(request with { GenerationId = oldGeneration }, default)).Failure?.Code);
+                if (advanceValueDate)
+                    Assert.Equal("Recovering", (await worker.AcquireAsync(request with { ValueDate = valueDate.AddDays(-1) }, default)).Failure?.Code);
             }
             Assert.Empty(await fixture.Store.ReadPendingOutboxAsync(fixture.Scope, "GLBX.MDP3"));
             // Discovery has expired. Only PostgreSQL-derived business owners keep every leg alive.
@@ -88,7 +92,7 @@ public sealed partial class CompositionBusinessProjectionTests
             Assert.True((await worker.AcquireAsync(request, default)).Active);
             foreach (var option in request.Options) feed.Push(option.Pricing.Contract.InstrumentId, clock.Now);
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            while (!selection.ContractIds.All(x => prices.GetFuturesOptionReader(x, new(2026, 9, 8)).TryGetLastQuoteWithGreeks(out _)))
+            while (!selection.ContractIds.All(x => prices.GetFuturesOptionReader(x, valueDate).TryGetLastQuoteWithGreeks(out _)))
                 await Task.Delay(5, deadline.Token);
             var capture = await new MarketCompositionSnapshotProvider(worker, clock).CaptureAsync(
                 new(Guid.NewGuid(), saved.PlanId, "Daily", generation, clock.Now, clock.Now.AddSeconds(2), true), default);
@@ -120,7 +124,7 @@ public sealed partial class CompositionBusinessProjectionTests
             DayCount = PricingDayCount.Actual365Fixed, CalendarVersion = plan.Calendar!.Version, Multiplier = 50, TickSize = .25m,
             TickRuleVersion = "fixture/v1", DefinitionDigest = new('a', 64), MappingVersion = "fixture/v1", EvidenceId = "synthetic",
             EffectiveFromUtc = at.AddDays(-1), EffectiveUntilUtc = at.AddDays(30) };
-        var curve = new TreasuryCurveSnapshot(new(2026, 9, 8), [new(TreasuryTenor.OneMonth, 5m)], at, "FinancialModelingPrep");
+        var curve = new TreasuryCurveSnapshot(DateOnly.FromDateTime(at.UtcDateTime), [new(TreasuryTenor.OneMonth, 5m)], at, "FinancialModelingPrep");
         var rate = TreasuryRateConversion.Convert(curve, TreasuryTenor.OneMonth, plan.Conversion!).Value!;
         return new(new(contract, plan.Calendar, rate, at.AddHours(1), generation, OptionCalculator.EngineVersion, 1000, 250, "fixture/v1"), candidate.Definition.StrikePrice, true);
     }

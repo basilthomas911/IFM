@@ -12,7 +12,7 @@ using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricin
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
-public sealed class OrderCompositionWorkerTests
+public sealed partial class OrderCompositionWorkerTests
 {
     [Theory]
     [InlineData(2)] [InlineData(4)]

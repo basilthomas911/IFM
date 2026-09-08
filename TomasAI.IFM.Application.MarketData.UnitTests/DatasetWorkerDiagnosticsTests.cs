@@ -28,6 +28,9 @@ public sealed class DatasetWorkerDiagnosticsTests
 
         decoded.Diagnostics.Should().BeEquivalentTo(diagnostics);
         decoded.Diagnostics!.RecordsProduced.Should().Be(100);
+        decoded.Diagnostics.ManagedAllocatedBytes.Should().BeGreaterThan(0);
+        decoded.Diagnostics.ManagedHeapBytes.Should().BeGreaterThan(0);
+        decoded.Diagnostics.GcPauseTicks.Should().BeGreaterThanOrEqualTo(0);
         decoded.Diagnostics.RecordsConsumed.Should().Be(90);
         decoded.Diagnostics.LastHeartbeatAgeTicks.Should().Be(TimeSpan.FromSeconds(10).Ticks);
         decoded.Diagnostics.Aggregation!.RecordsCompleted.Should().Be(80);

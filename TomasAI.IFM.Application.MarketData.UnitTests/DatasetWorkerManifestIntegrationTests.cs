@@ -107,7 +107,9 @@ public sealed class DatasetWorkerManifestIntegrationTests
         Assert.NotEqual(started.GenerationId, changed.GenerationId);
         Assert.Equal(changed.GenerationId, duplicate.GenerationId);
         Assert.Contains("contracts=2", changed.Detail);
-        await Assert.ThrowsAsync<InvalidDataException>(() => worker.ApplyManifestAsync(first));
+        var rejection = await Assert.ThrowsAsync<InvalidDataException>(() => worker.ApplyManifestAsync(first));
+        Assert.Contains("ManifestRejected", rejection.Message);
+        Assert.DoesNotContain("identity does not match", rejection.Message);
         var afterRejection = await worker.GetHealthAsync();
         Assert.True(afterRejection.Healthy, afterRejection.Detail);
         Assert.Equal(next.Revision, afterRejection.ManifestRevision);

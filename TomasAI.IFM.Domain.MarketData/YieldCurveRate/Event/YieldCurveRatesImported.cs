@@ -41,6 +41,7 @@ public static class YieldCurveRatesImported
         long? downloaded = null;
         long? persisted = 0;
         var terminalId = Guid.NewGuid();
+        var provider = (referenceDataApi.TreasuryCurve as ITreasuryCurveIdentity)?.DownloadLogProvider ?? "FMP";
         YieldCurveRatesImportedCompleteEvent? complete = null;
         YieldCurveRatesImportedFailEvent? failed = null;
         Exception? processingError = null;
@@ -86,7 +87,7 @@ public static class YieldCurveRatesImported
 
         MarketDataDownloadOutcome Outcome(MarketDataDownloadStatus status, Exception? error) => new()
         {
-            Dataset = MarketDataDownloadDataset.TreasuryCurve, ValueDate = DateOnly.FromDateTime(@event.ImportDate),
+            Dataset = MarketDataDownloadDataset.TreasuryCurve, Provider = provider, ValueDate = DateOnly.FromDateTime(@event.ImportDate),
             Scope = "US", ImportCommandId = @event.CommandId, SourceTerminalEventId = terminalId,
             RequestedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(@event.RequestedOn), StartedAtUtc = started,
             FinishedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow), Status = status,

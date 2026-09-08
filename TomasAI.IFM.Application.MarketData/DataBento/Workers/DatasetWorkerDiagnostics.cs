@@ -43,6 +43,16 @@ public sealed record DatasetWorkerDiagnostics
     [Key(28)] public string FailureDetail { get; init; } = string.Empty;
     [Key(29)] public DatasetWorkerDrainDiagnostics? Drain { get; init; }
     [Key(30)] public DatasetWorkerAggregationDiagnostics? Aggregation { get; init; }
+    [Key(31)] public long ManagedAllocatedBytes { get; init; }
+    [Key(32)] public long ManagedHeapBytes { get; init; }
+    [Key(33)] public int Gen0Collections { get; init; }
+    [Key(34)] public int Gen1Collections { get; init; }
+    [Key(35)] public int Gen2Collections { get; init; }
+    [Key(36)] public long GcPauseTicks { get; init; }
+    [Key(37)] public ulong OptionRecordsProduced { get; init; }
+    [Key(38)] public ulong OptionRecordsConsumed { get; init; }
+    [Key(39)] public ulong OptionRingUsed { get; init; }
+    [Key(40)] public ulong OptionRingOverruns { get; init; }
 
     [IgnoreMember] public bool Operational => Complete && NativeMajorStatus == 1
         && TerminalStatus == 0 && ProducerAlive && AggregationRunning && TransportReady
@@ -56,8 +66,14 @@ public sealed record DatasetWorkerDiagnostics
             || LastHeartbeatAgeTicks < 0 || LastProviderMessageAgeTicks < 0
             || ExpectedSubscriptions < 0 || ReceivedSubscriptions < 0
             || ChannelBatchCount < 0 || ChannelBatchCapacity < 0
+            || ManagedAllocatedBytes < 0 || ManagedHeapBytes < 0 || Gen0Collections < 0
+            || Gen1Collections < 0 || Gen2Collections < 0 || GcPauseTicks < 0
             || Complete && (FeedInstanceId == 0 || Drain is null || Aggregation is null))
-            throw new InvalidDataException("Dataset worker diagnostic identity or bounds are invalid.");
+            throw new InvalidDataException($"Dataset worker diagnostic identity or bounds are invalid: " +
+                $"expected={ExpectedSubscriptions}, received={ReceivedSubscriptions}, channel={ChannelBatchCount}/{ChannelBatchCapacity}, " +
+                $"heartbeatAge={LastHeartbeatAgeTicks}, providerAge={LastProviderMessageAgeTicks}, " +
+                $"allocated={ManagedAllocatedBytes}, heap={ManagedHeapBytes}, gc={Gen0Collections}/{Gen1Collections}/{Gen2Collections}, pause={GcPauseTicks}, " +
+                $"complete={Complete}, feed={FeedInstanceId}, drain={Drain is not null}, aggregation={Aggregation is not null}.");
         Drain?.Validate();
         Aggregation?.Validate();
     }
@@ -108,7 +124,14 @@ public sealed record DatasetWorkerDiagnostics
             ChannelBatchCapacity = health.ChannelBatchCapacity,
             FailureDetail = Bound(string.IsNullOrEmpty(feed.FailureDetail) ? health.Warning ?? string.Empty : feed.FailureDetail, 4096),
             Drain = DatasetWorkerDrainDiagnostics.From(health.DrainDiagnostics!),
-            Aggregation = DatasetWorkerAggregationDiagnostics.From(managed[0].AggregationMetrics)
+            Aggregation = DatasetWorkerAggregationDiagnostics.From(managed[0].AggregationMetrics),
+            ManagedAllocatedBytes = GC.GetTotalAllocatedBytes(), ManagedHeapBytes = GC.GetTotalMemory(false),
+            Gen0Collections = GC.CollectionCount(0), Gen1Collections = GC.CollectionCount(1),
+            Gen2Collections = GC.CollectionCount(2), GcPauseTicks = GC.GetTotalPauseDuration().Ticks,
+            OptionRecordsProduced = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsProduced),
+            OptionRecordsConsumed = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsConsumed),
+            OptionRingUsed = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingUsedRecords),
+            OptionRingOverruns = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingOverruns)
         };
     }
 

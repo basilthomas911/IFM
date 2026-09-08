@@ -13,7 +13,7 @@ This document describes future composer implementation. The prerequisite impleme
 
 ## 1. Entry, dependencies and layering
 
-The market-data boundary now has explicit qualification, Treasury conversion, context refresh, Black-76 enrichment and a bounded snapshot assembler connected to supervised worker sources. A mapped workflow acceptance transition commits an evidence-linked Start request before dispatch. This is preparation integration, not the future Execute Function contract or completed composer. Concrete committed business-source projection, persisted reconstruction plans, durable startup recovery/context refresh and selected-leg discovery-release receipts are now implemented. Component integration tests pass. Joined recovery/live pricing qualification and reviewed reference publication remain open; see the prerequisite record.
+The market-data boundary now has explicit qualification, Treasury conversion, context refresh, Black-76 enrichment and a bounded snapshot assembler connected to supervised worker sources. A mapped workflow acceptance transition commits an evidence-linked Start request before dispatch. This is preparation integration, not the future Execute Function contract or completed composer. Concrete committed business-source projection, persisted reconstruction plans, durable startup recovery/context refresh and selected-leg discovery-release receipts are implemented. Reviewed reference publication and an initial combined live pricing/handoff/replacement canary have now passed; see the [publication record](OrderComposition-Reference-Publication-and-Qualification-v1.0.md) and [closure audit](OrderComposition-Closure-Audit-v1.0.md) for sustained qualification and the separate broader Stage 4 acceptance boundary.
 
 | Dependency | Entry requirement | Later acceptance requirement |
 | --- | --- | --- |
@@ -142,7 +142,7 @@ Run the owning Trade.Shared, Domain.Trade unit/BDD/verification suites and real 
 
 After isolated gates pass, run the five pipeline actors together one stage at a time using one real triggering horizon. Compare accepted lineage and evidence at each boundary. Complete S4G-08 selected-leg handoff/recovery only after both composer and OCP-04 worker/ownership paths exist. Feed simulations and supplied-leg tests do not establish live-provider readiness.
 
-Live acceptance additionally requires verified exchange/product metadata, FMP source convention/publication rules, quote limits, native Windows/Linux execution, provider entitlement/capacity, session rollover, sustained recovery/soak and rollback evidence under the existing Stage 3/4 plan. Do not remove startup guards merely because new unit tests pass. No broker connection or UI work is part of these gates.
+Live acceptance additionally requires verified exchange/product metadata, current official Treasury source/publication policies, quote limits, native Windows/Linux execution, provider entitlement/capacity, session rollover, sustained recovery/soak and rollback evidence under the existing Stage 3/4 plan. The Treasury source/conversion ambiguity is resolved by the [official provider implementation](OrderComposition-Official-Treasury-Implementation-v1.0.md); its bounded calendar must be renewed before 2027. Do not remove startup guards merely because new unit tests pass. No broker connection or UI work is part of these gates.
 
 ## 10. Implementation order and current status
 

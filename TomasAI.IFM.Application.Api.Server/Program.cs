@@ -18,6 +18,12 @@ try
     var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
     var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
+    if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        await OptionPricingReferenceMaintenance.RunAsync(builder.Configuration, deadline.Token);
+        return;
+    }
     if (refreshInstrumentDefinitionsOnly && !verifyStartupOnly)
     {
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(30));
@@ -91,6 +97,13 @@ try
 catch (Exception ex)
 {
     Environment.ExitCode = 1;
+    if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase))
+    {
+        var detail = ex.Message;
+        var key = Environment.GetEnvironmentVariable("DATABENTO_API_KEY");
+        if (!string.IsNullOrEmpty(key)) detail = detail.Replace(key, "[redacted]", StringComparison.Ordinal);
+        Console.Error.WriteLine("Option pricing reference publication failed: " + detail[..Math.Min(detail.Length, 2048)]);
+    }
     if (args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase))
         Console.Error.WriteLine("Instrument definition refresh failed: " + ex.Message);
     Log.Fatal(ex, "IFM WebApiServer: startup failed");

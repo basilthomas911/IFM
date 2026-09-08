@@ -133,6 +133,16 @@ public sealed class OrderCompositionSnapshotTests
         Assert.False(missing.IsValid); Assert.Null(missing.Delta); Assert.NotNull(missing.PricingFailure);
     }
 
+    [Fact]
+    public async Task Exact_mapping_rejects_a_different_underlying_even_when_provider_identity_matches()
+    {
+        var mapping = Contract(); var candidate = Candidate(mapping);
+        var result = await new EuropeanOptionUniverse(new Conventions([mapping])).QualifyAsync(
+            [candidate with { Definition = candidate.Definition with { Underlying = "another-future" } }], true, At, default);
+        Assert.Equal("ContractMetadataUnavailable", result.Failure!.Code);
+        Assert.Empty(result.Definitions);
+    }
+
     static OptionDefinitionCandidate Candidate(OptionPricingConvention c) => new(c.ContractId, c.MappingVersion, c.DefinitionDigest,
         new OptionContractDefinition
         {

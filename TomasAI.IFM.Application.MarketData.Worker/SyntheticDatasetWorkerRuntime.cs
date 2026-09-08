@@ -33,8 +33,12 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         {
             var health = epoch.GetHealth();
             var available = DatabentoNativeWatchdog.TryRead(out var native, out var failure);
-            return DatasetWorkerDiagnostics.Capture(manifest, health,
+            var diagnostics = DatasetWorkerDiagnostics.Capture(manifest, health,
                 available ? native : null, failure, observedOnUtc);
+            // Validate within the diagnostic boundary. An inconsistent observation must be
+            // reported as unavailable, not throw again while constructing a failure reply.
+            diagnostics.Validate();
+            return diagnostics;
         }
         catch (Exception exception)
         {

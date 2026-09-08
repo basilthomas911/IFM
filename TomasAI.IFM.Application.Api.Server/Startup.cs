@@ -266,6 +266,16 @@ public static class Startup
                 options.MaximumConcurrentRequests = config.GetValue("AppSettings:Fmp:MaximumConcurrentRequests", 2);
             });
             services.AddFinancialModelingPrepReferenceDataApi();
+            // FMP continues to own the economic calendar. Pricing and yield-curve imports use the official feed.
+            services.AddHttpClient("USTreasury", client => client.Timeout = TimeSpan.FromSeconds(30));
+            services.AddSingleton<TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve>(sp => new(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("USTreasury"), sp.GetRequiredService<TimeProvider>()));
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Replace(services,
+                ServiceDescriptor.Singleton<TomasAI.IFM.Framework.MarketData.Contracts.ITreasuryCurve>(
+                    sp => sp.GetRequiredService<TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve>()));
+            services.AddSingleton(TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve.ConversionPolicy);
+            services.AddSingleton(TomasAI.IFM.Application.MarketData.Pricing.UsTreasuryPublicationCalendar.Default2026);
+            services.AddHostedService<UsTreasuryRefreshHostedService>();
             services.AddFmpMarketDataImport(options =>
                 options.MaximumRangeDays = config.GetValue("AppSettings:Fmp:MaximumImportRangeDays", 366));
             services.AddSingleton(new ExternalMarketDataCompatibilityOptions
@@ -493,6 +503,7 @@ public static class Startup
                 provider.GetRequiredService<IDbContextFactory>().ReferenceDb.InstrumentDefinitions);
             services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>(provider =>
                 provider.GetRequiredService<IDbContextFactory>().ReferenceDb.OptionPricingConventions);
+            services.AddSingleton(provider => provider.GetRequiredService<IDbContextFactory>().ReferenceDb.OptionPricingReferenceBundles);
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.EuropeanOptionUniverse>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.TreasuryPricingProvider>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IOptionPricingContextProvider,

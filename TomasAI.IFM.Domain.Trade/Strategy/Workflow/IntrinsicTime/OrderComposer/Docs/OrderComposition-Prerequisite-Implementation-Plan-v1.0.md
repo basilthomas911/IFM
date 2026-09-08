@@ -1,9 +1,13 @@
 # Order Composition Prerequisite Implementation Plan v1.0
 
+Current closure status and schema-2 premium tick-rule requirements: [closure audit](OrderComposition-Closure-Audit-v1.0.md).
+
+The approved Treasury source change is implemented: see [official Treasury provider and verification](OrderComposition-Official-Treasury-Implementation-v1.0.md). This supersedes the FMP Treasury source/lineage requirements in the original baseline below. FMP still supplies economic calendars.
+
 | Item | Value |
 | --- | --- |
 | Date | 2026-09-07 |
-| Status | Partial integration; worker ownership and temporary context refresh tested, workflow acceptance/redispatch implemented; automatic durable source/recovery and live qualification remain open |
+| Status | Runtime prerequisites and reviewed September reference publication implemented; committed ownership/recovery, workflow preparation and bounded qualification executed; current elapsed live status is in the closure audit |
 | Purpose | Resolve pricing, contract-universe, live-chain and snapshot dependencies; establish a complete basis for the Order Composition implementation document |
 | Scope | ES outright futures and verified European-style ES options on futures; one triggering Daily, Weekly or Monthly horizon |
 | Specification | [Order Composition specification v1.0](OrderComposition-Specification-v1.0.md) |
@@ -19,7 +23,7 @@ This is the prerequisite plan. The [full composer implementation document](Order
 1. The initial option universe includes only verified European-style **options on ES futures**. Exclude American-style and unknown-style definitions before subscription/candidate generation. European stock or cash-index options are not added by this decision. Outright futures remain supported independently.
 2. Validate the actual option series and every leg; neither the ES root, an expiration date, nor the workflow horizon establishes exercise style. Unknown classification is not a default to European. Preserve excluded definitions and reasons for audit; do not delete raw reference records.
 3. Reuse the existing Black-76 implementation. Do not introduce an American-option approximation, replace the engine, or treat successful arithmetic as proof of contract support.
-4. Reuse daily FMP Treasury data. Select one tenor from remaining exchange trading days: 0..29 one month, 30..59 two months, 60..89 three months; 90 or more is `TreasuryHorizonUnsupported`. No interpolation, extrapolation, adjacent-tenor fallback or per-tick HTTP.
+4. Use official daily U.S. Treasury par/CMT data through the existing `ITreasuryCurve` contract. Select one tenor from remaining exchange trading days: 0..29 one month, 30..59 two months, 60..89 three months; 90 or more is `TreasuryHorizonUnsupported`. No interpolation, extrapolation, adjacent-tenor fallback or per-tick HTTP.
 5. Use the verified source convention to convert the selected rate to a continuously compounded annual decimal. For verified nominal semiannual CMT quotations, retain `FlatSelectedCmtProxy/v1`; this is a flat par-yield proxy, not a bootstrapped zero curve. Unknown source convention fails.
 6. Trading-day tenor selection, elapsed-day strategy DTE, and pricing year fraction are three separate quantities. Exact expiry, market timezone, versioned calendar and product-specific day-count mapping determine the pricing inputs. No global ACT/365 fallback.
 7. Missing, stale, incoherent or invalid required pricing inputs and solver failures produce structured `Failed` outcomes. `NoCandidate` means a complete, trustworthy evaluation found no permitted construction. Valid economic rejection is not a pricing failure.
@@ -111,7 +115,7 @@ Each package requires an implementation record with revision, exact commands, pa
 
 ### OCP-04: Connect production chain lifecycle and ownership
 
-**Continuation status (2026-09-08 UTC):** qualified discovery reaches the existing worker. Committed durable snapshots now install into the coordinator; replayable outbox delivery and acquire-before-release handoff are tested. Worker ownership has revision fences, independent non-expiring owners and terminal tombstones. Temporary reference contexts refresh asynchronously through compare-and-swap. Concrete committed business-source adapters, the automatic production realization/recovery pump, durable context rebinding and selected-leg integration remain open. Snapshot transport is on demand; no continuous option mirror is claimed. See the implementation record for exact limits; broad Stage 4 enablement remains guarded.
+**Continuation status (2026-09-08 UTC):** qualified discovery reaches the existing worker. Committed durable snapshots install into the coordinator; replayable outbox delivery and acquire-before-release handoff are tested. Worker ownership has revision fences, independent non-expiring owners and terminal tombstones. Concrete committed source adapters, automatic realization/recovery, temporary and durable context rebinding, and selected-leg integration are implemented. Real PostgreSQL tests cover two/four legs and next-value-date reconstruction; supervised stress covers 100 recovery cycles. Snapshot transport is on demand. See the implementation record and live evidence for elapsed qualification; broad Stage 4 enablement remains guarded.
 
 **Depends on:** OCP-03 and relevant Stage 4 ownership/protocol work. **Owners:** Application.MarketData, worker runtime and subscription persistence adapters.
 
@@ -236,9 +240,9 @@ The [implementation record](OrderComposition-Prerequisite-Implementation-Record-
 2. Startup outbox reconciliation and immutable route-plan reconstruction are registered. A real supervised child-process test passes replacement, core rollover retention and explicit terminal removal.
 3. Durable pricing-context refresh is implemented away from callbacks. Controlled-feed worker tests keep two-/four-leg selected positions priced after discovery expiry and context replacement.
 4. Mapped prepared completion records exact selected contracts; durable handoff receipts release discovery only after current ownership realization. Unit tests cover ready/unready/replaced generations without refreshing accepted evidence. A joined genuine PostgreSQL-source/delivery/real worker-pricing test now passes for two/four legs, including replacement runtime and explicit closure. Controlled UTC feed transport and direct worker calls are used; the separate actual child-process test covers supervision/rollover. Neither is a live soak.
-5. Reviewed provider/product/tick/calendar/rate-source configuration remains unpublished. FMP access and daily frequency are verified; its precise series convention and publication cutoff are not documented by the official pages reviewed. A provider-evidence question is pending with the user.
+5. Reviewed provider/product/tick/calendar/day-count configuration is now published for the complete E2D September 10 scope, profile `CME-ES-TueThu-202609/v2`. Official Treasury replaces the unresolved FMP rate lineage. See the [publication record](OrderComposition-Reference-Publication-and-Qualification-v1.0.md); no provider-evidence question remains pending with the user.
 6. Native working-set reservation was corrected in C++ and Rust. Both supported backends passed required concurrent ring-lock tests without granting machine-wide privileges.
-7. The user approved Windows Time startup and synchronization. These completed, followed by a bounded measured correction. StrictProduction DataBento live quotes passed with unchanged freshness rules. Full Black-76 live snapshot/recovery/soak qualification remains after reviewed reference publication.
+7. The user approved Windows Time startup and synchronization. These completed, followed by a bounded measured correction. StrictProduction DataBento live quotes passed with unchanged freshness rules. A combined Black-76/Scylla/committed-ownership/process-replacement canary has now passed; sustained results are recorded separately in the live evidence register.
 
 Do not report all prerequisites complete until the remaining live-reference and recovery/soak requirements have actually passed. Do not describe unexecuted integration work as an external-data blocker.
 
@@ -250,9 +254,9 @@ Do not report all prerequisites complete until the remaining live-reference and 
 - [x] Repair clock/native locking and pass strict native live quotes.
 - [x] Write the full composer implementation document with explicit OC gates.
 - [x] Complete joined selected-leg committed-source/worker pricing/replacement acceptance with controlled UTC feeds.
-- [ ] Complete prescribed live recovery/soak after reference qualification.
-- [ ] Publish verified product/calendar/tick/rate-source/market-plan configuration.
-- [ ] Qualify the complete live priced capture/recovery path.
+- [x] Complete 30-minute live recovery/soak and 30-minute maximum-scope controlled load after reference qualification, with 100 actual supervised recovery cycles; full-session/platform acceptance remains OCP-T25.
+- [x] Publish verified product/calendar/tick/rate-source bundle and complete bounded-plan construction support for the explicit qualification scope; see the publication record.
+- [x] Qualify the combined live priced capture, immutable persistence, committed ownership, worker replacement and final position drain for the reviewed canary scope.
 - [ ] Implement composer OC-01..OC-08 (separate downstream scope).
 
 Existing live-enablement guards remain. Source completion alone does not end a workflow owner; an explicit origin-linked order transfer or terminal fact is required. Future composer/order dispatch must emit that fact when transferring ownership. No broker/emulator execution is implied by the prerequisite boundary tests.

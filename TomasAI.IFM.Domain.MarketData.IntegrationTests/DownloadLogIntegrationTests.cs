@@ -5,6 +5,18 @@ namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 [Trait("Category", "Integration")]
 public sealed class DownloadLogIntegrationTests(MarketDataFixture fixture) : IClassFixture<MarketDataFixture>
 {
+    [Fact]
+    public async Task Official_Treasury_partition_is_durable_and_isolated_from_historical_FMP()
+    {
+        var date = DateOnly.FromDayNumber(Random.Shared.Next(new DateOnly(7000, 1, 1).DayNumber, new DateOnly(8990, 1, 1).DayNumber));
+        var outcome = Outcome(MarketDataDownloadDataset.TreasuryCurve, date) with
+            { Provider = "USTreasury", DownloadedRecordCount = 1, PersistedRecordCount = 1 };
+        await Insert(outcome); await Insert(outcome);
+        var partition = new MarketDataDownloadPartition(outcome.Dataset, outcome.Provider, "US", date);
+        var status = await fixture.MarketDataDb.GetMarketDataDownloadStatusAsync(partition, outcome.ImportCommandId);
+        Assert.True(status.CompletionConfirmed); Assert.Equal(outcome, status.SuccessfulAttempt!.Outcome);
+        Assert.False((await fixture.MarketDataDb.GetMarketDataDownloadStatusAsync(partition with { Provider = "FMP" })).CompletionConfirmed);
+    }
     static MarketDataDownloadOutcome Outcome(MarketDataDownloadDataset dataset, DateOnly date, int seconds = 0) => new()
     {
         Dataset = dataset, Scope = "US", ValueDate = date, ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
