@@ -27,12 +27,20 @@ public static class EventSourceSchemaSql
         """;
 
     public const string CreateEventLogTable = """
+        DO $guard$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema='public' AND table_name='event_log' AND column_name='eventdata') THEN
+                RAISE EXCEPTION 'Legacy JSON event_log requires the explicit binary-only reset before startup';
+            END IF;
+        END $guard$;
+
         CREATE TABLE IF NOT EXISTS public.event_log (
             EventStreamId bigint NOT NULL,
             EventNameId integer NOT NULL,
             EventVersion bigint DEFAULT nextval('public.event_log_eventversion_seq'::regclass) NOT NULL,
             StreamVersion bigint NOT NULL,
-            EventData text NOT NULL,
+            EventPayload bytea NOT NULL CHECK (octet_length(EventPayload) > 0),
             CommandId uuid NOT NULL,
             EventTimestamp text NOT NULL,
             CONSTRAINT event_log_pkey PRIMARY KEY (EventStreamId, EventNameId, EventVersion)

@@ -55,6 +55,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
         ICommand command,
         CancellationToken cancellationToken)
     {
+        using var trace = WorkflowTrace.Start("workflow.state.load", null);
+        trace?.SetTag("ifm.workflow.entity", command.Subject.EntityId);
+        trace?.SetTag("ifm.command.name", command.CommandName);
         ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
         var state = (IntrinsicTimeStrategyWorkflowCommandState)_stateFactory
@@ -72,7 +75,13 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
         if (events.Count == 0)
             return state;
 
+        trace?.SetTag("ifm.workflow.snapshot_count", events.Count);
+        using var decode = WorkflowTrace.Start("workflow.state.deserialize", null);
+        decode?.SetTag("ifm.workflow.entity", command.Subject.EntityId);
         var converted = events.Select(value => (Stream: value, Event: value.ToDomainEvent())).ToArray();
+        decode?.Stop();
+        using var apply = WorkflowTrace.Start("workflow.state.apply", null);
+        apply?.SetTag("ifm.workflow.entity", command.Subject.EntityId);
         var snapshots = converted
             .Where(value => value.Event is WorkflowStrategyStateUpdatedEvent)
             .ToArray();
@@ -130,6 +139,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
         if (state.Events.Count == 0)
             return;
 
+        using var trace = WorkflowTrace.Start("workflow.state.save", state.Events.OfType<WorkflowStrategyStateUpdatedEvent>().LastOrDefault()?.State);
         var committed = await _eventSource.SaveEventsAsync(
             command.StreamId,
             command.CommandId,

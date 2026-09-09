@@ -55,6 +55,7 @@ public static class IfmMetricsServiceCollectionExtensions
                     .AddMeter(FmpImportMeterName)
                     .AddMeter(MarketConditionInstrumentationName)
                     .AddMeter(PortfolioInstrumentationName)
+                    .AddMeter("TomasAI.IFM.RiskManagement")
                     .AddMeter("System.Runtime")
                     .AddMeter("Microsoft.AspNetCore.Hosting")
                     .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
@@ -83,7 +84,7 @@ public static class IfmMetricsServiceCollectionExtensions
             })
             .WithTracing(tracing =>
             {
-                tracing.AddSource(MarketConditionInstrumentationName)
+                tracing.AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
                     .AddSource(PortfolioInstrumentationName)
                     .AddOtlpExporter(options =>
                     {

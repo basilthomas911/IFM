@@ -28,7 +28,7 @@ public sealed class EventHistoryScenarios
             EventVersion = index + 1,
             StreamVersion = index + 1,
             EventTypeName = item.GetType().AssemblyQualifiedName!,
-            EventData = JsonConvert.SerializeObject(item)
+            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(item)
         });
         var reloaded = new PortfolioAggregate();
 

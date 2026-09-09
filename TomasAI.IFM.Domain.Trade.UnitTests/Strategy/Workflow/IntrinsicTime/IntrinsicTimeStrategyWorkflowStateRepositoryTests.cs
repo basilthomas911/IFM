@@ -66,7 +66,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
                 EventVersion = 7,
                 StreamVersion = 1,
                 EventTypeName = typeof(IntrinsicTimeStrategyWorkflowStartedEvent).AssemblyQualifiedName!,
-                EventData = "{}"
+                EventData = EventLogMessagePackCodec.Shared.Serialize(new IntrinsicTimeStrategyWorkflowStartedEvent())
             }
         ]);
 
@@ -185,7 +185,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
             EventVersion = snapshot.EventId,
             StreamVersion = streamVersion,
             EventTypeName = typeof(WorkflowStrategyStateUpdatedEvent).AssemblyQualifiedName!,
-            EventData = snapshot.ToEventData()
+            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(snapshot)
         };
 
     sealed record RepositoryFixture(

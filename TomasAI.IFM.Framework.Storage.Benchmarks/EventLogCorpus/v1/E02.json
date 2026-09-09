@@ -1,0 +1,43 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "YieldCurveRateEvent",
+    "Verb": "Imported",
+    "EntityId": "2026",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "YieldCurveRateEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "YieldCurveRateEvent",
+      "Verb": "Imported"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "YieldCurveRateEvent",
+      "EntityId": "2026",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "YieldCurveRateEvent"
+      }
+    },
+    "StreamId": "Event.YieldCurveRateEvent.2026"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "Year": 2026
+  },
+  "EventId": 174821,
+  "CommandId": "c4007517-2049-4642-9ef5-15f095fa7e77",
+  "AggregateId": null,
+  "EventSource": "YieldCurveRateCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "ImportDate": "2026-08-20T11:55:30.9123877Z",
+  "RequestedOn": "2026-08-20T11:55:30.9944012Z",
+  "RequestedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "DuplicatePolicy": 0,
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "YieldCurveRatesImportedEvent",
+  "EventType": 0
+}

@@ -19,12 +19,16 @@ public static class ExecuteRiskManagement
 {
     public static async ValueTask ExecuteAsync(this WorkflowStrategyStateUpdatedEvent snapshot,IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
+        using var trace = WorkflowTrace.Start("risk.dispatch", snapshot.State);
         var read=new RedispatchCurrentStrategyPipelineCommand
         {
             EntityId=snapshot.EntityId,Subject=new(ActorType.Command,RedispatchCurrentStrategyPipelineCommand.Actor,
                 RedispatchCurrentStrategyPipelineCommand.Verb,snapshot.EntityId.Format())
         };
-        var view=(await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false)).CurrentView;
+        var loaded = await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
+        using var currentViewTrace = WorkflowTrace.Start("risk.dispatch.current_view", snapshot.State);
+        var view = loaded.CurrentView;
+        currentViewTrace?.Stop();
         if (view is not { Status:WorkflowStrategyMachineStatus.Started,CurrentStage:StrategyWorkflowStage.RiskManagement }
             || view.WorkflowId!=snapshot.WorkflowId || view.WorkflowRevision!=snapshot.WorkflowRevision) return;
         if (view.RiskManagement.ProcessingStatus==StrategyActorProcessingStatus.Completed)
@@ -34,6 +38,7 @@ public static class ExecuteRiskManagement
         }
         if (view.RiskExecution is not { } execute)
         {
+            await EnsureFundCompositionAsync(view, context).ConfigureAwait(false);
             var prepare=new PrepareRiskManagementCommand
             {
                 CommandId=StableId(view.WorkflowId,view.WorkflowRevision,view.OrderComposition.SourceEventId,PrepareRiskManagementCommand.Verb),
@@ -87,4 +92,40 @@ public static class ExecuteRiskManagement
     }
     static Guid StableId(StrategyWorkflowId workflow,long revision,Guid invocation,string verb)
         => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{workflow}|{revision}|{invocation}|{verb}")).AsSpan(0,16));
+
+    // Only a workflow-accepted Composer result may advance the Fund. Read each committed
+    // checkpoint first so redispatch after a lost reply never repeats a versioned mutation.
+    internal static async Task EnsureFundCompositionAsync(IntrinsicTimeStrategyWorkflowView view,
+        IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+    {
+        using var trace = WorkflowTrace.Start("risk.fund_composition", view);
+        var result = view.OrderComposition.Result!.ReadCompositionResult();
+        var candidate = result.Candidate!;
+        var read = await context.PortfolioQueries.GetOrderAsync(checked((int)candidate.OrderId)).ConfigureAwait(false);
+        var order = read.Value;
+        RiskUnitModel.Require(read.Success && order is not null && order.WorkflowId == view.WorkflowId.Value
+            && order.PortfolioId == candidate.PortfolioId && order.FundId == candidate.FundId,
+            "RM.HANDOFF.FUND_NOT_READY");
+        var id = new Domain.Portfolio.Shared.Identities.PortfolioFundOrderId(candidate.PortfolioId, candidate.FundId, checked((int)candidate.OrderId));
+        if (order!.Status == "TemplateSelected")
+        {
+            read = await context.PortfolioCommands.MarkComposingAsync(id, order.AggregateVersion,
+                view.CompositionExecution!.CommandId).ConfigureAwait(false);
+            RiskUnitModel.Require(read.Success && read.Value is not null, "RM.HANDOFF.FUND_NOT_READY");
+            order = read.Value!;
+        }
+        if (order.Status == "Composing")
+        {
+            read = await context.PortfolioCommands.RecordComposedAsync(id, order.AggregateVersion, new()
+            {
+                ResultId = result.ResultId, ResultSha256 = view.OrderComposition.Result.PayloadSha256,
+                InvocationId = view.CompositionExecution!.CommandId,
+                EvaluatedAtUtc = view.CompositionExecution.EvaluatedAtUtc, ExpiresAtUtc = candidate.ValidUntilUtc
+            }).ConfigureAwait(false);
+            RiskUnitModel.Require(read.Success && read.Value is not null, "RM.HANDOFF.FUND_NOT_READY");
+            order = read.Value!;
+        }
+        RiskUnitModel.Require(order.Status == "RiskPending" && order.CompositionResultId == result.ResultId
+            && order.CompositionResultHash == view.OrderComposition.Result.PayloadSha256, "RM.HANDOFF.FUND_NOT_READY");
+    }
 }

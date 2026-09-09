@@ -26,7 +26,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
     const string InsertEventLog = """
         INSERT INTO event_log (
-            eventstreamid, eventnameid, eventversion, streamversion, eventdata, commandid, eventtimestamp)
+            eventstreamid, eventnameid, eventversion, streamversion, eventpayload, commandid, eventtimestamp)
         VALUES ($1, $2, $3, $4, $5, $6, $7);
         """;
 
@@ -50,7 +50,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         """;
 
     const string SelectEventLogs = """
-        SELECT eventstreamid, eventnameid, eventversion, eventdata, commandid,
+        SELECT eventstreamid, eventnameid, eventversion, eventpayload, commandid,
                eventtimestamp::timestamp
         FROM event_log
         WHERE eventstreamid = $1
@@ -681,7 +681,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             row.GetLong(0),
             row.GetInt(1),
             row.GetLong(2),
-            row.GetString(3),
+            System.Text.Encoding.UTF8.GetString(row.GetBytes(3)),
             row.GetGuid(4),
             row.GetDateTime(5));
 
@@ -735,7 +735,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     {
         public object Bind() => Values(
             Integer(EventStreamId), Integer(EventNameId), Bigint(EventVersion), Bigint(StreamVersion),
-            Text(EventData), Uuid(CommandId), Text(EventTimestamp));
+            Bytea(System.Text.Encoding.UTF8.GetBytes(EventData)), Uuid(CommandId), Text(EventTimestamp));
     }
 
     readonly record struct CommandParameters(

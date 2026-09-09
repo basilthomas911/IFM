@@ -68,6 +68,12 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             [typeof(WorkflowStrategyStateUpdatedEvent)] = static async (actor, context, @event) =>
             {
                 var snapshot = (WorkflowStrategyStateUpdatedEvent)@event;
+                if (snapshot.State.RiskExecution is not null && snapshot.State.TerminalAtUtc is not null)
+                {
+                    var elapsed = RiskManager.Model.RiskLatency.RecordWorkflow(snapshot.State);
+                    RequireEventContext(context).Logger.LogInformation("Workflow latency observation trace {TraceId} for {WorkflowId}: {WorkflowMilliseconds} ms, outcome {Outcome}, financial phase {FinancialPhase}",
+                        System.Diagnostics.Activity.Current?.TraceId.ToString(), snapshot.WorkflowId, elapsed, snapshot.State.Status, snapshot.State.FinancialHandoff?.Phase);
+                }
                 if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })
                     await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
                 else if(snapshot.State.CompositionHandoff is not null)
@@ -211,6 +217,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         WorkflowStrategyStateUpdatedEvent snapshot)
     {
+        using var trace = WorkflowTrace.Start("workflow.dispatch", snapshot.State);
         var view = snapshot.State;
         if (view.Status != WorkflowStrategyMachineStatus.Started)
             return;

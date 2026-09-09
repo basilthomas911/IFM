@@ -33,7 +33,10 @@ public sealed class NatsOwnedQueryMessage : IActorMessage
         _replyTo = sourceMessage.ReplyTo;
         _owner = sourceMessage.Data;
         Subject = subject;
+        TraceContext = ActorTrace.Extract(sourceMessage.Headers);
     }
+
+    public System.Diagnostics.ActivityContext TraceContext { get; }
 
     public ActorSubject Subject { get; }
 

@@ -1,0 +1,46 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "MarketDataFeedEvent",
+    "Verb": "StreamingRequestIdDeleted",
+    "EntityId": "1613395031",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "MarketDataFeedEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "MarketDataFeedEvent",
+      "Verb": "StreamingRequestIdDeleted"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "MarketDataFeedEvent",
+      "EntityId": "1613395031",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "MarketDataFeedEvent"
+      }
+    },
+    "StreamId": "Event.MarketDataFeedEvent.1613395031"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "Value": 1613395031,
+    "IsValid": true
+  },
+  "EventId": 501632,
+  "CommandId": "82cb3fb9-a89e-43e8-9628-ac9f3bd34c58",
+  "AggregateId": null,
+  "EventSource": "MarketDataFeedCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "FeedId": {
+    "Value": 1613395031,
+    "IsValid": true
+  },
+  "DeletedOn": "2026-09-02T18:13:05.9263734Z",
+  "DeletedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "StreamingRequestIdDeletedEvent",
+  "EventType": 0
+}

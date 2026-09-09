@@ -1,0 +1,109 @@
+{
+  "Verb": "BackupExecutionRequested",
+  "Subject": {
+    "ActorType": 3,
+    "Name": "DatabaseBackupEvent",
+    "Verb": "BackupExecutionRequested",
+    "EntityId": "946f8b29ae42467bb74b88cd5d3a4b57",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "DatabaseBackupEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "DatabaseBackupEvent",
+      "Verb": "BackupExecutionRequested"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "DatabaseBackupEvent",
+      "EntityId": "946f8b29ae42467bb74b88cd5d3a4b57",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "DatabaseBackupEvent"
+      }
+    },
+    "StreamId": "Event.DatabaseBackupEvent.946f8b29ae42467bb74b88cd5d3a4b57"
+  },
+  "Id": "09427932-10aa-415a-86d8-0f663dbc9c19",
+  "EntityId": {
+    "Value": "946f8b29-ae42-467b-b74b-88cd5d3a4b57"
+  },
+  "EventId": 173536,
+  "CommandId": "946f8b29-ae42-467b-b74b-88cd5d3a4b57",
+  "AggregateId": "946f8b29ae42467bb74b88cd5d3a4b57",
+  "EventSource": "DatabaseBackupCommand",
+  "ReceivedOn": "2026-08-19T15:12:28.3246914Z",
+  "Source": {
+    "ContractVersion": 1,
+    "SourceEventId": "09427932-10aa-415a-86d8-0f663dbc9c19",
+    "OperationId": {
+      "Value": "946f8b29-ae42-467b-b74b-88cd5d3a4b57"
+    },
+    "BackupSetId": null,
+    "Source": 1,
+    "ProtectionSetId": {
+      "Value": "core-postgresql"
+    },
+    "PolicyRevision": 0,
+    "OperationKind": 1,
+    "Phase": 1,
+    "ProducingHostId": null,
+    "SourceRevisionOrSequence": 0,
+    "CorrelationId": "946f8b29-ae42-467b-b74b-88cd5d3a4b57",
+    "CausationId": "00000000-0000-0000-0000-000000000000",
+    "ObservedUtc": "2026-08-19T15:12:28.3246914+00:00"
+  },
+  "Request": {
+    "ContractVersion": 1,
+    "RequestId": "946f8b29-ae42-467b-b74b-88cd5d3a4b57",
+    "CallerIdentity": "CodexSandboxOffline",
+    "AuthorizationReference": "G2-0411B3B6-backup-bootstrap",
+    "CallerRoles": [
+      "DatabaseRecoveryOperator"
+    ],
+    "Origin": 2,
+    "CorrelationId": "946f8b29-ae42-467b-b74b-88cd5d3a4b57",
+    "CausationId": "00000000-0000-0000-0000-000000000000",
+    "EnvironmentIdentity": "development-g2",
+    "CreatedUtc": "2026-08-19T15:12:28.3246914+00:00"
+  },
+  "ProgressPercent": 0,
+  "SafeDiagnosticReference": "",
+  "ArtifactReplica": null,
+  "VerificationLevel": 0,
+  "Outcome": 0,
+  "ErrorClassification": 0,
+  "CutoverState": 0,
+  "CapabilityState": 0,
+  "Statistics": null,
+  "RestorePointId": null,
+  "FreshTarget": null,
+  "Policy": null,
+  "RequiredDestinations": [
+    {
+      "Name": "online-vault",
+      "Required": true
+    }
+  ],
+  "ExpectedStateRevision": 0,
+  "ValidationRevision": 0,
+  "RetentionPlanId": null,
+  "RetentionPlanRevision": 0,
+  "RestoreClass": 0,
+  "EvaluationBoundaryUtc": "0001-01-01T00:00:00+00:00",
+  "PolicyId": null,
+  "ManifestRevision": 0,
+  "BackupLineage": {
+    "RequestedMode": 2,
+    "ResolvedMode": 0,
+    "NativeKind": 0,
+    "BaseRestorePointId": null,
+    "ParentRestorePointId": null,
+    "ChainDepth": 0,
+    "NativeIdentity": ""
+  },
+  "UserName": "DatabaseBackup",
+  "EventName": "DatabaseBackupExecutionRequestedDomainEvent",
+  "EventType": 0
+}

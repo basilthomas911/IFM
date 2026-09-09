@@ -186,7 +186,7 @@ public sealed partial class CompositionBusinessProjectionTests
             c.SearchPath = f.schema + ",public";
             f.db = new TomasAI.IFM.Framework.Storage.Postgres.PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(c.ConnectionString);
             await f.db.OpenAsync();
-            await f.Sql($"CREATE SCHEMA {f.schema}; CREATE TABLE {f.schema}.event_name_id(eventNameId integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,eventName text,eventTypeName text); CREATE TABLE {f.schema}.event_log(eventStreamId bigint,eventNameId integer,eventVersion bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,streamVersion bigint,eventData text,commandId uuid,eventTimestamp text);");
+            await f.Sql($"CREATE SCHEMA {f.schema}; CREATE TABLE {f.schema}.event_name_id(eventNameId integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,eventName text,eventTypeName text); CREATE TABLE {f.schema}.event_log(eventStreamId bigint,eventNameId integer,eventVersion bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,streamVersion bigint,eventPayload bytea NOT NULL,commandId uuid,eventTimestamp text);");
             await f.Sql(PostgresCommittedBusinessEventJournal.CreateTable);
             await f.Sql("CREATE SCHEMA IF NOT EXISTS market_data_service;");
             await f.Sql(Stage4SubscriptionSchemaSql.Create);
@@ -208,8 +208,8 @@ public sealed partial class CompositionBusinessProjectionTests
             name.Parameters.Add(new NpgsqlParameter { Value = value.EventName });
             name.Parameters.Add(new NpgsqlParameter { Value = value.GetType().AssemblyQualifiedName! });
             var nameId = (int)(await name.ExecuteScalarAsync())!;
-            await using var command = new NpgsqlCommand("INSERT INTO event_log(eventStreamId,eventNameId,streamVersion,eventData,commandId,eventTimestamp) VALUES(1,$1,$2,$3,$4,$5) RETURNING eventVersion;", db, transaction);
-            foreach (var arg in new object[] { nameId, version, JsonConvert.SerializeObject(value), Guid.NewGuid(), DateTime.UtcNow.ToString("O") })
+            await using var command = new NpgsqlCommand("INSERT INTO event_log(eventStreamId,eventNameId,streamVersion,eventPayload,commandId,eventTimestamp) VALUES(1,$1,$2,$3,$4,$5) RETURNING eventVersion;", db, transaction);
+            foreach (var arg in new object[] { nameId, version, EventLogMessagePackCodec.Shared.Serialize(value), Guid.NewGuid(), DateTime.UtcNow.ToString("O") })
                 command.Parameters.Add(new NpgsqlParameter { Value = arg });
             var result = (long)(await command.ExecuteScalarAsync())!;
             await transaction.CommitAsync(); return result;

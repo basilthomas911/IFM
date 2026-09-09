@@ -119,7 +119,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 EventName: o.GetString(1),
                 EventTypeName: o.GetString(2),
                 EventVersion: o.GetLong(3),
-                EventData: o.GetString(4),
+                EventData: o.GetBytes(4),
                 CommandId: o.GetGuid(5),
                 EventTimestamp: o.GetString(6),
                 StreamVersion: o.GetLong(7)
@@ -182,7 +182,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 EventName: o.GetString(1),
                 EventTypeName: o.GetString(2),
                 EventVersion: o.GetLong(3),
-                EventData: o.GetString(4),
+                EventData: o.GetBytes(4),
                 CommandId: o.GetGuid(5),
                 EventTimestamp: o.GetString(6),
                 StreamVersion: o.GetLong(7)),
@@ -237,7 +237,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         {
             EventTypeName = o.GetString(2),
             EventVersion = o.GetLong(3),
-            EventData = o.GetString(4),
+            EventData = o.GetBytes(4),
             StreamVersion = o.GetLong(7)
         };
 
@@ -314,7 +314,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                         db,
                         streamId,
                         e.EventNameId,
-                        e.DomainEvent.ToEventData(),
+                        EventLogMessagePackCodec.Shared.Serialize(e.DomainEvent),
                         commandId,
                         eventDate,
                         cancellationToken).ConfigureAwait(false));
@@ -381,7 +381,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                     db,
                     streamId,
                     entry.EventNameId,
-                    entry.DomainEvent.ToEventData(),
+                    EventLogMessagePackCodec.Shared.Serialize(entry.DomainEvent),
                     commandId,
                     eventDate,
                     expectedStreamVersion + index,
@@ -1377,7 +1377,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         IObjectRepository<EventSourceActorDbContext> db,
         long eventStreamId,
         int eventNameId,
-        string eventData,
+        byte[] eventData,
         Guid commandId,
         DateTime eventTimestamp,
         CancellationToken cancellationToken)
@@ -1390,7 +1390,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         IObjectRepository<EventSourceActorDbContext> db,
         long eventStreamId,
         int eventNameId,
-        string eventData,
+        byte[] eventData,
         Guid commandId,
         DateTime eventTimestamp,
         long expectedStreamVersion,
@@ -1494,7 +1494,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         {
             eventStream.EventVersion = o.GetLong(3);
             eventStream.EventTypeName = o.GetString(2);
-            eventStream.EventData = o.GetString(4);
+            eventStream.EventData = o.GetBytes(4);
             return eventStream;
         }
     }
@@ -1570,7 +1570,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         {
             eventStream.EventVersion = o.GetLong(3);
             eventStream.EventTypeName = o.GetString(2);
-            eventStream.EventData = o.GetString(4);
+            eventStream.EventData = o.GetBytes(4);
             return eventStream;
         }
     }

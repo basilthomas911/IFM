@@ -108,7 +108,7 @@ public class PeriodRangeStateRepositoryTests
             {
                 EventVersion = 1,
                 EventTypeName = typeof(FuturesMacdDailySignalGeneratedEvent).AssemblyQualifiedName!,
-                EventData = JsonConvert.SerializeObject(dailyEvent)
+                EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(dailyEvent)
             }
         ]);
 

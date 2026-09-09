@@ -17,4 +17,8 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="EventLogCorpus\v1\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

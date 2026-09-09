@@ -1,0 +1,20 @@
+{
+  "Files": [
+    {
+      "Path": "TomasAI.IFM.Framework.Storage.Benchmarks\\bin\\Release\\net10.0\\TomasAI.IFM.Shared.dll",
+      "Sha256": "fbe02e59eb0cac5516e8aa10c93a8202dd5c3d03e5ebf715ff317acdd5a7854e"
+    },
+    {
+      "Path": "TomasAI.IFM.Framework.Storage.Benchmarks\\bin\\Release\\net10.0\\TomasAI.IFM.Domain.MarketData.Analytics.Shared.dll",
+      "Sha256": "9c4e35f64a2ee5736b1a7b4190467c05020b47bf318021fed00444e7ea4c0324"
+    },
+    {
+      "Path": "TomasAI.IFM.Framework.Storage.Benchmarks\\bin\\Release\\net10.0\\TomasAI.IFM.Framework.Storage.Benchmarks.dll",
+      "Sha256": "dedf9e5d0354c7da9f5eb91176709ff21ee5c6319dfc0c423cd086cd4b7356dd"
+    },
+    {
+      "Path": "TomasAI.IFM.Shared\\EventSourcing\\EventLogMessagePackCodec.cs",
+      "Sha256": "561cc9d918fc650c57cb3a8d78731d0a0d77a942789b7d6f177342362dfeff51"
+    }
+  ]
+}

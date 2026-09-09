@@ -269,7 +269,7 @@ public sealed class EventProjectorRecoveryCoordinatorTests
                 nameof(FundCreatedEvent),
                 typeof(FundCreatedEvent).AssemblyQualifiedName!,
                 eventId,
-                Newtonsoft.Json.JsonConvert.SerializeObject(sourceEvent),
+                TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(sourceEvent),
                 Guid.NewGuid(),
                 $"{nowUtc:o}"),
             new EventProjectorExecutionStateReadModel(

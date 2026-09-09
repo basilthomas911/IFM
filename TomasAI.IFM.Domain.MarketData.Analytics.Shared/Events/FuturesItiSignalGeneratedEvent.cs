@@ -73,12 +73,13 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
         EntityId = entityId;
         EventId = eventId;
         CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
+        // Preserve the serialized metadata, including null, when nested in event-log snapshots.
+        AggregateId = aggregateId;
+        EventSource = eventSource;
         ReceivedOn = receivedOn;
         FuturesItiSignal = futuresItiSignal;
         CreatedOn = createdOn;
-        CreatedBy = createdBy ?? string.Empty;
+        CreatedBy = createdBy;
         VixFuturesPrice = vixFuturesPrice;
         DeriveLongerPeriods = deriveLongerPeriods;
     }

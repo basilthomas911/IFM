@@ -55,7 +55,10 @@ public static class RiskPreparation
             Funding=EmulatorMarginModel.Quote(parameters,candidate,financial.ExecutionAccountReference,financial.Environment,now,expiry)
         };
         request=request with { InputSha256=request.Fingerprint() };
-        RiskUnitModel.Require(new List<ValidationError>().ValidateRiskFields(request).Count==0,"RM.PREPARATION.INVALID");
+        var validation = new List<ValidationError>().ValidateRiskFields(request);
+        RiskUnitModel.Require(validation.Count == 0,
+            validation.Count == 0 ? "RM.PREPARATION.INVALID" :
+                $"RM.PREPARATION.INVALID:{string.Join(',', validation.Select(x => x.ErrorMessage))}");
         return request;
     }
 }

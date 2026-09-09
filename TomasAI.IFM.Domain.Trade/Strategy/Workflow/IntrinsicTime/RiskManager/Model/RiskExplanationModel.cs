@@ -19,6 +19,7 @@ public static class RiskExplanationModel
             || market.EventRiskState == AssessmentEventContext.Elevated || market.InheritedRestrictions.Any(x => x != RegimeRestriction.None)
             || regime.Restrictions.Any(x => x != RegimeRestriction.None) ? .5m : 1m;
         var candidate = input.CompositionResult.ReadCompositionResult().Candidate!;
+        var latency = RiskLatency.Measure(input);
         var quantities = ImmutableArray.CreateBuilder<RiskQuantityCheck>();
         if (result.UnitRisk is not null)
         {
@@ -33,7 +34,10 @@ public static class RiskExplanationModel
             AvailableCash = input.SizingAuthority.AvailableCash,
             EffectiveLossBudget = Math.Min(input.SizingAuthority.PerTradeLossBudget, input.SizingAuthority.RiskCapital * input.Policy.PerTradeRiskFraction) * multiplier,
             MarketMultiplier = multiplier, Limits = input.SizingAuthority.Limits, Quantities = quantities.ToImmutable(),
-            Conditions = [.. result.Reasons, $"Session: {market.SessionState}", $"Liquidity: {market.LiquidityCondition}",
+            Conditions = [.. result.Reasons,
+                FormattableString.Invariant($"Candidate age: {latency.CandidateAgeMilliseconds:F1} ms"),
+                latency.OldestQuoteAgeMilliseconds is { } quoteAge ? FormattableString.Invariant($"Oldest quote age: {quoteAge:F1} ms") : "Oldest quote age: unavailable",
+                latency.AgeLimitEnforced ? "Latency policy: production age limit" : "Latency policy: observation only", $"Session: {market.SessionState}", $"Liquidity: {market.LiquidityCondition}",
                 $"Stress: {market.StressState}", $"Event risk: {market.EventRiskState}", $"Volatility: {market.VolatilityBehavior}",
                 .. market.InheritedRestrictions.Select(x => $"Assessment restriction: {x}"), .. regime.Restrictions.Select(x => $"Regime restriction: {x}")]
         };

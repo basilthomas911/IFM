@@ -27,6 +27,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             "OC.CONFIG.CAPABILITY_UNSUPPORTED");
         var snapshot = c.MarketSnapshot;
         ValidateSnapshot(snapshot, c, rule.BaseParameters);
+        var enforceAge = RiskManager.Model.RiskLatency.EnforcesCompositionAgeLimit(c);
         var valuations = new Dictionary<string, CompositionValuation>(StringComparer.Ordinal);
         // Every required instrument is priced before ranking. A solver failure cannot silently reduce scope.
         foreach (var item in snapshot.Instruments.Where(x => x.Instrument.Pricing is not null))
@@ -61,7 +62,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         {
             token.ThrowIfCancellationRequested();
             Require(++generated <= 4096, "OC.CALCULATION.LIMIT");
-            var (candidate, ranking, reason) = Build(c, resolved, rule, legs, valuations);
+            var (candidate, ranking, reason) = Build(c, resolved, rule, legs, valuations, enforceAge);
             if (candidate is null)
             {
                 rejected[reason!] = rejected.GetValueOrDefault(reason!) + 1;
@@ -109,7 +110,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
 
     (CompositionCandidate? Candidate, CompositionRanking? Ranking, string? Reason) Build(
         ExecuteOrderCompositionPipelineCommand c, CompositionResolvedParameters resolved, CompositionVariantRules rule,
-        (CompositionInstrumentSnapshot Instrument, int Sign)[] input, Dictionary<string, CompositionValuation> values)
+        (CompositionInstrumentSnapshot Instrument, int Sign)[] input, Dictionary<string, CompositionValuation> values, bool enforceAge)
     {
         static (CompositionCandidate?, CompositionRanking?, string) Reject(string code) => (null, null, "OC.CANDIDATE." + code);
         var p = resolved.Values; var intent = c.CompositionBinding.Selected;
@@ -177,12 +178,14 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             : new CompositionRisk { RiskBound = "Unbounded", Notional = Math.Abs(limit) * multiplier,
                 PlannedLoss = p.FuturesPlannedDistance * multiplier + cost, StressLoss = p.FuturesStressDistance * multiplier + cost };
         if (option && (risk.MaximumLoss <= 0 || risk.MaximumProfit <= 0 || risk.PayoffRewardToRisk < p.MinimumRewardToRisk)) return Reject("PAYOFF");
+        // A development/paper Risk binding observes quote age through the handoff.
+        // Keep explicit snapshot/order lifetimes; do not turn the quote-age threshold into another deadline.
         var valid = new[] { c.ExpiresAtUtc, c.SelectionBinding.ValidUntilUtc, c.CompositionBinding.ValidUntilUtc,
             c.Reservation.Order.ExpiresAtUtc, c.MarketSnapshot.ValidUntilUtc.UtcDateTime,
             c.EvaluatedAtUtc.AddMilliseconds(p.CandidateLifetimeMilliseconds), expiration,
             instruments.Min(x => x.Pricing?.Contract.LastTradingUtc.UtcDateTime ?? x.FutureDefinition!.LastTradingUtc.UtcDateTime),
-            instruments.Min(x => x.Quote.EventAtUtc.UtcDateTime.AddMilliseconds(p.MaximumQuoteAgeMilliseconds)),
-            instruments.Min(x => (x.Underlying ?? x.Quote).EventAtUtc.UtcDateTime.AddMilliseconds(p.MaximumQuoteAgeMilliseconds)),
+            enforceAge ? instruments.Min(x => x.Quote.EventAtUtc.UtcDateTime.AddMilliseconds(p.MaximumQuoteAgeMilliseconds)) : DateTime.MaxValue,
+            enforceAge ? instruments.Min(x => (x.Underlying ?? x.Quote).EventAtUtc.UtcDateTime.AddMilliseconds(p.MaximumQuoteAgeMilliseconds)) : DateTime.MaxValue,
             instruments.Min(x => x.Pricing?.ValidUntilUtc.UtcDateTime ?? DateTime.MaxValue) }.Min();
         if (valid <= c.EvaluatedAtUtc) return Reject("NO_VALIDITY_REMAINING");
         var legs = input.Select((x, i) => new CompositionLeg

@@ -1,0 +1,57 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "IntrinsicTimeStrategyWorkflow",
+    "Verb": "StartRejected",
+    "EntityId": "IntrinsicTimeStrategy.ES-ITSW-253ae262-BUSY.20260825.Daily",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "IntrinsicTimeStrategyWorkflow"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "IntrinsicTimeStrategyWorkflow",
+      "Verb": "StartRejected"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "IntrinsicTimeStrategyWorkflow",
+      "EntityId": "IntrinsicTimeStrategy.ES-ITSW-253ae262-BUSY.20260825.Daily",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "IntrinsicTimeStrategyWorkflow"
+      }
+    },
+    "StreamId": "Event.IntrinsicTimeStrategyWorkflow.IntrinsicTimeStrategy.ES-ITSW-253ae262-BUSY.20260825.Daily"
+  },
+  "Id": "b0469a5a-771a-44d8-bfc3-6b5694035019",
+  "EntityId": {
+    "WorkflowDefinitionId": "IntrinsicTimeStrategy",
+    "ItiSignalEntityId": {
+      "ContractId": "ES-ITSW-253ae262-BUSY",
+      "ValueDate": "2026-08-25",
+      "TimePeriod": 1
+    }
+  },
+  "EventId": 237983,
+  "CommandId": "c1c2caf3-4920-44f1-a75b-c1f75d94b4d6",
+  "AggregateId": "",
+  "EventSource": "IntrinsicTimeStrategyWorkflowCommandActor",
+  "ReceivedOn": "2026-08-28T00:03:01.3076727Z",
+  "RequestedWorkflowId": {
+    "Value": "01a045ad-501b-72d9-90fb-bab86a6be3f9"
+  },
+  "ActiveWorkflowId": {
+    "Value": "01a045ad-4b51-791f-8832-55a29395e8e4"
+  },
+  "ActiveWorkflowRevision": 2,
+  "CorrelationId": "9eeb46fb-d663-46f2-ab1b-781bcdcfb3c9",
+  "CausationId": "c1c2caf3-4920-44f1-a75b-c1f75d94b4d6",
+  "ActiveStage": 2,
+  "TriggerEventId": "c1c2caf3-4920-44f1-a75b-c1f75d94b4d6",
+  "ReasonCode": "ActiveWorkflowExists",
+  "RejectedAtUtc": "2026-08-28T00:03:01.2738054Z",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "StrategyWorkflowStartRejectedEvent",
+  "EventType": 0
+}

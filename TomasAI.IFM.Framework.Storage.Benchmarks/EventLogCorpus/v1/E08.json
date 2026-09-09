@@ -1,0 +1,58 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesContractEvent",
+    "Verb": "Added",
+    "EntityId": "ES20251010.ES.20261202",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesContractEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesContractEvent",
+      "Verb": "Added"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesContractEvent",
+      "EntityId": "ES20251010.ES.20261202",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesContractEvent"
+      }
+    },
+    "StreamId": "Event.FuturesContractEvent.ES20251010.ES.20261202"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ES20251010",
+    "Symbol": "ES",
+    "MaturityDate": "2026-12-02",
+    "IsVxContract": false
+  },
+  "EventId": 492176,
+  "CommandId": "d74df42a-8fcb-4933-a7ec-3ed49fa605b3",
+  "AggregateId": null,
+  "EventSource": "FuturesContractCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "Contract": {
+    "ContractId": "ES20251010",
+    "Description": "Test Futures Contract",
+    "Symbol": "ES",
+    "LocalSymbol": "ESH25",
+    "SecurityType": "FUT",
+    "Currency": "USD",
+    "Exchange": "CME",
+    "Multiplier": "50",
+    "LastTradeDate": "2026-12-02",
+    "OnTheRun": true,
+    "Rollover": true,
+    "IsValid": true
+  },
+  "CreatedOn": "2026-09-02T16:07:24.4478172Z",
+  "CreatedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesContractAddedEvent",
+  "EventType": 0
+}

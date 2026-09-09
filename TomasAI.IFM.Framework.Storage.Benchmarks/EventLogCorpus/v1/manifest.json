@@ -1,0 +1,189 @@
+{
+  "Version": 1,
+  "Source": "Local synthetic integration-test event store; EventId normalized to persisted version",
+  "Events": [
+    {
+      "Id": "E01",
+      "File": "E01.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedEvent, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 179884,
+      "Utf8Bytes": 1103,
+      "Sha256": "678726f92e72cbc4eb5823b29b6adcc08bcc8f79de7d252b1288fe155403d78d",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E02",
+      "File": "E02.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedEvent, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 174821,
+      "Utf8Bytes": 1169,
+      "Sha256": "423f7b2f9acb925d7a36d414b0691652ec0d7da0fddce1d5353d78555e93b4f0",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E03",
+      "File": "E03.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 501632,
+      "Utf8Bytes": 1242,
+      "Sha256": "74aaea69a5ae70b8028621cb39a79018e1b7d1781dac0813296a68ac5c6933a7",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E04",
+      "File": "E04.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 501645,
+      "Utf8Bytes": 1321,
+      "Sha256": "62d32eddddccacf8c591685cce143bf17901b9ca00bf4e0aa35ec07024f479c7",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E05",
+      "File": "E05.json",
+      "Type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedEvent, TomasAI.IFM.Domain.Reference.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 180026,
+      "Utf8Bytes": 1367,
+      "Sha256": "3bd2855d694285846c54e7860e593600cedf28efeb371c1af7ace4e61d1dabf6",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E06",
+      "File": "E06.json",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 268895,
+      "Utf8Bytes": 1427,
+      "Sha256": "06f4d9c8e8f36473350b805a83054003d63a20d5690bb1aa81751651085da895",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E07",
+      "File": "E07.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalStoppedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 181640,
+      "Utf8Bytes": 1511,
+      "Sha256": "1a423c42939444680c379a038c4f2f827d4aafa017cf3d617b61ad5ccd0eeb23",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E08",
+      "File": "E08.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedEvent, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 492176,
+      "Utf8Bytes": 1596,
+      "Sha256": "4795f2d46ee3b2ca8c63b068172a0fc9acfc71700145bd9a3fbe13bb964bb843",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E09",
+      "File": "E09.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedEvent, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 181106,
+      "Utf8Bytes": 1744,
+      "Sha256": "95c16d9174fd614c4c5bb6b0cc65265b7c43abddd70e0c935fecef6572e93863",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E10",
+      "File": "E10.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 856437,
+      "Utf8Bytes": 1882,
+      "Sha256": "417f62e3d024126e09bbc6eda1b8e557d7a83d9d004588ca22f9edb783fbd161",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E11",
+      "File": "E11.json",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowStartRejectedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 237983,
+      "Utf8Bytes": 1922,
+      "Sha256": "bbf89d520815e2b396575dc2b06cb2e3322f41df1c00483c14369b0a67978541",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E12",
+      "File": "E12.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 501638,
+      "Utf8Bytes": 2135,
+      "Sha256": "d4e74cd7b5164d921b30a70c8d8a2a0b8f4ba837e8b60245e52bba3919005971",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E13",
+      "File": "E13.json",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementResultRecordedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 237993,
+      "Utf8Bytes": 2279,
+      "Sha256": "9a9f0fdb3dabb552cfae1b5db5a43f23b124f7c3512eb313f81f24c163cb4260",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E14",
+      "File": "E14.json",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationStartedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 174076,
+      "Utf8Bytes": 2666,
+      "Sha256": "25b916b1063fb5d3c19c7993d38c65c0234e6c68fd7e17360037fed1254ab445",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E15",
+      "File": "E15.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 989360,
+      "Utf8Bytes": 2811,
+      "Sha256": "be8662cd7550acea1cc0b9a7776d8cd95625ae986698472403737c1d28278f40",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E16",
+      "File": "E16.json",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupExecutionRequestedDomainEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 173536,
+      "Utf8Bytes": 3217,
+      "Sha256": "26bc34f617cdfc172a7ea665e3c7cac80514f659db724e0d685d0b3d20e0cfe6",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E17",
+      "File": "E17.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 836089,
+      "Utf8Bytes": 4648,
+      "Sha256": "696e46cff039431c918faf0ffa654b0d0ec849fe8e73fdd79cbc390e48491004",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E18",
+      "File": "E18.json",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 255867,
+      "Utf8Bytes": 9821,
+      "Sha256": "b11fdc57acf5910fa11cca03437e25c8c9c364933a9536586b7bf074c921c6ee",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E19",
+      "File": "E19.json",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentCompletedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 1020748,
+      "Utf8Bytes": 21059,
+      "Sha256": "b6910a5b79e9189c6c06326f98277749c5b267529961fd0b2526c4e1bbfca875",
+      "VolatileDiagnostics": []
+    },
+    {
+      "Id": "E20",
+      "File": "E20.json",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "EventVersion": 1026720,
+      "Utf8Bytes": 3557103,
+      "Sha256": "e07f9ae6af975c875253d16a34fe0418e9e1cfcae6b16945090699299b31ef5a",
+      "VolatileDiagnostics": [
+        "State.CompositionDispatch.OriginatedOn",
+        "State.CompositionDispatch.OriginatedBy"
+      ]
+    }
+  ]
+}

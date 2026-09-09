@@ -181,6 +181,7 @@ sealed class ActorThreadV2(
                     try
                     {
                         _state = ActorThreadState.ProcessingMessage;
+                        using var trace = ActorTrace.Start(message!);
                         await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
                         ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
                     }

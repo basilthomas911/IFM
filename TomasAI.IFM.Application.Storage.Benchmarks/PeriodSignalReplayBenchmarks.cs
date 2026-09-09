@@ -1,6 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
@@ -50,7 +49,7 @@ public class PeriodSignalReplayBenchmarks
         if (descriptor.SnapshotRow is not null)
             _unboundedRows[0] = descriptor.SnapshotRow;
 
-        var noiseJson = JsonConvert.SerializeObject(new FuturesRsiSignalStoppedEvent
+        var noisePayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent
         {
             EntityId = RsiEntityId,
             StoppedOn = DateTime.UtcNow,
@@ -61,7 +60,7 @@ public class PeriodSignalReplayBenchmarks
             var version = (index * 2) + snapshotOffset + 1;
             _unboundedRows[(index * 2) + snapshotOffset] = descriptor.CreateEventRow(version);
             _unboundedRows[(index * 2) + snapshotOffset + 1] =
-                Row<FuturesRsiSignalStoppedEvent>(version + 1, noiseJson);
+                Row<FuturesRsiSignalStoppedEvent>(version + 1, noisePayload);
         }
 
         _typedRangeRows = new EventStreamReadModel[LastNRange + snapshotOffset];
@@ -96,7 +95,7 @@ public class PeriodSignalReplayBenchmarks
                     CreatedBy = "benchmark"
                 },
                 ReplayRsi,
-                Row<FuturesRsiSignalStartedEvent>(0, JsonConvert.SerializeObject(new FuturesRsiSignalStartedEvent
+                Row<FuturesRsiSignalStartedEvent>(0, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStartedEvent
                 {
                     EntityId = RsiEntityId,
                     StartedOn = DateTime.UtcNow,
@@ -172,8 +171,9 @@ public class PeriodSignalReplayBenchmarks
         TEvent @event,
         Func<EventStreamReadModel[], object> replay,
         EventStreamReadModel? snapshotRow = null)
+        where TEvent : TomasAI.IFM.Shared.EventSourcing.IEvent
         => new(
-            version => Row<TEvent>(version, JsonConvert.SerializeObject(@event)),
+            version => Row<TEvent>(version, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(@event)),
             replay,
             snapshotRow);
 
@@ -205,7 +205,7 @@ public class PeriodSignalReplayBenchmarks
         return state;
     }
 
-    static EventStreamReadModel Row<TEvent>(long version, string eventData)
+    static EventStreamReadModel Row<TEvent>(long version, byte[] eventData)
         => new()
         {
             EventVersion = version,

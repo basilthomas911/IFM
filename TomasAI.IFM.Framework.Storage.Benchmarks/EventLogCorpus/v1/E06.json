@@ -1,0 +1,54 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "OptionTradeEvent",
+    "Verb": "SpreadBarDataInserted",
+    "EntityId": "106.7",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "OptionTradeEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "OptionTradeEvent",
+      "Verb": "SpreadBarDataInserted"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "OptionTradeEvent",
+      "EntityId": "106.7",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "OptionTradeEvent"
+      }
+    },
+    "StreamId": "Event.OptionTradeEvent.106.7"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "OrderId": 106,
+    "TradeId": 7,
+    "IsValid": true
+  },
+  "EventId": 268895,
+  "CommandId": "a2f76b7d-a9c2-41d5-92c2-8472bc9353b6",
+  "AggregateId": null,
+  "EventSource": "OptionTradeCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "OptionTradeSpreadBarData": {
+    "OrderId": 106,
+    "TradeId": 7,
+    "ValueDate": "2025-01-15",
+    "TradeType": 5,
+    "BarDate": "2026-08-29T17:47:12.757054Z",
+    "LossLimit": 1.0,
+    "WinLimit": 2.0,
+    "ForwardSpread": 1.5,
+    "NetSpread": 1.25
+  },
+  "InsertedOn": "2026-08-29T17:47:12.8198949Z",
+  "InsertedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "OptionTradeSpreadBarDataInsertedEvent",
+  "EventType": 0
+}

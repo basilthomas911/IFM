@@ -18,6 +18,9 @@ public interface IActorMessage : IDisposable
     /// </summary>
     bool CanReply => false;
 
+    /// <summary>Optional transport context, independent of the payload lifetime.</summary>
+    System.Diagnostics.ActivityContext TraceContext => default;
+
     /// <summary>Serialized payload bytes charged to aggregate admission accounting.</summary>
     int AdmissionSizeBytes => 0;
 

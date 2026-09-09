@@ -1,0 +1,74 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesOptionTickDataEvent",
+    "Verb": "StreamingStarted",
+    "EntityId": "ES20251219P5400.20260902",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesOptionTickDataEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesOptionTickDataEvent",
+      "Verb": "StreamingStarted"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesOptionTickDataEvent",
+      "EntityId": "ES20251219P5400.20260902",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesOptionTickDataEvent"
+      }
+    },
+    "StreamId": "Event.FuturesOptionTickDataEvent.ES20251219P5400.20260902"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ES20251219P5400",
+    "ValueDate": "2026-09-02",
+    "IsValid": true
+  },
+  "EventId": 501638,
+  "CommandId": "46b204a4-84d5-4189-a1f1-dcf4fe3a82f8",
+  "AggregateId": null,
+  "EventSource": "FuturesOptionTickDataCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "Contract": {
+    "ContractId": "ES20251219P5400",
+    "Description": "E-mini S&P 500 Dec 2025 Put 5400",
+    "Symbol": "ES",
+    "LocalSymbol": "ESZ5 P5400",
+    "SecurityType": "FOP",
+    "Currency": "USD",
+    "Exchange": "CME",
+    "Multiplier": "50",
+    "ContractMonth": "2025-12-01",
+    "StrikePrice": 5400.0,
+    "OptionType": "Put",
+    "IsValid": true
+  },
+  "BaseContract": {
+    "ContractId": "ES20251010",
+    "Description": "E-mini S&P 500 Dec 2025",
+    "Symbol": "ES",
+    "LocalSymbol": "ESZ5",
+    "SecurityType": "FUT",
+    "Currency": "USD",
+    "Exchange": "CME",
+    "Multiplier": "50",
+    "LastTradeDate": "2025-12-19",
+    "OnTheRun": true,
+    "Rollover": true,
+    "IsValid": true
+  },
+  "ValueDate": "2026-09-02",
+  "MaturityDate": "2025-12-19",
+  "RiskFreeRate": 0.05,
+  "StartedOn": "2026-09-02T18:13:10.6478369Z",
+  "StartedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesOptionTickDataStreamingStartedEvent",
+  "EventType": 0
+}

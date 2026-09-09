@@ -169,7 +169,7 @@ public sealed class FundEventProjectorTests
             EventName: nameof(FundCreatedEvent),
             EventTypeName: typeof(FundCreatedEvent).AssemblyQualifiedName!,
             EventVersion: eventId,
-            EventData: Newtonsoft.Json.JsonConvert.SerializeObject(sourceEvent),
+            EventData: TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(sourceEvent),
             CommandId: Guid.NewGuid(),
             EventTimestamp: $"{DateTime.UtcNow:o}");
         dbEventSource.GetUncompletedEventProjectorEventsAsync(
@@ -225,7 +225,7 @@ public sealed class FundEventProjectorTests
                     EventName: nameof(FundCreatedEvent),
                     EventTypeName: typeof(FundCreatedEvent).AssemblyQualifiedName!,
                     EventVersion: eventId,
-                    EventData: Newtonsoft.Json.JsonConvert.SerializeObject(sourceEvent),
+                    EventData: TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(sourceEvent),
                     CommandId: Guid.NewGuid(),
                     EventTimestamp: $"{DateTime.UtcNow:o}")
             ]);
@@ -838,7 +838,7 @@ public sealed class FundEventProjectorTests
                 nameof(FundCreatedEvent),
                 typeof(FundCreatedEvent).AssemblyQualifiedName!,
                 source.EventId,
-                source.ToEventData(),
+                TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(source),
                 source.CommandId,
                 $"{DateTime.UtcNow:o}"));
         eventSource.TryRetryEventProjectorExecutionAsync(
@@ -900,7 +900,7 @@ public sealed class FundEventProjectorTests
                 nameof(FundCreatedEvent),
                 typeof(FundCreatedEvent).AssemblyQualifiedName!,
                 eventId,
-                Newtonsoft.Json.JsonConvert.SerializeObject(sourceEvent),
+                TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(sourceEvent),
                 Guid.NewGuid(),
                 $"{nowUtc:o}"),
             new EventProjectorExecutionStateReadModel(

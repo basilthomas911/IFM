@@ -29,7 +29,7 @@ public static class RiskUnitModel
 
     /// <summary>Adapts only the candidate's exact contracts from its original immutable market snapshot.</summary>
     public static ImmutableArray<RiskLegInput> ReadLegs(CompositionCandidate candidate,
-        MarketCompositionSnapshot snapshot, DateTime evaluatedAtUtc)
+        MarketCompositionSnapshot snapshot, DateTime evaluatedAtUtc, string environment = "Production")
     {
         Require(candidate.CandidateHash == CompositionHash.Candidate(candidate)
             && candidate.SnapshotHash == snapshot.Digest
@@ -38,7 +38,7 @@ public static class RiskUnitModel
             && candidate.Legs.Length is 1 or 2 or 4 && snapshot.Instruments.Length <= 10000, "RM.INPUT.CANDIDATE");
         Require(evaluatedAtUtc.Kind == DateTimeKind.Utc && candidate.EvaluatedAtUtc <= evaluatedAtUtc
             && candidate.ValidUntilUtc > evaluatedAtUtc && snapshot.ValidUntilUtc.UtcDateTime > evaluatedAtUtc
-            && (evaluatedAtUtc - candidate.EvaluatedAtUtc).TotalMilliseconds <= 1000, "RM.INPUT.STALE");
+            && RiskLatency.WithinAgeLimit(environment, evaluatedAtUtc, candidate.EvaluatedAtUtc), "RM.INPUT.STALE");
         Require(candidate.ExecutionEnvelope.OrderType == "Limit" && candidate.ExecutionEnvelope.TimeInForce == "Day"
             && !candidate.ExecutionEnvelope.AllowLegging && !candidate.ExecutionEnvelope.AllowMarketEscalation
             && candidate.ExecutionEnvelope.WorstSignedDebit == candidate.Pricing.WorstDebit
@@ -56,7 +56,7 @@ public static class RiskUnitModel
             Require(leg.Quote == instrument.Quote && leg.Side is "Buy" or "Sell" && leg.Ratio is > 0 and <= 100,
                 "RM.INPUT.LEG");
             Require(instrument.Quote.GenerationId == snapshot.GenerationId, "RM.INPUT.GENERATION");
-            ValidateQuote(instrument.Quote, evaluatedAtUtc);
+            ValidateQuote(instrument.Quote, evaluatedAtUtc, environment);
             int signedRatio = leg.Side == "Buy" ? leg.Ratio : -leg.Ratio;
             if (leg.InstrumentClass == "Futures")
             {
@@ -89,7 +89,7 @@ public static class RiskUnitModel
                 && pricing.ValidUntilUtc.UtcDateTime > evaluatedAtUtc
                 && pricing.GenerationId == snapshot.GenerationId && instrument.Underlying!.GenerationId == snapshot.GenerationId,
                 "RM.INPUT.OPTION_DEFINITION");
-            ValidateQuote(instrument.Underlying!, evaluatedAtUtc);
+            ValidateQuote(instrument.Underlying!, evaluatedAtUtc, environment);
             Require(Math.Abs((instrument.Quote.EventAtUtc - instrument.Underlying!.EventAtUtc).TotalMilliseconds) <= 250,
                 "RM.INPUT.QUOTE_SKEW");
             // Recalculate from the frozen quotes and conventions; a self-consistent candidate hash is not pricing evidence.
@@ -169,10 +169,10 @@ public static class RiskUnitModel
             legs.Sum(x => x.SignedRatio * x.Theta * x.Multiplier) / 365m, count);
     }
 
-    static void ValidateQuote(OptionPricingQuote quote, DateTime at) => Require(quote.Bid >= 0 && quote.Ask >= quote.Bid
+    static void ValidateQuote(OptionPricingQuote quote, DateTime at, string environment) => Require(quote.Bid >= 0 && quote.Ask >= quote.Bid
         && quote.BidSize > 0 && quote.AskSize > 0 && quote.EventAtUtc.UtcDateTime <= at
         && quote.ReceivedAtUtc >= quote.EventAtUtc && quote.ReceivedAtUtc.UtcDateTime <= at
-        && (at - quote.EventAtUtc.UtcDateTime).TotalMilliseconds <= 1000, "RM.INPUT.QUOTE");
+        && RiskLatency.WithinAgeLimit(environment, at, quote.EventAtUtc.UtcDateTime), "RM.INPUT.QUOTE");
     static decimal Mid(OptionPricingQuote quote) => (quote.Bid + quote.Ask) / 2m;
     static decimal Intrinsic(decimal price, decimal strike, bool call) => Math.Max(0, call ? price - strike : strike - price);
     static decimal Normalize(double value)

@@ -70,7 +70,7 @@ public static class RiskResizing
         var candidate = previous.CompositionResult.ReadCompositionResult().Candidate!;
         // Re-sizing never buys a new quote lifetime, a new authority epoch, or a later deadline.
         if (now >= previous.ExpiresAtUtc || now >= view.ExpiresAtUtc
-            || now - candidate.EvaluatedAtUtc > TimeSpan.FromMilliseconds(1000))
+            || !RiskLatency.WithinAgeLimit(previous.SizingAuthority.Environment, now, candidate.EvaluatedAtUtc))
             return Stop(view, now, true, "RM.TIME.EXPIRED");
         if (previous.EntityId.AttemptOrdinal >= MaximumAttempts)
             return Stop(view, now, false, "RM.CAPACITY.CONTENTION_EXHAUSTED");

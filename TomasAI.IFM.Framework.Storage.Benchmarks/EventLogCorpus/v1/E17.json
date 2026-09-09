@@ -1,0 +1,146 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesAtrSignalEvent",
+    "Verb": "SignalGenerated",
+    "EntityId": "ES20260918.20260904.FifteenSeconds.14",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesAtrSignalEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesAtrSignalEvent",
+      "Verb": "SignalGenerated"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesAtrSignalEvent",
+      "EntityId": "ES20260918.20260904.FifteenSeconds.14",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesAtrSignalEvent"
+      }
+    },
+    "StreamId": "Event.FuturesAtrSignalEvent.ES20260918.20260904.FifteenSeconds.14"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ES20260918",
+    "ValueDate": "2026-09-04",
+    "TimePeriod": 6,
+    "PeriodLength": 14
+  },
+  "EventId": 836089,
+  "CommandId": "ae1d2afe-90c9-48a0-98a2-5cd9f4368d2d",
+  "AggregateId": null,
+  "EventSource": "FuturesAtrSignalCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "FuturesAtrSignal": {
+    "ContractId": "ES20260918",
+    "ValueDate": "2026-09-04",
+    "TimePeriod": 6,
+    "PeriodLength": 14,
+    "Timestamp": "11:17:01.7598161",
+    "FuturesPrice": 7758.75,
+    "AtrValue": 0.24827465292669035,
+    "TrueRange": 0.25,
+    "ATR": 2,
+    "ATRStrength": 1,
+    "Metadata": {
+      "SignalKey": {
+        "MarketSeriesIdentity": {
+          "Kind": 2,
+          "ContractId": "",
+          "FuturesSeriesId": {
+            "RootSymbol": "ES",
+            "RollRuleId": "calendar-front",
+            "AdjustmentRuleId": "unadjusted",
+            "Revision": 1
+          }
+        },
+        "SignalKind": 3,
+        "TimeFrame": 6,
+        "CalculationConfigurationId": "atr-14-wilder-v1"
+      },
+      "ContractId": "ES20260918",
+      "ValueDate": "2026-09-04",
+      "ObservationId": {
+        "Value": "febd0aa3-ae70-c9ef-b7dd-b401f799a9f2"
+      },
+      "MarketDataAsOfUtc": "2026-09-04T11:17:01.7598161+00:00",
+      "CalculatedAtUtc": "2026-09-04T11:17:14.9401917+00:00",
+      "SourceSequence": 38460673,
+      "SchemaVersion": 2,
+      "CalculationVersion": "atr-wilder-ohlc-v1",
+      "CalculationMethod": 2,
+      "IsValid": true,
+      "ValidationIssues": [],
+      "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+      "MarketSeriesIdentity": {
+        "Kind": 2,
+        "ContractId": "",
+        "FuturesSeriesId": {
+          "RootSymbol": "ES",
+          "RollRuleId": "calendar-front",
+          "AdjustmentRuleId": "unadjusted",
+          "Revision": 1
+        }
+      },
+      "FuturesSeriesId": {
+        "RootSymbol": "ES",
+        "RollRuleId": "calendar-front",
+        "AdjustmentRuleId": "unadjusted",
+        "Revision": 1
+      },
+      "TimeFrame": 6,
+      "CalculationConfigurationId": "atr-14-wilder-v1"
+    },
+    "PreviousAtrValue": 0.24814193392105113,
+    "AtrBaseline": 0.29267409559843477,
+    "AtrRatio": 0.8482973268236799,
+    "IsWarm": true
+  },
+  "AtrSignalSource": 0,
+  "CreatedOn": "2026-09-04T11:17:15.9613904Z",
+  "CreatedBy": "DEV-SERVER\\basil",
+  "CalculationState": {
+    "PeriodLength": 14,
+    "PreviousClose": 7758.75,
+    "SeedTrueRanges": [],
+    "CurrentAtr": 0.2482746529266903384955868581,
+    "CompletedAtrValues": [
+      0.3573023045318912390112973212,
+      0.3496378542081847219390617983,
+      0.3246637217647429560862716698,
+      0.3193305987815470306515379791,
+      0.3143784131542936713192852663,
+      0.3097799550718441233679077473,
+      0.3055099582809981145559143368,
+      0.3015449612609268206590633127,
+      0.2800060354565749048977016475,
+      0.2778627472096766974050086727,
+      0.2758725509804140761617937675,
+      0.2561673687675273564359513555,
+      0.2557268424269896881190976872,
+      0.2731749251107761389677335667,
+      0.2715195733171492718986097405,
+      0.2699824609373528953344233305,
+      0.2685551422989705456676788069,
+      0.2672297749919012209771303207,
+      0.2481419339210511337644781549,
+      0.2482746529266903384955868581
+    ],
+    "LastObservationId": {
+      "Value": "febd0aa3-ae70-c9ef-b7dd-b401f799a9f2"
+    },
+    "LastSourceSequence": 38460673,
+    "LastMarketEventUtc": "2026-09-04T11:17:01.7598161+00:00",
+    "ObservationCount": 1733,
+    "LastIntervalEndUtc": "2026-09-04T11:17:15+00:00",
+    "LastStreamEpochId": "7a4c4ab5-cc16-4d88-be77-7b0baf51f93d"
+  },
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesAtrSignalGeneratedEvent",
+  "EventType": 0
+}

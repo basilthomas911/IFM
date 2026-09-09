@@ -46,7 +46,7 @@ public sealed class RiskEvaluator : IRiskEvaluator
             || assessment.ConditionType == AssessmentCondition.Dislocated || assessment.VolatilityBehavior == AssessmentVolatility.Shock
             || assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade) || regime.Restrictions.Contains(RegimeRestriction.NoNewTrade))
             return result with { Reasons=["RM.MARKET.NEW_ENTRY_BLOCKED"] };
-        var legs = RiskUnitModel.ReadLegs(candidate, c.MarketSnapshot, c.EvaluatedAtUtc);
+        var legs = RiskUnitModel.ReadLegs(candidate, c.MarketSnapshot, c.EvaluatedAtUtc, c.SizingAuthority.Environment);
         RiskUnitModel.Require(legs.All(x => x.UnderlyingId == candidate.Legs[0].UnderlyingInstrumentId) &&
             c.SizingAuthority.UnderlyingId==FinancialScopeKeys.Underlying(candidate.Product.Symbol,candidate.Product.Exchange,candidate.Product.Currency), "RM.INPUT.UNDERLYING");
         var unit = RiskUnitModel.Calculate(legs, candidate.Pricing.WorstDebit, candidate.Pricing.CostReserve,

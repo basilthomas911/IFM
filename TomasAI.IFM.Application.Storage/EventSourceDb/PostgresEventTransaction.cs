@@ -144,9 +144,9 @@ public sealed class EnlistedEventTransaction
         var nameId = (int)(await ScalarAsync("SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;",
             [type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId,[type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false))!;
-        var json = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Jsonb, Value = domainEvent.ToEventData() };
+        var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = EventLogMessagePackCodec.Shared.Serialize(domainEvent) };
         var eventId = await ScalarAsync(EventSourceDbSql.InsertEventLogExpectedVersion,
-            [streamId, nameId, json, commandId, DateTime.UtcNow, expectedStreamVersion], cancellationToken).ConfigureAwait(false);
+            [streamId, nameId, payload, commandId, DateTime.UtcNow, expectedStreamVersion], cancellationToken).ConfigureAwait(false);
         if (eventId is not long id) throw new ConcurrencyException($"Event stream {stream} is not at expected version {expectedStreamVersion}.");
         // EventId is transport/storage metadata. The immutable business event identity remains domainEvent.Id.
         EventInitHelper.SetProperty(domainEvent, nameof(IEvent.EventId), id);

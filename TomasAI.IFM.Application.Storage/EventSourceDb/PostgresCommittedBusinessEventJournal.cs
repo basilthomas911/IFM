@@ -15,7 +15,7 @@ public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings 
           projected_at_utc timestamptz NOT NULL DEFAULT now());
         ALTER TABLE business_subscription_projection_receipt ADD COLUMN IF NOT EXISTS handoff_completed boolean NOT NULL DEFAULT false;
         """;
-    const string Columns = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.eventData::text,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
+    const string Columns = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
     const string Pending = Columns + "WHERE en.eventName=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventVersion) ORDER BY el.eventVersion LIMIT 32;";
     const string Prior = Columns + "WHERE el.eventStreamId=$1 AND el.eventVersion<=$2 AND en.eventName=ANY($3) ORDER BY el.eventVersion DESC LIMIT 1;";
     const string Handoffs = Columns + "JOIN business_subscription_projection_receipt r ON r.event_id=el.eventVersion WHERE en.eventName='WorkflowStrategyStateUpdatedEvent' AND NOT r.handoff_completed ORDER BY el.eventVersion LIMIT 32;";
@@ -50,9 +50,9 @@ public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings 
         var result = new List<EventLogReadModel>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (reader.GetString(4).Length > 16 * 1024 * 1024) throw new InvalidDataException("Business source event exceeds its bound.");
+            if (reader.GetFieldValue<byte[]>(4).Length > 16 * 1024 * 1024) throw new InvalidDataException("Business source event exceeds its bound.");
             result.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3),
-                reader.GetString(4), reader.GetGuid(5), reader.GetString(6), reader.GetInt64(7)));
+                reader.GetFieldValue<byte[]>(4), reader.GetGuid(5), reader.GetString(6), reader.GetInt64(7)));
         }
         return result;
     }

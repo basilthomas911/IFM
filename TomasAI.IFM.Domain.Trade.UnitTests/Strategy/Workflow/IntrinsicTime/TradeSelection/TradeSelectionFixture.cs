@@ -23,7 +23,8 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Tra
 internal static class TradeSelectionFixture
 {
     public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode="LongFuture",TimeFrameType horizon=TimeFrameType.Daily, DateTime? atUtc=null, string contractId="ESZ6", int scopeId=1, bool compositionReady=false, bool compositionIntegrationTiming=false,
-        ExecuteMarketConditionAssessmentCommand? actualAssessmentCommand=null,StrategyStageResultEnvelope? actualAssessmentEnvelope=null)
+        ExecuteMarketConditionAssessmentCommand? actualAssessmentCommand=null,StrategyStageResultEnvelope? actualAssessmentEnvelope=null,
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy=null, int compositionLifetimeMilliseconds=5000)
     {
         var assessmentCommand=actualAssessmentCommand??AssessmentFixture.Command(horizon,atUtc,contractId);
         var at=actualAssessmentEnvelope is null?assessmentCommand.RequestedAtUtc:DateTime.UtcNow;
@@ -61,13 +62,19 @@ internal static class TradeSelectionFixture
             authored = authored with { VariantRules = [compositionRule with { BaseParameters = compositionRule.BaseParameters with { MaximumDaysToExpiry = Math.Min(compositionRule.BaseParameters.MaximumDaysToExpiry, composition.MaximumDaysToExpiry) } }] };
             if (compositionIntegrationTiming)
                 authored = authored with { VariantRules = [authored.VariantRules[0] with { BaseParameters = authored.VariantRules[0].BaseParameters with
-                { LoadingMilliseconds = 15000, ExecutionMilliseconds = 15000, CandidateLifetimeMilliseconds = 5000, MaximumQuoteAgeMilliseconds = 5000 } }] };
+                { LoadingMilliseconds = 15000, ExecutionMilliseconds = 15000, CandidateLifetimeMilliseconds = compositionLifetimeMilliseconds, MaximumQuoteAgeMilliseconds = 5000 } }] };
             var settings = JsonSerializer.SerializeToElement(authored);
             var schema = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSchema, "CompositionRulesSchema", "Composition rules schema") with
             { Settings = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionRulesSchema.Settings(), Capabilities = [new("validator", "OrderCompositionRules", 1)] };
             var parameters = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSet, "CompositionRules", "Composition rules") with { Parent = schema.Key, Settings = settings };
             deployment = deployment with { Parameters = [new("OrderCompositionRules", parameters.Key)] };
             definitions[^1] = deployment; definitions.Add(schema); definitions.Add(parameters);
+        }
+        if (riskPolicy is not null)
+        {
+            deployment = deployment with { PipelineParameters = [..deployment.PipelineParameters,
+                new("risk-policy", CatalogPipelineParameterKind.RiskManagement, riskPolicy.ParameterSetId, riskPolicy.Version, riskPolicy.Hash())] };
+            definitions[4] = deployment;
         }
         var source=definitions.Select(x=>new StoredStrategyCatalogDefinition(StrategyCatalogValidation.Freeze(x),StrategyCatalogValidation.ContentHash(x),CatalogLifecycleStatus.Published,at.AddDays(-2),"fixture",at.AddDays(-1),"fixture",null,null)).ToArray();
         var graph=new StrategyCatalogSnapshot(deployment.Key,at,source,SelectionCatalogTransport.GraphHash(deployment.Key,source));
@@ -76,6 +83,10 @@ internal static class TradeSelectionFixture
         config.GetPublishedStrategyDeploymentAsync(deployment.Key,at,Arg.Any<CancellationToken>()).Returns(graph);
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.TradeSelection,common.ParameterSetId,1,Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot{Kind=CatalogPipelineParameterKind.TradeSelection,Id=common.ParameterSetId,Version=1,SchemaVersion=1,PayloadJson=TradeSelectionPolicy.Serialize(common),PayloadSha256=selectionRef.PayloadSha256,Status=CatalogLifecycleStatus.Published,EffectiveFromUtc=at.AddDays(-1)});
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.OrderComposition,composition.ParameterSetId,1,Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot{Kind=CatalogPipelineParameterKind.OrderComposition,Id=composition.ParameterSetId,Version=1,SchemaVersion=1,PayloadJson=composition.Serialize(),PayloadSha256=composition.Hash(),Status=CatalogLifecycleStatus.Published,EffectiveFromUtc=at.AddDays(-1)});
+        if (riskPolicy is not null)
+            config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.RiskManagement,riskPolicy.ParameterSetId,riskPolicy.Version,Arg.Any<CancellationToken>())
+                .Returns(new SelectionPipelinePolicySnapshot { Kind=CatalogPipelineParameterKind.RiskManagement,Id=riskPolicy.ParameterSetId,Version=riskPolicy.Version,
+                    SchemaVersion=1,PayloadJson=riskPolicy.Serialize(),PayloadSha256=riskPolicy.Hash(),Status=CatalogLifecycleStatus.Published,EffectiveFromUtc=at.AddDays(-1) });
         var permission=new TradeStrategyFamilyReference(0,0){CatalogDeployment=deployment.Key};
         var family=builder.Code=="Future"?"Futures":builder.Code=="IronCondor"?"IronCondor":"VerticalSpread";
         var asset=builder.Code=="Future"?"Futures":"FuturesOptions";

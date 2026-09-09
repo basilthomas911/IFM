@@ -1,6 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -28,20 +27,20 @@ public class SnapshotRangeReplayBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var snapshotJson = JsonConvert.SerializeObject(new FuturesRsiSignalStartedEvent
+        var snapshotPayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStartedEvent
         {
             EntityId = EntityId,
             StartedOn = DateTime.UtcNow,
             StartedBy = "benchmark"
         });
-        var generatedJson = JsonConvert.SerializeObject(new FuturesRsiSignalGeneratedEvent
+        var generatedPayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalGeneratedEvent
         {
             EntityId = EntityId,
             FuturesRsiSignal = Signal,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = "benchmark"
         });
-        var noiseJson = JsonConvert.SerializeObject(new FuturesRsiSignalStoppedEvent
+        var noisePayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent
         {
             EntityId = EntityId,
             StoppedOn = DateTime.UtcNow,
@@ -49,21 +48,21 @@ public class SnapshotRangeReplayBenchmarks
         });
 
         _currentSnapshotRows = new EventStreamReadModel[(MatchingEventCount * 2) + 1];
-        _currentSnapshotRows[0] = Row<FuturesRsiSignalStartedEvent>(1, snapshotJson);
+        _currentSnapshotRows[0] = Row<FuturesRsiSignalStartedEvent>(1, snapshotPayload);
         for (var index = 0; index < MatchingEventCount; index++)
         {
-            _currentSnapshotRows[(index * 2) + 1] = Row<FuturesRsiSignalGeneratedEvent>((index * 2) + 2, generatedJson);
-            _currentSnapshotRows[(index * 2) + 2] = Row<FuturesRsiSignalStoppedEvent>((index * 2) + 3, noiseJson);
+            _currentSnapshotRows[(index * 2) + 1] = Row<FuturesRsiSignalGeneratedEvent>((index * 2) + 2, generatedPayload);
+            _currentSnapshotRows[(index * 2) + 2] = Row<FuturesRsiSignalStoppedEvent>((index * 2) + 3, noisePayload);
         }
 
         var rangeCount = Math.Min(LastNRange, MatchingEventCount);
         _boundedTypedRows = new EventStreamReadModel[rangeCount + 1];
-        _boundedTypedRows[0] = Row<FuturesRsiSignalStartedEvent>(1, snapshotJson);
+        _boundedTypedRows[0] = Row<FuturesRsiSignalStartedEvent>(1, snapshotPayload);
         var firstMatchingIndex = MatchingEventCount - rangeCount;
         for (var index = 0; index < rangeCount; index++)
         {
             var sourceIndex = firstMatchingIndex + index;
-            _boundedTypedRows[index + 1] = Row<FuturesRsiSignalGeneratedEvent>((sourceIndex * 2) + 2, generatedJson);
+            _boundedTypedRows[index + 1] = Row<FuturesRsiSignalGeneratedEvent>((sourceIndex * 2) + 2, generatedPayload);
         }
     }
 
@@ -82,7 +81,7 @@ public class SnapshotRangeReplayBenchmarks
         return state;
     }
 
-    static EventStreamReadModel Row<TEvent>(long version, string eventData)
+    static EventStreamReadModel Row<TEvent>(long version, byte[] eventData)
         => new()
         {
             EventVersion = version,

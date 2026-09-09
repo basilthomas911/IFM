@@ -205,10 +205,10 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
     internal static async Task<T?> ReadEvidenceAsync<T>(EnlistedEventTransaction db,Guid invocationId,CancellationToken token) where T:class,IEvent
     {
         var events=await db.QueryAsync("""
-            SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventdata::text,e.commandid,e.eventtimestamp::text,e.streamversion
+            SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
             FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid WHERE e.commandid=$1 ORDER BY e.eventversion LIMIT 65;
             """,[invocationId],r=>new EventLogReadModel(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3),
-                r.GetString(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7)),token);
+                r.GetFieldValue<byte[]>(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7)),token);
         Require(events.Count<=64,FinancialReasons.AuthorityDenied,"Upstream evidence exceeds its bounded event count.");
         var matches=events.Select(x=>x.ToDomainEvent()).OfType<T>().Take(2).ToArray();
         Require(matches.Length<=1,FinancialReasons.AuthorityDenied,"Conflicting committed upstream evidence.");

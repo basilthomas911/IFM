@@ -1,106 +1,38 @@
-using Newtonsoft.Json;
-
 namespace TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 public record EventLogReadModel(
     long EventStreamId,
     string EventName,
-    string EventTypeName,   
+    string EventTypeName,
     long EventVersion,
-    string EventData,
+    byte[] EventData,
     Guid CommandId,
     string EventTimestamp,
     long StreamVersion = 0)
 {
-    /// <summary>
-    /// deserialize event data from event type
-    /// </summary>
-    /// <returns></returns>
-    public IEvent ToDomainEvent()
-    {
-        IEvent? domainEvent = default;
-        if (!string.IsNullOrEmpty(EventTypeName))
-        {
-            var domainEventType = Type.GetType(EventTypeName, false, true);
-            if (domainEventType is not null && !string.IsNullOrEmpty(EventData))
-            {
-                try
-                {
-                    domainEvent = JsonConvert.DeserializeObject(EventData, domainEventType) as IEvent;
-                    if (domainEvent is not null)
-                        EventModelActor.EventInitHelper.SetProperty(domainEvent, nameof(IEvent.EventId), EventVersion);
-                }
-                catch { }
-            }
-        }
-        return domainEvent is null
-            ? ToUnknownEvent()
-            : domainEvent;
-    }
-
-    internal IEvent ToUnknownEvent()
-       => new UnknownEvent(
-           subject: default,
-           id: Guid.Empty,
-           entityId: default,
-           eventId: EventVersion,
-           commandId: Guid.Empty,
-           aggregateId: string.Empty,
-           eventSource: string.Empty,
-           receivedOn: DateTime.MinValue,
-           eventSourceId: 0L,
-           eventSourceVersion: 0L,
-           eventTypeName: EventTypeName,
-           eventData: EventData,
-           eventDate: DateTime.MinValue);
+    public IEvent ToDomainEvent() => EventLogBinaryReader.Read(EventTypeName, EventVersion, EventData);
 }
 
 public class EventStreamReadModel
 {
     public long EventVersion { get; set; }
     public long StreamVersion { get; set; }
-    public string EventTypeName { get; set; }
-    public string EventData { get; set; }
+    public string EventTypeName { get; set; } = string.Empty;
+    public byte[] EventData { get; set; } = [];
+    public IEvent ToDomainEvent() => EventLogBinaryReader.Read(EventTypeName, EventVersion, EventData);
+}
 
-    /// <summary>
-    /// Converts the current <see cref="EventStreamReadModel"/> to a domain event.
-    /// </summary>
-    /// <returns>A new instance of a domain event.</returns>
-    public IEvent ToDomainEvent()
+internal static class EventLogBinaryReader
+{
+    internal static IEvent Read(string typeName, long version, byte[] payload)
     {
-        IEvent? domainEvent = default;
-        if (!string.IsNullOrEmpty(EventTypeName))
-        {
-            var domainEventType = Type.GetType(EventTypeName, false, true);
-            if (domainEventType is not null && !string.IsNullOrEmpty(EventData))
-            {
-                try
-                {
-                    domainEvent = JsonConvert.DeserializeObject(EventData, domainEventType) as IEvent;
-                    if (domainEvent is not null)
-                        EventModelActor.EventInitHelper.SetProperty(domainEvent, nameof(IEvent.EventId), EventVersion);
-                }
-                catch { }
-            }
-        }
-        return domainEvent is null
-            ? ToUnknownEvent()
-            : domainEvent;
-
-          IEvent ToUnknownEvent()
-            => new UnknownEvent(
-               subject: default,
-               id: Guid.Empty,
-               entityId: default,
-               eventId: EventVersion,
-               commandId: Guid.Empty,
-               aggregateId: string.Empty,
-               eventSource: string.Empty,
-               receivedOn: DateTime.MinValue,
-               eventSourceId: 0L,
-               eventSourceVersion: 0L,
-               eventTypeName: EventTypeName,
-               eventData: EventData,
-               eventDate: DateTime.MinValue);
+        // An unavailable event type remains observable. Corrupt known events must fail replay.
+        if (Type.GetType(typeName, false, true) is null)
+            return new UnknownEvent(subject: default, id: Guid.Empty, entityId: default,
+                eventId: version, commandId: Guid.Empty, aggregateId: string.Empty,
+                eventSource: string.Empty, receivedOn: DateTime.MinValue, eventSourceId: 0,
+                eventSourceVersion: 0, eventTypeName: typeName,
+                eventData: Convert.ToBase64String(payload), eventDate: DateTime.MinValue);
+        return EventLogMessagePackCodec.Shared.Deserialize(typeName, version, payload);
     }
 }

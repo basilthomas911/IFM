@@ -17,7 +17,7 @@ $checks = @(
     @('TomasAI.IFM.Domain.Trade.UnitTests', ''),
     @('TomasAI.IFM.Domain.Portfolio.UnitTests', ''),
     @('TomasAI.IFM.Domain.Portfolio.IntegrationTests', 'FullyQualifiedName~FundRiskTerminalIntegrationTests|FullyQualifiedName~CapacityReservationIntegrationTests|FullyQualifiedName~FundRiskAuthorizationIntegrationTests'),
-    @('TomasAI.IFM.Domain.Trade.IntegratedTests', 'Category=RiskDeliveryRuntime|Category=PortfolioFinancialRuntime'),
+    @('TomasAI.IFM.Domain.Trade.IntegratedTests', 'Category=RiskDeliveryRuntime|Category=PortfolioFinancialRuntime|Category=FullWorkflowRisk|Category=SuccessiveWorkflowStages|Category=RiskWorkflowTrace'),
     @('TomasAI.IFM.UI.Net.SystemTests', 'FullyQualifiedName~RiskHistoryUiTests|FullyQualifiedName~Retained_history_renders')
 )
 $summary = [System.Collections.Generic.List[object]]::new()

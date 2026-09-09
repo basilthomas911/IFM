@@ -1,0 +1,52 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesMacdSignalEvent",
+    "Verb": "Stopped",
+    "EntityId": "ES20260918.20260824.FifteenMinutes.9.12.26",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesMacdSignalEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesMacdSignalEvent",
+      "Verb": "Stopped"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesMacdSignalEvent",
+      "EntityId": "ES20260918.20260824.FifteenMinutes.9.12.26",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesMacdSignalEvent"
+      }
+    },
+    "StreamId": "Event.FuturesMacdSignalEvent.ES20260918.20260824.FifteenMinutes.9.12.26"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ES20260918",
+    "ValueDate": "2026-08-24",
+    "TimePeriod": 10,
+    "SignalEmaPeriod": 9,
+    "FastEmaPeriod": 12,
+    "SlowEmaPeriod": 26,
+    "PeriodLength": 9,
+    "Configuration": {
+      "SignalEmaPeriod": 9,
+      "FastEmaPeriod": 12,
+      "SlowEmaPeriod": 26
+    }
+  },
+  "EventId": 181640,
+  "CommandId": "9de73cd6-4e53-4b93-a048-72f29f94fe0f",
+  "AggregateId": "",
+  "EventSource": "FuturesMacdSignalCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "StoppedOn": "2026-08-24T20:55:09.0307531Z",
+  "StoppedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesMacdSignalStoppedEvent",
+  "EventType": 0
+}

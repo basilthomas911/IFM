@@ -32,13 +32,18 @@ public static class AdvanceRiskFinancialHandoff
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this AdvanceRiskFinancialHandoffCommand command,
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,IntrinsicTimeStrategyWorkflowCommandState state)
     {
+        using var timing_authorization_verify_current_view = WorkflowTrace.Start("authorization.verify.current_view", null);
         var view=state.CurrentView;
+        timing_authorization_verify_current_view?.Stop();
+        using var trace = WorkflowTrace.Start("risk.verify_handoff", view);
         if(view is not { Status:WorkflowStrategyMachineStatus.Started,CurrentStage:StrategyWorkflowStage.RiskManagement }
             || view.WorkflowId!=command.WorkflowId || view.WorkflowRevision!=command.InputWorkflowRevision
             || view.RiskManagement.ProcessingStatus!=StrategyActorProcessingStatus.Completed
             || (view.FinancialHandoff?.Phase ?? RiskFinancialHandoffPhase.None)!=command.ExpectedPhase)
             return new ServiceOk<GuidResult>(new(command.CommandId));
+        using var timing_authorization_verify_build_identity = WorkflowTrace.Start("authorization.verify.build_identity", view);
         var expected=RiskFinancialHandoff.Advance(view);
+        timing_authorization_verify_build_identity?.Stop();
         RiskUnitModel.Require(command.CommandId==expected.CommandId,"RM.HANDOFF.IDENTITY");
         var risk=view.RiskManagement.Result?.RiskResult ?? throw new RiskCalculationException("RM.HANDOFF.NO_RESULT");
         RiskUnitModel.Require(risk.Outcome==RiskAssessmentOutcome.Approved && view.RiskExecution is not null,"RM.HANDOFF.NOT_APPROVED");
@@ -54,13 +59,19 @@ public static class AdvanceRiskFinancialHandoff
         {
             case RiskFinancialHandoffPhase.None:
             {
+                using var timing_authorization_verify_order_read = WorkflowTrace.Start("authorization.verify.order_read", view);
                 var order=await owner.PortfolioQueries.GetOrderAsync(checked((int)risk.OrderId)).ConfigureAwait(false);
+                timing_authorization_verify_order_read?.Stop();
                 RiskUnitModel.Require(order.Success && order.Value is { Status:"RiskPending" } && order.Value.PortfolioId==risk.PortfolioId &&
                     order.Value.FundId==risk.FundId && order.Value.WorkflowId==risk.WorkflowId.Value && order.Value.CompositionResultHash==risk.CompositionResultHash,
                     "RM.HANDOFF.FUND_NOT_READY");
+                using var timing_authorization_verify_decode_candidate = WorkflowTrace.Start("authorization.verify.decode_candidate", view);
                 var candidate=view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
+                timing_authorization_verify_decode_candidate?.Stop();
+                using var timing_authorization_verify_admission_read = WorkflowTrace.Start("authorization.verify.admission_read", view);
                 var financial=await api.GetFinancialAdmissionSnapshotAsync(scope,new(risk.Authority.DeploymentKey,
                     FinancialScopeKeys.Underlying(candidate.Product.Symbol,candidate.Product.Exchange,candidate.Product.Currency))).ConfigureAwait(false);
+                timing_authorization_verify_admission_read?.Stop();
                 RiskUnitModel.Require(financial.Success && financial.Value is not null,"RM.HANDOFF.AUTHORITY_UNAVAILABLE");
                 now=context.TimeProvider.GetUtcNow().UtcDateTime;
                 if (RiskResizing.Changed(view.RiskExecution!, RiskResizing.Authority(view.RiskExecution!, financial.Value!, now)))
@@ -78,7 +89,9 @@ public static class AdvanceRiskFinancialHandoff
             }
             case RiskFinancialHandoffPhase.ReservePending:
             {
+                using var timing_authorization_verify_reservation_receipt = WorkflowTrace.Start("authorization.verify.reservation_receipt", view);
                 var read=await api.GetPostingReceiptAsync(scope,new(handoff!.ReservationRequest.OperationId)).ConfigureAwait(false);
+                timing_authorization_verify_reservation_receipt?.Stop();
                 var grant=read.Value?.Value?.Reservation;
                 if (read.Success && read.Value is not null && RiskResizing.IsFencedOut(handoff.ReservationRequest, read.Value))
                 {
@@ -96,13 +109,17 @@ public static class AdvanceRiskFinancialHandoff
             }
             case RiskFinancialHandoffPhase.FundPending:
             {
+                using var timing_authorization_verify_fund_receipt = WorkflowTrace.Start("authorization.verify.fund_receipt", view);
                 var read=await api.GetFundRiskAuthorizationAsync(scope,new(handoff!.FundCommandId)).ConfigureAwait(false);
+                timing_authorization_verify_fund_receipt?.Stop();
                 var accepted=read.Value?.Value;
                 now=context.TimeProvider.GetUtcNow().UtcDateTime;
                 RiskUnitModel.Require(read.Success && read.Value?.Status==FinancialReadStatus.Found && accepted is not null &&
                     accepted.CommandId==handoff.FundCommandId && accepted.EventId!=Guid.Empty && accepted.Authorization==handoff.Authorization &&
                     now<handoff.Authorization!.ValidUntilUtc,"RM.HANDOFF.FUND_AUTHORIZATION");
+                using var timing_authorization_verify_build_order = WorkflowTrace.Start("authorization.verify.build_order", view);
                 var order=RiskFinancialHandoff.Order(view,command.CommandId);
+                timing_authorization_verify_build_order?.Stop();
                 var intent=new CapacityExecutionAcceptance
                 {
                     ExecutionId=command.CommandId,ExecutionRevision=1,PortfolioId=risk.PortfolioId,FundId=risk.FundId,
@@ -122,6 +139,7 @@ public static class AdvanceRiskFinancialHandoff
         if(resized is null && handoff!.Phase==RiskFinancialHandoffPhase.Authorized)
             next=next with { Status=WorkflowStrategyMachineStatus.Completed,Outcome=StrategyWorkflowOutcome.Completed,TerminalAtUtc=now,
                 RiskManagement=next.RiskManagement with { ContinuationDecision=StrategyWorkflowContinuationDecision.Proceed } };
+        using var timing_authorization_verify_state_update = WorkflowTrace.Start("authorization.verify.state_update", view);
         state.Update(new WorkflowStrategyStateUpdatedEvent
         {
             Id=eventId,CommandId=command.CommandId,EntityId=command.EntityId,
@@ -130,6 +148,7 @@ public static class AdvanceRiskFinancialHandoff
             WorkflowRevision=next.WorkflowRevision,CorrelationId=next.CorrelationId,CausationId=command.CommandId,
             PreviousStatus=view.Status,State=next,UpdatedAtUtc=now
         },command);
+        timing_authorization_verify_state_update?.Stop();
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 }

@@ -76,9 +76,12 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
         WorkflowStrategyStateUpdatedEvent snapshot,
         CancellationToken cancellationToken)
     {
+        using var trace = WorkflowTrace.Start("workflow.project", snapshot.State);
         var entityKey = snapshot.EntityId.Format();
         var entityLock = _entityLocks.GetOrAdd(entityKey, static _ => new SemaphoreSlim(1, 1));
+        using var timing_workflow_project_lock_wait = WorkflowTrace.Start("workflow.project.lock_wait", snapshot.State);
         await entityLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        timing_workflow_project_lock_wait?.Stop();
         try
         {
             ValidateSnapshot(snapshot);
@@ -86,6 +89,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
             await InsertStartAttemptAsync(snapshot, cancellationToken).ConfigureAwait(false);
             await UpsertWorkflowAsync(snapshot.State, snapshot.EventId, cancellationToken).ConfigureAwait(false);
 
+            using var timing_workflow_project_notify = WorkflowTrace.Start("workflow.project.notify", snapshot.State);
             await _actorContext.SendAsync<WorkflowStrategyStateUpdatedEvent,
                 IntrinsicTimeStrategyWorkflowEntityId>(snapshot with
                 {
@@ -95,6 +99,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
                         WorkflowStrategyStateUpdatedEvent.Verb,
                         entityKey)
                 }, cancellationToken).ConfigureAwait(false);
+            timing_workflow_project_notify?.Stop();
         }
         finally
         {
@@ -115,7 +120,10 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
         long eventId,
         CancellationToken cancellationToken)
     {
+        using var timing_workflow_project_state_serialize = WorkflowTrace.Start("workflow.project.state_serialize", workflow);
         var payload = MessagePackSerializer.Serialize(workflow);
+        timing_workflow_project_state_serialize?.SetTag("ifm.payload.bytes", payload.Length);
+        timing_workflow_project_state_serialize?.Stop();
         var entity = workflow.EntityId;
         var iti = entity.ItiSignalEntityId;
         var status = ToLegacyStatus(workflow.Status);
@@ -154,11 +162,17 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
             workflow.StopReasonCode);
 
         var tradeDb = _actorContext.DbFactory.TradeDb;
+        using var timing_workflow_project_detail_write = WorkflowTrace.Start("workflow.project.detail_write", workflow);
         await tradeDb.UpsertIntrinsicTimeStrategyWorkflowAsync(detail, cancellationToken).ConfigureAwait(false);
+        timing_workflow_project_detail_write?.Stop();
+        using var timing_workflow_project_entity_write = WorkflowTrace.Start("workflow.project.entity_write", workflow);
         await tradeDb.UpsertIntrinsicTimeStrategyWorkflowByEntityAsync(history, cancellationToken)
             .ConfigureAwait(false);
+        timing_workflow_project_entity_write?.Stop();
+        using var timing_workflow_project_status_write = WorkflowTrace.Start("workflow.project.status_write", workflow);
         await tradeDb.UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync(history, cancellationToken)
             .ConfigureAwait(false);
+        timing_workflow_project_status_write?.Stop();
 
         if (workflow.Status == WorkflowStrategyMachineStatus.Started)
         {
@@ -175,14 +189,18 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
                 payload,
                 workflow.StartedAtUtc,
                 workflow.UpdatedAtUtc);
+            using var timing_workflow_project_active_write = WorkflowTrace.Start("workflow.project.active_write", workflow);
             await tradeDb.UpsertActiveIntrinsicTimeStrategyWorkflowAsync(active, cancellationToken)
                 .ConfigureAwait(false);
+            timing_workflow_project_active_write?.Stop();
             _cache.Set(active);
         }
         else
         {
+            using var timing_workflow_project_active_delete = WorkflowTrace.Start("workflow.project.active_delete", workflow);
             await tradeDb.DeleteActiveIntrinsicTimeStrategyWorkflowAsync(entity.Format(), cancellationToken)
                 .ConfigureAwait(false);
+            timing_workflow_project_active_delete?.Stop();
             _cache.Remove(entity.Format());
         }
     }
@@ -190,18 +208,18 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
     async ValueTask InsertTimelineAsync(
         WorkflowStrategyStateUpdatedEvent snapshot,
         CancellationToken cancellationToken)
-        => await _actorContext.DbFactory.TradeDb.InsertIntrinsicTimeStrategyWorkflowTimelineAsync(
+    {
+        using var serialization = WorkflowTrace.Start("workflow.project.timeline_serialize", snapshot.State);
+        var payload = MessagePackSerializer.Serialize(snapshot);
+        serialization?.SetTag("ifm.payload.bytes", payload.Length);
+        serialization?.Stop();
+        using var write = WorkflowTrace.Start("workflow.project.timeline_write", snapshot.State);
+        await _actorContext.DbFactory.TradeDb.InsertIntrinsicTimeStrategyWorkflowTimelineAsync(
             new IntrinsicTimeStrategyWorkflowTimelineReadModel(
-                snapshot.WorkflowId,
-                snapshot.EventId,
-                snapshot.EntityId.Format(),
-                snapshot.WorkflowRevision,
-                snapshot.State.CurrentStage,
-                snapshot.EventName,
-                EventSchemaVersion,
-                MessagePackSerializer.Serialize(snapshot),
-                snapshot.UpdatedAtUtc),
+                snapshot.WorkflowId, snapshot.EventId, snapshot.EntityId.Format(), snapshot.WorkflowRevision,
+                snapshot.State.CurrentStage, snapshot.EventName, EventSchemaVersion, payload, snapshot.UpdatedAtUtc),
             cancellationToken).ConfigureAwait(false);
+    }
 
     async ValueTask InsertStartAttemptAsync(
         WorkflowStrategyStateUpdatedEvent snapshot,
@@ -211,6 +229,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
             snapshot.PreviousStatus == WorkflowStrategyMachineStatus.Started)
             return;
 
+        using var timing_workflow_project_start_attempt_write = WorkflowTrace.Start("workflow.project.start_attempt_write", snapshot.State);
         await _actorContext.DbFactory.TradeDb.InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync(
             new IntrinsicTimeStrategyWorkflowStartAttemptReadModel(
                 snapshot.EntityId.Format(),
@@ -224,6 +243,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
                 string.Empty,
                 snapshot.EventId),
             cancellationToken).ConfigureAwait(false);
+        timing_workflow_project_start_attempt_write?.Stop();
     }
 
     static StrategyWorkflowStatus ToLegacyStatus(WorkflowStrategyMachineStatus status) => status switch

@@ -1,0 +1,3020 @@
+{
+  "SchemaVersion": 2,
+  "SerializationCodec": "MessagePack",
+  "Compression": "none",
+  "MessagePackAssembly": "MessagePack, Version=3.1.8.0, Culture=neutral, PublicKeyToken=b4a0369545f0a1be",
+  "Harness": "912584f3-5ee7-417f-b216-2c0ead05473c",
+  "CapturedAtUtc": "2026-09-09T20:40:06.1511383Z",
+  "CorpusSha256": "c0978204799bab73ee3679acb489f368cf302f316f016d4b8ca4579b6d241ac3",
+  "Runtime": ".NET 10.0.10",
+  "OS": "Microsoft Windows 10.0.19045",
+  "Architecture": "X64",
+  "ProcessorCount": 32,
+  "ServerGC": false,
+  "Frequency": 10000000,
+  "Codec": "912584f3-5ee7-417f-b216-2c0ead05473c",
+  "JsonCodec": "Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed",
+  "Command": "C:\\repos\\IFM\\TomasAI.IFM.Framework.Storage.Benchmarks\\bin\\Release\\net10.0\\TomasAI.IFM.Framework.Storage.Benchmarks.dll --event-log-messagepack TomasAI.IFM.Framework.Storage.Benchmarks/EventLogCorpus/v1 TomasAI.IFM.Framework.Storage.Benchmarks/EventLogBaselines/binary-cutover-v1 none",
+  "Results": [
+    {
+      "Id": "E01",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedEvent",
+      "Utf8Bytes": 1103,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 2.900927734375,
+      "MeanMicroseconds": 2.9223863389756946,
+      "StandardDeviationMicroseconds": 0.06543331746648993,
+      "AllocatedBytesPerOperation": 536,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.09307861328125,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.8970458984375,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.88643798828125,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.88515625,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.900927734375,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.909423828125,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.9056640625,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.89361572265625,
+          "AllocatedBytesPerOperation": 536
+        },
+        {
+          "MicrosecondsPerOperation": 2.930126953125,
+          "AllocatedBytesPerOperation": 536
+        }
+      ],
+      "EncodedBytes": 199
+    },
+    {
+      "Id": "E01",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedEvent",
+      "Utf8Bytes": 1103,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 11.02664794921875,
+      "MeanMicroseconds": 9.251242404513887,
+      "StandardDeviationMicroseconds": 3.621949071049485,
+      "AllocatedBytesPerOperation": 1328,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 13.76754150390625,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 11.8697509765625,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 11.8493408203125,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 11.515087890625,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 11.02664794921875,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 8.821337890625,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 6.22618408203125,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 4.32647705078125,
+          "AllocatedBytesPerOperation": 1328
+        },
+        {
+          "MicrosecondsPerOperation": 3.8588134765625,
+          "AllocatedBytesPerOperation": 1328
+        }
+      ],
+      "EncodedBytes": 199
+    },
+    {
+      "Id": "E01",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedEvent",
+      "Utf8Bytes": 1103,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.89749755859375,
+      "MeanMicroseconds": 3.9075846354166663,
+      "StandardDeviationMicroseconds": 0.051985094086673,
+      "AllocatedBytesPerOperation": 1864,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.02508544921875,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.9166015625,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.90958251953125,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.94090576171875,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.8761962890625,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.85068359375,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.8876708984375,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.89749755859375,
+          "AllocatedBytesPerOperation": 1864
+        },
+        {
+          "MicrosecondsPerOperation": 3.8640380859375,
+          "AllocatedBytesPerOperation": 1864
+        }
+      ],
+      "EncodedBytes": 199
+    },
+    {
+      "Id": "E02",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedEvent",
+      "Utf8Bytes": 1169,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 0.6458984375,
+      "MeanMicroseconds": 0.6466729058159723,
+      "StandardDeviationMicroseconds": 0.027198996299530234,
+      "AllocatedBytesPerOperation": 1096,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 0.6967041015625,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.61649169921875,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.64742431640625,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.66746826171875,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.6632568359375,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.64556884765625,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.6458984375,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.6291259765625,
+          "AllocatedBytesPerOperation": 1096
+        },
+        {
+          "MicrosecondsPerOperation": 0.60811767578125,
+          "AllocatedBytesPerOperation": 1096
+        }
+      ],
+      "EncodedBytes": 221
+    },
+    {
+      "Id": "E02",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedEvent",
+      "Utf8Bytes": 1169,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.4709228515625,
+      "MeanMicroseconds": 3.477562120225694,
+      "StandardDeviationMicroseconds": 0.03149512263959417,
+      "AllocatedBytesPerOperation": 1368,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.46473388671875,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.49000244140625,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.4443115234375,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.51124267578125,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.52745361328125,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.5012939453125,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.43995361328125,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.44814453125,
+          "AllocatedBytesPerOperation": 1368
+        },
+        {
+          "MicrosecondsPerOperation": 3.4709228515625,
+          "AllocatedBytesPerOperation": 1368
+        }
+      ],
+      "EncodedBytes": 221
+    },
+    {
+      "Id": "E02",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedEvent",
+      "Utf8Bytes": 1169,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.24881591796875,
+      "MeanMicroseconds": 4.302431911892361,
+      "StandardDeviationMicroseconds": 0.11664535377102614,
+      "AllocatedBytesPerOperation": 2464,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.24881591796875,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.32696533203125,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.20400390625,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.41236572265625,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.52664794921875,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.37840576171875,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.23179931640625,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.18946533203125,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 4.20341796875,
+          "AllocatedBytesPerOperation": 2464
+        }
+      ],
+      "EncodedBytes": 221
+    },
+    {
+      "Id": "E03",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedEvent",
+      "Utf8Bytes": 1242,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 0.63963623046875,
+      "MeanMicroseconds": 0.6371134440104166,
+      "StandardDeviationMicroseconds": 0.019447781545138636,
+      "AllocatedBytesPerOperation": 1112,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 0.67830810546875,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.6417236328125,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.62418212890625,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.64925537109375,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.639892578125,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.6204345703125,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.63963623046875,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.62850341796875,
+          "AllocatedBytesPerOperation": 1112
+        },
+        {
+          "MicrosecondsPerOperation": 0.6120849609375,
+          "AllocatedBytesPerOperation": 1112
+        }
+      ],
+      "EncodedBytes": 240
+    },
+    {
+      "Id": "E03",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedEvent",
+      "Utf8Bytes": 1242,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.46553955078125,
+      "MeanMicroseconds": 3.4578030056423605,
+      "StandardDeviationMicroseconds": 0.02868998585540654,
+      "AllocatedBytesPerOperation": 1456,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.4794677734375,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.4940673828125,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.47989501953125,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.44326171875,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.459033203125,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.46553955078125,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.41221923828125,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.415576171875,
+          "AllocatedBytesPerOperation": 1456
+        },
+        {
+          "MicrosecondsPerOperation": 3.4711669921875,
+          "AllocatedBytesPerOperation": 1456
+        }
+      ],
+      "EncodedBytes": 240
+    },
+    {
+      "Id": "E03",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedEvent",
+      "Utf8Bytes": 1242,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.31531982421875,
+      "MeanMicroseconds": 4.336627875434028,
+      "StandardDeviationMicroseconds": 0.034421236798906074,
+      "AllocatedBytesPerOperation": 2568,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.37198486328125,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.31416015625,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.31531982421875,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.36278076171875,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.3344970703125,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.310400390625,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.40262451171875,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.31046142578125,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 4.307421875,
+          "AllocatedBytesPerOperation": 2568
+        }
+      ],
+      "EncodedBytes": 240
+    },
+    {
+      "Id": "E04",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedEvent",
+      "Utf8Bytes": 1321,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 0.830908203125,
+      "MeanMicroseconds": 0.829059516059028,
+      "StandardDeviationMicroseconds": 0.02995771427492038,
+      "AllocatedBytesPerOperation": 1136,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 0.873388671875,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.8488525390625,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.84439697265625,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.85074462890625,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.830908203125,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.78248291015625,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.8288330078125,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.78743896484375,
+          "AllocatedBytesPerOperation": 1136
+        },
+        {
+          "MicrosecondsPerOperation": 0.81448974609375,
+          "AllocatedBytesPerOperation": 1136
+        }
+      ],
+      "EncodedBytes": 264
+    },
+    {
+      "Id": "E04",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedEvent",
+      "Utf8Bytes": 1321,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.8092041015625,
+      "MeanMicroseconds": 3.8287584092881946,
+      "StandardDeviationMicroseconds": 0.05003723324494336,
+      "AllocatedBytesPerOperation": 1632,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.93760986328125,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.84783935546875,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.8707275390625,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.82633056640625,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.7895751953125,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.8037109375,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.8092041015625,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.78809814453125,
+          "AllocatedBytesPerOperation": 1632
+        },
+        {
+          "MicrosecondsPerOperation": 3.78572998046875,
+          "AllocatedBytesPerOperation": 1632
+        }
+      ],
+      "EncodedBytes": 264
+    },
+    {
+      "Id": "E04",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedEvent",
+      "Utf8Bytes": 1321,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.8982421875,
+      "MeanMicroseconds": 4.911831325954861,
+      "StandardDeviationMicroseconds": 0.06196642559052758,
+      "AllocatedBytesPerOperation": 2768,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.98302001953125,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.90706787109375,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.86265869140625,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.80572509765625,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.8900390625,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.97027587890625,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.8912841796875,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.8982421875,
+          "AllocatedBytesPerOperation": 2768
+        },
+        {
+          "MicrosecondsPerOperation": 4.9981689453125,
+          "AllocatedBytesPerOperation": 2768
+        }
+      ],
+      "EncodedBytes": 264
+    },
+    {
+      "Id": "E05",
+      "Type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedEvent",
+      "Utf8Bytes": 1367,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 0.82979736328125,
+      "MeanMicroseconds": 0.8292236328124999,
+      "StandardDeviationMicroseconds": 0.016585964280123495,
+      "AllocatedBytesPerOperation": 1160,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 0.85938720703125,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.83990478515625,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.82979736328125,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.819677734375,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.83544921875,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.80595703125,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.84124755859375,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.815576171875,
+          "AllocatedBytesPerOperation": 1160
+        },
+        {
+          "MicrosecondsPerOperation": 0.816015625,
+          "AllocatedBytesPerOperation": 1160
+        }
+      ],
+      "EncodedBytes": 288
+    },
+    {
+      "Id": "E05",
+      "Type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedEvent",
+      "Utf8Bytes": 1367,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.85281982421875,
+      "MeanMicroseconds": 3.9873046875,
+      "StandardDeviationMicroseconds": 0.34081424461800014,
+      "AllocatedBytesPerOperation": 1640,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.86300048828125,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 4.692138671875,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 4.42308349609375,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 3.99923095703125,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 3.80294189453125,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 3.85281982421875,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 3.81943359375,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 3.71060791015625,
+          "AllocatedBytesPerOperation": 1640
+        },
+        {
+          "MicrosecondsPerOperation": 3.7224853515625,
+          "AllocatedBytesPerOperation": 1640
+        }
+      ],
+      "EncodedBytes": 288
+    },
+    {
+      "Id": "E05",
+      "Type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedEvent",
+      "Utf8Bytes": 1367,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.7640625,
+      "MeanMicroseconds": 4.763567437065971,
+      "StandardDeviationMicroseconds": 0.021053931050266022,
+      "AllocatedBytesPerOperation": 2800,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.8049072265625,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.76297607421875,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.72772216796875,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.7640625,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.77088623046875,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.74757080078125,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.7650146484375,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.753564453125,
+          "AllocatedBytesPerOperation": 2800
+        },
+        {
+          "MicrosecondsPerOperation": 4.77540283203125,
+          "AllocatedBytesPerOperation": 2800
+        }
+      ],
+      "EncodedBytes": 288
+    },
+    {
+      "Id": "E06",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedEvent",
+      "Utf8Bytes": 1427,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 0.98087158203125,
+      "MeanMicroseconds": 0.9829250759548612,
+      "StandardDeviationMicroseconds": 0.017932557661440165,
+      "AllocatedBytesPerOperation": 1128,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.025634765625,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.95673828125,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.98087158203125,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.98076171875,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.97659912109375,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.9810302734375,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.98033447265625,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.9832763671875,
+          "AllocatedBytesPerOperation": 1128
+        },
+        {
+          "MicrosecondsPerOperation": 0.9810791015625,
+          "AllocatedBytesPerOperation": 1128
+        }
+      ],
+      "EncodedBytes": 252
+    },
+    {
+      "Id": "E06",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedEvent",
+      "Utf8Bytes": 1427,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.81251220703125,
+      "MeanMicroseconds": 3.8168240017361117,
+      "StandardDeviationMicroseconds": 0.02070796278245292,
+      "AllocatedBytesPerOperation": 1472,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.8421875,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.81251220703125,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.845263671875,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.814453125,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.796435546875,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.79075927734375,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.80362548828125,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.80567626953125,
+          "AllocatedBytesPerOperation": 1472
+        },
+        {
+          "MicrosecondsPerOperation": 3.8405029296875,
+          "AllocatedBytesPerOperation": 1472
+        }
+      ],
+      "EncodedBytes": 252
+    },
+    {
+      "Id": "E06",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedEvent",
+      "Utf8Bytes": 1427,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.124267578125,
+      "MeanMicroseconds": 5.134716796875001,
+      "StandardDeviationMicroseconds": 0.07579261925545024,
+      "AllocatedBytesPerOperation": 2600,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.30849609375,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.02947998046875,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.14356689453125,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.160498046875,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.08450927734375,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.14100341796875,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.10404052734375,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.124267578125,
+          "AllocatedBytesPerOperation": 2600
+        },
+        {
+          "MicrosecondsPerOperation": 5.11658935546875,
+          "AllocatedBytesPerOperation": 2600
+        }
+      ],
+      "EncodedBytes": 252
+    },
+    {
+      "Id": "E07",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalStoppedEvent",
+      "Utf8Bytes": 1511,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 0.73504638671875,
+      "MeanMicroseconds": 0.7313313802083332,
+      "StandardDeviationMicroseconds": 0.036090950299956404,
+      "AllocatedBytesPerOperation": 1144,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 0.79195556640625,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.730615234375,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.6762451171875,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.69874267578125,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.697900390625,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.73504638671875,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.75093994140625,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.7358642578125,
+          "AllocatedBytesPerOperation": 1144
+        },
+        {
+          "MicrosecondsPerOperation": 0.7646728515625,
+          "AllocatedBytesPerOperation": 1144
+        }
+      ],
+      "EncodedBytes": 270
+    },
+    {
+      "Id": "E07",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalStoppedEvent",
+      "Utf8Bytes": 1511,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 3.64700927734375,
+      "MeanMicroseconds": 3.670018174913195,
+      "StandardDeviationMicroseconds": 0.040447288148656516,
+      "AllocatedBytesPerOperation": 1560,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 3.66649169921875,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.64700927734375,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.6407470703125,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.64691162109375,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.64510498046875,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.6370849609375,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.68172607421875,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.75987548828125,
+          "AllocatedBytesPerOperation": 1560
+        },
+        {
+          "MicrosecondsPerOperation": 3.70521240234375,
+          "AllocatedBytesPerOperation": 1560
+        }
+      ],
+      "EncodedBytes": 270
+    },
+    {
+      "Id": "E07",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalStoppedEvent",
+      "Utf8Bytes": 1511,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.49302978515625,
+      "MeanMicroseconds": 4.516985405815972,
+      "StandardDeviationMicroseconds": 0.09629471688974041,
+      "AllocatedBytesPerOperation": 2704,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.5244873046875,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.43121337890625,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.42108154296875,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.51729736328125,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.4686767578125,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.72987060546875,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.4673095703125,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.59990234375,
+          "AllocatedBytesPerOperation": 2704
+        },
+        {
+          "MicrosecondsPerOperation": 4.49302978515625,
+          "AllocatedBytesPerOperation": 2704
+        }
+      ],
+      "EncodedBytes": 270
+    },
+    {
+      "Id": "E08",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedEvent",
+      "Utf8Bytes": 1596,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.05040283203125,
+      "MeanMicroseconds": 1.0445122612847222,
+      "StandardDeviationMicroseconds": 0.0460232312885978,
+      "AllocatedBytesPerOperation": 1184,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.09793701171875,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 1.11072998046875,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 1.02359619140625,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 1.01436767578125,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 0.98370361328125,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 0.98480224609375,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 1.05040283203125,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 1.06856689453125,
+          "AllocatedBytesPerOperation": 1184
+        },
+        {
+          "MicrosecondsPerOperation": 1.06650390625,
+          "AllocatedBytesPerOperation": 1184
+        }
+      ],
+      "EncodedBytes": 307
+    },
+    {
+      "Id": "E08",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedEvent",
+      "Utf8Bytes": 1596,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.131640625,
+      "MeanMicroseconds": 4.138454861111111,
+      "StandardDeviationMicroseconds": 0.0356695969005907,
+      "AllocatedBytesPerOperation": 1872,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.10177001953125,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.20755615234375,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.131640625,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.10224609375,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.13587646484375,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.10968017578125,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.169677734375,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.1234130859375,
+          "AllocatedBytesPerOperation": 1872
+        },
+        {
+          "MicrosecondsPerOperation": 4.1642333984375,
+          "AllocatedBytesPerOperation": 1872
+        }
+      ],
+      "EncodedBytes": 307
+    },
+    {
+      "Id": "E08",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedEvent",
+      "Utf8Bytes": 1596,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.510693359375,
+      "MeanMicroseconds": 5.494413248697916,
+      "StandardDeviationMicroseconds": 0.037698638848313204,
+      "AllocatedBytesPerOperation": 3056,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.5164794921875,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.5244140625,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.47861328125,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.457373046875,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.43624267578125,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.5224365234375,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.4580322265625,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.5454345703125,
+          "AllocatedBytesPerOperation": 3056
+        },
+        {
+          "MicrosecondsPerOperation": 5.510693359375,
+          "AllocatedBytesPerOperation": 3056
+        }
+      ],
+      "EncodedBytes": 307
+    },
+    {
+      "Id": "E09",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedEvent",
+      "Utf8Bytes": 1744,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.2084228515625,
+      "MeanMicroseconds": 1.2076253255208331,
+      "StandardDeviationMicroseconds": 0.013605136103893843,
+      "AllocatedBytesPerOperation": 1192,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.21495361328125,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.2084228515625,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.22137451171875,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.2304931640625,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.20955810546875,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.20372314453125,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.18734130859375,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.20032958984375,
+          "AllocatedBytesPerOperation": 1192
+        },
+        {
+          "MicrosecondsPerOperation": 1.192431640625,
+          "AllocatedBytesPerOperation": 1192
+        }
+      ],
+      "EncodedBytes": 320
+    },
+    {
+      "Id": "E09",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedEvent",
+      "Utf8Bytes": 1744,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.282421875,
+      "MeanMicroseconds": 4.285536024305555,
+      "StandardDeviationMicroseconds": 0.03280233864146303,
+      "AllocatedBytesPerOperation": 2000,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.282421875,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.3150634765625,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.34652099609375,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.31185302734375,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.28370361328125,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.268603515625,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.2562255859375,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.25035400390625,
+          "AllocatedBytesPerOperation": 2000
+        },
+        {
+          "MicrosecondsPerOperation": 4.255078125,
+          "AllocatedBytesPerOperation": 2000
+        }
+      ],
+      "EncodedBytes": 320
+    },
+    {
+      "Id": "E09",
+      "Type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedEvent",
+      "Utf8Bytes": 1744,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.7455322265625,
+      "MeanMicroseconds": 5.750321451822916,
+      "StandardDeviationMicroseconds": 0.044343165510060956,
+      "AllocatedBytesPerOperation": 3192,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.769970703125,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.71329345703125,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.69114990234375,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.73052978515625,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.7455322265625,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.722802734375,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.74652099609375,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.8005126953125,
+          "AllocatedBytesPerOperation": 3192
+        },
+        {
+          "MicrosecondsPerOperation": 5.83258056640625,
+          "AllocatedBytesPerOperation": 3192
+        }
+      ],
+      "EncodedBytes": 320
+    },
+    {
+      "Id": "E10",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedEvent",
+      "Utf8Bytes": 1882,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.24395751953125,
+      "MeanMicroseconds": 1.273095703125,
+      "StandardDeviationMicroseconds": 0.06533331477753303,
+      "AllocatedBytesPerOperation": 1264,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.24395751953125,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.219189453125,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.24398193359375,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.2337646484375,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.23868408203125,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.24052734375,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.30374755859375,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.426904296875,
+          "AllocatedBytesPerOperation": 1264
+        },
+        {
+          "MicrosecondsPerOperation": 1.3071044921875,
+          "AllocatedBytesPerOperation": 1264
+        }
+      ],
+      "EncodedBytes": 390
+    },
+    {
+      "Id": "E10",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedEvent",
+      "Utf8Bytes": 1882,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.676123046875,
+      "MeanMicroseconds": 4.674161783854166,
+      "StandardDeviationMicroseconds": 0.034288263890910886,
+      "AllocatedBytesPerOperation": 1880,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.7219482421875,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.6171875,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.7068603515625,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.676123046875,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.654248046875,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.64080810546875,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.6608642578125,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.70638427734375,
+          "AllocatedBytesPerOperation": 1880
+        },
+        {
+          "MicrosecondsPerOperation": 4.6830322265625,
+          "AllocatedBytesPerOperation": 1880
+        }
+      ],
+      "EncodedBytes": 390
+    },
+    {
+      "Id": "E10",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedEvent",
+      "Utf8Bytes": 1882,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 6.46883544921875,
+      "MeanMicroseconds": 6.49787326388889,
+      "StandardDeviationMicroseconds": 0.08169503766408291,
+      "AllocatedBytesPerOperation": 3144,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 6.64296875,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.62188720703125,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.4896240234375,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.51290283203125,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.43179931640625,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.43350830078125,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.46883544921875,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.42325439453125,
+          "AllocatedBytesPerOperation": 3144
+        },
+        {
+          "MicrosecondsPerOperation": 6.4560791015625,
+          "AllocatedBytesPerOperation": 3144
+        }
+      ],
+      "EncodedBytes": 390
+    },
+    {
+      "Id": "E11",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowStartRejectedEvent",
+      "Utf8Bytes": 1922,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.2671875,
+      "MeanMicroseconds": 1.2610283745659723,
+      "StandardDeviationMicroseconds": 0.09090980388866454,
+      "AllocatedBytesPerOperation": 2448,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.1838134765625,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.106884765625,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.205126953125,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.32735595703125,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.309326171875,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.31263427734375,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.4113037109375,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.2671875,
+          "AllocatedBytesPerOperation": 2448
+        },
+        {
+          "MicrosecondsPerOperation": 1.22562255859375,
+          "AllocatedBytesPerOperation": 2448
+        }
+      ],
+      "EncodedBytes": 524
+    },
+    {
+      "Id": "E11",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowStartRejectedEvent",
+      "Utf8Bytes": 1922,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 4.38270263671875,
+      "MeanMicroseconds": 4.387773980034722,
+      "StandardDeviationMicroseconds": 0.020872593087707957,
+      "AllocatedBytesPerOperation": 1784,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4.425537109375,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.367333984375,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.37550048828125,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.38270263671875,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.41507568359375,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.38662109375,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.3945068359375,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.36318359375,
+          "AllocatedBytesPerOperation": 1784
+        },
+        {
+          "MicrosecondsPerOperation": 4.37950439453125,
+          "AllocatedBytesPerOperation": 1784
+        }
+      ],
+      "EncodedBytes": 524
+    },
+    {
+      "Id": "E11",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowStartRejectedEvent",
+      "Utf8Bytes": 1922,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.88736572265625,
+      "MeanMicroseconds": 5.8762803819444445,
+      "StandardDeviationMicroseconds": 0.07583231666450219,
+      "AllocatedBytesPerOperation": 4232,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.8545166015625,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.84515380859375,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.7809814453125,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.88736572265625,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 6.02547607421875,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.91905517578125,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.77625732421875,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.8878173828125,
+          "AllocatedBytesPerOperation": 4232
+        },
+        {
+          "MicrosecondsPerOperation": 5.90989990234375,
+          "AllocatedBytesPerOperation": 4232
+        }
+      ],
+      "EncodedBytes": 524
+    },
+    {
+      "Id": "E12",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedEvent",
+      "Utf8Bytes": 2135,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.56158447265625,
+      "MeanMicroseconds": 1.5911241319444445,
+      "StandardDeviationMicroseconds": 0.046286830946672054,
+      "AllocatedBytesPerOperation": 2376,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.62786865234375,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.554052734375,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.63653564453125,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.67869873046875,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.594287109375,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.56158447265625,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.552490234375,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.5541015625,
+          "AllocatedBytesPerOperation": 2376
+        },
+        {
+          "MicrosecondsPerOperation": 1.560498046875,
+          "AllocatedBytesPerOperation": 2376
+        }
+      ],
+      "EncodedBytes": 456
+    },
+    {
+      "Id": "E12",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedEvent",
+      "Utf8Bytes": 2135,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.2922607421875,
+      "MeanMicroseconds": 5.292708333333334,
+      "StandardDeviationMicroseconds": 0.03290585566191128,
+      "AllocatedBytesPerOperation": 2592,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.3359375,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.344091796875,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.30186767578125,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.2952880859375,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.2548828125,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.27799072265625,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.28829345703125,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.2922607421875,
+          "AllocatedBytesPerOperation": 2592
+        },
+        {
+          "MicrosecondsPerOperation": 5.24376220703125,
+          "AllocatedBytesPerOperation": 2592
+        }
+      ],
+      "EncodedBytes": 456
+    },
+    {
+      "Id": "E12",
+      "Type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedEvent",
+      "Utf8Bytes": 2135,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 7.49969482421875,
+      "MeanMicroseconds": 7.480744086371528,
+      "StandardDeviationMicroseconds": 0.11965781273060337,
+      "AllocatedBytesPerOperation": 4968,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 7.40858154296875,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.37576904296875,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.5305908203125,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.642724609375,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.53096923828125,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.4054931640625,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.2923095703125,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.49969482421875,
+          "AllocatedBytesPerOperation": 4968
+        },
+        {
+          "MicrosecondsPerOperation": 7.64056396484375,
+          "AllocatedBytesPerOperation": 4968
+        }
+      ],
+      "EncodedBytes": 456
+    },
+    {
+      "Id": "E13",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementResultRecordedEvent",
+      "Utf8Bytes": 2279,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.7269775390625,
+      "MeanMicroseconds": 1.8154269748263887,
+      "StandardDeviationMicroseconds": 0.28861819316451526,
+      "AllocatedBytesPerOperation": 2680,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 1.66741943359375,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 1.843408203125,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 2.47122802734375,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 2.00062255859375,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 1.8852294921875,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 1.7269775390625,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 1.58592529296875,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 1.54588623046875,
+          "AllocatedBytesPerOperation": 2680
+        },
+        {
+          "MicrosecondsPerOperation": 1.61214599609375,
+          "AllocatedBytesPerOperation": 2680
+        }
+      ],
+      "EncodedBytes": 689
+    },
+    {
+      "Id": "E13",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementResultRecordedEvent",
+      "Utf8Bytes": 2279,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.55943603515625,
+      "MeanMicroseconds": 5.555771213107638,
+      "StandardDeviationMicroseconds": 0.03870240161537835,
+      "AllocatedBytesPerOperation": 2584,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.5561279296875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.5216796875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.51903076171875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.57105712890625,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.63602294921875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.5623046875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.55943603515625,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.5055908203125,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 5.57069091796875,
+          "AllocatedBytesPerOperation": 2584
+        }
+      ],
+      "EncodedBytes": 689
+    },
+    {
+      "Id": "E13",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementResultRecordedEvent",
+      "Utf8Bytes": 2279,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 7.8344970703125,
+      "MeanMicroseconds": 7.825325520833335,
+      "StandardDeviationMicroseconds": 0.12340760065070376,
+      "AllocatedBytesPerOperation": 5264,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 7.833251953125,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.9493408203125,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.979248046875,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.85589599609375,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.7642578125,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.8344970703125,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.8279296875,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.83712158203125,
+          "AllocatedBytesPerOperation": 5264
+        },
+        {
+          "MicrosecondsPerOperation": 7.54638671875,
+          "AllocatedBytesPerOperation": 5264
+        }
+      ],
+      "EncodedBytes": 689
+    },
+    {
+      "Id": "E14",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationStartedEvent",
+      "Utf8Bytes": 2666,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 1.908447265625,
+      "MeanMicroseconds": 1.9397054036458339,
+      "StandardDeviationMicroseconds": 0.06784467800574016,
+      "AllocatedBytesPerOperation": 2464,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 2.00963134765625,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 1.93800048828125,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 1.89649658203125,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 1.89891357421875,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 2.0220458984375,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 1.908447265625,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 1.8887451171875,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 1.85286865234375,
+          "AllocatedBytesPerOperation": 2464
+        },
+        {
+          "MicrosecondsPerOperation": 2.04219970703125,
+          "AllocatedBytesPerOperation": 2464
+        }
+      ],
+      "EncodedBytes": 542
+    },
+    {
+      "Id": "E14",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationStartedEvent",
+      "Utf8Bytes": 2666,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 6.03271484375,
+      "MeanMicroseconds": 6.115087890625,
+      "StandardDeviationMicroseconds": 0.20675638837628377,
+      "AllocatedBytesPerOperation": 2216,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 5.98917236328125,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 5.96392822265625,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 5.951318359375,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 5.93553466796875,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 6.03271484375,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 6.08216552734375,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 6.168994140625,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 6.43328857421875,
+          "AllocatedBytesPerOperation": 2216
+        },
+        {
+          "MicrosecondsPerOperation": 6.47867431640625,
+          "AllocatedBytesPerOperation": 2216
+        }
+      ],
+      "EncodedBytes": 542
+    },
+    {
+      "Id": "E14",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationStartedEvent",
+      "Utf8Bytes": 2666,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 8.5031005859375,
+      "MeanMicroseconds": 8.529349772135417,
+      "StandardDeviationMicroseconds": 0.10523093343967943,
+      "AllocatedBytesPerOperation": 4680,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 8.4878173828125,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.4316650390625,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.46788330078125,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.7924072265625,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.5031005859375,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.4732421875,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.5202392578125,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.54439697265625,
+          "AllocatedBytesPerOperation": 4680
+        },
+        {
+          "MicrosecondsPerOperation": 8.54339599609375,
+          "AllocatedBytesPerOperation": 4680
+        }
+      ],
+      "EncodedBytes": 542
+    },
+    {
+      "Id": "E15",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedEvent",
+      "Utf8Bytes": 2811,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 2.34466552734375,
+      "MeanMicroseconds": 2.376812065972222,
+      "StandardDeviationMicroseconds": 0.08017398960260888,
+      "AllocatedBytesPerOperation": 2584,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 2.52685546875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.33397216796875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.34466552734375,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.359033203125,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.29881591796875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.33924560546875,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.49283447265625,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.3873291015625,
+          "AllocatedBytesPerOperation": 2584
+        },
+        {
+          "MicrosecondsPerOperation": 2.30855712890625,
+          "AllocatedBytesPerOperation": 2584
+        }
+      ],
+      "EncodedBytes": 662
+    },
+    {
+      "Id": "E15",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedEvent",
+      "Utf8Bytes": 2811,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 6.179443359375,
+      "MeanMicroseconds": 6.3555162217881955,
+      "StandardDeviationMicroseconds": 0.4742822579213207,
+      "AllocatedBytesPerOperation": 2568,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 6.1708251953125,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.13375244140625,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.1377197265625,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 7.60765380859375,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.165380859375,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.3351318359375,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.28121337890625,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.188525390625,
+          "AllocatedBytesPerOperation": 2568
+        },
+        {
+          "MicrosecondsPerOperation": 6.179443359375,
+          "AllocatedBytesPerOperation": 2568
+        }
+      ],
+      "EncodedBytes": 662
+    },
+    {
+      "Id": "E15",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedEvent",
+      "Utf8Bytes": 2811,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 9.41298828125,
+      "MeanMicroseconds": 9.417754448784724,
+      "StandardDeviationMicroseconds": 0.08083396505714456,
+      "AllocatedBytesPerOperation": 5152,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 9.4109619140625,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.432568359375,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.4212646484375,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.41298828125,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.482421875,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.58282470703125,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.353125,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.30357666015625,
+          "AllocatedBytesPerOperation": 5152
+        },
+        {
+          "MicrosecondsPerOperation": 9.36005859375,
+          "AllocatedBytesPerOperation": 5152
+        }
+      ],
+      "EncodedBytes": 662
+    },
+    {
+      "Id": "E16",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupExecutionRequestedDomainEvent",
+      "Utf8Bytes": 3217,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 2.4335693359375,
+      "MeanMicroseconds": 2.427237955729167,
+      "StandardDeviationMicroseconds": 0.023536576825714767,
+      "AllocatedBytesPerOperation": 2664,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 2.4335693359375,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.39197998046875,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.4345947265625,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.4306396484375,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.4032470703125,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.4005126953125,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.45174560546875,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.4392333984375,
+          "AllocatedBytesPerOperation": 2664
+        },
+        {
+          "MicrosecondsPerOperation": 2.459619140625,
+          "AllocatedBytesPerOperation": 2664
+        }
+      ],
+      "EncodedBytes": 743
+    },
+    {
+      "Id": "E16",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupExecutionRequestedDomainEvent",
+      "Utf8Bytes": 3217,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 6.79913330078125,
+      "MeanMicroseconds": 6.846659342447916,
+      "StandardDeviationMicroseconds": 0.10885985090010174,
+      "AllocatedBytesPerOperation": 2696,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 6.94886474609375,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.90472412109375,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 7.0746826171875,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.79913330078125,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.7663330078125,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.778515625,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.7663330078125,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.828857421875,
+          "AllocatedBytesPerOperation": 2696
+        },
+        {
+          "MicrosecondsPerOperation": 6.752490234375,
+          "AllocatedBytesPerOperation": 2696
+        }
+      ],
+      "EncodedBytes": 743
+    },
+    {
+      "Id": "E16",
+      "Type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupExecutionRequestedDomainEvent",
+      "Utf8Bytes": 3217,
+      "Operation": "RoundTrip",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 9.967919921875,
+      "MeanMicroseconds": 9.979820421006945,
+      "StandardDeviationMicroseconds": 0.0465993582868709,
+      "AllocatedBytesPerOperation": 5360,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 9.97021484375,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 9.9622314453125,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 9.94398193359375,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 10.0316650390625,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 10.07391357421875,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 9.967919921875,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 9.94803466796875,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 9.92686767578125,
+          "AllocatedBytesPerOperation": 5360
+        },
+        {
+          "MicrosecondsPerOperation": 9.9935546875,
+          "AllocatedBytesPerOperation": 5360
+        }
+      ],
+      "EncodedBytes": 743
+    },
+    {
+      "Id": "E17",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedEvent",
+      "Utf8Bytes": 4648,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 5.95133056640625,
+      "MeanMicroseconds": 5.990352376302083,
+      "StandardDeviationMicroseconds": 0.10829124219486963,
+      "AllocatedBytesPerOperation": 5304,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 6.02247314453125,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 5.95133056640625,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 6.17283935546875,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 6.09420166015625,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 6.09129638671875,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 5.8946044921875,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 5.88221435546875,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 5.9186767578125,
+          "AllocatedBytesPerOperation": 5304
+        },
+        {
+          "MicrosecondsPerOperation": 5.88553466796875,
+          "AllocatedBytesPerOperation": 5304
+        }
+      ],
+      "EncodedBytes": 1310
+    },
+    {
+      "Id": "E17",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedEvent",
+      "Utf8Bytes": 4648,
+      "Operation": "Deserialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 10.30933837890625,
+      "MeanMicroseconds": 10.338141547309029,
+      "StandardDeviationMicroseconds": 0.084873236874695,
+      "AllocatedBytesPerOperation": 2752,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 10.54803466796875,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.32115478515625,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.298876953125,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.30933837890625,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.279296875,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.33402099609375,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.381005859375,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.293212890625,
+          "AllocatedBytesPerOperation": 2752
+        },
+        {
+          "MicrosecondsPerOperation": 10.27833251953125,
+          "AllocatedBytesPerOperation": 2752
+        }
+      ],
+      "EncodedBytes": 1310
+    },
+    {
+      "Id": "E17",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedEvent",
+      "Utf8Bytes": 4648,
+      "Operation": "RoundTrip",
+      "BatchSize": 4096,
+      "MedianMicroseconds": 18.604638671875,
+      "MeanMicroseconds": 18.840885416666666,
+      "StandardDeviationMicroseconds": 1.0662560729595099,
+      "AllocatedBytesPerOperation": 8056,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 18.604638671875,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 18.411767578125,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 18.6132568359375,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 21.4844482421875,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 19.1745849609375,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 18.99990234375,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 18.1030029296875,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 18.068310546875,
+          "AllocatedBytesPerOperation": 8056
+        },
+        {
+          "MicrosecondsPerOperation": 18.108056640625,
+          "AllocatedBytesPerOperation": 8056
+        }
+      ],
+      "EncodedBytes": 1310
+    },
+    {
+      "Id": "E18",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedEvent",
+      "Utf8Bytes": 9821,
+      "Operation": "Serialize",
+      "BatchSize": 8192,
+      "MedianMicroseconds": 8.6740234375,
+      "MeanMicroseconds": 8.710201009114583,
+      "StandardDeviationMicroseconds": 0.06601356948947958,
+      "AllocatedBytesPerOperation": 5672,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 8.8047119140625,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.806103515625,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.6397216796875,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.6740234375,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.727978515625,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.6706298828125,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.64957275390625,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.66004638671875,
+          "AllocatedBytesPerOperation": 5672
+        },
+        {
+          "MicrosecondsPerOperation": 8.75902099609375,
+          "AllocatedBytesPerOperation": 5672
+        }
+      ],
+      "EncodedBytes": 1680
+    },
+    {
+      "Id": "E18",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedEvent",
+      "Utf8Bytes": 9821,
+      "Operation": "Deserialize",
+      "BatchSize": 4096,
+      "MedianMicroseconds": 16.447314453125,
+      "MeanMicroseconds": 17.552577039930554,
+      "StandardDeviationMicroseconds": 2.4696583367336347,
+      "AllocatedBytesPerOperation": 5456,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 23.846484375,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 17.971533203125,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 17.99404296875,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 16.803125,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 16.447314453125,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 16.2854736328125,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 16.2213623046875,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 16.18544921875,
+          "AllocatedBytesPerOperation": 5456
+        },
+        {
+          "MicrosecondsPerOperation": 16.218408203125,
+          "AllocatedBytesPerOperation": 5456
+        }
+      ],
+      "EncodedBytes": 1680
+    },
+    {
+      "Id": "E18",
+      "Type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedEvent",
+      "Utf8Bytes": 9821,
+      "Operation": "RoundTrip",
+      "BatchSize": 2048,
+      "MedianMicroseconds": 25.912646484375,
+      "MeanMicroseconds": 26.210774739583332,
+      "StandardDeviationMicroseconds": 0.5707722694448614,
+      "AllocatedBytesPerOperation": 11128,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 27.42685546875,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 25.82646484375,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 26.053955078125,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 25.791259765625,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 25.878857421875,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 26.831298828125,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 26.374853515625,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 25.912646484375,
+          "AllocatedBytesPerOperation": 11128
+        },
+        {
+          "MicrosecondsPerOperation": 25.80078125,
+          "AllocatedBytesPerOperation": 11128
+        }
+      ],
+      "EncodedBytes": 1680
+    },
+    {
+      "Id": "E19",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentCompletedEvent",
+      "Utf8Bytes": 21059,
+      "Operation": "Serialize",
+      "BatchSize": 4096,
+      "MedianMicroseconds": 20.95029296875,
+      "MeanMicroseconds": 20.987418619791672,
+      "StandardDeviationMicroseconds": 0.49966383019116284,
+      "AllocatedBytesPerOperation": 28656,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 20.95029296875,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 21.5730712890625,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 21.474072265625,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 20.922265625,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 20.5117919921875,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 20.547216796875,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 20.2376953125,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 21.028662109375,
+          "AllocatedBytesPerOperation": 28656
+        },
+        {
+          "MicrosecondsPerOperation": 21.64169921875,
+          "AllocatedBytesPerOperation": 28656
+        }
+      ],
+      "EncodedBytes": 5287
+    },
+    {
+      "Id": "E19",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentCompletedEvent",
+      "Utf8Bytes": 21059,
+      "Operation": "Deserialize",
+      "BatchSize": 512,
+      "MedianMicroseconds": 103.94765625,
+      "MeanMicroseconds": 104.52747395833335,
+      "StandardDeviationMicroseconds": 9.986619200080126,
+      "AllocatedBytesPerOperation": 49432,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 121.519921875,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 114.4953125,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 112.373828125,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 104.3021484375,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 103.94765625,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 100.0708984375,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 99.3734375,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 93.7328125,
+          "AllocatedBytesPerOperation": 49432
+        },
+        {
+          "MicrosecondsPerOperation": 90.93125,
+          "AllocatedBytesPerOperation": 49432
+        }
+      ],
+      "EncodedBytes": 5287
+    },
+    {
+      "Id": "E19",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentCompletedEvent",
+      "Utf8Bytes": 21059,
+      "Operation": "RoundTrip",
+      "BatchSize": 512,
+      "MedianMicroseconds": 120.453515625,
+      "MeanMicroseconds": 120.56733940972224,
+      "StandardDeviationMicroseconds": 0.9155733883097344,
+      "AllocatedBytesPerOperation": 78088,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 120.5603515625,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 119.488671875,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 119.6814453125,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 120.094140625,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 119.85703125,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 121.2650390625,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 122.1876953125,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 120.453515625,
+          "AllocatedBytesPerOperation": 78088
+        },
+        {
+          "MicrosecondsPerOperation": 121.5181640625,
+          "AllocatedBytesPerOperation": 78088
+        }
+      ],
+      "EncodedBytes": 5287
+    },
+    {
+      "Id": "E20",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent",
+      "Utf8Bytes": 3557103,
+      "Operation": "Serialize",
+      "BatchSize": 8,
+      "MedianMicroseconds": 6399.525,
+      "MeanMicroseconds": 6259.669444444445,
+      "StandardDeviationMicroseconds": 901.9643106573857,
+      "AllocatedBytesPerOperation": 5505615.666666667,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 4924.7625,
+          "AllocatedBytesPerOperation": 5505120
+        },
+        {
+          "MicrosecondsPerOperation": 4873.9,
+          "AllocatedBytesPerOperation": 5506056
+        },
+        {
+          "MicrosecondsPerOperation": 7804.5,
+          "AllocatedBytesPerOperation": 5506052
+        },
+        {
+          "MicrosecondsPerOperation": 6399.525,
+          "AllocatedBytesPerOperation": 5505125
+        },
+        {
+          "MicrosecondsPerOperation": 6425.6125,
+          "AllocatedBytesPerOperation": 5505131
+        },
+        {
+          "MicrosecondsPerOperation": 6415.225,
+          "AllocatedBytesPerOperation": 5505982
+        },
+        {
+          "MicrosecondsPerOperation": 6261.3875,
+          "AllocatedBytesPerOperation": 5506010
+        },
+        {
+          "MicrosecondsPerOperation": 6399.075,
+          "AllocatedBytesPerOperation": 5505646
+        },
+        {
+          "MicrosecondsPerOperation": 6833.0375,
+          "AllocatedBytesPerOperation": 5505419
+        }
+      ],
+      "EncodedBytes": 1062416
+    },
+    {
+      "Id": "E20",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent",
+      "Utf8Bytes": 3557103,
+      "Operation": "Deserialize",
+      "BatchSize": 4,
+      "MedianMicroseconds": 19108.425,
+      "MeanMicroseconds": 20358.933333333334,
+      "StandardDeviationMicroseconds": 1901.788271560152,
+      "AllocatedBytesPerOperation": 6918664,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 19002.225,
+          "AllocatedBytesPerOperation": 6918368
+        },
+        {
+          "MicrosecondsPerOperation": 18632.55,
+          "AllocatedBytesPerOperation": 6918368
+        },
+        {
+          "MicrosecondsPerOperation": 18678.875,
+          "AllocatedBytesPerOperation": 6918424
+        },
+        {
+          "MicrosecondsPerOperation": 22504.575,
+          "AllocatedBytesPerOperation": 6919990
+        },
+        {
+          "MicrosecondsPerOperation": 22793.5,
+          "AllocatedBytesPerOperation": 6918778
+        },
+        {
+          "MicrosecondsPerOperation": 18572.075,
+          "AllocatedBytesPerOperation": 6918424
+        },
+        {
+          "MicrosecondsPerOperation": 21329.55,
+          "AllocatedBytesPerOperation": 6918830
+        },
+        {
+          "MicrosecondsPerOperation": 19108.425,
+          "AllocatedBytesPerOperation": 6918368
+        },
+        {
+          "MicrosecondsPerOperation": 22608.625,
+          "AllocatedBytesPerOperation": 6918426
+        }
+      ],
+      "EncodedBytes": 1062416
+    },
+    {
+      "Id": "E20",
+      "Type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent",
+      "Utf8Bytes": 3557103,
+      "Operation": "RoundTrip",
+      "BatchSize": 2,
+      "MedianMicroseconds": 28160.25,
+      "MeanMicroseconds": 26426.355555555554,
+      "StandardDeviationMicroseconds": 3310.754758684608,
+      "AllocatedBytesPerOperation": 12423925.333333334,
+      "Samples": [
+        {
+          "MicrosecondsPerOperation": 21430.25,
+          "AllocatedBytesPerOperation": 12423544
+        },
+        {
+          "MicrosecondsPerOperation": 23965.4,
+          "AllocatedBytesPerOperation": 12423432
+        },
+        {
+          "MicrosecondsPerOperation": 26837.6,
+          "AllocatedBytesPerOperation": 12423664
+        },
+        {
+          "MicrosecondsPerOperation": 28160.25,
+          "AllocatedBytesPerOperation": 12423712
+        },
+        {
+          "MicrosecondsPerOperation": 29155.05,
+          "AllocatedBytesPerOperation": 12423576
+        },
+        {
+          "MicrosecondsPerOperation": 28409.85,
+          "AllocatedBytesPerOperation": 12426620
+        },
+        {
+          "MicrosecondsPerOperation": 28866.65,
+          "AllocatedBytesPerOperation": 12423576
+        },
+        {
+          "MicrosecondsPerOperation": 29657.4,
+          "AllocatedBytesPerOperation": 12423660
+        },
+        {
+          "MicrosecondsPerOperation": 21354.75,
+          "AllocatedBytesPerOperation": 12423544
+        }
+      ],
+      "EncodedBytes": 1062416
+    }
+  ]
+}

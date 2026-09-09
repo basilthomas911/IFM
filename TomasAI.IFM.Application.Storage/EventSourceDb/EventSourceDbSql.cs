@@ -127,7 +127,7 @@ SELECT
         en.eventName as "EventName",
   en.eventTypeName as "EventTypeName",
         el.eventVersion as "EventVersion",
-        el.eventData as "EventData",
+        el.EventPayload as "EventPayload",
         el.commandId as "CommandId",
         el.eventTimestamp as "EventTimeStamp",
         el.StreamVersion as "StreamVersion"
@@ -148,7 +148,7 @@ SELECT
       en.eventName as "EventName",
       en.eventTypeName as "EventTypeName",
       el.eventVersion as "EventVersion",
-      el.eventData as "EventData",
+      el.EventPayload as "EventPayload",
       el.commandId as "CommandId",
       el.eventTimestamp as "EventTimeStamp",
       el.StreamVersion as "StreamVersion"
@@ -166,7 +166,7 @@ public const string GetEventLogByEventVersion = """
       en.eventName as "EventName",
       en.eventTypeName as "EventTypeName",
       el.eventVersion as "EventVersion",
-      el.eventData as "EventData",
+      el.EventPayload as "EventPayload",
       el.commandId as "CommandId",
       el.eventTimestamp as "EventTimeStamp",
       el.StreamVersion as "StreamVersion"
@@ -187,7 +187,7 @@ SELECT
         en.eventName as "EventName",
   en.eventTypeName as "EventTypeName",
         el.eventVersion as "EventVersion",
-        el.eventData as "EventData",
+        el.EventPayload as "EventPayload",
         el.commandId as "CommandId",
         el.eventTimestamp as "EventTimeStamp",
         el.StreamVersion as "StreamVersion"
@@ -209,7 +209,7 @@ WITH last_event_range AS (
         el.eventNameId,
         el.eventVersion,
         el.StreamVersion,
-        el.eventData,
+        el.EventPayload,
         el.commandId,
         el.eventTimestamp
     FROM event_log el
@@ -223,7 +223,7 @@ SELECT
     en.eventName AS "EventName",
     en.eventTypeName AS "EventTypeName",
     el.eventVersion AS "EventVersion",
-    el.eventData AS "EventData",
+    el.EventPayload AS "EventPayload",
     el.commandId AS "CommandId",
     el.eventTimestamp AS "EventTimeStamp",
     el.StreamVersion AS "StreamVersion"
@@ -250,7 +250,7 @@ last_event_range AS (
         el.eventNameId,
         el.eventVersion,
         el.StreamVersion,
-        el.eventData,
+        el.EventPayload,
         el.commandId,
         el.eventTimestamp
     FROM event_log el
@@ -268,7 +268,7 @@ replay_range AS (
         el.eventNameId,
         el.eventVersion,
         el.StreamVersion,
-        el.eventData,
+        el.EventPayload,
         el.commandId,
         el.eventTimestamp
     FROM event_log el
@@ -284,7 +284,7 @@ replay_range AS (
         eventNameId,
         eventVersion,
         StreamVersion,
-        eventData,
+        EventPayload,
         commandId,
         eventTimestamp
     FROM last_event_range
@@ -294,7 +294,7 @@ SELECT
     en.eventName AS "EventName",
     en.eventTypeName AS "EventTypeName",
     el.eventVersion AS "EventVersion",
-    el.eventData AS "EventData",
+    el.EventPayload AS "EventPayload",
     el.commandId AS "CommandId",
     el.eventTimestamp AS "EventTimeStamp",
     el.StreamVersion AS "StreamVersion"
@@ -843,7 +843,7 @@ ORDER BY el.eventVersion ASC;
             en.EventName as "EventName",
             en.EventTypeName as "EventTypeName",
             el.EventVersion as "EventVersion",
-            el.EventData as "EventData",
+            el.EventPayload as "EventPayload",
             el.CommandId as "CommandId",
             el.EventTimestamp as "EventTimestamp",
             el.StreamVersion as "StreamVersion",
@@ -910,7 +910,7 @@ ORDER BY el.eventVersion ASC;
             en.eventName as "EventName",
             en.eventTypeName as "EventTypeName",
             el.eventVersion as "EventVersion",
-            el.eventData as "EventData",
+            el.EventPayload as "EventPayload",
             el.commandId as "CommandId",
             el.eventTimestamp as "EventTimestamp",
             el.StreamVersion as "StreamVersion"
@@ -978,7 +978,7 @@ public const string InsertEventLog = """
             EventStreamId,
             EventNameId,
             StreamVersion,
-            EventData,
+            EventPayload,
             CommandId,
             EventTimestamp
         )
@@ -1006,7 +1006,7 @@ public const string InsertEventLogExpectedVersion = """
             EventStreamId,
             EventNameId,
             StreamVersion,
-            EventData,
+            EventPayload,
             CommandId,
             EventTimestamp
         )
@@ -1034,7 +1034,7 @@ public const string InsertEventLogExpectedVersion = """
 
 public const string UpdateEventLog = """
     UPDATE event_log SET
-        EventData = $1,
+        EventPayload = $1,
         CommandId = $2,
         EventTimestamp = $3
     WHERE

@@ -56,7 +56,7 @@ public class FuturesRsiSignalStateRepositoryTests
                     {
                         EventVersion = 10,
                         EventTypeName = typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
-                        EventData = JsonConvert.SerializeObject(generatedEvent)
+                        EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
                     }
                 ]);
                 return ValueTask.CompletedTask;
@@ -208,7 +208,7 @@ public class FuturesRsiSignalStateRepositoryTests
                     {
                         EventVersion = index + 1,
                         EventTypeName = typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
-                        EventData = JsonConvert.SerializeObject(generatedEvent)
+                        EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
                     })
                     .ToArray();
                 call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(rows);

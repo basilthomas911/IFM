@@ -37,7 +37,7 @@ public sealed class OptionTradeCommandStateReplayTests
         {
             EventVersion = 1,
             EventTypeName = typeof(OptionTradeToOpenEvent).AssemblyQualifiedName!,
-            EventData = JsonConvert.SerializeObject(original)
+            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(original)
         };
         var rehydrated = persisted.ToDomainEvent().Should().BeOfType<OptionTradeToOpenEvent>().Subject;
 

@@ -1,0 +1,66 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesRsiSignalEvent",
+    "Verb": "FuturesRsiDailySignalGenerated",
+    "EntityId": "ESRSIaf618ad419af4.Daily.14",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesRsiSignalEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesRsiSignalEvent",
+      "Verb": "FuturesRsiDailySignalGenerated"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesRsiSignalEvent",
+      "EntityId": "ESRSIaf618ad419af4.Daily.14",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesRsiSignalEvent"
+      }
+    },
+    "StreamId": "Event.FuturesRsiSignalEvent.ESRSIaf618ad419af4.Daily.14"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ESRSIaf618ad419af4",
+    "TimePeriod": 1,
+    "PeriodLength": 14
+  },
+  "EventId": 856437,
+  "CommandId": "4f75baab-07fd-4119-8694-d024e1bb0556",
+  "AggregateId": null,
+  "EventSource": "FuturesRsiSignalCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "FuturesRsiSignal": {
+    "ContractId": "ESRSIaf618ad419af4",
+    "ValueDate": "2025-06-20",
+    "TimePeriod": 1,
+    "PeriodLength": 14,
+    "Timestamp": "00:00:00",
+    "Price": 5500.0,
+    "PriceChange": 0.0,
+    "PriceGain": 0.0,
+    "PriceLoss": 0.0,
+    "AveragePriceGain": 0.0,
+    "AveragePriceLoss": 0.0,
+    "RS": 0.0,
+    "RSI": -1.0,
+    "RSIAverage": 0.0,
+    "RSISlope": 0.0,
+    "SourceSequence": 0,
+    "SourceEventTimestamp": "0001-01-01T00:00:00",
+    "Metadata": null,
+    "PreviousRsi": null,
+    "RegimeSlope": null,
+    "IsWarm": false
+  },
+  "CreatedOn": "2026-09-04T13:10:35.8776198Z",
+  "CreatedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesRsiDailySignalGeneratedEvent",
+  "EventType": 0
+}

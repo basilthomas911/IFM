@@ -266,7 +266,7 @@ public sealed class EventProjectorTransientFlowTests
                 nameof(FundCreatedEvent),
                 typeof(FundCreatedEvent).AssemblyQualifiedName!,
                 source.EventId,
-                source.ToEventData(),
+                TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(source),
                 source.CommandId,
                 $"{DateTime.UtcNow:o}"));
 

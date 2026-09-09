@@ -152,6 +152,7 @@ sealed class ActorThread : IActorThread
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     async ValueTask OnMessageAsync(IActorMessage message)
     {
+        using var trace = ActorTrace.Start(message);
         _state = ActorThreadState.ProcessingMessage;
         ResetTimer();
 

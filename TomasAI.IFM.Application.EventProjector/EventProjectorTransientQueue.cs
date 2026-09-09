@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using TomasAI.IFM.Shared.EventModelActor;
 using Microsoft.Extensions.Logging;
 using System.Threading.Channels;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -32,7 +34,8 @@ internal sealed class EventProjectorTransientQueue(
     readonly ILogger _logger = logger
         ?? throw new ArgumentNullException(nameof(logger));
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
-    Channel<IEvent>? _channel;
+    readonly record struct Pending(IEvent Event, ActivityContext Context);
+    Channel<Pending>? _channel;
     CancellationTokenSource? _workerCancellation;
     Task? _worker;
 
@@ -50,7 +53,7 @@ internal sealed class EventProjectorTransientQueue(
 
             _workerCancellation?.Dispose();
             _workerCancellation = new CancellationTokenSource();
-            _channel = Channel.CreateBounded<IEvent>(new BoundedChannelOptions(_capacity)
+            _channel = Channel.CreateBounded<Pending>(new BoundedChannelOptions(_capacity)
             {
                 SingleReader = true,
                 SingleWriter = false,
@@ -75,7 +78,7 @@ internal sealed class EventProjectorTransientQueue(
                 $"The non-durable queue for projector '{_projectorName}' has not been started.");
         try
         {
-            await channel.Writer.WriteAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+            await channel.Writer.WriteAsync(new Pending(domainEvent, Activity.Current?.Context ?? default), cancellationToken).ConfigureAwait(false);
         }
         catch (ChannelClosedException ex)
         {
@@ -123,14 +126,19 @@ internal sealed class EventProjectorTransientQueue(
     }
 
     async Task RunAsync(
-        ChannelReader<IEvent> reader,
+        ChannelReader<Pending> reader,
         Func<IEvent, CancellationToken, ValueTask> handler,
         CancellationToken cancellationToken)
     {
+        // Do not attach later untraced events to the command that started this worker.
+        Activity.Current = null;
         try
         {
-            await foreach (var domainEvent in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            await foreach (var pending in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
+                var domainEvent = pending.Event;
+                using var trace = pending.Context != default
+                    ? ActorTrace.Source.StartActivity("projector.process", ActivityKind.Internal, pending.Context) : null;
                 try
                 {
                     await handler(domainEvent, cancellationToken).ConfigureAwait(false);

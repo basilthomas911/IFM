@@ -1,0 +1,50 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "LookupTypeEvent",
+    "Verb": "Added",
+    "EntityId": "G2-1DC59D0B-Lookup.0",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "LookupTypeEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "LookupTypeEvent",
+      "Verb": "Added"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "LookupTypeEvent",
+      "EntityId": "G2-1DC59D0B-Lookup.0",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "LookupTypeEvent"
+      }
+    },
+    "StreamId": "Event.LookupTypeEvent.G2-1DC59D0B-Lookup.0"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "LookupTypeName": "G2-1DC59D0B-Lookup",
+    "OrderId": 0
+  },
+  "EventId": 180026,
+  "CommandId": "7d515399-1322-4d60-a379-428972cd5a41",
+  "AggregateId": null,
+  "EventSource": "LookupTypeCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "LookupType": {
+    "LookupTypeName": "G2-1DC59D0B-Lookup",
+    "ShortCode": "G2-1DC59D0B-A",
+    "OrderId": 0,
+    "Description": "G2-1DC59D0B lookup added",
+    "CreatedOn": "2026-08-24T19:30:57.5257773Z",
+    "CreatedBy": ""
+  },
+  "AddedOn": "2026-08-24T19:30:57.5812249Z",
+  "AddedBy": "DEV-SERVER\\basil",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "LookupTypeAddedEvent",
+  "EventType": 0
+}

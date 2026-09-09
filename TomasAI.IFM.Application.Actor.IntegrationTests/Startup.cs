@@ -406,7 +406,44 @@ public static class Startup
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
                 .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
+                .Add("PortfolioDbConnection", config.GetConnectionString("PortfolioDbConnection") ?? config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
             );
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialInventoryStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialRetentionStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioFinancialDbContext,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialDbContext>();
+            services.AddSingleton(provider => new TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy(
+                provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IGeneralLedgerStore,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.GeneralLedgerStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.ICapacityReservationStore,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.CapacityReservationStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.FinancialIdentityAllocator>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialAuthorityPreparationStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IFinancialHistoryProjection,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialHistoryProjection>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IFinancialQueryStore,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialQueryStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi,
+                TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.AccountingExportStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.EmulatorExecutionStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioAuthorityFence,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioAuthorityFence>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialHistoryJournal>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.ILedgerConfigurationStore,
+                TomasAI.IFM.Application.Storage.PortfolioFinancial.LedgerConfigurationStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Identity.IPortfolioBusinessIdAllocator, TomasAI.IFM.Domain.Portfolio.Identity.PortfolioBusinessIdAllocator>();
+            services.AddSingleton(new TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalOptions());
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Operations.IPortfolioOperationalGuard, TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalGuard>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore, TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioEventStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi, TomasAI.IFM.Application.Api.Nats.Client.PortfolioQueryApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFundCommandApi, TomasAI.IFM.Application.Api.Nats.Client.PortfolioFundCommandApi>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbContext>(_ => (TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbContext)new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbReadContext>(provider => provider.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbContext>());
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbWriteContext>(provider => provider.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbContext>());
             services.AddSingleton<IDbCache, DbCache>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction,
                 TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
@@ -621,7 +658,8 @@ public static class Startup
             ReferenceActorAssembly.Current,
             SecuritiesActorAssembly.Current,
             SystemAdminActorAssembly.Current,
-            TradeActorAssembly.Current
+            TradeActorAssembly.Current,
+            TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current
         };
         // Focused transport tests can boot only their owning domain, avoiding unrelated
         // actors and background execution while using the real production runtime.
@@ -643,6 +681,28 @@ public static class Startup
         siContainer.Register(typeof(IActor<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        if (domainAssemblies.Contains(TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current))
+        {
+        siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityReservationFunctionContext>(
+            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityReservationFunctionActor>)).Registration);
+        siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityConsumptionFunctionContext>(
+            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityConsumptionFunctionActor>)).Registration);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.EmulatorExecutionCommandServices>(Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialBookPreparation>(Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.LegacyFinancialRetention>(()=>new(
+            (TomasAI.IFM.Application.Storage.FundDb.IFundDbReadContext)siContainer.GetInstance<TomasAI.IFM.Application.Storage.FundDb.IFundDbContext>(),
+            siContainer.GetInstance<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore>(),
+            siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialWriterFence>(),
+            siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialInventoryStore>(),
+            siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialRetentionStore>(),
+            siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy>()),Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialAuthorityPreparation>(Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.CapacityReservationCommandServices>(Lifestyle.Singleton);
+        }
         // Focused MarketData tests do not register Trade function actors or their context aliases.
         if (domainAssemblies.Contains(TradeActorAssembly.Current))
         {

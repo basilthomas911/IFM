@@ -1,0 +1,85 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesVwapSignalEvent",
+    "Verb": "SignalUpdated",
+    "EntityId": "ES20260918|20260904|futures-vwap-exact-v1",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesVwapSignalEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesVwapSignalEvent",
+      "Verb": "SignalUpdated"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesVwapSignalEvent",
+      "EntityId": "ES20260918|20260904|futures-vwap-exact-v1",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesVwapSignalEvent"
+      }
+    },
+    "StreamId": "Event.FuturesVwapSignalEvent.ES20260918|20260904|futures-vwap-exact-v1"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ES20260918",
+    "ValueDate": "2026-09-04",
+    "ConfigurationId": "futures-vwap-exact-v1"
+  },
+  "EventId": 989360,
+  "CommandId": "69b5bc1e-6679-4bbb-bf19-a4d0f9d7ddf9",
+  "AggregateId": "",
+  "EventSource": "FuturesVwapSignalCommand",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "Checkpoint": {
+    "SessionStartUtc": "2026-09-03T22:00:00+00:00",
+    "SessionEndUtc": "2026-09-04T21:00:00+00:00",
+    "CumulativePriceVolume": 576992033.75,
+    "CumulativeVolume": 74435,
+    "EligibleTradeCount": 28109,
+    "RejectedTradeCount": 31,
+    "LastPrice": 7725.75,
+    "LastTradeSourceSequence": 45234689,
+    "StreamEpochId": "577c002b-2bf0-47cf-a6a1-c5b4c112c489",
+    "LastTradeOrdinal": 28109,
+    "IsValid": false,
+    "InvalidReason": 2,
+    "IsRecovering": false,
+    "RecoveryGenerationId": "00000000-0000-0000-0000-000000000000",
+    "RecoveryBatchOrdinal": -1,
+    "AsOfUtc": "2026-09-04T19:51:11.7421442+00:00"
+  },
+  "Signal": {
+    "ContractId": "ES20260918",
+    "ValueDate": "2026-09-04",
+    "ConfigurationId": "futures-vwap-exact-v1",
+    "SessionStartUtc": "2026-09-03T22:00:00+00:00",
+    "SessionEndUtc": "2026-09-04T21:00:00+00:00",
+    "AsOfUtc": "2026-09-04T19:51:11.7421442+00:00",
+    "CumulativePriceVolume": 576992033.75,
+    "CumulativeVolume": 74435,
+    "EligibleTradeCount": 28109,
+    "RejectedTradeCount": 31,
+    "LastPrice": 7725.75,
+    "Vwap": 7751.6226741452273795929334319,
+    "PriceMinusVwap": -25.8726741452273795929334319,
+    "PriceToVwapPercent": -0.0033377107262358282082607696,
+    "LastTradeSourceSequence": 45234689,
+    "StreamEpochId": "577c002b-2bf0-47cf-a6a1-c5b4c112c489",
+    "LastTradeOrdinal": 28109,
+    "IsWarm": true,
+    "IsValid": false,
+    "InvalidReason": 2,
+    "IsTickExact": false,
+    "CalculationMethod": 1,
+    "SchemaVersion": 1,
+    "CalculationVersion": "futures-vwap-exact-v1"
+  },
+  "UserName": "",
+  "EventName": "FuturesVwapSignalUpdatedEvent",
+  "EventType": 0
+}

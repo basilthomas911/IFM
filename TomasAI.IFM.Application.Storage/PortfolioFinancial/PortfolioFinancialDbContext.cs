@@ -75,11 +75,11 @@ public sealed class PortfolioFinancialDbContext(IPostgresEventTransaction transa
         string? inputHash,CancellationToken token) where T:class,IFinancialCompletedEvent
     {
         var rows=await db.QueryAsync("""
-            SELECT r.input_hash,e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventdata::text,e.commandid,e.eventtimestamp::text,e.streamversion
+            SELECT r.input_hash,e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
             FROM portfolio_financial.financial_operation_receipt r JOIN event_log e ON e.eventversion=r.event_version
             JOIN event_name_id n ON n.eventnameid=e.eventnameid WHERE r.portfolio_id=$1 AND r.operation_id=$2;
             """,[portfolioId,operationId],reader=>(Hash:reader.GetString(0),Event:new EventLogReadModel(
-                reader.GetInt64(1),reader.GetString(2),reader.GetString(3),reader.GetInt64(4),reader.GetString(5),reader.GetGuid(6),reader.GetString(7),reader.GetInt64(8))),token);
+                reader.GetInt64(1),reader.GetString(2),reader.GetString(3),reader.GetInt64(4),reader.GetFieldValue<byte[]>(5),reader.GetGuid(6),reader.GetString(7),reader.GetInt64(8))),token);
         if(rows.Count==0) return null;
         var row=rows.Single();
         Require(inputHash is null || inputHash==row.Hash,FinancialReasons.RequestMismatch,"Operation identity was used for different input.");

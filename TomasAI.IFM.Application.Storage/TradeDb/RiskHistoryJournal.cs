@@ -25,7 +25,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
             var rows = await db.QueryAsync("""
-                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventdata::text,e.commandid,e.eventtimestamp::text,e.streamversion
+                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
                 FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
                 WHERE e.eventversion>$1 AND n.eventname='WorkflowStrategyStateUpdatedEvent'
                 ORDER BY e.eventversion LIMIT 32;
@@ -37,7 +37,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
             var rows = await db.QueryAsync("""
-                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventdata::text,e.commandid,e.eventtimestamp::text,e.streamversion
+                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
                 FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
                 WHERE e.commandid=$1 AND n.eventname IN ('WorkflowStrategyStateUpdatedEvent','RiskManagementFunctionCompletedEvent')
                 ORDER BY e.eventversion DESC LIMIT 1;
@@ -45,5 +45,5 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
             return rows.FirstOrDefault()?.ToDomainEvent();
         }, token);
     static EventLogReadModel Read(System.Data.Common.DbDataReader r) => new(r.GetInt64(0),r.GetString(1),r.GetString(2),
-        r.GetInt64(3),r.GetString(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7));
+        r.GetInt64(3),r.GetFieldValue<byte[]>(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7));
 }

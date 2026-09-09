@@ -1,0 +1,64 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesContractEvent",
+    "Verb": "Changed",
+    "EntityId": "ES20520519.ES.20520519",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesContractEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesContractEvent",
+      "Verb": "Changed"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesContractEvent",
+      "EntityId": "ES20520519.ES.20520519",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesContractEvent"
+      }
+    },
+    "StreamId": "Event.FuturesContractEvent.ES20520519.ES.20520519"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "ContractId": "ES20520519",
+    "Symbol": "ES",
+    "MaturityDate": "2052-05-19",
+    "IsVxContract": false
+  },
+  "EventId": 181106,
+  "CommandId": "b24b958a-2ba9-4d8e-a730-5636313f37a3",
+  "AggregateId": null,
+  "EventSource": "FuturesContractCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "OriginalContractId": {
+    "ContractId": "ES20520519",
+    "Symbol": "ES",
+    "MaturityDate": "2052-05-19",
+    "IsVxContract": false
+  },
+  "Contract": {
+    "ContractId": "ES20520519",
+    "Description": "G2-0686D418 futures changed",
+    "Symbol": "ES",
+    "LocalSymbol": "ESK2",
+    "SecurityType": "FUT",
+    "Currency": "USD",
+    "Exchange": "CME",
+    "Multiplier": "50",
+    "LastTradeDate": "2052-05-19",
+    "OnTheRun": false,
+    "Rollover": false,
+    "IsValid": true
+  },
+  "UpdatedOn": "2026-08-24T20:30:49.5438941Z",
+  "UpdatedBy": "DEV-SERVER\\basil",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesContractChangedEvent",
+  "EventType": 0
+}

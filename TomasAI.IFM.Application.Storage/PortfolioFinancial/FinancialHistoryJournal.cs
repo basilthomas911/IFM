@@ -13,13 +13,13 @@ public sealed class FinancialHistoryJournal(IPostgresEventTransaction transactio
     public Task<IReadOnlyList<IFinancialCompletedEvent>> PendingAsync(CancellationToken token=default,int? portfolioId=null)=>transactions.ExecuteAsync(async(db,ct)=>
     {
         var rows=await db.QueryAsync("""
-            SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventdata::text,e.commandid,e.eventtimestamp::text,e.streamversion
+            SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
             FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
             JOIN portfolio_financial.financial_operation_receipt o ON o.event_version=e.eventversion
             WHERE n.eventname=ANY($1) AND ($2::int IS NULL OR o.portfolio_id=$2)
               AND NOT EXISTS(SELECT 1 FROM portfolio_financial.financial_history_receipt r WHERE r.event_version=e.eventversion)
             ORDER BY e.eventversion LIMIT 32;
-            """,[EventNames,portfolioId],r=>new EventLogReadModel(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3),r.GetString(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7)),ct);
+            """,[EventNames,portfolioId],r=>new EventLogReadModel(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3),r.GetFieldValue<byte[]>(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7)),ct);
         return (IReadOnlyList<IFinancialCompletedEvent>)rows.Select(row=>row.ToDomainEvent() as IFinancialCompletedEvent
             ??throw new InvalidDataException($"Unsupported financial history event {row.EventVersion}.")).ToArray();
     },token);

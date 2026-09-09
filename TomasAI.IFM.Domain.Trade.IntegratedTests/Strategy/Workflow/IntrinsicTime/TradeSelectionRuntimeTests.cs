@@ -31,7 +31,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
 [Collection(IntrinsicTimeStrategyWorkflowRuntimeCollection.Name)]
 [Trait("Category","Integration")]
-public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Program> sourceFactory,TradeDatabaseFixture database):IClassFixture<WebApplicationFactory<Program>>,IClassFixture<TradeDatabaseFixture>
+public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Program> sourceFactory,TradeDatabaseFixture database, Xunit.Abstractions.ITestOutputHelper output):IClassFixture<WebApplicationFactory<Program>>,IClassFixture<TradeDatabaseFixture>
 {
     [Fact,Trait("Gate","TS-05"),Trait("Gate","TS-07")]
     public async Task Production_Function_over_NATS_projects_Scylla_and_appends_Postgres_with_idempotent_replay()
@@ -177,7 +177,7 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         public ValueTask SaveCompletedStateAsync(IFunctionActorContext context,TradeSelectionFunctionState state,ExecuteTradeSelectionPipelineCommand c,CancellationToken t=default)
             =>Fail?ValueTask.FromException(new InvalidOperationException("Injected completed append failure")):Resolve().SaveCompletedStateAsync(context,state,c,t);
     }
-    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure=null,string? brokerUrl=null)=>sourceFactory.WithWebHostBuilder(builder=>builder.UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure=null,string? brokerUrl=null,bool actualPortfolio=false)=>sourceFactory.WithWebHostBuilder(builder=>builder.UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
         .UseSetting("IFM_TEST_NATS_URL",brokerUrl??"nats://127.0.0.1:14222").ConfigureServices(services=>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions{Enabled=false});
@@ -185,10 +185,15 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
                 .Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model.RiskCatalogCapabilities.Create());
             var registry=new StrategyCatalogCapabilityRegistry(validators);services.RemoveAll<IStrategyCatalogCapabilities>();services.AddSingleton<IStrategyCatalogCapabilities>(registry);
             var container=(SimpleInjector.Container)services.Single(x=>x.ServiceType==typeof(SimpleInjector.Container)).ImplementationInstance!;
+            container.Options.AllowOverridingRegistrations=true;
+            if (!actualPortfolio)
+            {
             var authority=Substitute.For<IPortfolioQueryApi>();
             authority.GetFundAsync(1,1,Arg.Any<long?>(),Arg.Any<CancellationToken>()).Returns(new ServiceOk<FundMandateReadModel>(new(){PortfolioId=1,FundId=1}));
             services.RemoveAll<IPortfolioQueryApi>();services.AddSingleton(authority);
-            container.Options.AllowOverridingRegistrations=true;container.RegisterInstance<IPortfolioQueryApi>(authority);container.RegisterInstance<IStrategyCatalogCapabilities>(registry);configure?.Invoke(services);
+            container.Options.AllowOverridingRegistrations=true;container.RegisterInstance<IPortfolioQueryApi>(authority);
+            }
+            container.RegisterInstance<IStrategyCatalogCapabilities>(registry);configure?.Invoke(services);
         }));
     readonly record struct Values(object[] Items):TomasAI.IFM.Framework.Storage.IBindValue {public object Bind()=>Items;}
 }

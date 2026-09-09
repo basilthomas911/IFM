@@ -1,0 +1,42 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "YieldCurveRateEvent",
+    "Verb": "Removed",
+    "EntityId": "2026",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "YieldCurveRateEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "YieldCurveRateEvent",
+      "Verb": "Removed"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "YieldCurveRateEvent",
+      "EntityId": "2026",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "YieldCurveRateEvent"
+      }
+    },
+    "StreamId": "Event.YieldCurveRateEvent.2026"
+  },
+  "Id": "00000000-0000-0000-0000-000000000000",
+  "EntityId": {
+    "Year": 2026
+  },
+  "EventId": 179884,
+  "CommandId": "6593b784-2eab-4fda-aef9-6367e3c9f16b",
+  "AggregateId": null,
+  "EventSource": "YieldCurveRateCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "ValueDate": "2026-07-24",
+  "DeletedOn": "2026-08-24T19:28:56.6161612Z",
+  "DeletedBy": "DEV-SERVER\\basil",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "YieldCurveRateRemovedEvent",
+  "EventType": 0
+}

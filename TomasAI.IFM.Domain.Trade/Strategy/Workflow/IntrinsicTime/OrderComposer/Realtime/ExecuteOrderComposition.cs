@@ -39,15 +39,20 @@ public static class ExecuteOrderComposition
         IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
         var view = snapshot.State;
+        using var preparationTrace = WorkflowTrace.Start("composer.prepare_or_dispatch", view);
         if (view.CompositionExecution is { } execution)
         {
+            using var timing_composer_function_dispatch = WorkflowTrace.Start("composer.function_dispatch", view);
             await execution.DispatchAsync(context).ConfigureAwait(false);
+            timing_composer_function_dispatch?.Stop();
             return;
         }
         if (view.CompositionDispatch is not null)
             throw new CompositionMarketSourceException("HistoricalCompositionRequiresNewWorkflow");
         var key = CompositionPreparationAcceptance.Key(view);
+        using var timing_composer_preparation_read = WorkflowTrace.Start("composer.preparation.read", view);
         var prepared = await context.CompositionPreparations.ReadAsync(key, default).ConfigureAwait(false);
+        timing_composer_preparation_read?.Stop();
         if (prepared is null)
         {
             var selection = TradeSelectionContracts.ReadResult(view.TradeSelection.Result!);
@@ -65,11 +70,15 @@ public static class ExecuteOrderComposition
             catch (JsonException) { throw new CompositionMarketSourceException("CompositionUniverseUnqualified"); }
             if (plan.Root != selection.SelectedCandidate.Product.Symbol)
                 throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
+            using var timing_composer_market_prepare = WorkflowTrace.Start("composer.market.prepare", view);
             var result = await context.CompositionMarketPreparation.PrepareAsync(key, plan,
                 view.TriggerEvent.EntityId.TimePeriod.ToString(), new(view.CompositionHandoff!.Request.ExpiresAtUtc), default).ConfigureAwait(false);
+            timing_composer_market_prepare?.Stop();
             prepared = result.Preparation ?? throw new CompositionMarketSourceException(result.Failure?.Code ?? "CompositionPreparationUnavailable");
         }
+        using var timing_composer_preparation_validate = WorkflowTrace.Start("composer.preparation.validate", view);
         CompositionPreparationService.Validate(prepared);
+        timing_composer_preparation_validate?.Stop();
         var command = new AcceptOrderCompositionPreparationCommand
         {
             // Snapshot identity was durably chosen before this notification; retries retain one command identity.
@@ -79,6 +88,8 @@ public static class ExecuteOrderComposition
             EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision,
             Evidence = CompositionPreparationAcceptance.Reference(prepared)
         };
+        using var timing_composer_acceptance_send = WorkflowTrace.Start("composer.acceptance.send", view);
         await context.SendAsync<AcceptOrderCompositionPreparationCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
+        timing_composer_acceptance_send?.Stop();
     }
 }

@@ -87,6 +87,14 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
         var rawEvents = await fixture.ActorEventDb.LoadActorEventStreamAsync<TestActorState>(streamId);
         rawEvents.Should().HaveCount(8);
+        foreach (var row in rawEvents)
+        {
+            row.EventData.Should().NotBeEmpty();
+            row.EventData[0].Should().Be(0x93); // versioned three-field MessagePack envelope
+            var restored = row.ToDomainEvent();
+            restored.Should().NotBeOfType<UnknownEvent>();
+            restored.EventId.Should().Be(row.EventVersion);
+        }
 
         var result = await LoadAsync(stream, 2);
 

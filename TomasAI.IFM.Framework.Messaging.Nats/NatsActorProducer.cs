@@ -277,6 +277,7 @@ public class NatsActorProducer(
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
                 subject.ToString(),
                  query,
+                 headers: ActorTrace.Headers(),
                  requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
                  replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
                  cancellationToken: operationCancellation.Token)
@@ -385,6 +386,7 @@ public class NatsActorProducer(
             await _nc!.PublishAsync(
                 subject,
                 message,
+                headers: ActorTrace.Headers(),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);
@@ -409,6 +411,7 @@ public class NatsActorProducer(
             var data = (await _nc!.RequestAsync(
                 subject,
                 message,
+                headers: ActorTrace.Headers(),
                 requestSerializer: NatsMessagePackSerializer<T>.Default,
                 replySerializer: _messageSerializer,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false)).Data!;

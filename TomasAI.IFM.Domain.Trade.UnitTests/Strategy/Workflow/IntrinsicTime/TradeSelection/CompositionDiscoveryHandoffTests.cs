@@ -34,7 +34,7 @@ public sealed class CompositionDiscoveryHandoffTests
         var workflow = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), WorkflowId = new(workflowId),
             State = new() { Status = count == 0 ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
                 Outcome = count == 0 ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None, CompositionContracts = count == 0 ? null : selected, CompositionDispatch = new() { MarketEvidence = CompositionPreparationAcceptance.Reference(prepared) } } };
-        var row = new EventLogReadModel(1, workflow.EventName, workflow.GetType().AssemblyQualifiedName!, 99, JsonConvert.SerializeObject(workflow), Guid.NewGuid(), at.ToString("O"), 6);
+        var row = new EventLogReadModel(1, workflow.EventName, workflow.GetType().AssemblyQualifiedName!, 99, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(workflow), Guid.NewGuid(), at.ToString("O"), 6);
         var journal = Substitute.For<ICommittedBusinessEventJournal>(); journal.ReadPendingHandoffsAsync(default).Returns([row]);
         var intent = Substitute.For<IDurableSubscriptionIntentStore>();
         intent.ReadAsync("IFM", "GLBX.MDP3", default).Returns(new DurableSubscriptionSnapshot(1, "IFM", "GLBX.MDP3", 1,

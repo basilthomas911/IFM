@@ -192,7 +192,7 @@ public sealed class DatabaseBackupActorStateTests
         {
             EventVersion = index + 1,
             EventTypeName = domainEvent.GetType().AssemblyQualifiedName!,
-            EventData = JsonConvert.SerializeObject(domainEvent)
+            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(domainEvent)
         }).ToArray();
         var reloaded = new DatabaseBackupCommandState();
         reloaded.ReplayEvents(persisted);

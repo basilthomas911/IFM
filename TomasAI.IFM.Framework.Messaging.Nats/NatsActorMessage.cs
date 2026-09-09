@@ -22,6 +22,8 @@ public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
 
     public NatsMsg<byte[]> NatsMessage { get; } = natsMessage;
 
+    public System.Diagnostics.ActivityContext TraceContext { get; } = ActorTrace.Extract(natsMessage.Headers);
+
     readonly ActorSubject? _subject;
 
     internal NatsActorMessage(NatsMsg<byte[]> natsMessage, ActorSubject subject)

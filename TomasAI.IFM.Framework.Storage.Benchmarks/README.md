@@ -102,3 +102,41 @@ Each benchmark invocation contains one top-level caller, so this suite does not 
 several simultaneous bulk callers after removal of the provider-wide gate; use a separate load test for that capacity
 limit. In-process managed-allocation figures include Cassandra/Npgsql background activity and should be treated as
 directional alongside the latency and persisted-row checks.
+
+## Fixed event-log serialization baseline
+
+[Baseline v1: all 20 events and results](EventLogBaselines/v1/README.md) measures the former production JSON write/read paths used by Application.Storage, without database or actor time. The corpus contains 20 distinct production event types from the local synthetic integration-test store, from 1,103 to 3,557,103 UTF-8 bytes. Every run checks exact file hashes, concrete types and semantic round trips before timing. Two computed diagnostic values in the workflow fixture are documented comparison exceptions.
+
+Run from the repository root in Release mode, with no database or broker required:
+
+```powershell
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-verify
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-baseline TomasAI.IFM.Framework.Storage.Benchmarks/EventLogCorpus/v1 BenchmarkDotNet.Artifacts/event-log-candidate-01
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-compare TomasAI.IFM.Framework.Storage.Benchmarks/EventLogBaselines/v1/results.json BenchmarkDotNet.Artifacts/event-log-candidate-01/results.json BenchmarkDotNet.Artifacts/event-log-candidate-01/comparison.csv
+```
+
+The fixed runner measures Serialize, Deserialize and RoundTrip for every fixture (60 pairs). It records nine warmed batch samples, median/mean/sample standard deviation and thread allocations, with calibrated batch sizes. This quick baseline is a custom harness, not a BenchmarkDotNet statistical report. For longer isolated-process BenchmarkDotNet measurements against the same fixtures:
+
+```powershell
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --filter '*EventLogSerializationBenchmarks*' --artifacts BenchmarkDotNet.Artifacts/event-log-bdn
+```
+
+Use the same machine, runtime, Release settings and comparable system load for before/after measurements. Ratios below 1 indicate improvement. Retain baseline v1 and use a new output directory for each candidate; the runner refuses to overwrite results or compare different corpus hashes. The v1 fixture bytes are protected from Git newline conversion. Do not recapture or edit them when changing the serializer.
+
+### MessagePack comparison
+
+[Production binary cutover: percentage changes for all 20 events](EventLogBaselines/binary-cutover-v1/README.md) compares a fresh run of the production codec with the saved JSON baseline.
+
+[All 20 events: JSON versus MessagePack and LZ4](EventLogBaselines/MessagePack-Comparison.md) contains the measured comparison, payload sizes, validation details and raw result links. The benchmark now uses the production shared codec. Application event storage has completed its [binary-only cutover](../TomasAI.IFM.Application.Storage/EventSourceDb/BinaryCutover.md); the JSON reader is retained only here for reproducible baseline comparisons.
+
+```powershell
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-messagepack-verify TomasAI.IFM.Framework.Storage.Benchmarks/EventLogCorpus/v1 BenchmarkDotNet.Artifacts/verify-messagepack none
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-messagepack TomasAI.IFM.Framework.Storage.Benchmarks/EventLogCorpus/v1 BenchmarkDotNet.Artifacts/messagepack-candidate-01 none
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-messagepack TomasAI.IFM.Framework.Storage.Benchmarks/EventLogCorpus/v1 BenchmarkDotNet.Artifacts/messagepack-lz4-candidate-01 lz4
+```
+
+Use `lz4` in the verification command to check compressed payloads. Each verification checks all 20 semantic round trips and 80 malformed-payload rejections. Use `--event-log-compare` above with either candidate's results to generate time and allocation ratios. The optional BenchmarkDotNet class also includes `json`, `messagepack` and `messagepack-lz4` codec parameters.
+
+The versioned binary envelope preserves a null root AggregateId across constructors that otherwise normalize it to an empty string. Decoding restores EventId from the external event version and rejects trailing data and unsupported envelope versions. These costs are included in the measurements.
+
+`--event-log-capture <new-directory>` is a one-time discovery tool for explicitly creating a new corpus version. It reads only `localhost/event-source-test-db` with the repository's Test database credential provider, makes no database writes, selects distinct decodable event types across the observed size distribution and normalizes the event-log-assigned EventId once. It refuses an existing directory. This is not part of normal benchmark execution.

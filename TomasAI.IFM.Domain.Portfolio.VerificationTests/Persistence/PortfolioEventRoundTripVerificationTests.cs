@@ -58,8 +58,12 @@ public sealed class PortfolioEventRoundTripVerificationTests
     static bool RoundTrip(object source)
     {
         var type = source.GetType();
-        var row = new EventStreamReadModel { EventTypeName = type.AssemblyQualifiedName!, EventData = JsonConvert.SerializeObject(source), EventVersion = 1, StreamVersion = 1 };
-        return row.ToDomainEvent().GetType() == type;
+        var row = new EventStreamReadModel { EventTypeName = type.AssemblyQualifiedName!, EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize((TomasAI.IFM.Shared.EventSourcing.IEvent)source), EventVersion = 1, StreamVersion = 1 };
+        var restored = row.ToDomainEvent();
+        TomasAI.IFM.Shared.EventModelActor.EventInitHelper.SetProperty((TomasAI.IFM.Shared.EventSourcing.IEvent)source, "EventId", 1L);
+        Newtonsoft.Json.Linq.JToken.DeepEquals(Newtonsoft.Json.Linq.JToken.FromObject(restored),
+            Newtonsoft.Json.Linq.JToken.FromObject(source)).Should().BeTrue();
+        return restored.GetType() == type;
     }
 
     [Fact]

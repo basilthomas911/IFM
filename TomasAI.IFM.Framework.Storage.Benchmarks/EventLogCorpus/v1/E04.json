@@ -1,0 +1,48 @@
+{
+  "Subject": {
+    "ActorType": 3,
+    "Name": "FuturesBarDataEvent",
+    "Verb": "Deleted",
+    "EntityId": "ES20251010.ES.2026-09-02",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "FuturesBarDataEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "FuturesBarDataEvent",
+      "Verb": "Deleted"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "FuturesBarDataEvent",
+      "EntityId": "ES20251010.ES.2026-09-02",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "FuturesBarDataEvent"
+      }
+    },
+    "StreamId": "Event.FuturesBarDataEvent.ES20251010.ES.2026-09-02"
+  },
+  "Id": "97694204-baab-48d0-9142-45adb729e58a",
+  "EntityId": {
+    "ContractId": "ES20251010",
+    "Symbol": "ES",
+    "ValueDate": "2026-09-02"
+  },
+  "EventId": 501645,
+  "CommandId": "55d99e0b-5ab9-4665-8cb6-efbcdb5079cf",
+  "AggregateId": "",
+  "EventSource": "FuturesBarDataCommandActor",
+  "ReceivedOn": "0001-01-01T00:00:00",
+  "BarDataId": {
+    "ContractId": "ES20251010",
+    "Symbol": "ES",
+    "ValueDate": "2026-09-02"
+  },
+  "CreatedOn": "2026-09-02T18:13:33.7828407Z",
+  "CreatedBy": "DEV-SERVER\\CodexSandboxOffline",
+  "UserName": "DEV-SERVER\\CodexSandboxOffline",
+  "EventName": "FuturesBarDataDeletedEvent",
+  "EventType": 0
+}

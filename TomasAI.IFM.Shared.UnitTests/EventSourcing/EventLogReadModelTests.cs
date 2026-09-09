@@ -16,7 +16,7 @@ public sealed class EventLogReadModelTests
             EventName: "RemovedEvent",
             EventTypeName: "Example.RemovedEvent, Example.RemovedAssembly",
             EventVersion: 42,
-            EventData: "{}",
+            EventData: new byte[] { 1 },
             CommandId: Guid.NewGuid(),
             EventTimestamp: DateTime.UtcNow.ToString("O"));
 
@@ -34,7 +34,7 @@ public sealed class EventLogReadModelTests
             EventName: "KnownEvent",
             EventTypeName: "Example.KnownEvent, Example.Assembly",
             EventVersion: 42,
-            EventData: "{}",
+            EventData: new byte[] { 1 },
             CommandId: Guid.NewGuid(),
             EventTimestamp: DateTime.UtcNow.ToString("O"),
             StreamVersion: 7);
@@ -47,7 +47,7 @@ public sealed class EventLogReadModelTests
     public void Stream_version_defaults_to_zero_for_pre_migration_callers()
     {
         var eventLog = new EventLogReadModel(
-            10, "LegacyEvent", "Legacy.Event, Legacy", 42, "{}", Guid.NewGuid(), DateTime.UtcNow.ToString("O"));
+            10, "LegacyEvent", "Legacy.Event, Legacy", 42, new byte[] { 1 }, Guid.NewGuid(), DateTime.UtcNow.ToString("O"));
 
         eventLog.StreamVersion.Should().Be(0);
     }

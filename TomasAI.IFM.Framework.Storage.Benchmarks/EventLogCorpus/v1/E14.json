@@ -1,0 +1,93 @@
+{
+  "Verb": "OperationStarted",
+  "Subject": {
+    "ActorType": 3,
+    "Name": "DatabaseBackupEvent",
+    "Verb": "OperationStarted",
+    "EntityId": "2572853a6bdc4c6099463eb597a37e81",
+    "ActorId": {
+      "ActorType": 3,
+      "Name": "DatabaseBackupEvent"
+    },
+    "ActorTypeId": {
+      "ActorType": 3,
+      "Name": "DatabaseBackupEvent",
+      "Verb": "OperationStarted"
+    },
+    "ThreadId": {
+      "ActorType": 3,
+      "Name": "DatabaseBackupEvent",
+      "EntityId": "2572853a6bdc4c6099463eb597a37e81",
+      "MailboxId": {
+        "ActorType": 3,
+        "Name": "DatabaseBackupEvent"
+      }
+    },
+    "StreamId": "Event.DatabaseBackupEvent.2572853a6bdc4c6099463eb597a37e81"
+  },
+  "Id": "9f584a62-d489-7497-e65b-bb1b7022b7c9",
+  "EntityId": {
+    "Value": "2572853a-6bdc-4c60-9946-3eb597a37e81"
+  },
+  "EventId": 174076,
+  "CommandId": "9f584a62-d489-7497-e65b-bb1b7022b7c9",
+  "AggregateId": "2572853a6bdc4c6099463eb597a37e81",
+  "EventSource": "DatabaseBackupEventActor",
+  "ReceivedOn": "2026-08-20T11:02:13.5404525Z",
+  "Source": {
+    "ContractVersion": 1,
+    "SourceEventId": "9f584a62-d489-7497-e65b-bb1b7022b7c9",
+    "OperationId": {
+      "Value": "2572853a-6bdc-4c60-9946-3eb597a37e81"
+    },
+    "BackupSetId": null,
+    "Source": 1,
+    "ProtectionSetId": {
+      "Value": "core-postgresql"
+    },
+    "PolicyRevision": 0,
+    "OperationKind": 1,
+    "Phase": 5,
+    "ProducingHostId": {
+      "Value": "g2-6d2c12b3e92f4adca4958beb2510afe3"
+    },
+    "SourceRevisionOrSequence": 2,
+    "CorrelationId": "2572853a-6bdc-4c60-9946-3eb597a37e81",
+    "CausationId": "00000000-0000-0000-0000-000000000000",
+    "ObservedUtc": "2026-08-20T11:02:13.5404525+00:00"
+  },
+  "Request": null,
+  "ProgressPercent": 0,
+  "SafeDiagnosticReference": "",
+  "ArtifactReplica": null,
+  "VerificationLevel": 0,
+  "Outcome": 0,
+  "ErrorClassification": 0,
+  "CutoverState": 0,
+  "CapabilityState": 0,
+  "Statistics": null,
+  "RestorePointId": null,
+  "FreshTarget": null,
+  "Policy": null,
+  "RequiredDestinations": [],
+  "ExpectedStateRevision": 0,
+  "ValidationRevision": 0,
+  "RetentionPlanId": null,
+  "RetentionPlanRevision": 0,
+  "RestoreClass": 0,
+  "EvaluationBoundaryUtc": "0001-01-01T00:00:00+00:00",
+  "PolicyId": null,
+  "ManifestRevision": 0,
+  "BackupLineage": {
+    "RequestedMode": 2,
+    "ResolvedMode": 0,
+    "NativeKind": 0,
+    "BaseRestorePointId": null,
+    "ParentRestorePointId": null,
+    "ChainDepth": 0,
+    "NativeIdentity": ""
+  },
+  "UserName": "DatabaseBackup",
+  "EventName": "DatabaseOperationStartedEvent",
+  "EventType": 0
+}

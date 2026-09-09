@@ -30,7 +30,7 @@ public sealed class FinancialWorkflowRecoveryJournal(IPostgresEventTransaction t
                       AND ($2::text IS NULL OR eventstream=$2)
                     ORDER BY eventstreamid LIMIT 32
                 )
-                SELECT p.eventstreamid::bigint,n.eventname,n.eventtypename,e.eventversion,e.eventdata::text,
+                SELECT p.eventstreamid::bigint,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,
                        e.commandid,e.eventtimestamp::text,e.streamversion
                 FROM page p
                 LEFT JOIN LATERAL (
@@ -40,7 +40,7 @@ public sealed class FinancialWorkflowRecoveryJournal(IPostgresEventTransaction t
                 LEFT JOIN event_name_id n ON n.eventnameid=e.eventnameid
                 ORDER BY p.eventstreamid;
                 """,[afterStreamId,exactStream],r=>(Stream:r.GetInt64(0),Event:r.IsDBNull(1)?null:
-                    new EventLogReadModel(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3),r.GetString(4),
+                    new EventLogReadModel(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3),r.GetFieldValue<byte[]>(4),
                         r.GetGuid(5),r.GetString(6),r.GetInt64(7))),ct);
             var snapshots=new List<WorkflowStrategyStateUpdatedEvent>(rows.Count);
             var invalid=new List<long>();
