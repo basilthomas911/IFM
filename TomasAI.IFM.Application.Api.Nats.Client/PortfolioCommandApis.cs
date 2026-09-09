@@ -152,6 +152,14 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), PortfolioCommandVerbs.MarkFundOrderComposing, new MarkComposingPayload(orderId, expectedVersion, invocationId), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.InvalidStateTransition, cancellationToken, WorkflowAccess);
     public Task<ServiceResult<FundOrderProjectionReadModel>> RecordComposedAsync(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result, CancellationToken cancellationToken = default) =>
         SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), PortfolioCommandVerbs.RecordFundOrderComposed, new RecordComposedPayload(orderId, expectedVersion, result), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.ResultMismatch, cancellationToken, WorkflowAccess);
+    public Task<ServiceResult<FundOrderProjectionReadModel>> AuthorizeRiskAsync(Guid commandId, PortfolioFundOrderId orderId, long expectedVersion,
+        TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference authorization, CancellationToken cancellationToken = default)
+    {
+        if (commandId == Guid.Empty) throw new ArgumentException("A stable authorization CommandId is required.", nameof(commandId));
+        return SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), PortfolioCommandVerbs.AuthorizeFundOrderRisk,
+            new AuthorizeFundOrderRiskPayload(orderId, expectedVersion, authorization), orderId.OrderId, expectedVersion + 1,
+            PortfolioErrorCodes.ResultMismatch, cancellationToken, WorkflowAccess, commandId);
+    }
     public Task<ServiceResult<FundOrderProjectionReadModel>> RecordRiskOutcomeAsync(PortfolioFundOrderId orderId, long expectedVersion, RiskManagementResultReference result, CancellationToken cancellationToken = default) =>
         SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), PortfolioCommandVerbs.RecordFundOrderRiskOutcome, new RecordRiskOutcomePayload(orderId, expectedVersion, result), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.ResultMismatch, cancellationToken, WorkflowAccess);
     public Task<ServiceResult<FundOrderProjectionReadModel>> CancelCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default) =>
@@ -171,9 +179,9 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         catch (Exception ex) when (ex is not OperationCanceledException) { return new ServiceFailed<Guid>(errorCode, ex.Message); }
     }
 
-    async Task<ServiceResult<FundOrderProjectionReadModel>> SendAndReadOrder<TPayload>(PortfolioFundId id, string verb, TPayload payload, int orderId, long minimumVersion, int errorCode, CancellationToken cancellationToken, PortfolioAccessContext access)
+    async Task<ServiceResult<FundOrderProjectionReadModel>> SendAndReadOrder<TPayload>(PortfolioFundId id, string verb, TPayload payload, int orderId, long minimumVersion, int errorCode, CancellationToken cancellationToken, PortfolioAccessContext access, Guid? commandId = null)
     {
-        var acknowledged = await Send(id, verb, payload, errorCode, cancellationToken, access: access).ConfigureAwait(false);
+        var acknowledged = await Send(id, verb, payload, errorCode, cancellationToken, commandId, access: access).ConfigureAwait(false);
         if (!acknowledged.Success) return new ServiceFailed<FundOrderProjectionReadModel>(acknowledged.ErrorCode, acknowledged.ErrorMessage);
         if (queries is null) return new ServiceFailed<FundOrderProjectionReadModel>(PortfolioErrorCodes.Unavailable, "Portfolio query API is required to observe the committed order state.");
         for (var attempt = 0; attempt < 40; attempt++)

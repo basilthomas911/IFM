@@ -282,7 +282,7 @@ public sealed class FunctionActorLifecycleTests
         actor.Policy = (_, stage) => { stages.Add(stage); return new(TimeProvider.System, null); };
         await actor.HandleMessageAsync(new TestMessage(request));
         await actor.HandleMessageAsync(new TestMessage(request));
-        stages.Should().Equal(FunctionFailureStage.Loading, FunctionFailureStage.Execution, FunctionFailureStage.Projection,
+        stages.Should().Equal(FunctionFailureStage.Loading, FunctionFailureStage.Execution, FunctionFailureStage.Persistence, FunctionFailureStage.Projection,
             FunctionFailureStage.Persistence, FunctionFailureStage.Loading);
         actor.Observations.Should().Equal(FunctionEventPhase.Committed, FunctionEventPhase.Replayed);
         actor.Executions.Should().Be(1); calls.Should().Equal("project", "save");
@@ -337,6 +337,86 @@ public sealed class FunctionActorLifecycleTests
         act.Should().Throw<Exception>();
     }
 
+    [Fact, Trait("Category", "PortfolioFinancial")]
+    public async Task Atomic_commit_returns_stored_event_and_only_then_finalizes_state()
+    {
+        var state = new TestState(); var request = new TestRequest(); var stored = Completed(request);
+        var repository = new AtomicRepository(state, async (_, token) =>
+        {
+            state.IsCompleted.Should().BeFalse();
+            await Task.Yield(); token.ThrowIfCancellationRequested();
+            return stored;
+        });
+        var actor = AtomicActor(repository);
+        var message = new TestMessage(request);
+        await actor.HandleMessageAsync(message);
+        message.Reply!.Success.Should().BeTrue();
+        message.Reply.Value!.Completed.Should().BeSameAs(stored);
+        state.CompletedEvent.Should().BeSameAs(stored);
+        repository.Commits.Should().Be(1);
+        var replay = new TestMessage(request);
+        await actor.HandleMessageAsync(replay);
+        replay.Reply!.Value!.Completed.Should().BeSameAs(stored);
+        repository.Commits.Should().Be(1);
+    }
+
+    [Theory, Trait("Category", "PortfolioFinancial")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Atomic_failure_never_completes_state(bool unknown)
+    {
+        var state = new TestState();
+        var repository = new AtomicRepository(state, (_, _) => ValueTask.FromException<TestCompletedEvent>(unknown
+            ? new FunctionCommitOutcomeUnknownException("unknown commit") : new InvalidOperationException("confirmed rollback")));
+        var message = new TestMessage(new TestRequest());
+        await AtomicActor(repository).HandleMessageAsync(message);
+        state.IsCompleted.Should().BeFalse();
+        message.Reply!.Value!.Failed!.ErrorMessage.Should().Contain(unknown ? "unknown commit" : "confirmed rollback");
+    }
+
+    [Theory, Trait("Category", "PortfolioFinancial")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Atomic_mode_rejects_missing_repository_or_independent_projector(bool projector)
+    {
+        var calls = new List<string>(); var state = new TestState();
+        var repository = new AtomicRepository(state, (request, _) => ValueTask.FromResult(Completed(request)));
+        var actor = AtomicActor(projector ? repository : new TestRepository(state, calls),
+            projector ? new TestProjector(calls) : null);
+        var message = new TestMessage(new TestRequest());
+        await actor.HandleMessageAsync(message);
+        message.Reply!.Success.Should().BeFalse();
+        repository.Commits.Should().Be(0); state.IsCompleted.Should().BeFalse(); calls.Should().BeEmpty();
+    }
+
+    [Fact, Trait("Category", "PortfolioFinancial")]
+    public async Task Atomic_observer_failure_does_not_relabel_committed_result()
+    {
+        var state = new TestState(); var request = new TestRequest(); var completed = Completed(request);
+        var actor = AtomicActor(new AtomicRepository(state, (_, _) => ValueTask.FromResult(completed)));
+        actor.FailObservation = true;
+        var message = new TestMessage(request); await actor.HandleMessageAsync(message);
+        message.Reply!.Success.Should().BeTrue(); state.CompletedEvent.Should().BeSameAs(completed);
+    }
+
+    static TestFunctionActor AtomicActor(IEventSourceFunctionStateRepository<TestState, TestRequest> repository,
+        TestProjector? projector = null) => new(repository, projector,
+            (_, request) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        { Policy = (_, _) => new(TimeProvider.System, null, FunctionCompletionMode.AtomicBusinessAndEvent) };
+
+    sealed class AtomicRepository(TestState state, Func<TestRequest, CancellationToken, ValueTask<TestCompletedEvent>> commit)
+        : ITransactionalFunctionStateRepository<TestState, TestRequest, TestCompletedEvent>
+    {
+        public int Commits { get; private set; }
+        public ValueTask<TestState> LoadStateAsync(TestRequest request, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(state);
+        public ValueTask SaveCompletedStateAsync(IFunctionActorContext context, TestState state, TestRequest request,
+            CancellationToken cancellationToken = default) => throw new InvalidOperationException("Independent save is forbidden.");
+        public ValueTask<TestCompletedEvent> CommitAsync(IFunctionActorContext context, TestRequest request,
+            TestCompletedEvent candidate, CancellationToken cancellationToken = default)
+        { Commits++; return commit(request, cancellationToken); }
+    }
+
     static TestFunctionActor ValidationActor() => new(
         new TestRepository(new TestState(), []), null, (_, request) =>
             FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)));
@@ -369,7 +449,7 @@ public sealed class FunctionActorLifecycleTests
     };
 
     sealed class TestFunctionActor(
-        TestRepository repository,
+        IEventSourceFunctionStateRepository<TestState, TestRequest> repository,
         TestProjector? projector,
         Func<TestState, TestRequest, FunctionResult<TestCompletedEvent, TestFailedEvent>> execute)
         : BaseEventSourceFunctionActor<

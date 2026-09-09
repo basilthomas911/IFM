@@ -12,6 +12,10 @@ public static partial class TradeSelectionContracts
         (Guid Id,int Version,string Hash) identity;
         switch(row.Kind)
         {
+            case CatalogPipelineParameterKind.RiskManagement:
+                var risk=TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet.Read(row.PayloadJson);
+                Require(risk.SchemaVersion==row.SchemaVersion,"TS.CONTRACT.SCHEMA","Risk schema metadata differs from its payload.");
+                identity=(risk.ParameterSetId,risk.Version,risk.Hash());break;
             case CatalogPipelineParameterKind.TradeSelection:
                 var selection=TradeSelectionPolicy.Read(row.PayloadJson);identity=(selection.ParameterSetId,selection.Version,TradeSelectionPolicy.Hash(selection));break;
             case CatalogPipelineParameterKind.OrderComposition:

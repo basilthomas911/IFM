@@ -14,6 +14,9 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor
 public interface IIntrinsicTimeStrategyWorkflowCommandContext
     : ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>
 {
+    Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi PortfolioQueries => throw new InvalidOperationException("Portfolio queries are not configured.");
+    Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi
+        => throw new InvalidOperationException("Portfolio financial API is not configured.");
     /// <summary>Gets the EventSourceDb context.</summary>
     IEventSourceActorDbContext DbEventSource { get; }
     /// <summary>Gets the application database-context factory.</summary>
@@ -44,6 +47,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext
       ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
       IIntrinsicTimeStrategyWorkflowCommandContext
 {
+    public Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi PortfolioQueries => Container.Resolve<Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi>();
+    public Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi
+        => Container.Resolve<Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>();
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IDurableReplayQueue> _durableReplayQueue;
     readonly Lazy<IEventSourceActorStateFactory> _stateFactory;

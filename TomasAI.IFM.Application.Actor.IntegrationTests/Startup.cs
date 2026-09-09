@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.AspNetCore.Builder;
@@ -408,6 +408,9 @@ public static class Startup
                 .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
             );
             services.AddSingleton<IDbCache, DbCache>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction,
+                TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialWriterFence>();
             services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));
             services.AddSingleton<IDbContextFactory, DbContextFactory>();
             services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
@@ -653,6 +656,8 @@ public static class Startup
             siContainer.AddRegistration<ITradeSelectionFunctionContext>(
                 siContainer.GetCurrentRegistrations().Single(registration =>
                     registration.ServiceType == typeof(IFunctionActorContext<TradeSelectionFunctionActor>)).Registration);
+            siContainer.AddRegistration<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor.IRiskManagementFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType == typeof(IFunctionActorContext<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor.RiskManagementFunctionActor>)).Registration);
             siContainer.AddRegistration<IOrderCompositionFunctionContext>(
                 siContainer.GetCurrentRegistrations().Single(registration =>
                     registration.ServiceType == typeof(IFunctionActorContext<OrderCompositionFunctionActor>)).Registration);

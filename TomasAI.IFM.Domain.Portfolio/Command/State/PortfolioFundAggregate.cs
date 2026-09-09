@@ -205,6 +205,15 @@ public sealed class PortfolioFundAggregate
         RiskManagementResultReference result, DateTime nowUtc, string principal) =>
         ChangeComposition(commandId, expectedRevision, nowUtc, principal, () => _compositions.RecordRiskOutcome(orderId, expectedOrderVersion, result, nowUtc));
 
+    public PortfolioFundDomainEvent AuthorizeRisk(Guid commandId, long expectedRevision, int orderId, long expectedOrderVersion,
+        TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference authorization, DateTime nowUtc, string principal)
+    {
+        if (Current?.OperatingState != FundOperatingState.Active)
+            throw new InvalidOperationException("Only an active Fund can authorize a new order.");
+        return ChangeComposition(commandId, expectedRevision, nowUtc, principal,
+            () => _compositions.AuthorizeRisk(orderId, expectedOrderVersion, authorization, nowUtc));
+    }
+
     public PortfolioFundDomainEvent FailComposition(Guid commandId, long expectedRevision, int orderId, long expectedOrderVersion,
         string reason, DateTime nowUtc, string principal) =>
         ChangeComposition(commandId, expectedRevision, nowUtc, principal, () => _compositions.FailComposition(orderId, expectedOrderVersion, reason));

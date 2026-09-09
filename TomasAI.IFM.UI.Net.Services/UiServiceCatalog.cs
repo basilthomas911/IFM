@@ -46,11 +46,13 @@ public sealed class UiServiceCatalog(
     TradePlanEventService tradePlanEvents,
     TradePlanActionEventService tradePlanActionEvents,
     TradePositionFeedEventService tradePositionEvents,
-    EndOfDayProcessEventService endOfDayEvents) : IUiServiceCatalog
+    EndOfDayProcessEventService endOfDayEvents,
+    TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi portfolioFinancial) : IUiServiceCatalog
 {
     public IPortfolioCommandApi PortfolioCommands { get; } = portfolioCommands;
     public IPortfolioFundCommandApi PortfolioFundCommands { get; } = portfolioFundCommands;
     public IPortfolioQueryApi PortfolioQueries { get; } = portfolioQueries;
+    public TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi PortfolioFinancial { get; } = portfolioFinancial;
     public IPortfolioIdentityApi PortfolioIdentities { get; } = portfolioIdentities;
     public IPortfolioFinancialPolicyCommandApi PortfolioPolicyCommands { get; } = portfolioPolicyCommands;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; } = referenceQueries;

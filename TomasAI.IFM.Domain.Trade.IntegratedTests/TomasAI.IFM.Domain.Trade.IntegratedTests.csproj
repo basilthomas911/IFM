@@ -52,5 +52,6 @@
 
 <ItemGroup>
  <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/CompositionFixture.cs" Link="Fixtures/CompositionFixture.cs" />
+ <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/RiskManager/RiskFixture.cs" Link="Fixtures/RiskFixture.cs" />
 </ItemGroup>
 </Project>

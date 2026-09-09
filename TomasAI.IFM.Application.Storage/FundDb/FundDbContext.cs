@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.SequenceId;
@@ -28,6 +29,8 @@ namespace TomasAI.IFM.Application.Storage.FundDb;
 public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 {
     readonly IDbContextFactory _dbFactory;
+    readonly LegacyFinancialWriterFence? _financialWriterFence;
+    public bool HasFinancialWriterFence => _financialWriterFence is not null;
     readonly ISequenceIdGenerator _sequenceIdGenerator;
     public const string FundDbConnection = "FundDbConnection";
     static readonly int[] AmountSigns = [-1, 1];
@@ -59,11 +62,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         IDbConnectionSettings connectionSettings,
         IDbContextFactory dbFactory,
         ISequenceIdGenerator sequenceIdGenerator,
-        ILogger<DbProvider> logger)
+        ILogger<DbProvider> logger,
+        LegacyFinancialWriterFence? financialWriterFence = null)
         : base(connectionSettings[FundDbConnection], logger)
     {
         _dbFactory = IsArgumentNull.Set(dbFactory);
         _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
+        _financialWriterFence = financialWriterFence;
     }
 
     /// <summary>
@@ -573,6 +578,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         if (transactionList.Count == 0)
             return 0;
         FundTransactionProjection.ValidateLogicalDuplicates(transactionList);
+        var financialWrite = _financialWriterFence is null ? (Guid?)null : await _financialWriterFence.BeginWriteAsync(transactionList.Select(x => x.FundId), cancellationToken).ConfigureAwait(false);
 
         var db = _dbFactory.FundDb;
         var scopes = CreateFundTransactionMutationScopes(
@@ -621,6 +627,8 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             {
                 await FinishFundTransactionProjectionMutationsAsync(scopes, succeeded).ConfigureAwait(false);
             }
+            if (succeeded && financialWrite is { } ticket)
+                await _financialWriterFence!.CompleteWriteAsync(ticket).ConfigureAwait(false);
         }
     }
 
@@ -1403,6 +1411,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     public async Task DeleteFundTransactionAsync(int fundId, DateOnly valueDate, int orderId, int tradeId, 
         TradeType tradeType, FundTransactionType transactionType, DateTime transactionDate)
     {
+        var financialWrite = _financialWriterFence is null ? (Guid?)null : await _financialWriterFence.BeginWriteAsync([fundId]).ConfigureAwait(false);
         var db = _dbFactory.FundDb;
         var tradeTypeName = tradeType.ToStringFast();
         var transactionTypeName = transactionType.ToStringFast();
@@ -1470,14 +1479,25 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             {
                 await FinishFundTransactionProjectionMutationsAsync(scopes, succeeded).ConfigureAwait(false);
             }
+            if (succeeded && financialWrite is { } ticket)
+                await _financialWriterFence!.CompleteWriteAsync(ticket).ConfigureAwait(false);
         }
     }
 
-    /// <summary>
-    /// return single fund by id
-    /// </summary>
-    /// <param name="fundId"></param>
-    /// <returns></returns>
+    /// <summary>Checks bounded canonical and write-ownership sources before qualifying a fresh development scope.</summary>
+    public async Task<bool> HasLegacyFinancialStateAsync(int fundId,CancellationToken token=default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fundId);
+        foreach(var (name,cql) in new[] { (nameof(FundDbCql.GetFundByFundId),FundDbCql.GetFundByFundId),
+            (nameof(FundDbCql.HasCanonicalFundTransaction),FundDbCql.HasCanonicalFundTransaction),
+            (nameof(FundDbCql.HasFundTransactionWriteIntent),FundDbCql.HasFundTransactionWriteIntent),
+            (nameof(FundDbCql.HasFundTransactionWriteOwner),FundDbCql.HasFundTransactionWriteOwner) })
+            if((await _dbFactory.FundDb.Use($"{nameof(FundDbCql)}.{name}",cql).SetParameters(new GetFundByFundId(fundId)).ExecuteQueryAsync(_=>true,token).ConfigureAwait(false)).Count>0)
+                return true;
+        return false;
+    }
+
+    /// <summary>Returns a single legacy Fund by its identifier.</summary>
     public async Task<FundReadModel?> GetFundAsync(int fundId)
         => await _dbFactory.FundDb
             .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundByFundId)}", FundDbCql.GetFundByFundId)
@@ -1609,6 +1629,15 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         => await _dbFactory.FundDb
             .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionsAll)}", FundDbCql.GetFundTransactionsAll)
             .ExecuteQueryAsync(MapToFundTransaction!);
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<FundTransactionReadModel> StreamCanonicalFundTransactionsAsync(int fundId,DateOnly start,DateOnly end,CancellationToken token=default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fundId);
+        if(start==default || end<start) throw new ArgumentException("A valid source date range is required.");
+        return _dbFactory.FundDb.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactions)}",FundDbCql.GetFundTransactions)
+            .SetParameters(new GetFundTransactions(fundId,start,end)).ExecuteStreamAsync(MapToFundTransaction!,token);
+    }
 
     /// <summary>
     /// return fund pnl for selected fund by date range
@@ -2403,12 +2432,8 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// Cancellation, failure, or a concurrent mutation leaves that month incomplete and on canonical fallback.
     /// </summary>
     public async Task<FundTransactionProjectionBackfillResult> BackfillFundTransactionProjectionsAsync(
-        int fundId,
-        DateOnly startDate,
-        DateOnly endDate,
-        int batchSize = 500,
-        CancellationToken cancellationToken = default,
-        DateTime? staleOperationCutoffUtc = null)
+        int fundId, DateOnly startDate, DateOnly endDate, int batchSize = 500,
+        CancellationToken cancellationToken = default, DateTime? staleOperationCutoffUtc = null)
     {
         if (batchSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(batchSize), batchSize, "Batch size must be greater than zero.");
@@ -2417,6 +2442,21 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             nameof(staleOperationCutoffUtc));
         if (endDate < startDate)
             return default;
+
+        var financialWrite = _financialWriterFence is null ? (Guid?)null : await _financialWriterFence.BeginWriteAsync([fundId], cancellationToken).ConfigureAwait(false);
+        var result = await BackfillFundTransactionProjectionsCoreAsync(fundId, startDate, endDate, batchSize, cancellationToken, staleOperationCutoffUtc).ConfigureAwait(false);
+        if (financialWrite is { } ticket) await _financialWriterFence!.CompleteWriteAsync(ticket).ConfigureAwait(false);
+        return result;
+    }
+
+    async Task<FundTransactionProjectionBackfillResult> BackfillFundTransactionProjectionsCoreAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        int batchSize = 500,
+        CancellationToken cancellationToken = default,
+        DateTime? staleOperationCutoffUtc = null)
+    {
 
         if (staleOperationCutoffUtc is { } verifiedInactiveCutoffUtc)
         {

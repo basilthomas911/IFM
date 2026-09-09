@@ -37,7 +37,7 @@ public sealed class TradeSelectionAlignmentTests
         MessagePackBinarySerializer.MeasureContent(completed).Should().BeGreaterThan(encoded.Length);
         var bytes = MessagePackBinarySerializer.SerializeHistoricalContent(completed.Result);
         var reader = new MessagePackReader(bytes);
-        reader.ReadArrayHeader().Should().Be(12);
+        reader.ReadArrayHeader().Should().Be(13);
         for (var i = 0; i < 4; i++) reader.Skip();
         reader.ReadBytes()!.Value.Length.Should().Be(0);
         for (var i = 0; i < 5; i++) reader.Skip();

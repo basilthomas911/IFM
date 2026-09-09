@@ -154,14 +154,46 @@ public abstract class BaseEventSourceFunctionActor<
                     var completed = terminal.Completed!;
                     try
                     {
-                        stage = FunctionFailureStage.Projection;
-                        await RunFunctionStageAsync(request, stage, token => ProjectFunctionResultAsync(request, completed, token), cancellationToken)
-                            .ConfigureAwait(false);
-
-                        stage = FunctionFailureStage.Persistence;
-                        await RunFunctionStageAsync(request, stage,
-                            token => SaveFunctionStateAsync(_context, threadId, state, request, completed, token),
-                            cancellationToken).ConfigureAwait(false);
+                        var persistencePolicy = ResolveExecutionPolicy(request, FunctionFailureStage.Persistence);
+                        if (persistencePolicy.CompletionMode == FunctionCompletionMode.AtomicBusinessAndEvent)
+                        {
+                            stage = FunctionFailureStage.Persistence;
+                            if (_functionProjector is not null || _stateRepository is not
+                                ITransactionalFunctionStateRepository<TState, TRequest, TCompletedEvent> transactional)
+                                throw new InvalidOperationException("Atomic Function completion requires an enlisted repository and no independent projector.");
+                            try
+                            {
+                                completed = await RunFunctionStageAsync(request, stage,
+                                    token => transactional.CommitAsync(_context, request, completed, token),
+                                    cancellationToken, preserveConfirmedCommit: true).ConfigureAwait(false);
+                            }
+                            catch (TimeoutException exception)
+                            {
+                                throw new FunctionCommitOutcomeUnknownException(
+                                    "The commit stage timed out. Reconcile the original operation before assuming rollback.", exception);
+                            }
+                            terminal = FunctionResult<TCompletedEvent, TFailedEvent>.Complete(completed);
+                            // The transaction has committed. Cache/observer failure cannot change financial truth.
+                            try
+                            {
+                                if (!state.TryComplete(completed, request))
+                                    throw new InvalidOperationException("Committed Function state rejected cache finalization.");
+                            }
+                            catch (Exception exception)
+                            {
+                                _logger.LogError(exception, "Committed Function {CommandId} requires state reload; durable completion is unchanged.", request.CommandId);
+                            }
+                        }
+                        else
+                        {
+                            stage = FunctionFailureStage.Projection;
+                            await RunFunctionStageAsync(request, stage, token => ProjectFunctionResultAsync(request, completed, token), cancellationToken)
+                                .ConfigureAwait(false);
+                            stage = FunctionFailureStage.Persistence;
+                            await RunFunctionStageAsync(request, stage,
+                                token => SaveFunctionStateAsync(_context, threadId, state, request, completed, token),
+                                cancellationToken).ConfigureAwait(false);
+                        }
                         ObserveCompletedFunction(request, completed, FunctionEventPhase.Committed);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -233,7 +265,8 @@ public abstract class BaseEventSourceFunctionActor<
 
     /// <summary>Enforces stage cancellation and exact-boundary expiry without allowing late work to resume the lifecycle.</summary>
     async ValueTask<T> RunFunctionStageAsync<T>(TRequest request, FunctionFailureStage stage,
-        Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken)
+        Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken,
+        bool preserveConfirmedCommit = false)
     {
         callerToken.ThrowIfCancellationRequested();
         var policy = ResolveExecutionPolicy(request, stage)
@@ -249,8 +282,11 @@ public abstract class BaseEventSourceFunctionActor<
         {
             task = operation(workerCancellation.Token).AsTask();
             var result = await task.WaitAsync(remaining, clock, callerToken).ConfigureAwait(false);
-            callerToken.ThrowIfCancellationRequested();
-            if (clock.GetUtcNow().UtcDateTime >= deadline.Value) throw new TimeoutException();
+            if (!preserveConfirmedCommit)
+            {
+                callerToken.ThrowIfCancellationRequested();
+                if (clock.GetUtcNow().UtcDateTime >= deadline.Value) throw new TimeoutException();
+            }
             return result;
         }
         catch

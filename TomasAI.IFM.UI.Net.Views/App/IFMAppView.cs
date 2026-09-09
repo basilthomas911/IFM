@@ -610,7 +610,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                 _appRoot.Services.PortfolioIdentities,
                 _appRoot.Services.PortfolioPolicyCommands,
                 _appRoot.Services.ReferenceQueries,
-                fundQueries: _appRoot.Services.FundQueries));
+                fundQueries: _appRoot.Services.FundQueries,
+                financialApi: _appRoot.Services.PortfolioFinancial));
     }
 
     private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)

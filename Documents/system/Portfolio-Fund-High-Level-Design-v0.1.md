@@ -1,18 +1,24 @@
 # Portfolio and Fund High-Level Design
 
-> **Strategy catalog direction (2026-09-06):** New reusable strategy families, strategy definitions, structures, variants and deployments are planned in PostgreSQL ConfigurationDb. Portfolio continues to own Fund assignments, permissions and financial/risk limits. Existing exact ReferenceDb family IDs/versions and risk-limit keys remain compatibility contracts until a versioned migration maps them explicitly; new variants must not expand Fund permission implicitly. Earlier three-family restrictions below describe the original PF scope, not the new catalog taxonomy. TradeSelection implementation is on hold. See [ConfigurationDb strategy catalog design](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Design-v1.0.md).
+> **Emulator scope correction (2026-09-08):** The IBKR emulator design has not started; its implementation is a future delivery after design approval. Do not list emulator fills, fees, settlement, cancellation or reconciliation as unfinished emulator work in the current Portfolio delivery. Current scope covers Portfolio accounting/capacity contracts, consumers and financial integrity tests using explicitly labelled execution-fact fixtures. Those tests do not qualify an emulator. Existing local submission/admission scaffolding is not a functioning emulator or evidence of broker acceptance. Full emulator integration is deferred; it is not a blocker for completing the current Portfolio development scope.
+
+> **Development scope decision (2026-09-08):** The system is strictly in development while the complete trading system is being built. Production security implementation and qualification are deferred until immediately before production deployment. They do not block current development implementation or PF-FIN gate completion. Retain existing role/scope checks and all financial integrity rules; development principal/role metadata is not authenticated identity. Opening capital remains development-only. Completing development gates does not authorize production deployment.
+
+> **Current financial-domain revision (2026-09-08):** Sections 27–34 define the new `Domain.Portfolio/GeneralLedger` and `Domain.Portfolio/CapacityReservation` subdomains, migration of legacy Fund transaction responsibilities, coordinated PostgreSQL financial authority, Portfolio Administration transaction views and future QuickBooks integration. Their implementation is planned; folder creation and this design do not establish a working ledger or reservation actor. These sections supersede earlier configuration-only and transaction-migration deferrals. Existing release evidence remains evidence for its original scope only.
+
+> **Current strategy catalog alignment (2026-09-08):** ConfigurationDb now owns reusable strategy families, strategies, structures, variants, parameters and deployments. Portfolio owns exact Fund assignments and financial limits. The first four workflow Function actors, including Trade Selection and Order Composition, are implemented; Risk Management and Portfolio financial admission are the next design/implementation scope. Earlier ReferenceDb three-family seeds and family-to-timeframe tables below describe historical compatibility, not new admission rules. All twelve currently supported futures/vertical/iron-condor variants can use one triggering Daily, Weekly or Monthly horizon. See [ConfigurationDb strategy catalog implementation](../../TomasAI.IFM.Application.Storage/Docs/ConfigurationDb-Strategy-Catalog-Implementation.md).
 
 > **2026-09-05 catalog amendment:** [Product discovery, family creation and exact Fund references](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Symbol-Catalog-Implementation.md) supersedes the earlier read-only/unique-SystemKey restrictions below. References now supports creating immutable product-linked definitions. SystemKey is non-unique classification; updated Fund/assignment editors persist exact catalog ID/version references (SchemaVersion 2). Seed-only acceptance statements describe the earlier baseline, not a current three-row limit. Existing history is preserved and no downstream trading capability is automatically enabled.
 
-**Version:** 0.2
-**Status:** Draft update for review; extends the approved v0.1 baseline with simplified v1 Portfolio financial-policy management
-**Scope:** New Portfolio-centric ownership, simplified financial-policy management, Fund mandates, trade-template assignment, and Fund-to-OrderComposition handoff
-**Prerequisite for:** TradeSelection, OrderComposition, RiskManagement, and the replacement Portfolio UI
-**Explicitly deferred:** Broker OrderExecution, broker fills, live TradeDb positions, and performance-ID redesign for high-throughput ScyllaDB tables
+**Version:** 0.3 (filename retained for existing links)
+**Status:** Design updated for General Ledger and Capacity Reservation; new financial implementation pending
+**Scope:** Portfolio/Fund administration, exact catalog permissions, financial policy, General Ledger/Fund transactions, atomic capacity reservation, financial UI and controlled legacy migration
+**Prerequisite for:** Authoritative financial balances and capacity admission for Risk Management and the five-stage strategy workflow
+**Explicitly deferred:** Actual IBKR connectivity, QuickBooks connector implementation, and high-throughput market-data identity redesign; execution/fill accounting contracts are included, broker implementation is separate
 **Detailed specification:** [Portfolio-Fund-Specification-v1.0.md](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md)
 **Implementation plan:** [Portfolio-Fund-Implementation-Plan-v1.0.md](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Implementation-Plan-v1.0.md)
 
-**Construction/sizing clarification — 2026-09-05:** [Trade Strategy Builder design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/Trade-Strategy-Builder-Design-v1.0.md) defines one-unit composition; Portfolio Risk Manager owns final strategy-unit sizing and atomic risk reservation. This updates design responsibility only; it does not expand the implemented Portfolio configuration phase into a live risk/execution engine.
+**Construction/sizing and reservation clarification — 2026-09-08:** [Order Composition](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Specification-v1.0.md) produces one unapproved unit. [Risk Management](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RiskManager/Docs/RiskManagement-High-Level-Design-v0.1.md) calculates final units and financial eligibility. Portfolio's proposed `CapacityReservationFunctionActor` atomically commits capacity usage, its reservation receipt and completed event in PostgreSQL before returning Complete. Workflow acceptance and execution authority remain separate from a calculated approval.
 
 ## 1. Purpose
 
@@ -21,10 +27,12 @@ This document defines the new authoritative Portfolio and Fund model required by
 - Portfolio and Fund describe investment authority and planned trade composition;
 - TradeSelection chooses a permitted trade template;
 - OrderComposition constructs an exact one-unit candidate order;
-- RiskManagement determines final units, independently validates and reserves/approves risk, or rejects; and
+- RiskManagement determines final units and independently evaluates financial eligibility or rejects;
+- GeneralLedger owns authoritative financial postings and balances;
+- CapacityReservation commits holds against current financial capacity before execution is authorized; and
 - a later OrderExecution workflow creates and manages broker-facing TradeDb records.
 
-The immediate implementation stops at the Fund-to-OrderComposition boundary. It must not redesign broker execution, fills, live positions, or the existing execution-facing TradeDb tables as part of the Portfolio/Fund work.
+The earlier configuration phase stopped at the Fund-to-OrderComposition boundary. The next phase adds ledger posting, financial admission, transaction UI and migration under sections 27–34. It defines the financial effects of execution/fills without implementing actual broker connectivity or redesigning every execution-facing TradeDb table.
 
 ## 2. Authoritative decisions
 
@@ -37,12 +45,12 @@ The following decisions are approved and normative:
 5. `FundOrder` and `FundOrderTrade` remain Fund-owned composition records. They are not broker orders, fills, or live positions.
 6. `TradeTemplate` is reusable versioned selection configuration. `FundOrder` is a particular planned composition instance. These concepts must not be conflated.
 7. TradeSelection selects a versioned permitted template or returns `NoTrade`. It does not construct exact contracts, legs, quantities, or prices.
-8. OrderComposition constructs the exact non-executable one-unit candidate order. Portfolio Risk Manager determines final strategy-unit quantity and reserves risk. Composer does not contact a broker or create a live position.
+8. OrderComposition constructs the exact non-executable one-unit candidate order. Risk Management determines final strategy-unit quantity. Portfolio's CapacityReservation subdomain reserves capacity atomically before workflow/execution acceptance. Composer does not contact a broker or create a live position.
 9. The Fund composition process reserves the integer `OrderId` and `TradeId` values that all downstream stages must retain unchanged.
 10. PostgreSQL `ISequenceIdGenerator` remains the allocator for Portfolio, PortfolioFinancialPolicy, Fund, Order, and Trade business identifiers. Operators never type, choose, or override generated integer IDs; creation allocates the ID before an editor or command can submit the new entity.
 11. Workflow, command, event, trace, and idempotency identities may remain GUID based because they are technical identities, not operator-facing trade identifiers.
-12. New Portfolio and Fund data uses `PortfolioDbContext`.
-13. Existing Fund data and current Fund actors are legacy. They are preserved through `FundLegacyDbContext` and are not migrated unless a later requirement explicitly authorizes migration.
+12. `PortfolioDbContext` supplies Scylla read models. GeneralLedger and CapacityReservation require authoritative PostgreSQL tables coordinated with Command/Function event persistence; Scylla projections cannot authorize spending.
+13. Existing Fund actors/data remain legacy during migration. The user has requested migration of Fund transaction responsibilities, processing and tables into Portfolio. Section 32 defines a reconciled additive migration and one authoritative writer per Fund; it does not permit blind copying or destruction of historical evidence.
 14. The existing Funds UI remains available during replacement. A separate Portfolio UI is built and tested before legacy removal.
 15. The Trade UI must not create a Fund. Portfolio and Fund administration belongs to the Portfolio UI.
 16. All application queries and commands reach actors through NATS messaging. UI and console clients do not access the Portfolio database directly.
@@ -57,10 +65,13 @@ The following decisions are approved and normative:
 25. Placeholder or randomly generated policy identities are prohibited.
 26. Portfolio Administration exposes `Risk Policy...` as a primary Portfolio command. Less-frequent Portfolio version, state, and Draft-deletion operations are grouped under one `Portfolio Actions` menu instead of occupying separate command-bar buttons.
 27. Trade Orders is the single operator-facing view for manual and Strategy Workflow compositions. Portfolio Administration does not expose Planned Compositions, and no separate composition viewer is retained.
-28. ReferenceDb owns the existing product/timeframe `TradeStrategyFamily` compatibility catalog, including the three original seeds and current versioned management commands. ConfigurationDb will own reusable strategies, structures, variants and deployments; Portfolio owns exact Fund assignments.
+28. ReferenceDb retains product definitions and legacy compatibility identities. ConfigurationDb owns reusable strategies, structures, variants and deployments; Portfolio owns exact Fund assignments and deployment-scoped limits.
 29. `TradeStrategyFamilyId` is a positive sequence-generated integer. Each definition has a stable system key and immutable definition version; bootstrap is idempotent and never renumbers an existing family.
 30. PortfolioFinancialPolicy contains one versioned `TradeFamilyRiskLimit` per configured family. A family must be enabled before use, and its limits can constrain but never enlarge Portfolio-wide limits.
-31. Long/Short, bullish/bearish/neutral, debit/credit, and other strategy variants are deferred to a v1.x child model and management UI. They are not additional v1 families.
+31. New financial admission uses exact supported ConfigurationDb variants, including long/short, balanced/directional bias and debit/credit. A new catalog definition never expands financial permission or installs a risk model automatically.
+32. `GeneralLedger` owns balanced financial journals, authoritative account balances, corrections, period control and reconciliation. `CapacityReservation` owns holds, usage and reservation lifecycle. A hold is not a cash expense.
+33. Financial posting Commands and capacity reservation/consumption Functions use one shared PostgreSQL admission/concurrency protocol. Business changes, receipts and authoritative events commit together; financial success cannot depend on eventual Scylla projection.
+34. QuickBooks is a future external accounting integration through explicit mapping and durable synchronization. Its availability and reporting projections are not trading admission authority.
 
 ## 3. Relationship to other designs
 
@@ -68,12 +79,14 @@ This document is the authoritative Portfolio/Fund prerequisite for:
 
 - [TradeSelection-High-Level-Design-v0.1.md](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-High-Level-Design-v0.1.md);
 - `Intrinsic-Time-Strategy-Workflow-Design-v0.2.md`;
-- the future TradeSelection detailed specification;
-- the future OrderComposition high-level design and detailed specification;
-- the future RiskManagement design; and
+- the [TradeSelection specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Docs/TradeSelection-Specification-v1.0.md);
+- the [OrderComposition specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Specification-v1.0.md);
+- the [RiskManagement design](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RiskManager/Docs/RiskManagement-High-Level-Design-v0.1.md); and
 - the replacement Portfolio and Trade composition UI.
 
 The implementation-grade commands, events, DTOs, state transitions, NATS services, persistence projections, validation codes, test obligations, and delivery gates are defined by [Portfolio-Fund-Specification-v1.0.md](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md). The high-level design remains authoritative for domain intent; the detailed specification is authoritative for the initial repository contract. Any conflict must be reconciled in both documents before implementation proceeds.
+
+The linked Portfolio specification is updated to v1.2 with financial requirements in sections 37–46. The [implementation plan v1.2, sections 15–22](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Implementation-Plan-v1.0.md#15-financial-phase-authority-scope-and-dependencies) defines PF-FIN-01 through PF-FIN-07, guardrails, migration and five-layer test evidence. All financial implementation gates remain Not Started. This document does not relabel old completed gates as covering the new subdomains.
 
 The OrderExecution specifications remain valid future-direction documents, but their implementation does not begin as part of this design. Nothing in this document authorizes a broker side effect.
 
@@ -86,12 +99,14 @@ If another document describes Portfolio/Fund as a deferred post-paper-trading re
 | Portfolio | Identity, operating state, selected financial-policy reference, Fund membership, allocations, aggregate exposure, and delegated Fund envelopes | Defining policy limits inline, trade-template compatibility, exact legs, broker execution, or live marks |
 | PortfolioFinancialPolicy | Versioned capital, reserve, exposure, margin, drawdown, trade-family, and hard-risk limits for one Portfolio | Fund investment intent, exact order construction, broker credentials, or mutable active rules |
 | Existing Reference family catalog | Versioned instrument/product/timeframe compatibility identities and discovery | New reusable strategy taxonomy or Fund authorization |
-| Proposed ConfigurationDb strategy catalog | Reusable families, strategies, structures, variants, parameters and exact deployments | Portfolio-specific permissions, financial limits or executed contract facts |
+| ConfigurationDb strategy catalog | Reusable families, strategies, structures, variants, parameters and exact deployments | Portfolio-specific permissions, financial limits or executed contract facts |
+| GeneralLedger | Fund transaction processing, balanced accounting journals, authoritative account balances, reversals, periods and reconciliation | Strategy selection, risk-policy decisions, broker submission or treating every valuation as settled cash |
+| CapacityReservation | Atomic admission, financial holds, accounting of commitments and reservation consumption/release | Cash journal ownership, candidate construction or broker submission |
 | Fund | Mandate, eligible assets, horizon, objectives, template assignments, composition preferences, and planned FundOrder/FundOrderTrade identities | Portfolio-wide capital authority, broker truth, fills, or live positions |
 | Strategy Workflow | Stage sequencing, frozen input/result acceptance, timeouts, terminal semantics, and exactly-once logical progression | Reclassifying stage results or directly contacting a broker |
 | TradeSelection | Select one permitted versioned template or `NoTrade` using accepted market decisions and the frozen Fund mandate | Exact expiration, strike, contract, quantity, price, or risk approval |
 | OrderComposition | Build an exact, immutable one-unit candidate from the selected template/profile and fresh market data | Final strategy-unit sizing, risk reservation, broker submission or fill assumptions |
-| RiskManagement | Determine final units using Portfolio/family/Fund limits and current capacity; independently validate economics and atomically reserve/approve risk | Changing upstream classifications, silently changing legs/ratios or trusting provisional capacity as reserved |
+| RiskManagement | Determine final units using Portfolio/deployment/Fund limits and current capacity; independently validate economics and request Portfolio admission | Changing upstream classifications, silently changing legs/ratios or trusting provisional capacity as reserved |
 | OrderExecution | Future broker submission, acknowledgement, replace/cancel, fill, reconciliation, and execution truth | Selecting a strategy or overriding an approval |
 | TradeDb execution model | Future working orders, broker facts, fills, durable trades, and live-position inputs | Portfolio/Fund configuration authority |
 
@@ -106,6 +121,8 @@ Portfolio
   +-- PortfolioFinancialPolicy versions
   +-- FundAllocation versions
   +-- FundRiskEnvelope versions
+  +-- GeneralLedger: journals, balances, financial transactions, reconciliation
+  +-- CapacityReservation: holds, commitments, atomic admission
   `-- Fund
        +-- FundMandate versions
        +-- TradeTemplate assignments
@@ -118,15 +135,17 @@ Portfolio
                  v
             OrderCompositionResult
                  |
-                 | approved by RiskManagement
+                 | sized by RiskManagement, reserved by CapacityReservation
                  v
             Future OrderExecution
                  |
                  v
             Future TradeDb working order, fills, trade, and position
 
-ReferenceDb TradeStrategyFamily catalog
-  `-- referenced by policy family limits, templates, TradeSelection, OrderComposition, and RiskManagement
+ConfigurationDb strategy catalog
+  `-- exact deployment/strategy/structure/variant versions in Fund assignments and policy limits
+
+GeneralLedger -> future QuickBooks adapter (asynchronous export and reconciliation)
 ```
 
 ## 6. Terminology
@@ -570,6 +589,8 @@ Source sequences, composite keys, event-derived identities, partition-local sequ
 
 ### 13.1 Actor boundaries
 
+The following list describes the initial configuration/composition topology. Sections 27–30 add `GeneralLedgerCommandActor`, `CapacityReservationFunctionActor`, `CapacityConsumptionFunctionActor`, `CapacityReservationCommandActor` and Query actors with shared atomic persistence. The two financial Functions are Portfolio services, not additional analysis stages.
+
 The initial topology should expose separate logical responsibilities:
 
 - Portfolio Command actor;
@@ -650,6 +671,8 @@ Every mutation follows the established actor conventions:
 - use stable error categories and codes; and
 - never treat a business rejection as an infrastructure failure.
 
+For the two capacity Functions, Complete confirms the authoritative PostgreSQL transaction. Ledger/lifecycle Commands likewise return a committed financial outcome only after atomic business/receipt/event persistence; accepted/queued is not posted. Unknown commit requires reconciliation. Existing unrelated Command/projector and calculation Function behavior remains unchanged. Section 30 defines the opt-in financial paths.
+
 ## 14. Persistence boundaries
 
 ### 14.1 PortfolioDbContext
@@ -684,10 +707,10 @@ Future OrderExecution will create working-order, acknowledgement, fill, trade, a
 
 Current Fund tables and historical data are legacy. They are retained through a `FundLegacyDbContext` boundary:
 
-- no automatic migration;
+- no automatic startup migration; explicit Fund transaction migration follows section 32;
 - no dual write;
 - no dual read in new Portfolio actors;
-- no compatibility requirement unless explicitly approved;
+- explicit identity/history compatibility for the requested transaction migration;
 - read-only behavior by default after cutover; and
 - separate UI labeling and operational controls.
 
@@ -706,6 +729,12 @@ ReferenceDb owns a query-shaped `trade_strategy_family_v3` catalog partition con
 The [typed catalog definition](../../TomasAI.IFM.Domain.Reference/Docs/Trade-Strategy-Family-Typed-Definition.md) specifies the 14-key MessagePack contract and coordinated API/UI deployment. Fund mandate and assignment timeframe dropdowns expose only Daily, Weekly and Monthly, mapped to `TimeFrameType`.
 
 The public surface now includes audited creation plus typed point/list queries. References offers Create Family; existing definitions remain immutable with no Edit, Retire or Delete action. New definitions use the additive CAS catalog `trade_strategy_family_catalog_v4`, and stable provider product identities use `trade_strategy_symbol_v1`. Several definitions may share SystemKey. No Portfolio, policy, pipeline, or UI component reads ReferenceDb directly.
+
+### 14.6 General Ledger and Capacity Reservation authority
+
+The financial subdomains own PostgreSQL journals, postings, balances, receipts, reservations and admission revisions. Typed contexts must enlist in the same request-scoped connection/transaction as the Command domain outcome or Function completed event append. Two independent contexts/transactions are insufficient. Section 29 defines logical tables; specification section 40 pins schemas/contexts and event-store co-location.
+
+Existing `PortfolioDbContext` is a Scylla projection context; it must not be described as the transactional financial database. Add Portfolio-owned read models there as needed. Reference/configuration stores retain reusable definitions and mapping policy; they do not store current cash or spendable capacity.
 
 ## 15. Query projections
 
@@ -742,6 +771,8 @@ During transition:
 
 ### 16.2 Portfolio UI minimum capabilities
 
+The layout below describes the earlier compact command-bar revision. The next financial revision retains the current equal-width Portfolio list, Fund list and selected-Fund detail areas and bottom metric rows, and adds the scoped financial views/actions in section 31. Existing functionality must remain accessible; financial additions do not reinstate a separate planned-composition viewer.
+
 The selected-Portfolio command bar is deliberately small. The current implementation has six visible action buttons: Refresh, Create Portfolio, New Portfolio Version, Change Portfolio State, Delete Draft, and Planned Compositions. The v1 design replaces that arrangement with four visible actions:
 
 ```text
@@ -765,7 +796,7 @@ The `Portfolio Actions` menu contains:
 - `Change Operating State...`;
 - `Delete Draft...`, enabled only for a Draft Portfolio.
 
-The command bar retains its black background, white title/foreground, and visible gray border. It does not add a Financial Policies tab. The existing detail tabs remain `Funds`, `Allocation`, `Risk Envelope`, and `Trade Assignments` for this design revision.
+The command bar retains its black background, white title/foreground, and visible gray border. It does not add a Financial Policies tab. Existing Fund/configuration views remain; Transactions, Balances and Reservations are added under the selected-Fund details as specified in section 31.
 
 The new UI should support:
 
@@ -972,7 +1003,7 @@ The resulting interaction is:
 6. inspect exact composition and decision provenance; and
 7. later, after OrderExecution is implemented, follow the same OrderId/TradeId into broker and position state.
 
-The conversion to the new authority is performed as one tested UI boundary. It must not leave some Trade Orders operations mutating legacy Fund state while others mutate new Portfolio state. Existing legacy data is not migrated or combined with the new results unless a later requirement explicitly authorizes it.
+The conversion to the new authority is performed as one tested UI boundary. It must not leave some Trade Orders operations mutating legacy Fund state while others mutate new Portfolio state. The requested Fund transaction migration follows section 32 with explicit ownership mappings, reconciliation and a fenced single-writer cutover; other legacy history remains source-isolated.
 
 ## 17. Concurrency, consistency, and idempotency
 
@@ -1160,6 +1191,8 @@ System tests verify:
 
 ## 22. Implementation sequence
 
+This list records the earlier configuration-phase sequence. The General Ledger and Capacity Reservation delivery sequence is section 34; upstream selector/composer work already implemented is not restarted.
+
 The recommended delivery order is:
 
 1. maintain approval of this HLD and terminology;
@@ -1183,6 +1216,8 @@ The recommended delivery order is:
 
 ## 23. Explicitly deferred work
 
+This section records original phase exclusions. General Ledger transaction migration, authoritative financial balances, capacity reservation, execution/fill accounting contracts and their UI are now included in sections 27–34. Actual IBKR connection, external QuickBooks connector and broad TradeDb redesign remain separate. Existing catalog variants are no longer deferred.
+
 The following are not part of the Portfolio/Fund implementation:
 
 - broker API submission;
@@ -1193,19 +1228,19 @@ The following are not part of the Portfolio/Fund implementation:
 - live TradeDb position creation;
 - market-feed-driven position updates;
 - final TradeDb execution schema;
-- bulk copying or mutation of legacy Fund, order, trade, or position history; an explicitly approved read-only Legacy Test Portfolio mapping is permitted without changing source rows;
+- unreviewed bulk copying or mutation of legacy Fund, order, trade, or position history; section 32 permits reconciled transaction migration without changing source rows;
 - removal of the existing Funds UI;
 - removal of the existing manual blotter;
 - high-throughput tick-table key redesign;
 - a universal sequence-ID strategy for all ScyllaDB tables;
 - a generic policy expression language, script engine, conditional rule tree, or live broker-balance policy evaluator;
-- TradeStrategyFamily management commands and mutation UI;
-- family subtypes/variants such as Long, Short, bullish, bearish, neutral, debit, or credit; and
 - automatic pipeline capability installation merely because a reference family exists.
 
 Deferral does not permit placeholder shortcuts that would make the later OrderExecution boundary unsafe. The Portfolio/Fund result must preserve complete immutable attribution and exact accepted versions for that future handoff.
 
 ## 24. Acceptance criteria
+
+These are historical configuration-phase criteria. For new implementation, exact ConfigurationDb permissions supersede three-read-only-family assertions, and section 34 supplies financial acceptance. PortfolioDb remains the read-model boundary, with PostgreSQL authority added for General Ledger and Capacity Reservation.
 
 This HLD is ready for detailed specification when stakeholders accept that:
 
@@ -1232,9 +1267,9 @@ This HLD is ready for detailed specification when stakeholders accept that:
 
 ## 25. Summary
 
-The new production-shaped hierarchy is Portfolio to PortfolioFinancialPolicy and Fund, with shared TradeStrategyFamily definitions supplied by ReferenceDb. Portfolio is the top-level authority and selects one exact policy version. PortfolioFinancialPolicy owns the v1 global and per-family capital/risk limits. Fund owns mandate, selectable structures, and planned composition identities. TradeSelection chooses an allowed versioned TradeTemplate. The Fund composition authority commits the integer OrderId and TradeId identities. OrderComposition creates an exact immutable candidate using those identities. RiskManagement evaluates the candidate against the frozen global/family policy limits and delegated FundRiskEnvelope.
+Portfolio owns PortfolioFinancialPolicy, Fund mandates, GeneralLedger and CapacityReservation. ConfigurationDb supplies exact strategy deployments and supported variants. TradeSelection chooses a permitted intent; Fund composition authority retains the integer OrderId and TradeId identities; OrderComposition creates one exact unapproved unit. RiskManagement calculates eligibility and final units. GeneralLedger supplies committed financial balances, and CapacityReservation atomically reserves current capacity before accepted execution handoff.
 
-No broker effect occurs in this phase. OrderExecution and live TradeDb positions remain a separate final workflow. This allows Portfolio/Fund, TradeSelection, and OrderComposition to be designed and verified now without preserving the limitations of the legacy manual execution path.
+The new financial phase includes durable posting, reservation, reconciliation and UI. OrderExecution remains the owner of external submissions and fills, initially against the IBKR emulator; actual IBKR connectivity is later. QuickBooks is an asynchronous accounting integration, never a prerequisite for a synchronous reservation result.
 
 ## 26. Approved legacy-history access extension
 
@@ -1243,3 +1278,257 @@ The operator may create one sequence-identified Draft `Legacy Test Portfolio`. I
 Trade Orders exposes two source-isolated modes. `Current` continues to read canonical PortfolioDb FundOrder/FundOrderTrade projections. `Legacy History` reads FundOrder and FundOrderTrade through `FundLegacyDbContext`, resolves the corresponding historical TradeDb record by `(OrderId, TradeId)`, and labels definition-only, position-backed, fill-backed, and missing-TradeDb cases. It never merges legacy rows into canonical collections or writes either legacy database. Historical rows whose source FundId has no matching Fund definition remain separately queryable as `Unassigned Legacy Records`; they are never attached to or used to invent a canonical Fund. The qualified source contains orphan FundIds `1003` and `1016`.
 
 Single-selecting a TradeDb-backed legacy Iron Condor embeds the original four-leg `IronCondorTradeOrderView` in the lower Trade Orders detail region. It presents the historical order composition—leg actions, expirations, strikes, quantities, bid/ask values, spreads, probabilities, limits, and trade values—while Trade Orders remains open. This lower editor is intentionally distinct from the operational graph-enabled `IronCondorView` used by the normal middle-screen `OrderId:TradeId` tab. Changing the lower selection closes and disposes the preceding editor, and delayed selection work is generation-fenced. A missing TradeDb definition, unsupported trade type, or unavailable exact base contract displays only a concise editor-unavailable message. The historical editor receives the already-hydrated TradeDb option trade and legacy Fund balance, does not depend on current market-data calls, disables every editable control, and fences submission, removal, risk generation, order-action lookup, and live-feed entry points before service execution. Accepting the selected trade still closes the selector and creates or activates the normal middle-screen graph viewer in immutable historical read-only mode. The Trade Orders selector defaults to a compact resizable height while retaining access to each section.
+
+## 27. New Portfolio financial subdomains
+
+### 27.1 Location and design status
+
+The two user-created subdomains are:
+
+```text
+TomasAI.IFM.Domain.Portfolio/
+  GeneralLedger/
+    Docs/                  design, specification, migration and verification evidence
+    Command/               GeneralLedgerCommandActor single/batch posting; configuration
+    Model/                 journal rules and accounting calculations
+    Query/                 journal, balances, history and reconciliation
+  CapacityReservation/
+    Docs/                  admission and lifecycle contracts/evidence
+    Function/              CapacityReservationFunctionActor and CapacityConsumptionFunctionActor
+    Command/               CapacityReservationCommandActor for other lifecycle changes
+    Model/                 capacity rules and accounting of holds/commitments
+    Query/                 reservation state, usage and admission receipts
+```
+
+Only the subdomain directories exist at this revision. The agreed design uses exactly two Functions for reservation and consumption, Commands for ledger posting and other lifecycle changes, and Query actors for reads. Implementation remains pending. Storage stays in Application.Storage behind typed interfaces, DTOs in neutral shared contracts; no Portfolio dependency on Trade's concrete Risk actor or QuickBooks SDK.
+
+`GeneralLedger` is the accounting authority. `CapacityReservation` is the authority for commitments against financial resources. Both belong to Portfolio; Fund is a validated dimension and mandate owner. Keep an explicit accounting-entity/book identity distinct from PortfolioId, FundId and external broker/company identity. V1 requires a verified exclusive Portfolio/account capacity pool. Multiple Funds share it; multiple Portfolios sharing one execution account require an account-level allocation authority before admission is enabled.
+
+### 27.2 Combined operation
+
+```mermaid
+flowchart TD
+    T[Fund transactions and reconciled execution facts] --> G[GeneralLedgerCommandActor]
+    G --> P[Authoritative PostgreSQL financial state]
+    R[Risk Management sized assessment] --> C[CapacityReservationFunctionActor]
+    C --> P
+    P --> A[Committed reservation receipt]
+    A --> W[Workflow acceptance and execution intent]
+    W --> U[CapacityConsumptionFunctionActor]
+    U --> P
+    U -->|Confirmed committed consumption| E[Order Execution / IBKR emulator]
+    E --> L[CapacityReservationCommandActor]
+    L --> P
+    E --> T
+    P --> Q[Rebuildable Scylla reporting]
+    P --> X[Durable accounting export]
+    X --> B[Future QuickBooks adapter]
+```
+
+Each financial write returns only after its own authoritative transaction commits. The diagram does not imply a distributed transaction through every component. Execution and integration facts arrive through authenticated, idempotent messages, with gaps and unresolved outcomes visible.
+
+## 28. General Ledger ownership and transaction processing
+
+### 28.1 Reuse and redesign
+
+The current `Domain.Fund/Transaction` actors, command validation, categories, cash editors and tests are migration inputs. Reuse qualified business behavior and reporting optimizations. Redesign the financial authority: current handlers read `FundDb.GetFundBalanceAsync`, calculate a new balance and persist an event whose projector writes Scylla. Current `FundTransactionEntityId` is FundId/OrderId; transaction DTOs do not explicitly carry Portfolio or currency. Renaming these classes cannot provide atomic Portfolio-wide spending authority.
+
+The new ledger supports all existing categories: cash deposits/withdrawals and adjustments, opening-trade-related postings, commissions and adjustments, realized/unrealized P&L and adjustments, and end-of-day processing. Add explicit linked transfers, reversals, settlement and reconciliation semantics. Review what each legacy Amount means; transaction names alone are insufficient to choose a debit/credit account.
+
+### 28.2 Journal and accounting model
+
+A posting consists of an immutable journal header and two or more balanced accounting lines. The source business transaction is retained separately from its accounting representation. Required information includes:
+
+| Record | Required information |
+| --- | --- |
+| Journal header | Generated JournalId, accounting entity/book, PortfolioId, transaction kind, source system/entity/event identity, idempotency key, canonical request hash, correlation/causation IDs, accounting date, value/settlement date, occurred/recorded/committed UTC, posting-rule version, actor/principal and reason |
+| Journal line | JournalId/line ordinal, account identity, Fund dimension where applicable, debit or credit amount, currency, base-currency amount and explicit conversion evidence when supported; OrderId/TradeId/fill identity when relevant |
+| Source reference | Exact original event/transaction identity, immutable content digest, source sequence/watermark, adjustment/reversal target and migration provenance |
+| Account balance | Book/Portfolio/Fund/account/currency scope, authoritative revision, posted debit/credit totals, balance and valuation/settlement classification |
+| Posting receipt | Original operation identity, committed JournalId and completion event, resulting financial revision, request hash and replay disposition |
+
+Generate business IDs through the established sequence mechanism; technical correlation/idempotency identities can be GUIDs. Operators choose configured accounts and Funds from controlled selectors, not user-entered database IDs or account codes. Account IDs remain distinct from external accounting account IDs. Chart/account and posting-rule versions referenced by history are immutable.
+
+Debits equal credits in the applicable book/base currency using explicit rounding entries when needed. Initial financial posting supports USD with currency fields required; unsupported cross-currency transactions fail until a versioned FX policy and sources exist. Never mix monetary currencies or treat a signed amount as an untyped credit/debit instruction. Missing or inactive accounts, unbalanced lines, forbidden Fund ownership, expired authority and unknown posting rules fail before commit.
+
+The journal is append-only. Posted entries are corrected by linked reversal/replacement or explicit adjustment journals with a reason and original identity; no deletion or overwritten history. A reversal cannot reverse the same remaining amount twice. A batch designated atomic is committed in full or not at all; larger imports are explicitly chunked with per-chunk receipts, never reported as wholly atomic.
+
+### 28.3 Cash, P&L, valuation and settlement
+
+Keep settled cash, unsettled receivables/payables, fees, realized P&L, valuation/unrealized P&L, capital contributions/distributions and active capacity holds distinct. Actual account-specific settlement rules determine which balance is spendable. A model mark is not automatically cash. Futures variation settlement must be recorded from its qualified settlement facts; do not add daily marks repeatedly as new cash profits or losses.
+
+Unrealized valuation updates use an explicit valuation cut/version and incremental accounting relative to prior booked valuation, or a documented reversal/rebook method. Realization must remove or reconcile previously booked unrealized amounts so profit is not counted twice. End-of-day is a controlled close/valuation process with completeness and source watermarks, not an unrestricted repeatable balance increment.
+
+Deposits/withdrawals distinguish a request from confirmed funds movement. Only policy-qualified settled/confirmed deposits increase spendable capacity. Withdrawal admission checks settled, unreserved available funds inside the shared financial transaction boundary. Pending withdrawals remain committed until confirmed or reconciled as cancelled; timeout alone does not restore cash. Operator-entered confirmations require explicit permission/provenance and cannot assert an actual bank transfer occurred automatically.
+
+Within one Portfolio/book/currency, a Fund transfer posts both sides atomically without changing Portfolio-wide capital. Cross-book, cross-Portfolio or cross-currency transfers require an explicit coordinated clearing/settlement design and are unavailable in initial posting; no two unrelated cash commands may simulate an atomic transfer.
+
+### 28.4 Periods and reconciliation
+
+Period controls distinguish open, closing and closed, with permitted adjustment policy. Closed-period history is never silently rewritten. Corrections use an authorized reopening or adjustment period according to the pinned accounting policy. Close requires complete source ingestion and reconciliation, with unresolved differences retained as visible exceptions.
+
+Trial balance, journal-to-balance totals, broker cash/settlement reconciliation and position/P&L reconciliation must be reproducible at a known cut. External cash flows must not be reported as trading performance. A raw balance drawdown that includes deposits/withdrawals is not the flow-adjusted drawdown required by Risk Management. Retain valuation method, source observations and as-of times on reports.
+
+## 29. Financial storage and query boundaries
+
+The following are logical table responsibilities, not released SQL migrations or final DbContext names:
+
+| Store / table concept | Responsibility |
+| --- | --- |
+| PostgreSQL `ledger_book` / `ledger_account` | Accounting entity, Portfolio book, chart membership, account type/currency and lifecycle |
+| PostgreSQL `ledger_journal` / `ledger_entry` | Immutable financial source header and balanced lines |
+| PostgreSQL `ledger_account_balance` | Revisioned financial balances updated atomically with journal entries |
+| PostgreSQL `ledger_posting_receipt` | Unique business source/idempotency identity, content hash and committed result for replay |
+| PostgreSQL `ledger_period` / `ledger_reconciliation` | Period state, valuation/source cuts, reconciliation evidence and exceptions |
+| PostgreSQL `portfolio_financial_authority` | Shared admission fence/revision, policy activation epoch and current spending controls |
+| PostgreSQL `capacity_reservation` / `capacity_usage` / lifecycle records | Exact receipts, amounts/units, current holds, order commitments and monotonic lifecycle revisions |
+| PostgreSQL external mapping / delivery records | Book/account/QuickBooks mappings, durable export identity, remote receipt and reconciliation status |
+| PostgreSQL Command/Function event storage | Command domain outcomes or Function completions committed atomically with owned business tables and receipts |
+| Scylla Portfolio read models | Monthly Fund transaction history, journal detail, balance summaries, amount/type indexes and reservation/reconciliation status |
+
+Journals, receipt uniqueness, balance updates and shared admission fencing must use the same PostgreSQL transaction where an invariant spans them. The eventual implementation must provide this across its financial and event-store schemas on the same database/connection. Scylla tables, caches or configuration tables are not alternative balance authorities.
+
+Fund transaction queries require PortfolioId plus owned FundId, accounting book/currency, date range and bounded paging. Portfolio-wide views need dedicated query paths; no unbounded Fund scan or `ALLOW FILTERING`. Use max page size 100 with scope/filter/version-bound cursors. Display projection freshness separately from financial commit status. Rebuilding reporting indexes must not reserve capacity, allocate replacement business IDs or repost journal entries.
+
+The legacy tables requiring explicit disposition are `fund_transaction`, `fund_transaction_identity_v4`, `fund_transaction_timeline_v3`, `fund_balance_by_status_day_v3`, `fund_transaction_amount_v3`, `fund_transaction_projection_state_v3`, `fund_transaction_projection_mutation_v3`, `fund_transaction_write_mutation_v3` and `fund_transaction_write_ownership_v3`, plus their balance dependencies. Preserve them as legacy during cutover. Their useful history/index/reconciliation behavior informs new Portfolio projections; legacy mutation markers are not imported as financial balances or retained automatically when a new mechanism supersedes them.
+
+Reference/configuration definitions may use existing stores through exact versioned contracts. Current ledger balances, reservation receipts and mutable usage do not belong to ConfigurationDb. Physical migration design must state ownership and retention for every legacy table, index, reader, writer and event route.
+
+## 30. Capacity Reservation and atomic financial actor conventions
+
+### 30.1 Request and result
+
+The agreed actor is `Domain.Portfolio/CapacityReservation/Function/Actor/CapacityReservationFunctionActor`. It receives a command-shaped Function request, proposed `ReservePortfolioTradeRiskCommand`, after a calculated Risk Management approval. Preserve Portfolio/Fund/Order/Trade IDs, exact assessment/candidate/sized-order hashes, requested whole units, all accounting requirements, policy/envelope/assignment versions, source completeness, expiry and a stable reservation/request identity.
+
+`CapacityConsumptionFunctionActor` is the second Function, handling `ConsumeCapacityReservationCommand` before submission. `GeneralLedgerCommandActor` handles single/batch posting; `CapacityReservationCommandActor` handles working/fill/submission-unknown/cancel/release/expiry changes. Lifecycle Commands must reject Consume. The two Functions return committed receipts synchronously to the workflow; Commands use correlated post-commit outcomes and receipt queries. Command acceptance is not financial success.
+
+A reservation identity scopes completed-only replay for one operation. The shared financial authority is Portfolio-wide, not one independent capacity balance per Fund, order or Function instance. All Funds compete against the same applicable Portfolio limits. Expected versions and database uniqueness protect against multiple actor/server instances.
+
+Complete returns the committed reservation receipt and exact completed event. Insufficient capacity or a confirmed refusal/rollback returns Fail with a business/technical reason. Unknown COMMIT or lost reply cannot mean confirmed non-reservation: reconcile by the original identity, returning an explicit OutcomeUnknown classification if authority cannot be established. The caller cannot submit or start a differently identified reservation while the original may have committed.
+
+### 30.2 Shared transactional completion
+
+Follow [system Function conventions](Actor-Implementation-Conventions.md#133-functionactor-convention): frozen `_parseMap`, `_validationMap`, `_receiveMap`, `_executionPolicyMap` and `_eventMap`; base `ValidateMappedCommand`; ordered `List<ValidationError>` extensions; directly injected typed context aliased to the generic singleton; mapped Execute/Complete/Fail/policy handlers and pure Models. Shared MessagePack handles transport/storage; there is no inner serialized result payload or eventual Function event publication.
+
+The existing Function base projects then appends separately. Add opt-in transactional completion for reservation/consumption, and enlisted Command persistence for ledger/lifecycle operations. Both commit business changes, receipt and authoritative event together. Commands follow standard mapped Command validation/receive/event conventions and continuing aggregate history, not completed-only Function state. Current calculation Functions and unrelated Commands remain unchanged. This is planned capability, not already supplied by a PostgreSQL projector.
+
+Within one transaction: recognize matching receipts, lock/check common authority, validate policy/balances, apply mutation, construct receipt and append the authoritative event. Functions complete once per execution identity; Commands append at the continuing aggregate revision. Only after commit finalize in-memory state and return the Function result or arrange durable Command outcome delivery. Failures roll back all writes; unknown commit reconciles original identity. Transactions are request-local, not singleton state. Models/extensions own rules, shared persistence/lifecycle owns enforcement. Command notifications replay after restart without reapplying money effects.
+
+Posting and reservation operations share the same fence for spendable-money invariants. Policy activation/suspension and relevant balance/usage changes must update that authority in the same transactional protocol, not through delayed notification consumption. Use a consistent lock order for affected balances; acquire no external service or broker calls while holding financial locks. An asynchronous awaited reply is synchronous business completion without blocking an actor worker thread.
+
+### 30.3 Holds and downstream lifecycle
+
+Risk Manager calculates whole-unit size. CapacityReservation validates and reserves that exact size against current cash/margin/risk/count/exposure limits; it does not silently resize or choose another strategy. A capacity revision conflict can cause a bounded new assessment attempt while the candidate is valid. A retry with the same committed identity never charges twice.
+
+A hold changes availability, not necessarily the accounting cash balance. At execution consumption, convert the hold to an order commitment without releasing capacity. On fills, transfer filled usage to position/accounting usage and keep residual open-order commitments. Track exact lineage to avoid counting the hold, working order and filled position as three exposures.
+
+Unconsumed expired holds may be released atomically after confirming no consumption. Consumed, partially filled, cancellation-pending or submission-unknown obligations remain held until authoritative reconciliation. A cancelled request is not a cancelled broker order. Replayed completion after release/expiry is historical evidence and cannot restore authority; consumption must check current state and policy.
+
+GeneralLedger owns cash/settlement postings arising from confirmed execution facts. CapacityReservation owns corresponding holds/commitment lifecycle. Their coordinated transitions require durable identities, financial revision checks and recovery; missing execution evidence cannot become invented cash or a release. The first future execution integration is intended to use an IBKR emulator, whose design has not started. Current Portfolio tests use labelled execution-fact fixtures; actual emulator and IBKR connectivity qualification remain later deliveries.
+
+## 31. Portfolio Administration UI additions
+
+Retain three equal primary sections: Portfolios, Funds and selected Fund details, followed by the existing bottom metric rows. Preserve the Dark Trading Theme, existing font/control standards, equal button spacing, generated read-only business IDs and asynchronous selection-generation cancellation.
+
+Add financial detail views for the selected Fund:
+
+| View | Content and actions |
+| --- | --- |
+| Transactions | Bounded date/type/status-filtered history, source/currency/amount, journal link, posting/reversal status; Deposit, Withdrawal, permitted Transfer and Adjustment actions |
+| Journal detail | Read-only balanced entries, original transaction, reversal links, immutable identifiers, posting rule, financial revision and audit provenance |
+| Balances | Settled cash, unsettled obligations, fees/P&L, valuation, active holds and available-to-withdraw/trade with definition and as-of status |
+| Reservations | Assessment/order/candidate references, requested/held/consumed/remaining quantity and amounts, expiry and reconciliation state |
+| Reconciliation | Account/source cuts and explicit differences; authorized resolution history without editing posted entries |
+
+Portfolio-wide chart, journal, period and reconciliation administration is accessible through a scoped General Ledger action under Portfolio Actions. Avoid duplicating Trade Orders' composition/execution viewer. Reservation actions are operational inspection/reconciliation by default; there is no general user button that bypasses the workflow to grant trading permission. Any exceptional release requires authorization and proof no live commitment exists.
+
+Transaction editors select configured accounts, Fund, currency and transaction type; amounts/dates/descriptions follow policy and IDs are readonly. Deposits/withdrawals distinguish confirmed movement from request. Save/post awaits the correlated ledger Command outcome or reconciles the receipt; queued is not committed. If history lags, show the committed receipt with History updating. Retain the original identity on uncertainty rather than enabling a second submission.
+
+Posted transactions are read-only. Corrections create linked entries and preserve source history. Switching Portfolio/Fund clears old selections and cancels/discards stale query responses. Disable invalid actions with reasons, including closed periods, unconfirmed balances, insufficient unreserved cash and foreign Fund/account selection. Legacy history remains visibly separate during migration. Bottom metrics must identify their valuation/cash-flow treatment and freshness; do not use a stale legacy balance metric as available capital.
+
+## 32. Legacy Fund transaction migration
+
+Migration is an additive, reconciled replacement of financial authority, not a wholesale namespace rename or blind copy of running Balance values.
+
+Owner clarification (2026-09-08): opening capital is development-only. The current opening-balance path requires a Development API host and an Emulator book, explicit `DevelopmentOpeningCapital` provenance and an unqualified import phase. It does not activate spending or imply real deposited money. Production funding is a separate, evidence-backed operation; do not require production capital to finish development qualification, or promote synthetic balances into a production book. This overrides the general opening-journal alternative below for the current implementation; historical migration still requires source classification, reconciliation and writer fencing.
+
+1. Inventory every transaction producer, actor route, shared DTO, API, UI entry, balance/report query, background/EOD job, event stream and table. Include cash actions, trade opening/closing effects, commissions, P&L, adjustments and corrections.
+2. Establish exact legacy FundId to current Portfolio/Fund/book mappings. Preserve original TransactionId, FundId, OrderId, TradeId and source event IDs as provenance. Existing historical Draft-only test mandates do not automatically become active financial Funds. Unmapped/orphan rows remain exceptions; do not invent ownership.
+3. Define posting rules for each legacy type and historical sign convention. Validate currency, timestamps, settlement/valuation meaning and linked adjustments. Unknown meanings are quarantined, not guessed as cash. Preserve existing canonical hashes/MessagePack readers; new wire types are versioned.
+4. Perform repeatable dry-run migration with unique source identities and counts/hashes by Fund, date, type and currency. Reconcile transaction totals, journal balance, cash, realized/unrealized P&L, source balance and outstanding commitments. Report discrepancies without silently writing a balancing plug.
+5. Choose a documented cutover basis: complete reconstructable journal history from an opening point, or a reconciled opening journal plus separately labelled legacy history. Never post both the same history and its closing balance. An opening balance requires documented composition; it does not turn unknown valuation into spendable cash.
+6. Fence legacy writes for the Fund, drain/reconcile accepted pending events and background producers, capture a final watermark and repeat delta reconciliation. Switch all producers/readers to the new authority under a durable migration state. Only one financial writer is active per Fund.
+7. Verify new transaction entry/history, reporting, authority snapshots and withdrawal-versus-reservation behavior before enabling risk admission. Retain legacy data and UI for labelled historical comparison until verification is complete.
+8. Before new writes, rollback may return to the fenced baseline. After new postings/reservations, rollback requires reconciled financial transfer/recovery and fencing, not a simple route toggle. Never resume a stale legacy writer against a Fund with new commitments.
+
+Create a per-table disposition and migration manifest. Legacy identity/index/projection bookkeeping is archived or replaced explicitly; no physical deletion is part of this documentation task. Final retirement requires completed reconciliation and operator verification of the updated Portfolio UI. Automated tests must prove duplicate migration delivery cannot repost money or renumber business history.
+
+## 33. Future QuickBooks boundary
+
+GeneralLedger supplies a stable accounting model independently of QuickBooks. The future connector maps accounting books/entities, chart accounts, currencies and supported Fund dimensions to the selected QuickBooks product/company. A Portfolio or Fund is not automatically a legal entity or separate company file. Decide Online versus Desktop, company/region capabilities and mapping policy before connector implementation; do not assume one universal API or dimension mapping.
+
+Use committed journals or policy-defined daily summaries with source-to-export reconciliation. Export durable intent only from committed ledger operations. Each export has a stable identity, content hash, source journal set, mapping version, destination company and external receipt/status. Retry after a lost reply must reconcile the destination rather than create duplicate entries. If summaries are used, retain exact inclusion/watermark and correction rules so late transactions cannot be counted in two batches.
+
+Initial direction is controlled outbound accounting export; bidirectional changes require a separately designed conflict/import policy. External edits or bank-feed duplicates are reconciliation exceptions, not silent overwrites of IFM cash or available capacity. Corrections preserve links between original and compensating entries on both sides. Future OAuth credentials/tokens belong in the integration secret store, not Portfolio/Fund/account rows.
+
+QuickBooks outages do not block trading or financial commits. They produce visible pending/failed synchronization with bounded retries and reconciliation. Capacity reservations are not exported as cash expenses. Detailed trading marks, positions and risk scenarios are retained internally; only qualified accounting postings cross the connector boundary.
+
+QuickBooks Online's journal model provides debit/credit lines referencing accounts, which supports this adapter direction; exact supported behavior must be qualified for the chosen destination. [Intuit JournalEntry documentation](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/124adc26-3988-e8ee-c447-c1ada39393fe.htm).
+
+## 34. Financial delivery gates and acceptance
+
+### 34.1 Required next specification/plan work
+
+The [Portfolio specification v1.2](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Specification-v1.0.md#37-financial-subdomain-scope-and-ownership) defines the financial contracts. The [implementation plan v1.2](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Implementation-Plan-v1.0.md#17-financial-implementation-gates) expands PF-FIN-01 through PF-FIN-07 into deliverables, dependencies and BDD/unit/integration/verification/UI tests. Subdomain Docs should reference this authority and record implementation evidence without duplicating conflicting contracts. PF-FIN-01 must verify nested manifests, allocate registry IDs and freeze migrations/query cursors before release. Preserve old PF gate evidence separately; financial implementation remains pending.
+
+| Gate | Required outcome |
+| --- | --- |
+| PF-FIN-01 Contracts and accounting rules | Portfolio/book/Fund/account ownership, versioned posting/receipt contracts, all legacy transaction mappings, USD-first rules and explicit unsupported cases |
+| PF-FIN-02 Atomic financial actor persistence | Transactional Commands and opt-in capacity Functions; business/receipt/event atomicity, durable Command delivery and existing actor regressions |
+| PF-FIN-03 General Ledger | Single/batch posting Command actor; balances, transfers, corrections, periods and reconciliation |
+| PF-FIN-04 Capacity Reservation | Reservation/consumption Functions and lifecycle Command actor; shared fence, replay, contention and safe release |
+| PF-FIN-05 Workflow/execution accounting | Real Risk Manager handoff, Fund outcome compatibility, Portfolio commitment/fill-fact consumer reconciliation with labelled fixtures and no duplicate financial effects; emulator integration deferred |
+| PF-FIN-06 Migration and UI | Complete legacy producer/table disposition, reconciled one-writer cutover, selected-Fund financial views and generation-safe asynchronous UI |
+| PF-FIN-07 Qualification | Unit/BDD/real NATS/PostgreSQL/Scylla integration/verification evidence, restart/rollback and operational runbook |
+
+QuickBooks mapping/export interfaces are designed now; implementing and qualifying the external connector is a later gate, not a prerequisite to finish internal financial authority. Production margin/account sources and actual broker connectivity remain distinct from emulator qualification.
+
+### 34.2 Mandatory tests
+
+- Balanced versus unbalanced journals, decimal rounding, account/currency validation, period boundaries, ownership/authorization and immutable correction chains.
+- Complete legacy category/sign matrix; deposits/withdrawals, transfers, commissions, P&L, valuation-to-realization, settlement and idempotent EOD with no repeated profit recognition.
+- Same-source/same-hash replay, conflicting identity reuse, duplicate source delivery and all-or-nothing atomic batches.
+- Failure after journal/balance update but before completed-event append; rollback leaves no financial mutation. Unknown COMMIT and lost reply reconcile the original receipt without a second posting.
+- Concurrent withdrawals and reservations, competing Funds and multiple server instances; no negative spendable capacity or Portfolio overspending. Policy revocation races share the fence.
+- Reservation consumption, partial fills, cancel/fill races, unknown submission, expiry and release; no premature release or duplicate position/commitment usage.
+- Scylla/reporting outage does not change PostgreSQL financial authority; read models rebuild without reposting money. Queries enforce exact scope and bounded pagination.
+- Migration counts/hashes, unmapped Funds, unknown sign/currency, opening-balance double-count prevention, fenced writer cutover and safe post-cutover recovery.
+- UI committed-but-history-pending, unknown outcome/retry identity, closed period, stale Fund selection and current-versus-legacy history isolation.
+- Five-stage lineage and exact risk/capacity receipt; unsized, expired or unreserved execution is refused. Emulator evidence is labelled and cannot qualify a live broker source.
+- Future export contract fixtures for account/company mapping, source summaries, duplicate prevention, correction links and remote outage. These do not claim a live QuickBooks integration.
+
+### 34.3 Completion evidence
+
+Both subdomains require precise passed/failed/skipped test counts, database/schema versions, migration manifests and reconciliation evidence. Financial Complete must mean journal/balance or capacity/receipt **and** completed-event persistence committed atomically. No UI success, query projection, allocated ID or previous Fund balance can substitute for that evidence.
+
+The resulting Portfolio Administration manages policy, Fund mandates, financial transactions and visible capacity while preserving the five-stage workflow boundary: four upstream results, Risk Manager sizing, Portfolio capacity admission and a recoverable authorized execution intent. The new subdomains remain planned until these gates are actually implemented and verified.
+
+
+## Development financial continuation - 2026-09-09
+
+The current workflow boundary is committed financial authorization (`Authorized`), with an exact saved sized execution intent. It does not consume capacity or dispatch preliminary emulator admission. Future execution owns consumption immediately before submission. A bounded PostgreSQL workflow snapshot recovery scan reissues existing mapped commands with saved identities and fixed deadlines; malformed latest snapshots never cause fallback to older financial intent.
+
+Portfolio Financials includes ledger control/configuration reads, period/reconciliation/retirement commands, durable pending-configuration recovery and development book setup. Setup uses committed current Funds and configured Portfolio execution-account choices, generates business keys and creates an unqualified Importing book only. It posts no capital and enables no spending. Named sequence gaps after abandoned preparation are valid. See the financial implementation manifests for default account/rule definitions and append-only DTO keys.
+
+Canonical legacy source inventory is a streamed, resumable audit archive with immutable original payloads/hashes and explicit quarantine reasons. Its `UnfencedInventory` result is not a reconciled source cut, migration qualification or writer switch. Missing legacy currency, movement and correction evidence is never inferred from a destination book or development capital. Writer fencing, qualified import/cutover and their recovery evidence remain mandatory before migrating a scope.
+
+The implementation plan section 22.9 records this continuation and its test evidence; no financial gate is closed solely by these additions. Production security and the future emulator remain separately deferred as previously agreed.
+
+
+## Development delivery clarification - 2026-09-09
+
+Portfolio financial administration now separates generated book setup, explicit development opening capital, journal reconciliation, fresh-scope source qualification and review of spending authority. Qualification retains a legacy writer fence and requires actual source absence; it cannot migrate existing history by declaring it empty. Qualification records evidence and leaves new spending disabled. Existing legacy migration still requires its selected history/posting disposition and reconciled cutover.
+
+Spending authority is derived from committed current Portfolio/Fund policy, envelopes and exact ConfigurationDb deployment assignments/products. The review is pinned to financial revision/source versions and can be saved through the conventional ledger configuration Command. It preserves already-qualified Fund membership and uses a separate per-trade loss cap. Shared underlying exposure uses symbol/exchange/currency independently of contract expiry or timeframe. Risk approval, reservation and Fund authorization finish at the durable Authorized checkpoint; submission/consumption belongs to the future execution design.
+
+See the [financial development qualification/runbook](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Financial-Development-Qualification-v1.0.md) and current implementation plan for verified behavior and remaining evidence. Neither development qualification nor labelled execution facts establish production readiness or a functioning broker emulator.

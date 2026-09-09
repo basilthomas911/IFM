@@ -30,10 +30,11 @@ public static class FailRiskManagement
             LogStale(context, command, current); return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        var timedOut = now >= current.ExpiresAtUtc || IsTimeout(command.Failure);
+        var timedOut = now >= current.ExpiresAtUtc || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc || IsTimeout(command.Failure);
         var updated = current with
         {
             Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
+            Outcome = timedOut ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.PipelineFailed,
             WorkflowRevision = current.WorkflowRevision + 1, CausationId = command.CausationId,
             UpdatedAtUtc = now, TerminalAtUtc = now,
             StopReasonCode = timedOut ? "PipelineTimedOut" : command.Failure.ErrorCode.ToString(
@@ -49,7 +50,7 @@ public static class FailRiskManagement
         return Ok(command);
     }
 
-    static bool IsTimeout(StrategyPipelineFailure failure) => failure.ErrorCode == 23103 ||
+    static bool IsTimeout(StrategyPipelineFailure failure) => failure.ErrorCode == 23103 || failure.ErrorData == "RM.TIME.EXPIRED" ||
         failure.ErrorType.Contains("Timeout", StringComparison.OrdinalIgnoreCase) ||
         failure.ErrorType.Contains("TimedOut", StringComparison.OrdinalIgnoreCase);
 

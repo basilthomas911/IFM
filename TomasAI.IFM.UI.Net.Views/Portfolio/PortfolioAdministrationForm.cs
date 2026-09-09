@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -30,6 +31,8 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     readonly Button _createFund = PortfolioUiStyle.Button("Create Fund...", "Create Fund mandate");
     readonly Button _newFundVersion = PortfolioUiStyle.Button("Change Fund...", "Change selected Fund");
     readonly Button _fundState = PortfolioUiStyle.Button("Change Fund State...", "Change Fund state");
+    readonly Button _financials = PortfolioUiStyle.Button("Financials...", "View selected Fund financials");
+    IPortfolioFinancialApi? _financialApi;
     readonly Button _configureAllocation = PortfolioUiStyle.Button("Allocation...", "Configure Fund allocation");
     readonly Button _configureEnvelope = PortfolioUiStyle.Button("Risk Envelope...", "Configure Fund risk envelope");
     readonly Button _configureAssignment = PortfolioUiStyle.Button("Trade Assignment...", "Configure Fund trade assignment");
@@ -68,6 +71,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     public PortfolioAdministrationForm()
     {
         Text = "Portfolio Administration"; Name = "PortfolioAdministrationForm"; AccessibleName = "Portfolio Administration";
+        _financials.Enabled=false;
         Width = 1450; Height = 900; MinimumSize = new(1100, 700); PortfolioUiStyle.Apply(this);
         _state.Width = 140; _state.Dock = DockStyle.None;
         _state.Items.AddRange(Enum.GetValues<PortfolioOperatingState>().Where(x => x != PortfolioOperatingState.Unknown).Cast<object>().ToArray());
@@ -87,11 +91,12 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
         _newPortfolioVersion.Click += async (_, _) => await NewPortfolioVersionAsync(); _portfolioState.Click += async (_, _) => await ChangePortfolioStateAsync();
         _deletePortfolio.Click += async (_, _) => await DeleteDraftPortfolioAsync();
         _createFund.Click += async (_, _) => await CreateFundAsync(); _newFundVersion.Click += async (_, _) => await NewFundVersionAsync(); _fundState.Click += async (_, _) => await ChangeFundStateAsync();
+        _financials.Click += (_,_) => ShowFinancials();
         _configureAllocation.Click += async (_, _) => await ConfigureAllocationAsync(); _configureEnvelope.Click += async (_, _) => await ConfigureEnvelopeAsync(); _configureAssignment.Click += async (_, _) => await ConfigureAssignmentAsync();
         FormClosed += (_, _) => { _metrics?.Dispose(); _metricTips.Dispose(); _viewModel?.ClearSelection(); _load?.Cancel(); _load?.Dispose(); };
     }
 
-    public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true, TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? fundQueries = null)
+    public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true, TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? fundQueries = null, IPortfolioFinancialApi? financialApi=null)
     {
         if (fundQueries is not null)
         {
@@ -99,7 +104,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
             _metrics = new FundMetricsViewModel(fundQueries);
             _metrics.PropertyChanged += (_, _) => RenderMetrics();
         }
-        _queries = queries; _policyCommands = policyCommands; _identities = identities; _referenceQueries = referenceQueries;
+        _queries = queries; _policyCommands = policyCommands; _identities = identities; _referenceQueries = referenceQueries; _financialApi=financialApi;
         _viewModel = new(queries, commands, fundCommands, identities, canMutate); SetSelectionButtons(); await RefreshAsync();
     }
 
@@ -322,6 +327,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     async Task RefreshForStateAsync(PortfolioOperatingState state) { _state.SelectedItem = state; await RefreshAsync(); }
     void BindConfiguration()
     {
+        _financials.Enabled=_financialApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State!=PortfolioUiState.Loading;
         BindFundSummary();
         BindDetails(_allocation, _viewModel?.Allocation);
         BindDetails(_envelope, _viewModel?.RiskEnvelope);
@@ -330,6 +336,14 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     }
 
     void ShowStatus(string? message = null) { _status.Text = message ?? (_viewModel?.State == PortfolioUiState.Empty ? "No Portfolios match the filter." : _viewModel?.Message) ?? string.Empty; }
+    void ShowFinancials()
+    {
+        if(_financialApi is null || _viewModel?.SelectedFund is not { } fund) return;
+        var scope=new FinancialReadScope { PortfolioId=fund.PortfolioId,FundId=fund.FundId,
+            Access=new(Environment.UserName,_viewModel.CanMutate ? ["LedgerRead","LedgerPost","LedgerReverse","LedgerConfigure","LedgerPeriodReopen","LedgerImport"] : ["LedgerRead"],[fund.PortfolioId]) };
+        using var form=new FundFinancialForm(_financialApi,scope,fund.Name);
+        form.ShowDialog(this);
+    }
     void ShowRiskPolicy() { if (_viewModel?.SelectedPortfolio is not { } portfolio || _queries is null || _identities is null) return; using var form = new PortfolioRiskPolicyForm(portfolio, _queries, _identities, _policyCommands, _referenceQueries, _viewModel.CanMutate); form.ShowDialog(this); }
     void SetSelectionButtons() { var can = _viewModel?.CanMutate == true && _viewModel.State != PortfolioUiState.Loading; var portfolio = _viewModel?.SelectedPortfolio is not null; var draft = _viewModel?.SelectedPortfolio?.OperatingState == PortfolioOperatingState.Draft; var fund = _viewModel?.SelectedFund is not null; _createPortfolio.Enabled = can; _riskPolicy.Enabled = portfolio; _portfolioActions.Enabled = can && portfolio; _newPortfolioVersion.Enabled = can && portfolio; _portfolioState.Enabled = can && portfolio; _deletePortfolio.Enabled = can && draft; if (_portfolioActionsMenu.Items.Count == 3) _portfolioActionsMenu.Items[2].Enabled = can && draft; _createFund.Enabled = can && portfolio; _newFundVersion.Enabled = can && fund; _fundState.Enabled = can && fund; _configureAllocation.Enabled = can && fund; _configureEnvelope.Enabled = can && fund; _configureAssignment.Enabled = can && fund; }
     static TabPage Page(string title, Control content) { var page = new TabPage(title) { BackColor = PortfolioUiStyle.Surface, ForeColor = PortfolioUiStyle.Foreground }; page.Controls.Add(content); return page; }

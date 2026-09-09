@@ -8,6 +8,8 @@ namespace TomasAI.IFM.Application.Storage.FundDb;
 public interface IFundDbReadContext 
 {
     Task<FundReadModel?> GetFundAsync(int fundId);
+    Task<bool> HasLegacyFinancialStateAsync(int fundId,CancellationToken token=default)
+        => throw new NotSupportedException("Legacy financial qualification reads are unavailable.");
     Task<ICollection<FundReadModel>> GetFundsAsync();
     Task<ICollection<FundReadModel>> GetFundsAsync(CancellationToken cancellationToken);
     Task<FundOrderReadModel?> GetFundOrderAsync(int fundId, int orderId);
@@ -20,6 +22,9 @@ public interface IFundDbReadContext
     Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate);
     Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken);
     Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync();
+    /// <summary>Streams canonical legacy source rows for a bounded migration inventory, without using financial projections.</summary>
+    IAsyncEnumerable<FundTransactionReadModel> StreamCanonicalFundTransactionsAsync(int fundId,DateOnly start,DateOnly end,CancellationToken token=default)
+        => throw new NotSupportedException("Canonical Fund transaction streaming is unavailable.");
     Task<ICollection<FundPnlReadModel>> GetFundPnlAsync(int fundId, DateOnly startDate, DateOnly endDate);
     Task<decimal> GetFundBalanceAsync(int fundId);
     Task<decimal> GetFundBalanceAsync(int fundId, CancellationToken cancellationToken);

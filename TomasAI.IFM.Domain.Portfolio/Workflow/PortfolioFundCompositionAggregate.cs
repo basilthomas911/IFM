@@ -269,6 +269,29 @@ public sealed class PortfolioFundCompositionAggregate
         });
     }
 
+    /// <summary>Accepts exact reserved units for an existing composed order; PostgreSQL separately verifies the committed grant.</summary>
+    public FundOrderProjectionReadModel AuthorizeRisk(int orderId, long expectedVersion,
+        TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference authorization, DateTime now)
+    {
+        authorization.Validate();
+        ValidateUtc(now, nameof(now));
+        var current = RequireOrder(orderId, expectedVersion);
+        if (authorization.PortfolioId != current.PortfolioId || authorization.FundId != current.FundId ||
+            authorization.OrderId != current.OrderId || authorization.WorkflowId != current.WorkflowId ||
+            authorization.CompositionResultHash != current.CompositionResultHash || now >= authorization.ValidUntilUtc ||
+            now >= current.ExpiresAtUtc || authorization.ValidUntilUtc > current.ExpiresAtUtc)
+            throw new InvalidOperationException("Financial authorization does not match the current composed Fund order.");
+        if (current.RiskAuthorization == authorization) return current;
+        if (current.Status != nameof(FundCompositionState.RiskPending) || current.RiskAuthorization is not null)
+            throw new InvalidOperationException("Only a RiskPending Fund order can accept new financial authorization.");
+        return Save(current with
+        {
+            Status = nameof(FundCompositionState.RiskApproved), RiskResultId = authorization.RiskResultId,
+            RiskResultHash = authorization.RiskAssessmentHash, RiskAuthorization = authorization,
+            AggregateVersion = checked(current.AggregateVersion + 1)
+        });
+    }
+
     public FundOrderProjectionReadModel FailComposition(int orderId, long expectedVersion, string reason) =>
         Stop(orderId, expectedVersion, FundCompositionState.CompositionFailed, reason, [FundCompositionState.Composing]);
 

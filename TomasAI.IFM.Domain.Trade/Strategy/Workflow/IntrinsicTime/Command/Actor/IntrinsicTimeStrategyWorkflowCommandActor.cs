@@ -14,6 +14,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Validation;
+using System.Collections.Frozen;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 
@@ -26,9 +27,21 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext)
     : BaseEventSourceCommandActor<IntrinsicTimeStrategyWorkflowCommandActor>(actorContext, actorContext.Logger)
 {
+    static readonly IReadOnlyDictionary<Type,Func<ICommand,CancellationToken,ValueTask<bool>>> _duplicateRetryMap =
+        new Dictionary<Type,Func<ICommand,CancellationToken,ValueTask<bool>>>
+        {
+            [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command,token)=>((AdvanceRiskFinancialHandoffCommand)command).ResumeAfterAuditAsync(token),
+            [typeof(PrepareRiskManagementCommand)] = static (command,token)=>((PrepareRiskManagementCommand)command).ResumeAfterAuditAsync(token)
+        }.ToFrozenDictionary();
+
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
+        ICommand command,CancellationToken token)
+        =>_duplicateRetryMap.TryGetValue(command.GetType(),out var handler) ? handler(command,token) : ValueTask.FromResult(false);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
+            [AdvanceRiskFinancialHandoffCommand.Verb] = message=>message.AsCommand<AdvanceRiskFinancialHandoffCommand>()!,
+            [PrepareRiskManagementCommand.Verb] = message => message.AsCommand<PrepareRiskManagementCommand>()!,
             [AcceptOrderCompositionPreparationCommand.Verb] = message => message.AsCommand<AcceptOrderCompositionPreparationCommand>()!,
             [ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb] =
                 message => message.AsCommand<ExecuteIntrinsicTimeStrategyWorkflowCommand>()!,
@@ -55,6 +68,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
+            [typeof(AdvanceRiskFinancialHandoffCommand)] = command=>new List<ValidationError>().ValidateRiskFinancialHandoff((AdvanceRiskFinancialHandoffCommand)command),
+            [typeof(PrepareRiskManagementCommand)] = command =>
+            {
+                var typed=(PrepareRiskManagementCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId,typed.CommandName)
+                    .ValidateEntityId(typed.EntityId,typed.CommandName).CaptureCommandValidation(()=>
+                    {
+                        if(typed.WorkflowId.Value==Guid.Empty || typed.InputWorkflowRevision<1)
+                            throw new ArgumentException("Exact Risk preparation identity is required.");
+                    });
+            },
             [typeof(AcceptOrderCompositionPreparationCommand)] = command =>
             {
                 var typed = (AcceptOrderCompositionPreparationCommand)command;
@@ -215,6 +239,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
             IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>>()
         {
+            [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command,context,state)=>((AdvanceRiskFinancialHandoffCommand)command).ExecuteAsync(context,state),
+            [typeof(PrepareRiskManagementCommand)] = static (command,context,state)=>
+                ((PrepareRiskManagementCommand)command).ExecuteAsync(context,state),
             [typeof(AcceptOrderCompositionPreparationCommand)] = static (command, context, state) =>
                 ((AcceptOrderCompositionPreparationCommand)command).ExecuteAsync(context, state),
             [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) =>

@@ -32,6 +32,8 @@ public sealed record FundOrderProjectionReadModel
     [Key(23)] public string CanonicalRequestHash { get; init; } = string.Empty;
     [Key(24)] public CompositionOrigin Origin { get; init; }
     [Key(25)] public string OperatorReference { get; init; } = string.Empty;
+    /// <summary>Only this exact financial reference can enter the consumption handoff.</summary>
+    [Key(26)] public Financial.FundRiskAuthorizationReference? RiskAuthorization { get; init; }
 }
 
 [MessagePackObject(AllowPrivate = true)]

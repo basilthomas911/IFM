@@ -1144,7 +1144,7 @@ Regime Discovery completion carries `StrategyStageResultEnvelope.RegimeResult` a
 its Complete extension does not encode an inner payload. The outer transport/event-store serializer
 handles that object. Typed field fingerprints retain content/conflict checks; legacy byte envelopes
 remain readable. The Scylla projection encodes its existing blob column at the storage boundary.
-Complete/Fail extensions build terminal candidates and observe existing completions; they do not publish, project, or save. Regime Discovery uses `CompleteRegimeDiscoveryPipeline` and `FailRegimeDiscoveryPipeline`, including workflow transport failures. All four production Function actors implement exact terminal maps. The base's old failure-factory adapter remains only for compatibility with test fixtures; new production actors must use mapped handlers.
+Complete/Fail extensions build terminal candidates and observe existing completions; they do not publish, project, or save. Regime Discovery uses `CompleteRegimeDiscoveryPipeline` and `FailRegimeDiscoveryPipeline`, including workflow transport failures. All five calculation pipeline Function actors implement exact terminal maps, including Risk Management. The base's old failure-factory adapter remains only for compatibility with test fixtures; new production actors must use mapped handlers.
 
 Market Condition injects `IMarketConditionFunctionContext` directly, including its calculation-model dependency. The domain and generic context interfaces share one singleton registration. Its result uses appended envelope `AssessmentResult` key 9 and an empty legacy `Payload`; canonical assessment JSON is fingerprint input only, never an embedded result payload. Legacy byte envelopes remain readable at the compatibility boundary. Calculation and completion handlers do not serialize messages.
 
@@ -1223,6 +1223,49 @@ Function completion. The workflow still receives failure and cannot advance to o
 
 The Function request uses structured attempt logging rather than command-audit reservation.
 Reserving a command ID would incorrectly suppress a retry after a non-durable failed attempt.
+
+**Implemented opt-in transactional financial actors — Portfolio, 2026-09-08; broader qualification in progress.**
+Portfolio's `CapacityReservationFunctionActor` and `CapacityConsumptionFunctionActor`
+are the only two financial Functions. Each uses the same five maps, typed context,
+list validation extensions, execution policy and terminal handlers. It is a synchronous
+request/reply operation awaited asynchronously. Its authoritative capacity update, reservation
+receipt and completed Function event must commit in one PostgreSQL transaction before Complete
+is returned. `FunctionExecutionPolicy.CompletionMode=AtomicBusinessAndEvent` requires
+`ITransactionalFunctionStateRepository` and no independent Function projector. The transactional path replaces the separate projection and append calls
+for these Functions; existing calculation Functions retain their current behavior. Each actor
+continues to map only; domain extensions own admission rules and the shared lifecycle owns
+transaction-stage enforcement. Transactions are request-scoped, never singleton context state.
+Confirmed rollback/admission refusal returns Fail without a new reservation. Unknown COMMIT or
+reply delivery requires identity-based reconciliation; it cannot be reported as confirmed
+non-reservation. Matching committed replay returns the original event without reserving again,
+and current authority must still be checked before consumption. No eventual projection or
+Function event publication is required to confirm capacity. See the
+[Risk Management design, section 12](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RiskManager/Docs/RiskManagement-High-Level-Design-v0.1.md#12-preparation-admission-and-concurrency).
+
+`GeneralLedgerCommandActor` owns single/batch posting and `CapacityReservationCommandActor`
+owns subsequent lifecycle updates. They follow standard Command mapping, list validation,
+continuing aggregate state and durable post-commit event publication, not Function terminal
+maps or completed-only execution state. The lifecycle Command route must reject Consume;
+only the consumption Function can confirm the transition required before submission.
+`LedgerConfigurationCommandActor` owns versioned configuration, periods, authority refresh and independent reconciliation.
+These financial Commands use the shared enlisted persistence path: business state,
+operation receipt and Command domain outcome commit in the same PostgreSQL transaction at
+the expected aggregate revision. Queue acceptance is not financial completion. Publication
+and Scylla projection may lag and recover from durable history without reapplying financial
+effects. Exact old-operation replay returns the original receipt without rewinding later
+aggregate state. Both actor types share the Portfolio financial fence and unknown-commit
+reconciliation. Neither an ordinary eventual projector nor two independent transactions
+satisfies this contract. Keep unrelated Command behavior unchanged. See
+[Portfolio implementation gates](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Fund-Implementation-Plan-v1.0.md#17-financial-implementation-gates).
+
+Financial Commands opt into duplicate processing through the shared `ShouldProcessDuplicateAsync`
+hook and a domain extension. A command-audit reservation is not a financial receipt. An audited
+attempt without a committed outcome must be resumable; a committed duplicate must still validate
+scope/hash and return its original receipt. Do not use the base audit-only success shortcut here.
+The financial semantic fingerprint normalizes decimal scale and UTC timestamp representation so
+standard MessagePack deserialization cannot alter operation identity. PostgreSQL retries are bounded
+to three total attempts for confirmed deadlock/serialization rollbacks; an uncertain COMMIT is never
+automatically replayed. See the [implementation manifests](../../TomasAI.IFM.Domain.Portfolio/Docs/Portfolio-Financial-Implementation-Manifests-v1.0.md).
 
 #### 13.3.1 FunctionActor testing checklist
 
@@ -1306,3 +1349,12 @@ For each approved conversion, validation must cover compilation, equality and ha
 `OrderCompositionFunctionActor` injects `IOrderCompositionFunctionContext`, registered against the same singleton as `IFunctionActorContext<OrderCompositionFunctionActor>` in API and integration hosts. `_parseMap`, `_validationMap`, `_receiveMap`, `_executionPolicyMap` and `_eventMap` route exact types to extensions. `ExecuteOrderCompositionPipeline`, `CompleteOrderCompositionPipeline`, `FailOrderCompositionPipeline` and `ResolveOrderCompositionExecutionPolicy` own domain handling; Models own parameter resolution, construction and pricing. No actor deadline arithmetic, timer helper, `Typed()` coercion, nested MessagePack result payload or Function publication is introduced.
 
 The synchronous Scylla projector precedes the completed-only PostgreSQL append. Matching committed results replay after expiry without reprice/reprojection. Workflow acceptance separately recomputes frozen economics and retains one recoverable risk intent or a NoTrade stop. Query acceptance reads authoritative PostgreSQL workflow state. See the [implementation record](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Implementation-Record-v1.0.md).
+
+
+### Portfolio financial handoff and maintenance conventions - 2026-09-08
+
+Fund authorization and workflow advancement remain conventional mapped Commands. `AuthorizeFundOrderRisk` uses List<ValidationError> extensions and the shared authoritative financial fence; `AdvanceRiskFinancialHandoff` persists typed requests and verifies committed receipts before advancing. Realtime extensions dispatch those saved requests. They do not turn queue acceptance, timeout or a projection into financial commitment.
+
+`EmulatorExecutionCommandActor` is a mapped Command actor with a durable projector; it is not another capacity Function. Exactly two Portfolio financial Functions remain Reserve and Consume. Their typed context/policy/event-map conventions remain unchanged. An internal emulator submission receipt is not a fill or settlement receipt.
+
+Scheduled unconsumed expiry uses a durable operational dispatch journal and the existing CapacityReservationCommand actor. Maintenance services/projectors may not update money or usage directly. Reconciliation of the original receipt occurs under the financial fence before an expired uncommitted request can be replaced. Consumed or uncertain execution obligations require execution/financial reconciliation; elapsed wall time alone never releases them.

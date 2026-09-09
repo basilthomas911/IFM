@@ -69,6 +69,8 @@ try
         await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>().InitializeAsync();
         await app.Services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb>().CreateAllAsync();

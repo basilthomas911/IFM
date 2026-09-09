@@ -43,12 +43,12 @@ public sealed class CompositionContractTests
     public void Eleven_field_historical_envelopes_remain_readable_but_cannot_be_new_composer_results()
     {
         var all = MessagePackBinarySerializer.SerializeHistoricalContent(new StrategyStageResultEnvelope());
-        var reader = new MessagePackReader(all); Assert.Equal(12, reader.ReadArrayHeader());
+        var reader = new MessagePackReader(all); Assert.Equal(13, reader.ReadArrayHeader());
         var buffer = new ArrayBufferWriter<byte>(); var writer = new MessagePackWriter(buffer); writer.WriteArrayHeader(11);
         for (int i = 0; i < 11; i++) writer.WriteRaw(reader.ReadRaw());
         writer.Flush();
         var old = MessagePackBinarySerializer.Shared.Deserialize<StrategyStageResultEnvelope>(buffer.WrittenMemory.ToArray());
-        Assert.Null(old.CompositionResult); Assert.ThrowsAny<Exception>(() => old.ReadCompositionResult());
+        Assert.Null(old.CompositionResult); Assert.Null(old.RiskResult); Assert.ThrowsAny<Exception>(() => old.ReadCompositionResult());
     }
     [Fact]
     public void Semantic_hash_excludes_process_local_non_contract_diagnostics()

@@ -198,7 +198,7 @@ WHERE kind=$1 AND id=$2 AND version=$3;
                 if (!await reader.ReadAsync(ct).ConfigureAwait(false) || reader.GetString(0) != parameter.Hash || reader.GetInt16(1) != 1 || reader.IsDBNull(2) || reader.GetDateTime(2) > at)
                     throw new InvalidOperationException("Pipeline parameter reference is missing, mismatched or not effective and Published.");
                 // These kinds have qualified owning schemas. Other existing pipeline kinds retain their own publication path.
-                if(parameter.Kind is CatalogPipelineParameterKind.TradeSelection or CatalogPipelineParameterKind.OrderComposition or CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow or CatalogPipelineParameterKind.MarketConditionAssessment or CatalogPipelineParameterKind.RegimeDiscovery)
+                if(parameter.Kind is CatalogPipelineParameterKind.TradeSelection or CatalogPipelineParameterKind.OrderComposition or CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow or CatalogPipelineParameterKind.MarketConditionAssessment or CatalogPipelineParameterKind.RegimeDiscovery or CatalogPipelineParameterKind.RiskManagement)
                     TradeSelectionContracts.ValidatePipelinePolicy(new SelectionPipelinePolicySnapshot
                     {
                         Kind=parameter.Kind,Id=parameter.Id,Version=parameter.Version,PayloadSha256=reader.GetString(0),PayloadJson=reader.GetString(3),SchemaVersion=reader.GetInt16(4)

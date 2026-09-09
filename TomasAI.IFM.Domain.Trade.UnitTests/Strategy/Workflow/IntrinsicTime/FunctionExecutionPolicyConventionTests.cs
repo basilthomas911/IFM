@@ -27,7 +27,7 @@ public sealed class FunctionExecutionPolicyConventionTests
     {
         var actors = typeof(TradeSelectionFunctionActor).Assembly.GetTypes()
             .Where(t => t.BaseType?.Name.StartsWith("BaseEventSourceFunctionActor`", StringComparison.Ordinal) == true).ToArray();
-        actors.Should().BeEquivalentTo([typeof(RegimeDiscoveryFunctionActor), typeof(MarketConditionFunctionActor), typeof(TradeSelectionFunctionActor), typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor.OrderCompositionFunctionActor)]);
+        actors.Should().BeEquivalentTo([typeof(RegimeDiscoveryFunctionActor), typeof(MarketConditionFunctionActor), typeof(TradeSelectionFunctionActor), typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor.OrderCompositionFunctionActor), typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor.RiskManagementFunctionActor)]);
         foreach (var actor in actors)
         {
             var requestType = actor.BaseType!.GetGenericArguments()[1];

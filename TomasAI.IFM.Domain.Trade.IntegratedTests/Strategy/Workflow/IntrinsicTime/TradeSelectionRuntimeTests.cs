@@ -177,8 +177,8 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         public ValueTask SaveCompletedStateAsync(IFunctionActorContext context,TradeSelectionFunctionState state,ExecuteTradeSelectionPipelineCommand c,CancellationToken t=default)
             =>Fail?ValueTask.FromException(new InvalidOperationException("Injected completed append failure")):Resolve().SaveCompletedStateAsync(context,state,c,t);
     }
-    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure=null)=>sourceFactory.WithWebHostBuilder(builder=>builder.UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-        .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222").ConfigureServices(services=>
+    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure=null,string? brokerUrl=null)=>sourceFactory.WithWebHostBuilder(builder=>builder.UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+        .UseSetting("IFM_TEST_NATS_URL",brokerUrl??"nats://127.0.0.1:14222").ConfigureServices(services=>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions{Enabled=false});
             var validators=TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create()).Concat(new[]{"Future","CallVertical","PutVertical","IronCondor"}.Select(code=>(IStrategyCatalogCapabilityValidator)new FixtureOnlyDownstreamValidator(new("risk",code,1))));

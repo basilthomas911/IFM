@@ -53,4 +53,7 @@ public sealed record FundCompositionReserved(
 public sealed record FundCompositionStateChanged(
     Guid Id, Guid CommandId, long Revision, DateTime OccurredOnUtc, string Principal,
     FundOrderProjectionReadModel Order)
-    : PortfolioFundDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
+    : PortfolioFundDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal), TomasAI.IFM.Domain.Portfolio.Shared.Financial.IFundRiskAuthorizedEvent
+{
+    public TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference? FinancialAuthorization => Order.RiskAuthorization;
+}

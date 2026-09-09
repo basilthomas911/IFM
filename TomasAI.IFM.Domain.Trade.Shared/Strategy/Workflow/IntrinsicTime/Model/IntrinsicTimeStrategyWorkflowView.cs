@@ -73,4 +73,7 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(31)] public CompositionContractSelection? CompositionContracts { get; init; }
     /// <summary>Frozen, accepted Function invocation; historical Start remains evidence only.</summary>
     [Key(32)] public Pipeline.Commands.ExecuteOrderCompositionPipelineCommand? CompositionExecution { get; init; }
+    /// <summary>Exact fifth-stage invocation committed before dispatch. An absent value cannot authorize a trade.</summary>
+    [Key(33)] public Pipeline.Commands.ExecuteRiskManagementPipelineCommand? RiskExecution { get; init; }
+    [Key(34)] public Pipeline.RiskManagement.RiskFinancialHandoffState? FinancialHandoff { get; init; }
 }

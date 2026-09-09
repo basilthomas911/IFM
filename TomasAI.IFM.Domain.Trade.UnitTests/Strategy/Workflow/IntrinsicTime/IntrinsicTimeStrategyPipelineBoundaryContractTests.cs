@@ -36,6 +36,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(ExecuteMarketConditionPipelineCommand),
         nameof(ExecuteOrderCompositionPipelineCommand),
         nameof(ExecuteRegimeDiscoveryPipelineCommand),
+        nameof(ExecuteRiskManagementPipelineCommand),
         nameof(ExecuteTradeSelectionPipelineCommand),
         nameof(StartOrderCompositionPipelineCommand),
         nameof(StartRiskManagementPipelineCommand),
@@ -55,6 +56,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(OrderCompositionPipelineProcessingEvent),
         nameof(RegimeDiscoveryPipelineCompletedEvent),
         nameof(RegimeDiscoveryPipelineFailedEvent),
+        nameof(RiskManagementFunctionCompletedEvent),
+        nameof(RiskManagementFunctionFailedEvent),
         nameof(RiskManagementPipelineCompletedEvent),
         nameof(RiskManagementPipelineFailedEvent),
         nameof(RiskManagementPipelineProcessingEvent),
@@ -118,7 +121,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [Fact]
     public void Pipeline_events_have_only_the_approved_lifecycle_shapes()
     {
-        EventTypes.Should().OnlyContain(type => (type.Name.StartsWith("OrderCompositionFunction", StringComparison.Ordinal) || type.Name.StartsWith("TradeSelectionFunction", StringComparison.Ordinal) || type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
+        EventTypes.Should().OnlyContain(type => (type.Name.StartsWith("RiskManagementFunction", StringComparison.Ordinal) || type.Name.StartsWith("OrderCompositionFunction", StringComparison.Ordinal) || type.Name.StartsWith("TradeSelectionFunction", StringComparison.Ordinal) || type.Name.Contains("Pipeline", StringComparison.Ordinal) || type.Name.StartsWith("MarketConditionAssessment", StringComparison.Ordinal)));
         EventTypes.Where(type => type.Name.EndsWith("ProcessingEvent", StringComparison.Ordinal)).Should()
             .OnlyContain(type => typeof(IEvent).IsAssignableFrom(type) && !typeof(ICompleteEvent).IsAssignableFrom(type));
         EventTypes.Where(type => type.Name.EndsWith("CompletedEvent", StringComparison.Ordinal)).Should()
@@ -137,6 +140,17 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     {
         foreach (var type in CommandTypes)
         {
+            if (type == typeof(ExecuteRiskManagementPipelineCommand))
+            {
+                // Risk receives four exact accepted results, not a mutable whole-workflow input.
+                type.GetProperty("WorkflowState").Should().BeNull();
+                type.GetProperty("WorkflowView").Should().BeNull();
+                foreach (var name in new[] { "RegimeResult", "MarketConditionResult", "SelectionResult", "CompositionResult" })
+                    type.GetProperty(name)!.PropertyType.Should().Be(typeof(StrategyStageResultEnvelope));
+                type.GetProperty("ExpiresAtUtc").Should().NotBeNull();
+            }
+            else
+            {
             if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
                 type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand) || type == typeof(ExecuteTradeSelectionPipelineCommand) || type == typeof(ExecuteOrderCompositionPipelineCommand))
             {
@@ -147,13 +161,14 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             else
                 type.GetProperty("WorkflowState").Should().NotBeNull(type.Name);
             type.GetProperty("TriggerEvent").Should().NotBeNull(type.Name);
+            }
             type.GetProperty("NextPipelineStage").Should().BeNull(type.Name);
             type.GetProperty("NextPipelineActorName").Should().BeNull(type.Name);
             type.GetProperty("PipelinePrivateState").Should().BeNull(type.Name);
 
             var command = Activator.CreateInstance(type).Should().BeAssignableTo<ICommand>().Subject;
             command!.RouteTo.Should().NotBe(BoundedContextName.Undefined, type.Name);
-            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type!=typeof(ExecuteTradeSelectionPipelineCommand) && type!=typeof(ExecuteOrderCompositionPipelineCommand), type.Name);
+            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type!=typeof(ExecuteTradeSelectionPipelineCommand) && type!=typeof(ExecuteOrderCompositionPipelineCommand) && type!=typeof(ExecuteRiskManagementPipelineCommand), type.Name);
         }
     }
 
@@ -221,6 +236,14 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static object CreatePopulatedContract(Type type)
     {
+        if(type==typeof(ExecuteRiskManagementPipelineCommand))return RiskManager.RiskFixture.Command().GetAwaiter().GetResult();
+        if(type==typeof(RiskManagementFunctionCompletedEvent))
+        {
+            var command = RiskManager.RiskFixture.Command().GetAwaiter().GetResult();
+            var result = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model.RiskEvaluator().Calculate(command, default);
+            return new RiskManagementFunctionCompletedEvent { Id=command.CommandId, CommandId=command.CommandId, Result=result };
+        }
+        if(type==typeof(RiskManagementFunctionFailedEvent))return new RiskManagementFunctionFailedEvent { Id=Guid.NewGuid(), CommandId=Guid.NewGuid(), ReasonCode="RM.TEST" };
         if(type==typeof(ExecuteOrderCompositionPipelineCommand))return OrderComposer.CompositionFixture.Command().GetAwaiter().GetResult();
         if(type==typeof(OrderCompositionFunctionCompletedEvent))return new OrderCompositionFunctionCompletedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid()};
         if(type==typeof(OrderCompositionFunctionFailedEvent))return new OrderCompositionFunctionFailedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReasonCode="OC.TEST"};

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
@@ -21,6 +22,42 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record StrategyStageResultEnvelope
 {
+    [IgnoreMember, JsonIgnore] RiskAssessmentResult? _riskResult;
+    [IgnoreMember, JsonIgnore] (string Hash, int Size) _riskFingerprint;
+    public const string TypedRiskContentType = "application/vnd.ifm.risk-assessment.v1";
+
+    /// <summary>Typed fifth-stage content; keys 0 through 11 retain their historical meanings.</summary>
+    [Key(12)]
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RiskAssessmentResult? RiskResult
+    {
+        get => _riskResult;
+        init
+        {
+            _riskResult=value;
+            _riskFingerprint=value is null ? default : (RiskContracts.Hash(value),MessagePackBinarySerializer.MeasureContent(value));
+        }
+    }
+
+    public static StrategyStageResultEnvelope CreateRisk(RiskAssessmentResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        RiskContracts.ValidateResult(result);
+        var envelope = new StrategyStageResultEnvelope
+        {
+            ResultId=result.ResultId, ResultType=nameof(RiskAssessmentResult), SchemaVersion=result.SchemaVersion,
+            ContentType=TypedRiskContentType, RiskResult=result, MarketDataAsOfUtc=result.EvaluatedAtUtc, ProducedAtUtc=result.ProducedAtUtc
+        };
+        return envelope with { PayloadSha256=envelope._riskFingerprint.Hash };
+    }
+
+    public RiskAssessmentResult ReadRiskResult()
+    {
+        if (_riskResult is null || !HasValidPayloadSha256()) throw new ArgumentException("Typed Risk assessment content is required.");
+        RiskContracts.ValidateResult(_riskResult);
+        return _riskResult;
+    }
     /// <summary>Default maximum opaque payload size or canonical typed-content size for one pipeline stage.</summary>
     public const int DefaultMaximumPayloadBytes = 64 * 1024;
 
@@ -183,9 +220,9 @@ public sealed record StrategyStageResultEnvelope
     }
 
     /// <summary>Gets the canonical typed-content size or legacy encoded payload size used by the stage budget.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _compositionResult is not null ? _compositionFingerprint.Size : _selectionResult is not null ? _selectionFingerprint.Size : _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _riskResult is not null ? _riskFingerprint.Size : _compositionResult is not null ? _compositionFingerprint.Size : _selectionResult is not null ? _selectionFingerprint.Size : _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
     /// <summary>Gets whether a supported result representation is populated.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _riskResult is not null || _compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
 
     /// <summary>Creates a typed Regime envelope without serializing an inner message payload.</summary>
     /// <param name="result">The result whose typed fields, metadata and fingerprint are carried by the outer message.</param>
@@ -330,6 +367,14 @@ public sealed record StrategyStageResultEnvelope
     {
         if (PayloadSha256 is not { Length: SHA256.HashSizeInBytes * 2 })
             return false;
+        if (_riskResult is not null)
+        {
+            if (_compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null
+                || _payload.Length != 0 || ContentType != TypedRiskContentType || ResultType != nameof(RiskAssessmentResult)
+                || ResultId != _riskResult.ResultId || SchemaVersion != _riskResult.SchemaVersion
+                || ProducedAtUtc != _riskResult.ProducedAtUtc || MarketDataAsOfUtc != _riskResult.EvaluatedAtUtc) return false;
+            return string.Equals(PayloadSha256,_riskFingerprint.Hash,StringComparison.OrdinalIgnoreCase);
+        }
         if (_compositionResult is not null)
         {
             if (_selectionResult is not null || _regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType != TypedCompositionContentType ||
@@ -362,7 +407,7 @@ public sealed record StrategyStageResultEnvelope
                 return false;
             return string.Equals(PayloadSha256, _regimeFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
-        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType or TypedSelectionContentType or TypedCompositionContentType) return false;
+        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType or TypedSelectionContentType or TypedCompositionContentType or TypedRiskContentType) return false;
 
         try
         {

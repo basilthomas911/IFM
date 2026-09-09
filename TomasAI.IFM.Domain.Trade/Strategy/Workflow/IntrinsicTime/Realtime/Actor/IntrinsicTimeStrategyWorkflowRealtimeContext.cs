@@ -30,6 +30,7 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
     /// <summary>Gets the immutable strategy-configuration store.</summary>
     IConfigurationDbContext ConfigurationDb { get; }
     IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
+    Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => throw new InvalidOperationException("Financial API is not configured.");
     IPortfolioQueryApi PortfolioQueries {get;}
     IPortfolioFundCommandApi PortfolioCommands {get;}
     Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations
@@ -48,6 +49,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
       IIntrinsicTimeStrategyWorkflowRealtimeContext
 {
     public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
+    public Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => Container.Resolve<Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IPortfolioFundCommandApi PortfolioCommands => Container.Resolve<IPortfolioFundCommandApi>();
     public Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations

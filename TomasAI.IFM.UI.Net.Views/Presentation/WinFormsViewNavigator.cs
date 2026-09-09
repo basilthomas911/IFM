@@ -28,7 +28,7 @@ public sealed class WinFormsViewNavigator(Func<Type, object> resolveView) : IVie
             throw new InvalidOperationException($"View '{typeof(TView).FullName}' is not a WinForms Form.");
 
         var owner = Form.ActiveForm
-            ?? Application.OpenForms
+            ?? System.Windows.Forms.Application.OpenForms
                 .Cast<Form>()
                 .FirstOrDefault(candidate => candidate.Visible && !ReferenceEquals(candidate, form));
         DialogResult result;

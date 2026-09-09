@@ -17,6 +17,7 @@ public interface IUiServiceCatalog
     IPortfolioCommandApi PortfolioCommands { get; }
     IPortfolioFundCommandApi PortfolioFundCommands { get; }
     IPortfolioQueryApi PortfolioQueries { get; }
+    TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi PortfolioFinancial { get; }
     IPortfolioIdentityApi PortfolioIdentities { get; }
     IPortfolioFinancialPolicyCommandApi PortfolioPolicyCommands { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; }

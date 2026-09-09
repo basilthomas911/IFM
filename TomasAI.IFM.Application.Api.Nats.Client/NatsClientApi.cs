@@ -9,6 +9,11 @@ public class NatsClientApi(IActorProducer actorProducer)
 {
     readonly IActorProducer _actorProducer = IsArgumentNull.Set(actorProducer);
 
+    /// <summary>Sends a standard typed Function request without changing its financial operation identity.</summary>
+    protected ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand,TEntityId,TResult>(TCommand command,TEntityId entityId,CancellationToken token)
+        where TCommand:class,ICommand<TEntityId> where TEntityId:IActorEntityId where TResult:class
+        =>_actorProducer.RequestFunctionAsync<TCommand,TEntityId,TResult>(command.Subject,command,entityId,token);
+
     /// <summary>
     /// Sends a command to an actor and waits for its domain result.
     /// </summary>

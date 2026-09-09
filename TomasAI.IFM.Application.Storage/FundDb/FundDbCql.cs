@@ -491,6 +491,10 @@ internal class FundDbCql
             AND valueDate <= :endDate;
           """;
 
+    public const string HasCanonicalFundTransaction = "SELECT transactionId FROM fund_transaction WHERE fundId=:fundId LIMIT 1;";
+    public const string HasFundTransactionWriteIntent = "SELECT mutationId FROM fund_transaction_write_mutation_v3 WHERE fundId=:fundId LIMIT 1;";
+    public const string HasFundTransactionWriteOwner = "SELECT fundId FROM fund_transaction_write_ownership_v3 WHERE fundId=:fundId LIMIT 1;";
+
     public const string GetFundTransactionsAll = """
            SELECT 
                 transactionId AS "TransactionId",

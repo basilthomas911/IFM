@@ -14,6 +14,7 @@
 
   <ItemGroup>
 	  <InternalsVisibleTo Include="$(MSBuildProjectName).IntegrationTests" />
+	  <InternalsVisibleTo Include="TomasAI.IFM.Domain.Portfolio.IntegrationTests" />
 	  <InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage.Benchmarks" />
 
   </ItemGroup>

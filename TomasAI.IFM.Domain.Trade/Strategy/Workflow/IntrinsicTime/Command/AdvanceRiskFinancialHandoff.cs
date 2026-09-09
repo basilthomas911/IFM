@@ -1,0 +1,118 @@
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Validation;
+
+namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
+
+/// <summary>Verifies authoritative receipts and persists the next exact request. It never submits financial mutations.</summary>
+public static class AdvanceRiskFinancialHandoff
+{
+    public static List<ValidationError> ValidateRiskFinancialHandoff(this List<ValidationError> errors,AdvanceRiskFinancialHandoffCommand command)
+        =>errors.ValidateCommandId(command.CommandId,command.CommandName).ValidateEntityId(command.EntityId,command.CommandName)
+            .CaptureCommandValidation(()=>
+            {
+                if(command.WorkflowId.Value==Guid.Empty || command.InputWorkflowRevision<1 || !Enum.IsDefined(command.ExpectedPhase))
+                    throw new ArgumentException("Exact financial handoff identity and checkpoint are required.");
+            });
+
+    public static ValueTask<bool> ResumeAfterAuditAsync(this AdvanceRiskFinancialHandoffCommand command,CancellationToken token)
+    { token.ThrowIfCancellationRequested(); return ValueTask.FromResult(true); }
+
+    public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this AdvanceRiskFinancialHandoffCommand command,
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,IntrinsicTimeStrategyWorkflowCommandState state)
+    {
+        var view=state.CurrentView;
+        if(view is not { Status:WorkflowStrategyMachineStatus.Started,CurrentStage:StrategyWorkflowStage.RiskManagement }
+            || view.WorkflowId!=command.WorkflowId || view.WorkflowRevision!=command.InputWorkflowRevision
+            || view.RiskManagement.ProcessingStatus!=StrategyActorProcessingStatus.Completed
+            || (view.FinancialHandoff?.Phase ?? RiskFinancialHandoffPhase.None)!=command.ExpectedPhase)
+            return new ServiceOk<GuidResult>(new(command.CommandId));
+        var expected=RiskFinancialHandoff.Advance(view);
+        RiskUnitModel.Require(command.CommandId==expected.CommandId,"RM.HANDOFF.IDENTITY");
+        var risk=view.RiskManagement.Result?.RiskResult ?? throw new RiskCalculationException("RM.HANDOFF.NO_RESULT");
+        RiskUnitModel.Require(risk.Outcome==RiskAssessmentOutcome.Approved && view.RiskExecution is not null,"RM.HANDOFF.NOT_APPROVED");
+        var owner=(IIntrinsicTimeStrategyWorkflowCommandContext)context;
+        var api=owner.FinancialApi;
+        var scope=new FinancialReadScope { PortfolioId=risk.PortfolioId,FundId=risk.FundId,
+            Access=new("IntrinsicTimeStrategyWorkflow",["LedgerRead"],[risk.PortfolioId]) };
+        var now=context.TimeProvider.GetUtcNow().UtcDateTime;
+        var eventId=Guid.CreateVersion7(new DateTimeOffset(now));
+        var handoff=view.FinancialHandoff;
+        switch(command.ExpectedPhase)
+        {
+            case RiskFinancialHandoffPhase.None:
+            {
+                var order=await owner.PortfolioQueries.GetOrderAsync(checked((int)risk.OrderId)).ConfigureAwait(false);
+                RiskUnitModel.Require(order.Success && order.Value is { Status:"RiskPending" } && order.Value.PortfolioId==risk.PortfolioId &&
+                    order.Value.FundId==risk.FundId && order.Value.WorkflowId==risk.WorkflowId.Value && order.Value.CompositionResultHash==risk.CompositionResultHash,
+                    "RM.HANDOFF.FUND_NOT_READY");
+                var candidate=view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
+                var financial=await api.GetFinancialAdmissionSnapshotAsync(scope,new(risk.Authority.DeploymentKey,candidate.Legs[0].UnderlyingInstrumentId)).ConfigureAwait(false);
+                RiskUnitModel.Require(financial.Success && financial.Value is not null,"RM.HANDOFF.AUTHORITY_UNAVAILABLE");
+                now=context.TimeProvider.GetUtcNow().UtcDateTime;
+                handoff=new()
+                {
+                    Phase=RiskFinancialHandoffPhase.ReservePending,
+                    ReservationRequest=RiskFinancialHandoff.Reserve(view,risk,financial.Value!,now),
+                    FundCommandId=RiskFinancialHandoff.Identity(risk.InvocationId,"Fund"),FundOrderVersion=order.Value!.AggregateVersion
+                };
+                break;
+            }
+            case RiskFinancialHandoffPhase.ReservePending:
+            {
+                var read=await api.GetPostingReceiptAsync(scope,new(handoff!.ReservationRequest.OperationId)).ConfigureAwait(false);
+                var grant=read.Value?.Value?.Reservation;
+                RiskUnitModel.Require(read.Success && read.Value?.Status==FinancialReadStatus.Found && grant is not null,"RM.HANDOFF.GRANT_UNAVAILABLE");
+                handoff=handoff with { Phase=RiskFinancialHandoffPhase.FundPending,Reservation=grant,
+                    Authorization=RiskFinancialHandoff.Authorize(handoff.ReservationRequest,grant!) };
+                break;
+            }
+            case RiskFinancialHandoffPhase.FundPending:
+            {
+                var read=await api.GetFundRiskAuthorizationAsync(scope,new(handoff!.FundCommandId)).ConfigureAwait(false);
+                var accepted=read.Value?.Value;
+                now=context.TimeProvider.GetUtcNow().UtcDateTime;
+                RiskUnitModel.Require(read.Success && read.Value?.Status==FinancialReadStatus.Found && accepted is not null &&
+                    accepted.CommandId==handoff.FundCommandId && accepted.EventId!=Guid.Empty && accepted.Authorization==handoff.Authorization &&
+                    now<handoff.Authorization!.ValidUntilUtc,"RM.HANDOFF.FUND_AUTHORIZATION");
+                var order=RiskFinancialHandoff.Order(view,command.CommandId);
+                var intent=new CapacityExecutionAcceptance
+                {
+                    ExecutionId=command.CommandId,ExecutionRevision=1,PortfolioId=risk.PortfolioId,FundId=risk.FundId,
+                    OrderId=checked((int)risk.OrderId),ReservationId=handoff.Authorization!.ReservationId,SizedOrderHash=risk.SizedOrderHash,
+                    RequirementsHash=risk.Requirements!.ContentHash,Environment=risk.Environment,ValidUntilUtc=handoff.Authorization.ValidUntilUtc,
+                    ExecutionOrderHash=order.ContentHash
+                };
+                handoff=handoff with { Phase=RiskFinancialHandoffPhase.Authorized,FundAcceptance=accepted,ExecutionAcceptance=intent,Order=order };
+                break;
+            }
+            // Historical consumption/submission checkpoints remain readable. The execution owner is
+            // not implemented, so this workflow must not manufacture a submission or release a hold.
+            default:return new ServiceOk<GuidResult>(new(command.CommandId));
+        }
+        var next=view with { FinancialHandoff=handoff,WorkflowRevision=checked(view.WorkflowRevision+1),UpdatedAtUtc=now,CausationId=command.CommandId };
+        if(handoff!.Phase==RiskFinancialHandoffPhase.Authorized)
+            next=next with { Status=WorkflowStrategyMachineStatus.Completed,Outcome=StrategyWorkflowOutcome.Completed,TerminalAtUtc=now,
+                RiskManagement=next.RiskManagement with { ContinuationDecision=StrategyWorkflowContinuationDecision.Proceed } };
+        state.Update(new WorkflowStrategyStateUpdatedEvent
+        {
+            Id=eventId,CommandId=command.CommandId,EntityId=command.EntityId,
+            Subject=new(ActorType.Event,WorkflowStrategyStateUpdatedEvent.Actor,WorkflowStrategyStateUpdatedEvent.Verb,command.EntityId.Format()),
+            AggregateId=command.EntityId.Format(),EventSource=command.EventSource,ReceivedOn=now,WorkflowId=next.WorkflowId,
+            WorkflowRevision=next.WorkflowRevision,CorrelationId=next.CorrelationId,CausationId=command.CommandId,
+            PreviousStatus=view.Status,State=next,UpdatedAtUtc=now
+        },command);
+        return new ServiceOk<GuidResult>(new(command.CommandId));
+    }
+}

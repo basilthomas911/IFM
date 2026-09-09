@@ -29,6 +29,7 @@ public static class TimeoutRiskManagement
             LogStale(context, command, current); return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+        if(now<current.ExpiresAtUtc) return Ok(command);
         var failure = TimeoutFailure(now);
         var updated = current with
         {
@@ -64,7 +65,7 @@ public static class TimeoutRiskManagement
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
         ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "RegimeDiscoveryTimedOut", FailedAtUtc = now
+        ErrorType = "RiskManagementTimedOut", FailedAtUtc = now
     };
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,

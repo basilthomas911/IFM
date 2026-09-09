@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -29,7 +30,7 @@ public interface IPortfolioEventStore
 }
 
 /// <summary>Persists Portfolio command history only in the shared PostgreSQL EventSourceDb.</summary>
-public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb) : IPortfolioEventStore
+public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb,IPortfolioAuthorityFence? financialFence=null) : IPortfolioEventStore
 {
     readonly IEventSourceActorDbContext _eventSourceDb = eventSourceDb ?? throw new ArgumentNullException(nameof(eventSourceDb));
 
@@ -74,10 +75,10 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
-        await _eventSourceDb.SaveEventsAsync(
-            PortfolioStream(portfolioId), domainEvent.CommandId, new DomainEventCollection([domainEvent]),
-            expectedRevision,
-            cancellationToken).ConfigureAwait(false);
+        if(financialFence is not null)
+            await financialFence.AppendAsync(portfolioId.Id,null,PortfolioStream(portfolioId),domainEvent,expectedRevision,true,cancellationToken).ConfigureAwait(false);
+        else
+            await _eventSourceDb.SaveEventsAsync(PortfolioStream(portfolioId),domainEvent.CommandId,new DomainEventCollection([domainEvent]),expectedRevision,cancellationToken).ConfigureAwait(false);
     }
 
     public async Task AppendFundAsync(
@@ -100,10 +101,13 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
-        await _eventSourceDb.SaveEventsAsync(
-            FundStream(fundId), domainEvent.CommandId, new DomainEventCollection([domainEvent]),
-            expectedRevision,
-            cancellationToken).ConfigureAwait(false);
+        if (domainEvent is TomasAI.IFM.Domain.Portfolio.Shared.Financial.IFundRiskAuthorizedEvent { FinancialAuthorization: not null } && financialFence is null)
+            throw new InvalidOperationException("Financial authorization requires the transactional Portfolio fence.");
+        if(financialFence is not null)
+            await financialFence.AppendAsync(fundId.PortfolioId,fundId.FundId,FundStream(fundId),domainEvent,expectedRevision,
+                domainEvent is not (FundCompositionReserved or FundCompositionStateChanged),cancellationToken).ConfigureAwait(false);
+        else
+            await _eventSourceDb.SaveEventsAsync(FundStream(fundId),domainEvent.CommandId,new DomainEventCollection([domainEvent]),expectedRevision,cancellationToken).ConfigureAwait(false);
     }
 
     public async Task AppendPolicyAsync(PortfolioFinancialPolicyId policyId, PortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
@@ -121,7 +125,10 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
-        await _eventSourceDb.SaveEventsAsync(PolicyStream(policyId), domainEvent.CommandId, new DomainEventCollection([domainEvent]), expectedRevision, cancellationToken).ConfigureAwait(false);
+        if(financialFence is not null)
+            await financialFence.AppendAsync(policyId.PortfolioId,null,PolicyStream(policyId),domainEvent,expectedRevision,true,cancellationToken).ConfigureAwait(false);
+        else
+            await _eventSourceDb.SaveEventsAsync(PolicyStream(policyId),domainEvent.CommandId,new DomainEventCollection([domainEvent]),expectedRevision,cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<PortfolioFinancialPolicyAggregate> LoadPolicyAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default)

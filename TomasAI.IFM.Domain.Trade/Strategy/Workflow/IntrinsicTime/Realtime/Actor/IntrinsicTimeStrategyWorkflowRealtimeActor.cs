@@ -88,9 +88,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             [StrategyWorkflowStage.OrderComposition] = static (context, snapshot) =>
                 OrderComposer.Realtime.ExecuteOrderComposition.ExecuteAsync(snapshot, RequireEventContext(context)),
             [StrategyWorkflowStage.RiskManagement] = static (context, snapshot) =>
-                ExecuteLaterPipelineAsync<StartRiskManagementPipelineCommand>(
-                    context, snapshot, StartRiskManagementPipelineCommand.Actor,
-                    StartRiskManagementPipelineCommand.Verb, StartRiskManagementPipelineCommand.ErrorId)
+                RiskManager.Realtime.ExecuteRiskManagement.ExecuteAsync(snapshot, RequireEventContext(context))
         };
 
     /// <inheritdoc />

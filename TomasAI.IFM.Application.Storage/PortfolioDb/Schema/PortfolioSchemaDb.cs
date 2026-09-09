@@ -10,6 +10,7 @@ public sealed class PortfolioSchemaDb(IDbConnectionSettings settings, ILogger<Db
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("financial_operation_by_portfolio_month", PortfolioFinancial.FinancialHistoryProjection.CreateTable, "DROP TABLE IF EXISTS financial_operation_by_portfolio_month;"),
         new("portfolio_by_id", PortfolioSchemaCql.CreatePortfolioById, "DROP TABLE IF EXISTS portfolio_by_id;"),
         new("portfolio_by_state", PortfolioSchemaCql.CreatePortfolioByState, "DROP TABLE IF EXISTS portfolio_by_state;"),
         new("fund_by_portfolio", PortfolioSchemaCql.CreateFundByPortfolio, "DROP TABLE IF EXISTS fund_by_portfolio;"),

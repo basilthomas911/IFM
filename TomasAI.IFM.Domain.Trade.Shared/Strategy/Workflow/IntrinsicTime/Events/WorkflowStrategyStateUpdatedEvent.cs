@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events
 
 /// <summary>Records one authoritative complete Strategy Workflow state snapshot.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>
+public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>, TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent
 {
     /// <summary>Logical Strategy Workflow event source.</summary>
     [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflow";
@@ -32,6 +32,10 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
     [Key(12)] public WorkflowStrategyMachineStatus PreviousStatus { get; init; }
     [Key(13)] public IntrinsicTimeStrategyWorkflowView State { get; init; } = new();
     [Key(14)] public DateTime UpdatedAtUtc { get; init; }
+
+    [IgnoreMember]
+    TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityExecutionAcceptance TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent.CapacityAcceptance
+        => State.FinancialHandoff?.ExecutionAcceptance ?? new();
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => nameof(WorkflowStrategyStateUpdatedEvent);

@@ -27,6 +27,10 @@ public enum SequenceName
     Reference_TradeStrategyFamilyId,
     MarketDataService_WatchdogStatusLogId,
     Reference_TradeStrategySymbolId,
+    PortfolioLedger_BookId,
+    PortfolioLedger_AccountId,
+    PortfolioLedger_JournalId,
+    PortfolioLedger_TransactionId,
 }
 
 public static class SequenceNameExtensions

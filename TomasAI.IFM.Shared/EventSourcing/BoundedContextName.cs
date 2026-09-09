@@ -75,4 +75,8 @@ public enum BoundedContextName
     TradeStrategyFamilyBoundedContext,
     /// <summary>Routes immutable market-data download outcomes.</summary>
     DownloadLogBoundedContext,
+    /// <summary>Routes authoritative Portfolio ledger commands and queries.</summary>
+    GeneralLedgerBoundedContext,
+    /// <summary>Routes Portfolio capacity reservation, consumption and lifecycle operations.</summary>
+    CapacityReservationBoundedContext,
 }
