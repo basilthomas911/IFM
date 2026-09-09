@@ -30,6 +30,8 @@ using ReserveFundOrderCompositionCommand = TomasAI.IFM.Domain.Portfolio.Shared.C
 
 using AuthorizeFundOrderRiskCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.AuthorizeFundOrderRiskPayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
 
+using SynchronizeFundRiskOutcomeCommand = TomasAI.IFM.Domain.Portfolio.Shared.Commands.PortfolioCommand<TomasAI.IFM.Domain.Portfolio.Shared.Commands.SynchronizeFundRiskOutcomePayload, TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId>;
+
 namespace TomasAI.IFM.Domain.Portfolio.Command.Actor;
 
 public sealed class PortfolioFundCommandActor(
@@ -56,6 +58,7 @@ public sealed class PortfolioFundCommandActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
+        [PortfolioCommandVerbs.SynchronizeFundRiskOutcome] = static message => message.AsCommand<SynchronizeFundRiskOutcomeCommand>()!,
         [PortfolioCommandVerbs.AuthorizeFundOrderRisk] = static message => message.AsCommand<AuthorizeFundOrderRiskCommand>()!,
         [PortfolioCommandVerbs.CreateFundMandate] = static message => message.AsCommand<CreateFundMandateCommand>()!,
         [PortfolioCommandVerbs.AddFundMandateVersion] = static message => message.AsCommand<AddFundMandateVersionCommand>()!,
@@ -73,6 +76,15 @@ public sealed class PortfolioFundCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
+            [typeof(SynchronizeFundRiskOutcomeCommand)] = command =>
+            {
+                var typed = (SynchronizeFundRiskOutcomeCommand)command;
+                var errors = new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateEntityId(typed.EntityId, typed.CommandName);
+                ValidateIdentity(errors, typed);
+                if (typed.Payload?.Evidence is not { } e || typed.Payload.ExpectedVersion <= 0 || e.PortfolioId != typed.EntityId.PortfolioId || e.FundId != typed.EntityId.FundId)
+                    errors.Add(new("Exact terminal evidence and Fund version are required."));
+                return errors;
+            },
             [typeof(AuthorizeFundOrderRiskCommand)] = command =>
             {
                 var typed = (AuthorizeFundOrderRiskCommand)command;
@@ -225,6 +237,9 @@ public sealed class PortfolioFundCommandActor(
                     command.CommandId, state.Aggregate.Revision, ((RecordFundOrderComposedCommand)command).Payload.OrderId.OrderId,
                     ((RecordFundOrderComposedCommand)command).Payload.ExpectedVersion,
                     ((RecordFundOrderComposedCommand)command).Payload.Result, now, principal)),
+            [typeof(SynchronizeFundRiskOutcomeCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.SynchronizeRisk(command.CommandId,
+                    ((SynchronizeFundRiskOutcomeCommand)command).Payload.ExpectedVersion, ((SynchronizeFundRiskOutcomeCommand)command).Payload.Evidence, now, principal)),
             [typeof(RecordFundOrderRiskOutcomeCommand)] = static (_, command, state, now, principal, _) =>
                 ValueTask.FromResult<PortfolioFundDomainEvent?>(state.Aggregate.RecordRiskResult(
                     command.CommandId, state.Aggregate.Revision, ((RecordFundOrderRiskOutcomeCommand)command).Payload.OrderId.OrderId,
@@ -273,6 +288,9 @@ public sealed class PortfolioFundCommandActor(
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
+            if (command is SynchronizeFundRiskOutcomeCommand sync &&
+                (committed is not FundCompositionStateChanged terminal || terminal.Order.TerminalRisk != sync.Payload.Evidence || terminal.Order.AggregateVersion != sync.Payload.ExpectedVersion + 1))
+                return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "Terminal CommandId was used for different input.");
             if (command is AuthorizeFundOrderRiskCommand authorization &&
                 (committed is not FundCompositionStateChanged authorized || authorized.Order.RiskAuthorization != authorization.Payload.Authorization ||
                  authorized.Order.OrderId != authorization.Payload.OrderId.OrderId || authorized.Order.AggregateVersion != authorization.Payload.ExpectedVersion + 1))
@@ -439,7 +457,7 @@ public sealed class PortfolioFundCommandActor(
             PortfolioCommandVerbs.MarkFundOrderComposing or
             PortfolioCommandVerbs.ExpireFundOrderComposition => PortfolioOperation.ReserveComposition,
         PortfolioCommandVerbs.RecordFundOrderComposed => PortfolioOperation.RecordCompositionResult,
-        PortfolioCommandVerbs.RecordFundOrderRiskOutcome or PortfolioCommandVerbs.AuthorizeFundOrderRisk => PortfolioOperation.RecordRiskResult,
+        PortfolioCommandVerbs.SynchronizeFundRiskOutcome or PortfolioCommandVerbs.RecordFundOrderRiskOutcome or PortfolioCommandVerbs.AuthorizeFundOrderRisk => PortfolioOperation.RecordRiskResult,
         _ => PortfolioOperation.AdministerFund,
     };
 

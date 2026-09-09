@@ -48,6 +48,17 @@ try
         Log.Information("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
         await app.DisposeAsync();
     }
+    else if (args.Contains("--backfill-risk-history-only",StringComparer.OrdinalIgnoreCase))
+    {
+        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
+        var cursorText=args.SingleOrDefault(x=>x.StartsWith("--risk-after=",StringComparison.OrdinalIgnoreCase))?.Split('=',2)[1];
+        long cursor=cursorText is null ? 0 : long.Parse(cursorText,System.Globalization.CultureInfo.InvariantCulture);
+        if(cursor<0)throw new ArgumentException("Risk cursor must be nonnegative.");
+        var recovery=app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
+        do { cursor=await recovery.ProjectPageAsync(cursor,false,deadline.Token);Console.WriteLine($"Risk history next cursor: {cursor}"); } while(cursor!=0);
+        await app.DisposeAsync();
+    }
     else if (retentionManifest is not null)
     {
         // A reviewed immutable source manifest drives this maintenance mode. No actors, feeds or HTTP listeners run.
@@ -81,6 +92,7 @@ try
     {
         // Portfolio projections are rebuildable, but their idempotent schema must exist
         // before command actors can start durable projector workers.
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();

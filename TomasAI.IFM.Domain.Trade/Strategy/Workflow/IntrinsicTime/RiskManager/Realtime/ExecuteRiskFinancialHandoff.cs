@@ -20,8 +20,10 @@ public static class ExecuteRiskFinancialHandoff
         {
             case RiskFinancialHandoffPhase.ReservePending:
             {
-                var result=await api.ReserveAsync(handoff!.ReservationRequest,timeout.Token).ConfigureAwait(false);
-                RiskUnitModel.Require(result.Success && result.Value?.Completed is not null,"RM.HANDOFF.RESERVATION_PENDING");
+                // Transport may represent a Function refusal as ServiceFailed with no typed value.
+                // Any received reply prompts reconciliation, never permission to replace the request.
+                // The Command requires an authoritative receipt or absent-receipt/newer-revision proof.
+                _ = await api.ReserveAsync(handoff!.ReservationRequest,timeout.Token).ConfigureAwait(false);
                 break;
             }
             case RiskFinancialHandoffPhase.FundPending:

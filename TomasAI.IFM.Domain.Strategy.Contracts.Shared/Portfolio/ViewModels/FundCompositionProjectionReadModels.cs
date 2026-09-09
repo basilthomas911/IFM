@@ -34,6 +34,7 @@ public sealed record FundOrderProjectionReadModel
     [Key(25)] public string OperatorReference { get; init; } = string.Empty;
     /// <summary>Only this exact financial reference can enter the consumption handoff.</summary>
     [Key(26)] public Financial.FundRiskAuthorizationReference? RiskAuthorization { get; init; }
+    [Key(27)] public Financial.RiskTerminalEvidence? TerminalRisk { get; init; }
 }
 
 [MessagePackObject(AllowPrivate = true)]

@@ -21,6 +21,65 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 
 public sealed partial class TradeSelectionRuntimeTests
 {
+    [Fact,Trait("Category","PortfolioFinancialRuntime")]
+    public async Task Real_risk_actor_persists_independent_resized_attempt_and_replays_both_results()
+    {
+        var broker = Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL")
+            ?? throw new InvalidOperationException("An isolated test broker is required.");
+        await using var host = Host(brokerUrl: broker); _ = host.CreateClient();
+        var supervisor = host.Services.GetRequiredService<IActorSupervisor>();
+        var producer = host.Services.GetRequiredService<IActorProducer>();
+        await producer.StartAsync(new(ActorType.Realtime, $"RiskResize{Guid.NewGuid():N}"));
+        try
+        {
+            // Initialize assertion diagnostics before opening the fixed one-second market window.
+            true.Should().BeTrue();
+            new RiskEvaluator().Calculate(await RiskFixture.Command());
+            var original = await RiskFixture.Command(atUtc: DateTime.UtcNow, contractId: $"RMR{Guid.NewGuid():N}", environment: "Emulator");
+            async Task<RiskManagementFunctionCompletedEvent> Execute(ExecuteRiskManagementPipelineCommand request)
+            {
+                var reply = await producer.RequestFunctionAsync<ExecuteRiskManagementPipelineCommand, RiskManagementExecutionId,
+                    FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>>(request.Subject, request, request.EntityId);
+                reply.Success.Should().BeTrue(reply.ErrorMessage);
+                reply.Value!.IsCompleted.Should().BeTrue(reply.Value.Failed?.ErrorMessage);
+                return reply.Value.Completed!;
+            }
+            var first = await Execute(original);
+            first.Result.StrategyUnits.Should().Be(10);
+            var view = new IntrinsicTimeStrategyWorkflowView
+            {
+                EntityId = original.WorkflowEntityId, WorkflowId = original.WorkflowId, CorrelationId = original.CorrelationId,
+                WorkflowRevision = original.InputWorkflowRevision + 1, ExpiresAtUtc = original.ExpiresAtUtc,
+                Status = WorkflowStrategyMachineStatus.Started, CurrentStage = StrategyWorkflowStage.RiskManagement,
+                RiskExecution = original, RiskManagement = new() { ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                    Result = StrategyStageResultEnvelope.CreateRisk(first.Result), SourceEventId = original.CommandId }
+            };
+            // Labelled financial snapshot models contention before a reservation is sent.
+            // The absent-receipt/exclusive-fence protocol is separately exercised against real PostgreSQL.
+            var snapshot = new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialAdmissionSnapshot(1,
+                first.Result.PortfolioId, first.Result.FundId, "Active", true, true, original.Authority,
+                original.SizingAuthority.AvailableCash, original.SizingAuthority.Limits.ToArray(),
+                original.SizingAuthority.Limits.Where(x => x.Measure == TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityMeasure.GrossContracts)
+                    .Select(x => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityUsed(x.ScopeKind, x.ScopeKey, x.Measure, x.Unit, x.Maximum - 2, 0, 0)).ToArray(),
+                "Emulator", "resize-fixture/account", original.SizingAuthority.PerTradeLossBudget);
+            var now = DateTime.UtcNow;
+            var resized = RiskResizing.Next(view, new(TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialReadStatus.Found,
+                snapshot, 2, now), now).RiskExecution!;
+            var second = await Execute(resized);
+            second.Result.StrategyUnits.Should().Be(2);
+            second.Result.UnitCandidateHash.Should().Be(first.Result.UnitCandidateHash);
+            second.Result.SizedOrderHash.Should().NotBe(first.Result.SizedOrderHash);
+            var repository = host.Services.GetRequiredService<SimpleInjector.Container>()
+                .GetInstance<IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>>();
+            foreach (var (request, result) in new[] { (original, first), (resized, second) })
+            {
+                var persisted = await repository.LoadStateAsync(request);
+                RiskContracts.Hash(persisted.CompletedEvent!.Result).Should().Be(RiskContracts.Hash(result.Result));
+                RiskContracts.Hash((await Execute(request)).Result).Should().Be(RiskContracts.Hash(result.Result));
+            }
+        }
+        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+    }
     [Fact,Trait("Category","PortfolioFinancialRuntime"),Trait("Gate","PF-FIN-05")]
     public async Task Risk_profiles_publish_exact_horizon_versions_in_real_configuration_storage()
     {

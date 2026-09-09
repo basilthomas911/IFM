@@ -36,6 +36,7 @@ public static class PortfolioCommandVerbs
     public const string RecordFundOrderComposed = "RecordFundOrderComposed";
     public const string RecordFundOrderRiskOutcome = "RecordFundOrderRiskOutcome";
     public const string AuthorizeFundOrderRisk = "AuthorizeFundOrderRisk";
+    public const string SynchronizeFundRiskOutcome = "SynchronizeFundRiskOutcome";
     public const string CancelFundOrderComposition = "CancelFundOrderComposition";
     public const string ExpireFundOrderComposition = "ExpireFundOrderComposition";
     public const string CreatePortfolioFinancialPolicy = "CreatePortfolioFinancialPolicy";
@@ -133,3 +134,4 @@ public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>
 [MessagePackObject] public sealed record DeleteDraftPortfolioFinancialPolicyPayload([property: Key(0)] long ExpectedRevision, [property: Key(1)] string Reason);
 
 [MessagePackObject] public sealed record AuthorizeFundOrderRiskPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] Financial.FundRiskAuthorizationReference Authorization);
+[MessagePackObject] public sealed record SynchronizeFundRiskOutcomePayload([property: Key(0)] long ExpectedVersion, [property: Key(1)] Financial.RiskTerminalEvidence Evidence);

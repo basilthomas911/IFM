@@ -84,6 +84,7 @@ public static class CompleteRiskManagement
         var rejected = result.Outcome == RiskAssessmentOutcome.Rejected;
         var updated = current with
         {
+            RiskExplanation = RiskExplanationModel.Create(current.RiskExecution!, result),
             Status = rejected ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
             Outcome = rejected ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
             CausationId = command.CausationId, WorkflowRevision = current.WorkflowRevision + 1,

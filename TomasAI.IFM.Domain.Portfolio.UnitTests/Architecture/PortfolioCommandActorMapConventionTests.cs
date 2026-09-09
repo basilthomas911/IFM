@@ -49,6 +49,7 @@ public sealed class PortfolioCommandActorMapConventionTests
                 PortfolioCommandVerbs.RecordFundOrderComposed,
                 PortfolioCommandVerbs.RecordFundOrderRiskOutcome,
                 PortfolioCommandVerbs.AuthorizeFundOrderRisk,
+                PortfolioCommandVerbs.SynchronizeFundRiskOutcome,
                 PortfolioCommandVerbs.CancelFundOrderComposition,
                 PortfolioCommandVerbs.ExpireFundOrderComposition,
             ]

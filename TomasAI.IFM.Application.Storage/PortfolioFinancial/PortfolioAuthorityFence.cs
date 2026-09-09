@@ -27,8 +27,19 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
             Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "Financial authority is required for Fund approval.");
             await FundRiskAuthorizationStore.ValidateAsync(db, portfolioId, fundId, authorization, rows[0].Book, rows[0].State, ct);
         }
+        if (domainEvent is IFundRiskTerminalEvent { TerminalRisk: { } terminal })
+        {
+            var source = await CapacityReservationStore.ReadEvidenceAsync<IRiskWorkflowTerminalEvent>(db, terminal.SourceCommandId, ct);
+            Require(source?.TerminalRisk == terminal && terminal.PortfolioId == portfolioId && terminal.FundId == fundId,
+                FinancialReasons.AuthorityDenied, "Exact committed terminal workflow evidence is required.");
+            var live = await db.ScalarAsync("SELECT reservation_id FROM portfolio_financial.capacity_reservation WHERE portfolio_id=$1 AND order_id=$2 AND status NOT IN (8,9) LIMIT 1;",
+                [portfolioId, terminal.OrderId], ct);
+            Require(live is null, FinancialReasons.InvalidLifecycle, "Capacity remains reserved or consumed; terminal Fund synchronization awaits reconciliation.");
+        }
         await db.AppendAsync(stream,domainEvent.CommandId,domainEvent,expectedRevision,ct);
         if(rows.Count==0) return true;
+        if(domainEvent is IFundRiskTerminalEvent { TerminalRisk: not null })
+            await db.ExecuteAsync("UPDATE portfolio_financial.financial_authority SET financial_revision=financial_revision+1 WHERE portfolio_id=$1;",[portfolioId],ct);
         var current=rows[0];
         if(changesAuthority)
         {

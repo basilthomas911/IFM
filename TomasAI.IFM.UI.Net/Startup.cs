@@ -137,6 +137,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             _container!.RegisterSingleton<IPortfolioQueryApi, PortfolioQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi, PortfolioFinancialApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.IRiskQueryApi, RiskQueryApi>();
             _container!.RegisterSingleton<IPortfolioIdentityApi, PortfolioIdentityApi>();
             _container!.RegisterSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             _container!.RegisterSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();

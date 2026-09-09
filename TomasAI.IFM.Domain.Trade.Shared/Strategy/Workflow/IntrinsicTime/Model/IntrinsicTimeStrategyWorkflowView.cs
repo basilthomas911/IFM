@@ -76,4 +76,6 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     /// <summary>Exact fifth-stage invocation committed before dispatch. An absent value cannot authorize a trade.</summary>
     [Key(33)] public Pipeline.Commands.ExecuteRiskManagementPipelineCommand? RiskExecution { get; init; }
     [Key(34)] public Pipeline.RiskManagement.RiskFinancialHandoffState? FinancialHandoff { get; init; }
+    [Key(35)] public Pipeline.RiskManagement.RiskResizeEvidence? RiskResize { get; init; }
+    [Key(36)] public Pipeline.RiskManagement.RiskExplanation? RiskExplanation { get; init; }
 }

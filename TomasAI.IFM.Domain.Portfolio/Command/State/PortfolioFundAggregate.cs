@@ -201,6 +201,10 @@ public sealed class PortfolioFundAggregate
         OrderCompositionResultReference result, DateTime nowUtc, string principal) =>
         ChangeComposition(commandId, expectedRevision, nowUtc, principal, () => _compositions.RecordComposed(orderId, expectedOrderVersion, result, nowUtc));
 
+    public PortfolioFundDomainEvent SynchronizeRisk(Guid commandId, long expectedOrderVersion,
+        TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence evidence, DateTime now, string principal)
+        => ChangeComposition(commandId, Revision, now, principal, () => _compositions.SynchronizeRisk(expectedOrderVersion, evidence));
+
     public PortfolioFundDomainEvent RecordRiskResult(Guid commandId, long expectedRevision, int orderId, long expectedOrderVersion,
         RiskManagementResultReference result, DateTime nowUtc, string principal) =>
         ChangeComposition(commandId, expectedRevision, nowUtc, principal, () => _compositions.RecordRiskOutcome(orderId, expectedOrderVersion, result, nowUtc));

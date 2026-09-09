@@ -49,6 +49,7 @@ public static class AdvanceRiskFinancialHandoff
         var now=context.TimeProvider.GetUtcNow().UtcDateTime;
         var eventId=Guid.CreateVersion7(new DateTimeOffset(now));
         var handoff=view.FinancialHandoff;
+        IntrinsicTimeStrategyWorkflowView? resized = null;
         switch(command.ExpectedPhase)
         {
             case RiskFinancialHandoffPhase.None:
@@ -58,9 +59,15 @@ public static class AdvanceRiskFinancialHandoff
                     order.Value.FundId==risk.FundId && order.Value.WorkflowId==risk.WorkflowId.Value && order.Value.CompositionResultHash==risk.CompositionResultHash,
                     "RM.HANDOFF.FUND_NOT_READY");
                 var candidate=view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
-                var financial=await api.GetFinancialAdmissionSnapshotAsync(scope,new(risk.Authority.DeploymentKey,candidate.Legs[0].UnderlyingInstrumentId)).ConfigureAwait(false);
+                var financial=await api.GetFinancialAdmissionSnapshotAsync(scope,new(risk.Authority.DeploymentKey,
+                    FinancialScopeKeys.Underlying(candidate.Product.Symbol,candidate.Product.Exchange,candidate.Product.Currency))).ConfigureAwait(false);
                 RiskUnitModel.Require(financial.Success && financial.Value is not null,"RM.HANDOFF.AUTHORITY_UNAVAILABLE");
                 now=context.TimeProvider.GetUtcNow().UtcDateTime;
+                if (RiskResizing.Changed(view.RiskExecution!, RiskResizing.Authority(view.RiskExecution!, financial.Value!, now)))
+                {
+                    resized = RiskResizing.Next(view, financial.Value!, now);
+                    break;
+                }
                 handoff=new()
                 {
                     Phase=RiskFinancialHandoffPhase.ReservePending,
@@ -73,6 +80,15 @@ public static class AdvanceRiskFinancialHandoff
             {
                 var read=await api.GetPostingReceiptAsync(scope,new(handoff!.ReservationRequest.OperationId)).ConfigureAwait(false);
                 var grant=read.Value?.Value?.Reservation;
+                if (read.Success && read.Value is not null && RiskResizing.IsFencedOut(handoff.ReservationRequest, read.Value))
+                {
+                    var financial = await api.GetFinancialAdmissionSnapshotAsync(scope,
+                        new(risk.Authority.DeploymentKey, view.RiskExecution!.SizingAuthority.UnderlyingId)).ConfigureAwait(false);
+                    RiskUnitModel.Require(financial.Success && financial.Value is not null, "RM.HANDOFF.AUTHORITY_UNAVAILABLE");
+                    now = context.TimeProvider.GetUtcNow().UtcDateTime;
+                    resized = RiskResizing.Next(view, financial.Value!, now, read.Value);
+                    break;
+                }
                 RiskUnitModel.Require(read.Success && read.Value?.Status==FinancialReadStatus.Found && grant is not null,"RM.HANDOFF.GRANT_UNAVAILABLE");
                 handoff=handoff with { Phase=RiskFinancialHandoffPhase.FundPending,Reservation=grant,
                     Authorization=RiskFinancialHandoff.Authorize(handoff.ReservationRequest,grant!) };
@@ -101,8 +117,9 @@ public static class AdvanceRiskFinancialHandoff
             // not implemented, so this workflow must not manufacture a submission or release a hold.
             default:return new ServiceOk<GuidResult>(new(command.CommandId));
         }
-        var next=view with { FinancialHandoff=handoff,WorkflowRevision=checked(view.WorkflowRevision+1),UpdatedAtUtc=now,CausationId=command.CommandId };
-        if(handoff!.Phase==RiskFinancialHandoffPhase.Authorized)
+        var next=(resized ?? view with { FinancialHandoff=handoff,WorkflowRevision=checked(view.WorkflowRevision+1),UpdatedAtUtc=now })
+            with { CausationId=command.CommandId };
+        if(resized is null && handoff!.Phase==RiskFinancialHandoffPhase.Authorized)
             next=next with { Status=WorkflowStrategyMachineStatus.Completed,Outcome=StrategyWorkflowOutcome.Completed,TerminalAtUtc=now,
                 RiskManagement=next.RiskManagement with { ContinuationDecision=StrategyWorkflowContinuationDecision.Proceed } };
         state.Update(new WorkflowStrategyStateUpdatedEvent

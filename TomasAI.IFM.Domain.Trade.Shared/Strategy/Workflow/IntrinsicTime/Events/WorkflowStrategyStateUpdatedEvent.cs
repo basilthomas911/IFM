@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events
 
 /// <summary>Records one authoritative complete Strategy Workflow state snapshot.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>, TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent
+public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>, TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent, TomasAI.IFM.Domain.Portfolio.Shared.Financial.IRiskWorkflowTerminalEvent
 {
     /// <summary>Logical Strategy Workflow event source.</summary>
     [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflow";
@@ -38,6 +38,27 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
         => State.FinancialHandoff?.ExecutionAcceptance ?? new();
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
+    [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
+    public TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence? TerminalRisk
+    {
+        get
+        {
+            var candidate = State.OrderComposition.Result?.CompositionResult?.Candidate;
+            if (candidate is null || State.CurrentStage != StrategyWorkflowStage.RiskManagement || State.TerminalAtUtc is null
+                || State.Status is WorkflowStrategyMachineStatus.Started or WorkflowStrategyMachineStatus.Empty
+                || State.FinancialHandoff?.Phase is Pipeline.RiskManagement.RiskFinancialHandoffPhase.Authorized
+                    or Pipeline.RiskManagement.RiskFinancialHandoffPhase.Consumed or Pipeline.RiskManagement.RiskFinancialHandoffPhase.ConsumePending
+                    or Pipeline.RiskManagement.RiskFinancialHandoffPhase.Submitted) return null;
+            var result = State.RiskManagement.Result?.RiskResult;
+            var target = State.Status == WorkflowStrategyMachineStatus.TimedOut ? "Expired" :
+                result?.Outcome == Pipeline.RiskManagement.RiskAssessmentOutcome.Rejected ? "RiskRejected" : "Cancelled";
+            return new(CommandId, Id, WorkflowId.Value, candidate.PortfolioId, candidate.FundId, checked((int)candidate.OrderId),
+                State.OrderComposition.Result!.PayloadSha256, target, result?.ResultId ?? Guid.Empty,
+                result is null ? "" : Pipeline.RiskManagement.RiskContracts.Hash(result),
+                string.IsNullOrEmpty(State.StopReasonCode) ? State.RiskManagement.Failure?.ErrorMessage ?? target : State.StopReasonCode,
+                State.TerminalAtUtc.Value);
+        }
+    }
     [IgnoreMember] public string EventName => nameof(WorkflowStrategyStateUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 

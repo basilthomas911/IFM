@@ -11,7 +11,7 @@ public static class RiskSizingModel
 {
     public static RiskSizingResult Calculate(RiskUnitResult unit, RiskSizingPolicy policy, RiskSizingAuthority authority,
         int liquidityUnits, ImmutableArray<RiskQuantityFunding> funding, decimal upstreamRiskMultiplier,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Action<RiskQuantityCheck>? inspect = null)
     {
         RiskUnitModel.Require(policy.Horizon is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly
             && policy.MaximumUnits is > 0 and <= 100 && policy.PerTradeRiskFraction is > 0 and <= 1
@@ -51,17 +51,21 @@ public static class RiskSizingModel
             var requirements = Requirements(unit, authority, quote);
             RiskUnitModel.Require(requirements.Exposures.All(x=>limits.ContainsKey(Key(x))),"RM.AUTHORITY.LIMIT_MISSING");
             decimal cash = requirements.SettlementCash + requirements.MarginFunding + requirements.FeeReserve + requirements.VariationReserve;
-            if (cash > authority.AvailableCash || requirements.LossCharge > lossBudget) continue;
             bool fits = true;
+            var checks = ImmutableArray.CreateBuilder<RiskLimitCheck>();
             foreach (var exposure in requirements.Exposures)
             {
                 RiskUnitModel.Require(limits.TryGetValue(Key(exposure), out var limit), "RM.AUTHORITY.LIMIT_MISSING");
-                if (!limit!.Enabled) continue;
                 var committed = usage.GetValueOrDefault(Key(exposure));
                 // Each component can still reach either endpoint independently. Pending opposite orders are not hedges.
                 decimal existing = committed is null ? 0 : Math.Abs(committed.Held) + Math.Abs(committed.Working) + Math.Abs(committed.Position);
-                if (existing + Math.Abs(exposure.Amount) > limit.Maximum) { fits = false; break; }
+                bool within = !limit!.Enabled || existing + Math.Abs(exposure.Amount) <= limit.Maximum;
+                if (inspect is not null) checks.Add(new(authority.Limits.IndexOf(limit), exposure.Amount, existing, within));
+                if (!within) fits = false;
             }
+            inspect?.Invoke(new(quantity, cash, requirements.LossCharge, cash <= authority.AvailableCash,
+                requirements.LossCharge <= lossBudget, checks.ToImmutable()));
+            if (cash > authority.AvailableCash || requirements.LossCharge > lossBudget) continue;
             if (fits) return new(quantity, requirements, quote.Evidence, []);
         }
         return new(0, null, null, ["RM.CAPACITY.NO_FEASIBLE_QUANTITY"]);

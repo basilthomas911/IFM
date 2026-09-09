@@ -16,6 +16,35 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
     static CapacityReservationStore Store()=>new(Transactions());
 
     [Fact]
+    public async Task Absent_receipt_at_newer_revision_permanently_fences_old_reservation_before_resizing()
+    {
+        var book = await FundedBook();
+        var old = await ReserveRequest(book, 700);
+        var scope = new FinancialReadScope { PortfolioId = book.PortfolioId, FundId = book.Funds[0].FundId, Access = old.Access };
+        var queries = new FinancialQueryStore(Transactions());
+        var before = await queries.ReadAsync(scope, new GetPostingReceiptRequest(old.OperationId));
+        before.Status.Should().Be(FinancialReadStatus.NotFound);
+        before.FinancialRevision.Should().Be(old.ExpectedFinancialRevision);
+        // A competing financial writer advances the shared fence while reducing available cash.
+        await Post(Request(book, LedgerTransactionKind.WithdrawalRequested, 500, 1));
+        var proof = await queries.ReadAsync(scope, new GetPostingReceiptRequest(old.OperationId));
+        proof.Status.Should().Be(FinancialReadStatus.NotFound);
+        proof.FinancialRevision.Should().BeGreaterThan(old.ExpectedFinancialRevision);
+        var error = await FluentActions.Awaiting(() => Reserve(old)).Should().ThrowAsync<FinancialOperationException>();
+        error.Which.Code.Should().Be(FinancialReasons.RevisionConflict);
+        var smaller = await ReserveRequest(book, 300);
+        smaller = smaller with { ExpectedFinancialRevision = proof.FinancialRevision };
+        smaller = smaller with { InputSha256 = FinancialCanonicalHash.Request(smaller) };
+        var granted = await Reserve(smaller);
+        (await FluentActions.Awaiting(() => Reserve(old)).Should().ThrowAsync<FinancialOperationException>())
+            .Which.Code.Should().Be(FinancialReasons.RevisionConflict);
+        var replay = await queries.ReadAsync(scope, new GetPostingReceiptRequest(smaller.OperationId));
+        replay.Status.Should().Be(FinancialReadStatus.Found);
+        replay.Value!.Reservation!.Id.Should().Be(granted.Id);
+        (await Usage(book)).Held.Should().Be(300);
+    }
+
+    [Fact]
     public async Task Independently_funded_Funds_share_one_Portfolio_limit_across_connections_and_fresh_retries()
     {
         var book=await CreateBook(b=>b with { Funds=Enumerable.Range(0,3).Select(i=>b.Funds[0] with {

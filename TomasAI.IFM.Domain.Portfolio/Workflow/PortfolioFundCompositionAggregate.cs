@@ -303,6 +303,19 @@ public sealed class PortfolioFundCompositionAggregate
         Stop(orderId, expectedVersion, FundCompositionState.Expired, reason,
             [FundCompositionState.IdentityReserved, FundCompositionState.TemplateSelected, FundCompositionState.Composing, FundCompositionState.Composed, FundCompositionState.RiskPending]);
 
+    public FundOrderProjectionReadModel SynchronizeRisk(long version, TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence evidence)
+    {
+        var current = RequireOrder(evidence.OrderId, version);
+        if (current.TerminalRisk == evidence) return current;
+        if (current.RiskAuthorization is not null || current.TerminalRisk is not null || current.Status != nameof(FundCompositionState.RiskPending)
+            || current.PortfolioId != evidence.PortfolioId || current.FundId != evidence.FundId || current.WorkflowId != evidence.WorkflowId
+            || current.CompositionResultHash != evidence.CompositionHash || evidence.SourceCommandId == Guid.Empty || evidence.SourceEventId == Guid.Empty
+            || evidence.TargetStatus is not ("RiskRejected" or "Cancelled" or "Expired") || evidence.DecidedAtUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Terminal Risk outcome conflicts with the current Fund order.");
+        return Save(current with { Status = evidence.TargetStatus, AggregateVersion = current.AggregateVersion + 1,
+            TerminalRisk = evidence, StopReason = evidence.Reason, RiskResultId = evidence.RiskResultId, RiskResultHash = evidence.RiskResultHash });
+    }
+
     FundOrderProjectionReadModel Stop(int orderId, long version, FundCompositionState desired, string reason, FundCompositionState[] allowed)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);

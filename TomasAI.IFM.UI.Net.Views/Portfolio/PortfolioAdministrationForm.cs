@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
@@ -33,6 +34,8 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     readonly Button _fundState = PortfolioUiStyle.Button("Change Fund State...", "Change Fund state");
     readonly Button _financials = PortfolioUiStyle.Button("Financials...", "View selected Fund financials");
     IPortfolioFinancialApi? _financialApi;
+    IRiskQueryApi? _riskApi;
+    readonly Button _riskHistory=PortfolioUiStyle.Button("Risk History...", "View Risk invocation history");
     TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? _legacyQueries;
     readonly Button _configureAllocation = PortfolioUiStyle.Button("Allocation...", "Configure Fund allocation");
     readonly Button _configureEnvelope = PortfolioUiStyle.Button("Risk Envelope...", "Configure Fund risk envelope");
@@ -93,11 +96,12 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
         _deletePortfolio.Click += async (_, _) => await DeleteDraftPortfolioAsync();
         _createFund.Click += async (_, _) => await CreateFundAsync(); _newFundVersion.Click += async (_, _) => await NewFundVersionAsync(); _fundState.Click += async (_, _) => await ChangeFundStateAsync();
         _financials.Click += (_,_) => ShowFinancials();
+        _riskHistory.Click += (_,_) => { if(_riskApi is not null && _viewModel?.SelectedFund is {} fund) { using var form=new Strategy.RiskHistoryForm(_riskApi,fund.PortfolioId,fund.FundId); form.ShowDialog(this); } };
         _configureAllocation.Click += async (_, _) => await ConfigureAllocationAsync(); _configureEnvelope.Click += async (_, _) => await ConfigureEnvelopeAsync(); _configureAssignment.Click += async (_, _) => await ConfigureAssignmentAsync();
         FormClosed += (_, _) => { _metrics?.Dispose(); _metricTips.Dispose(); _viewModel?.ClearSelection(); _load?.Cancel(); _load?.Dispose(); };
     }
 
-    public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true, TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? fundQueries = null, IPortfolioFinancialApi? financialApi=null)
+    public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true, TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? fundQueries = null, IPortfolioFinancialApi? financialApi=null, IRiskQueryApi? riskApi=null)
     {
         if (fundQueries is not null)
         {
@@ -106,7 +110,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
             _metrics = new FundMetricsViewModel(fundQueries);
             _metrics.PropertyChanged += (_, _) => RenderMetrics();
         }
-        _queries = queries; _policyCommands = policyCommands; _identities = identities; _referenceQueries = referenceQueries; _financialApi=financialApi;
+        _queries = queries; _policyCommands = policyCommands; _identities = identities; _referenceQueries = referenceQueries; _financialApi=financialApi; _riskApi=riskApi;
         _viewModel = new(queries, commands, fundCommands, identities, canMutate); SetSelectionButtons(); await RefreshAsync();
     }
 
@@ -330,6 +334,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     void BindConfiguration()
     {
         _financials.Enabled=_financialApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State!=PortfolioUiState.Loading;
+        _riskHistory.Enabled=_riskApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State!=PortfolioUiState.Loading;
         BindFundSummary();
         BindDetails(_allocation, _viewModel?.Allocation);
         BindDetails(_envelope, _viewModel?.RiskEnvelope);

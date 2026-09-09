@@ -10,6 +10,8 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("risk_management_invocation", "CREATE TABLE IF NOT EXISTS risk_management_invocation (workflow_id uuid,invocation_id uuid,revision bigint,payload blob,content_hash text,PRIMARY KEY ((workflow_id,invocation_id),revision)) WITH CLUSTERING ORDER BY (revision DESC);", "DROP TABLE IF EXISTS risk_management_invocation;"),
+        new("risk_management_history", "CREATE TABLE IF NOT EXISTS risk_management_history (portfolio_id int,fund_id int,value_date date,evaluated_at_utc timestamp,invocation_id uuid,revision bigint,payload blob,PRIMARY KEY ((portfolio_id,fund_id,value_date),evaluated_at_utc,invocation_id)) WITH CLUSTERING ORDER BY (evaluated_at_utc DESC,invocation_id ASC);", "DROP TABLE IF EXISTS risk_management_history;"),
         new("order_composition_invocation", OrderCompositionSchemaCql.Invocation, "DROP TABLE IF EXISTS order_composition_invocation;"),
         new("order_composition_history", OrderCompositionSchemaCql.History, "DROP TABLE IF EXISTS order_composition_history;"),
         new("option_leg", TradeSchemaCql.CreateOptionLegTable, "DROP TABLE IF EXISTS option_leg;"),

@@ -513,6 +513,9 @@ public static class Startup
                 TomasAI.IFM.Application.Storage.PortfolioFinancial.LedgerConfigurationStore>();
             services.AddHostedService<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Projection.FinancialHistoryRecoveryService>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialWorkflowRecoveryJournal>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.RiskHistoryJournal>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
+            services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
             services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.FinancialWorkflowRecoveryService>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.CapacityExpiryDispatchStore>();
             services.AddHostedService<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.CapacityExpiryService>();

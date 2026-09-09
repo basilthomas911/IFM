@@ -9,21 +9,16 @@ if ($NatsUrl.Scheme -ne 'nats' -or $NatsUrl.Host -notin @('127.0.0.1', 'localhos
     throw 'Supply an isolated local qualification broker, separate from the application broker on port 4222.'
 }
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$runRoot = Join-Path $repositoryRoot ('TestResults/portfolio-financial-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
+$runRoot = Join-Path $repositoryRoot ('TestResults/risk-manager-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
 $previousBroker = $env:IFM_FINANCIAL_TEST_NATS_URL
 $previousRender = $env:IFM_FINANCIAL_UI_RENDER_DIR
 $previousEnvironment = $env:ASPNETCORE_ENVIRONMENT
 $checks = @(
-    @('TomasAI.IFM.Domain.Portfolio.UnitTests', ''),
-    @('TomasAI.IFM.Domain.Portfolio.BDDTests', ''),
-    @('TomasAI.IFM.Domain.Portfolio.VerificationTests', 'Category=PortfolioFinancial'),
     @('TomasAI.IFM.Domain.Trade.UnitTests', ''),
-    @('TomasAI.IFM.Shared.UnitTests', 'FullyQualifiedName~FunctionActor|FullyQualifiedName~MappedCommand'),
-    @('TomasAI.IFM.UI.Net.Presentation.UnitTests', 'FullyQualifiedName~Financial'),
-    @('TomasAI.IFM.UI.Net.SystemTests', 'Category=PortfolioFinancial|FullyQualifiedName~RiskHistoryUiTests'),
-    @('TomasAI.IFM.Domain.Portfolio.IntegrationTests', 'Category=PortfolioFinancial|Category=PortfolioFinancialNats|Category=PortfolioFinancialProcess'),
-    @('TomasAI.IFM.Domain.Trade.IntegratedTests', 'Category=PortfolioFinancialFiveStage|Category=PortfolioFinancialRuntime|Category=RiskDeliveryRuntime'),
-    @('TomasAI.IFM.Domain.Portfolio.IntegrationTests', 'Category=PortfolioFinancialLoad')
+    @('TomasAI.IFM.Domain.Portfolio.UnitTests', ''),
+    @('TomasAI.IFM.Domain.Portfolio.IntegrationTests', 'FullyQualifiedName~FundRiskTerminalIntegrationTests|FullyQualifiedName~CapacityReservationIntegrationTests|FullyQualifiedName~FundRiskAuthorizationIntegrationTests'),
+    @('TomasAI.IFM.Domain.Trade.IntegratedTests', 'Category=RiskDeliveryRuntime|Category=PortfolioFinancialRuntime'),
+    @('TomasAI.IFM.UI.Net.SystemTests', 'FullyQualifiedName~RiskHistoryUiTests|FullyQualifiedName~Retained_history_renders')
 )
 $summary = [System.Collections.Generic.List[object]]::new()
 Push-Location $repositoryRoot
@@ -48,6 +43,8 @@ try {
         if ([int]$count.total -le 0 -or [int]$count.total -ne [int]$count.passed) { throw "Zero, failed or skipped gate tests in $output." }
         $summary.Add([pscustomobject]@{ Project = $check[0]; Filter = $check[1]; Passed = [int]$count.passed; Report = $reports[0].FullName })
     }
+    & dotnet build TomasAI.IFM.UI.Net --no-restore -m:1 -v:q
+    if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed.' }
     & dotnet build TomasAI.IFM.Application.Api.Server --no-restore -m:1 -v:q
     if ($LASTEXITCODE -ne 0) { throw 'API build failed.' }
     Push-Location (Join-Path $repositoryRoot 'TomasAI.IFM.Application.Api.Server')

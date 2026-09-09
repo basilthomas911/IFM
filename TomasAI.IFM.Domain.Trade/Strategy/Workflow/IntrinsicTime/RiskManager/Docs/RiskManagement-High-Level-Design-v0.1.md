@@ -1,5 +1,7 @@
 # Risk Management — Detailed Design v0.1
 
+> Current implementation reference (2026-09-09): [Risk Manager specification v1.0](RiskManagement-Specification-v1.0.md). The status and proposed features below describe an earlier baseline; use v1.0 for implemented behavior, current Portfolio integration and explicit future deliveries.
+
 | Item | Value |
 | --- | --- |
 | Date | 2026-09-08 |

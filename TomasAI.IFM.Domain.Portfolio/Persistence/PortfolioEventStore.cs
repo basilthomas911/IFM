@@ -101,6 +101,8 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
+        if (domainEvent is TomasAI.IFM.Domain.Portfolio.Shared.Financial.IFundRiskTerminalEvent { TerminalRisk: not null } && financialFence is null)
+            throw new InvalidOperationException("Terminal Risk synchronization requires the financial fence.");
         if (domainEvent is TomasAI.IFM.Domain.Portfolio.Shared.Financial.IFundRiskAuthorizedEvent { FinancialAuthorization: not null } && financialFence is null)
             throw new InvalidOperationException("Financial authorization requires the transactional Portfolio fence.");
         if(financialFence is not null)

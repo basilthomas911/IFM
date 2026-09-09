@@ -44,7 +44,7 @@ public sealed partial class PortfolioAdministrationForm
         _sections.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _sections.Controls.Add(Section("Portfolios", _portfolios,
             [new Label { Text = "Show State", AutoSize = true, Margin = new Padding(4, 8, 4, 4) }, _state, _refresh, _createPortfolio, _riskPolicy, _portfolioActions]), 0, 0);
-        _sections.Controls.Add(Section("Funds", _funds, [_createFund, _newFundVersion, _fundState, _financials]), 1, 0);
+        _sections.Controls.Add(Section("Funds", _funds, [_createFund, _newFundVersion, _fundState, _financials, _riskHistory]), 1, 0);
         _sections.Controls.Add(Section("Selected Fund Details", tabs, [_configureAllocation, _configureEnvelope, _configureAssignment]), 2, 0);
 
         string[] labels = ["Win Rate", "Avg Profit", "Loss Rate", "Avg Loss", "W/L Ratio", "Sharpe Ratio", "P&L", "P&L (%)", "Commission", "Max DD (%)"];
