@@ -16,6 +16,50 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
     static CapacityReservationStore Store()=>new(Transactions());
 
     [Fact]
+    public async Task Independently_funded_Funds_share_one_Portfolio_limit_across_connections_and_fresh_retries()
+    {
+        var book=await CreateBook(b=>b with { Funds=Enumerable.Range(0,3).Select(i=>b.Funds[0] with {
+            FundId=b.Funds[0].FundId+i*10,
+            Limits=[new(CapacityScopeKind.Portfolio,b.PortfolioId.ToString(),CapacityMeasure.LossCharge,CapacityUnit.Usd,1000)] }).ToArray() });
+        for(var i=0;i<3;i++) await Post(Request(book with { Funds=[book.Funds[i]] },LedgerTransactionKind.DepositConfirmed,1000,i));
+        var requests=new List<ReservePortfolioTradeRiskCommand>();
+        foreach(var fund in book.Funds)
+        {
+            var request=await ReserveRequest(book with { Funds=[fund] },700);
+            request=request with { ExpectedFinancialRevision=3 };
+            requests.Add(request with { InputSha256=FinancialCanonicalHash.Request(request) });
+        }
+        async Task<bool> Attempt(ReservePortfolioTradeRiskCommand request)
+        {
+            try { await Reserve(request);return true; }
+            catch(FinancialOperationException error) when(error.Code==FinancialReasons.RevisionConflict) { return false; }
+        }
+        var results=await Task.WhenAll(requests.Select(Attempt));results.Count(x=>x).Should().Be(1);
+        for(var i=0;i<3;i++)
+        {
+            if(results[i]) continue;
+            var retry=await ReserveRequest(book with { Funds=[book.Funds[i]] },700);
+            retry=retry with { ExpectedFinancialRevision=4 };retry=retry with { InputSha256=FinancialCanonicalHash.Request(retry) };
+            var denied=await FluentActions.Awaiting(()=>Reserve(retry)).Should().ThrowAsync<FinancialOperationException>();
+            denied.Which.Code.Should().Be(FinancialReasons.InsufficientCapacity);
+            (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,retry.OperationId)).Should().BeNull();
+        }
+        (await Usage(book)).Held.Should().Be(700);
+    }
+
+    [Fact]
+    public async Task Withdrawal_and_reservation_race_under_the_same_cash_fence()
+    {
+        var book=await FundedBook();var reserve=await ReserveRequest(book,700);
+        var withdrawal=Request(book,LedgerTransactionKind.WithdrawalRequested,700,1);
+        async Task<bool> ReserveAttempt() { try { await Reserve(reserve);return true; } catch(FinancialOperationException e) when(e.Code==FinancialReasons.RevisionConflict) { return false; } }
+        async Task<bool> WithdrawAttempt() { try { await Post(withdrawal);return true; } catch(FinancialOperationException e) when(e.Code==FinancialReasons.RevisionConflict) { return false; } }
+        var results=await Task.WhenAll(ReserveAttempt(),WithdrawAttempt());results.Count(x=>x).Should().Be(1);
+        var balances=await new FinancialQueryStore(Transactions()).ReadAsync(new FinancialReadScope { PortfolioId=book.PortfolioId,FundId=book.Funds[0].FundId,Access=reserve.Access },new GetAccountBalancesRequest());
+        balances.FinancialRevision.Should().Be(2);balances.Value!.AvailableCash.Should().Be(300);
+    }
+
+    [Fact]
     public async Task Posted_entry_fee_clears_only_its_exact_consumed_execution_hold_without_double_counting_cash()
     {
         var book=await FundedBook();

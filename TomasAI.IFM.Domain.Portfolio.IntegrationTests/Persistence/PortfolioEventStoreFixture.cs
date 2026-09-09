@@ -13,14 +13,16 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 public sealed class PortfolioEventStoreFixture
 {
-    public PortfolioEventStoreFixture()
+    public PortfolioEventStoreFixture() : this(true) { }
+
+    internal PortfolioEventStoreFixture(bool initializeSchema)
     {
         var settings = new DbConnectionSettings().Add(
             EventSourceActorDbContext.EventSourceActorDbConnection,
             "Host=localhost;Port=5432;Database=event-source-test-db",
             "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
-        new EventSourceSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();
+        if(initializeSchema) new EventSourceSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();
 
         var cache = Substitute.For<IRedisCache>();
         var values = new Dictionary<string, string>();

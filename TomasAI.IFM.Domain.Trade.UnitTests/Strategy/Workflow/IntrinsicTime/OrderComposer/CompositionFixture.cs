@@ -28,12 +28,13 @@ internal static class CompositionFixture
     };
     public static readonly string[] Variants = ["LongFuture", "ShortFuture", "BullCallDebit", "BearCallCredit", "BullPutCredit", "BearPutDebit",
         "ShortBalancedIronCondor", "ShortBullishIronCondor", "ShortBearishIronCondor", "LongBalancedIronCondor", "LongBullishIronCondor", "LongBearishIronCondor"];
-    public static async Task<ExecuteOrderCompositionPipelineCommand> Command(string variant = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, bool integrationTiming = false, string contractId = "ESZ6")
+    public static async Task<ExecuteOrderCompositionPipelineCommand> Command(string variant = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, bool integrationTiming = false, string contractId = "ESZ6",
+        ExecuteTradeSelectionPipelineCommand? actualSelectionCommand=null,TradeSelectionResult? actualSelectionResult=null)
     {
-        var selection = await TradeSelectionFixture.Command(variant, horizon, atUtc, contractId: contractId, compositionReady: true, compositionIntegrationTiming: integrationTiming);
-        var result = new TradeSelectionEvaluator().Calculate(selection);
+        var selection = actualSelectionCommand??await TradeSelectionFixture.Command(variant, horizon, atUtc, contractId: contractId, compositionReady: true, compositionIntegrationTiming: integrationTiming);
+        var result = actualSelectionResult??new TradeSelectionEvaluator().Calculate(selection);
         Assert.Equal(SelectionOutcome.Selected, result.Outcome);
-        var at = selection.EvaluatedAtUtc;
+        var at = actualSelectionResult is null?selection.EvaluatedAtUtc:DateTime.UtcNow;
         var envelope = StrategyStageResultEnvelope.CreateSelection(result);
         var pending = TradeSelectionHandoff.Pending(result, envelope, 4, result.ResultId, at);
         var reservation = new PortfolioFundCompositionAggregate().Reserve(pending.Request, selection.SelectionBinding.PortfolioSnapshot, 7001, [8001], at, "composition-fixture");
@@ -58,6 +59,8 @@ internal static class CompositionFixture
             EvaluatedAtUtc = at, ExpiresAtUtc = integrationTiming ? at.AddSeconds(4) : at.AddMilliseconds(900), AcceptedSelectionEnvelope = envelope,
             SelectionBinding = selection.SelectionBinding, Reservation = reservation, CompositionBinding = binding, MarketSnapshot = snapshot
         };
+        if(actualSelectionResult is not null)
+            request=request with { ExpiresAtUtc=new[] { request.ExpiresAtUtc,binding.ValidUntilUtc,selection.SelectionBinding.ValidUntilUtc,reservation.Order.ExpiresAtUtc }.Min() };
         return Seal(request);
     }
     public static ExecuteOrderCompositionPipelineCommand Seal(ExecuteOrderCompositionPipelineCommand c) => c with { InputSha256 = c.Fingerprint() };

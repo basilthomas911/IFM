@@ -203,6 +203,12 @@ WHERE kind=$1 AND id=$2 AND version=$3;
                     {
                         Kind=parameter.Kind,Id=parameter.Id,Version=parameter.Version,PayloadSha256=reader.GetString(0),PayloadJson=reader.GetString(3),SchemaVersion=reader.GetInt16(4)
                     });
+                if(parameter.Kind==CatalogPipelineParameterKind.RiskManagement && d.Key.Kind==StrategyCatalogKind.Deployment)
+                {
+                    var risk=TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet.Read(reader.GetString(3));
+                    if(risk.TargetHorizon!=d.Horizon || d.Products.Any(product=>product.Symbol!=risk.Root || product.Currency!=risk.Currency))
+                        throw new InvalidOperationException("Risk policy horizon/product scope does not match the deployment.");
+                }
 
             }
         }

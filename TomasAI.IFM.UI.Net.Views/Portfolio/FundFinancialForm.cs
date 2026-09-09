@@ -28,7 +28,8 @@ public sealed class FundFinancialForm : DarkTradingForm
     readonly DarkTabControl _tabs=new() { Dock=DockStyle.Fill,AccessibleName="Fund financial views" };
     bool _loading;
 
-    public FundFinancialForm(IPortfolioFinancialApi api,FinancialReadScope scope,string fundName,IPendingFinancialOperationStore? pendingStore=null)
+    public FundFinancialForm(IPortfolioFinancialApi api,FinancialReadScope scope,string fundName,IPendingFinancialOperationStore? pendingStore=null,
+        int? legacySourceFundId=null,TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? legacyQueries=null)
     {
         _model=new(api); _scope=scope;_api=api;_pendingStore=pendingStore??PendingFinancialOperationStore.ForCurrentUser();
         Text=$"{fundName} — Financials"; Name="FundFinancialForm"; AccessibleName="Portfolio Fund financials";
@@ -45,6 +46,12 @@ public sealed class FundFinancialForm : DarkTradingForm
             page.Controls.Add(grid); _tabs.TabPages.Add(page);
         }
         var border=new Panel { Dock=DockStyle.Fill,Padding=new(3),BackColor=PortfolioUiStyle.Border };
+        if(legacySourceFundId is >=0)
+        {
+            var history=new TabPage("Legacy history") { BackColor=Color.Black,ForeColor=Color.White };
+            history.Controls.Add(new LegacyFinancialHistoryControl(legacySourceFundId.Value,legacyQueries));
+            _tabs.TabPages.Add(history);
+        }
         var content=new Panel { Dock=DockStyle.Fill,BackColor=Color.Black };
         content.Controls.Add(_tabs); content.Controls.Add(_cash); content.Controls.Add(_status); content.Controls.Add(toolbar);
         border.Controls.Add(content); Controls.Add(border);

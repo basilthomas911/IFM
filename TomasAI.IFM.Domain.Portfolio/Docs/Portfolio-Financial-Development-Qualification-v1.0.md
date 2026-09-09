@@ -56,3 +56,30 @@ dotnet test TomasAI.IFM.Domain.Portfolio.IntegrationTests/TomasAI.IFM.Domain.Por
 
 
 Additional correctness qualification: a 256-line adjustment committed within the two-second deadline and independently reconstructed exactly 128 USD debit and 128 USD credit. A 257-line request had no new receipt or balance/revision effect. One hundred individually bounded journals with large line references were rejected by the whole-command uncompressed 1 MiB limit, even though transport compression can make repeated data small. A deliberately throwing metric listener did not change the committed receipt or the 100 USD balance. These cases are included in the 116-test final financial integration run; they are not additional load-percentile samples.
+
+## Retained legacy history maintenance - 2026-09-09
+
+Selected mode: `ReadOnlyHistoryWithDevelopmentCapital`. Original source records remain in FundLegacyDb and are displayed through the explicit PF-31 HistoricalSourceFundId mapping. Portfolio Admin Financials includes a read-only Legacy history tab for those mappings. The displayed original amount/balance keeps source precision and is labelled with unrecorded currency. These values never enter available cash, capacity or a new journal. Unknown kinds/invalid identities remain visibly unqualified.
+
+The development maintenance entry point is `--retain-legacy-history-manifest=<reviewed-json-path>` on the API executable, run from the API project directory with ASPNETCORE_ENVIRONMENT=Development. It starts no actors, feeds or HTTP listener. Its JSON is a LegacyFinancialRetentionRequest containing Scope, Access and Reason. Scope carries a generated stable InventoryId, the existing SourceFundId and exact permanent-Draft destination Portfolio/Fund mapping, Start/End covering all canonical source dates, SourceEnvironment and ImportMode=ReadOnlyHistoryWithDevelopmentCapital. Use the generated mapping identities from the existing historical import; do not repurpose a current trading Fund or infer a mapping from equal numbers.
+
+Retention validates the committed historical mapping, installs the source writer fence, checks PostgreSQL pending write intents plus Scylla write ownership/mutation and in-range projection journals, and streams original canonical records into immutable inventory rows. It verifies full date coverage before preparation and after the source scan. A successful seal records RetainedReadOnly in the immutable migration manifest with zero recognized capital and no financial book change. Repeating the original request returns the original seal even after unrelated configuration advances. A different request cannot replace that identity.
+
+Pending/unknown writes prevent the seal and leave the fence installed. Recover the original writes using their evidence before retry; never delete pending markers to force success. A source range that changes during fencing requires operator investigation; no partial inventory is represented as complete. An unupgraded process bypassing the registered FundDb writer boundary must be stopped before cutover. No application source has been retained or funded automatically by the qualification tests.
+
+Development capital remains an explicit new-ledger operation on an unqualified Emulator book. Reconcile and qualify the new book and separately review authority before enabling spending. The retained legacy mapping remains Draft and is not that spending Fund.
+
+## Final development qualification — 2026-09-09
+
+PF-FIN-01 through PF-FIN-07 are complete for the owner's current development scope. The [gate evidence report](Portfolio-Financial-Gate-Evidence-2026-09-09.md) maps FIN-T01–18 to concrete tests and records the final sequential run: 1,511 passed, no failures/skips, rendered UI, clean API build and verified Development startup. Use `scripts/Test-PortfolioFinancialGates.ps1` with an isolated local NATS URL to reproduce it. Do not run schema-mutating test projects concurrently against these shared test databases.
+
+The final load rerun used the previously declared budgets and independently reconciled committed totals:
+
+| Workload | Attempts / commits | Elapsed ms | p50 ms | p95 ms | p99 ms | Attempts/s | Allocated bytes/attempt | Max lock acquisition ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| single | 40 / 40 | 1013.2 | 24.4 | 28.7 | 39.6 | 39.5 | 191,388 | 1.3 |
+| independent | 64 / 64 | 275.5 | 31.7 | 44.0 | 45.4 | 232.3 | 187,882 | 1.3 |
+| shared-admission | 16 / 1 | 113.6 | 95.8 | 109.0 | 109.0 | 140.8 | 153,600 | 68.0 |
+| batch100 | 5 / 5 | 4517.0 | 895.7 | 1020.5 | 1020.5 | 1.1 | 12,880,115 | 1.1 |
+
+Shared admission produced 15 expected revision conflicts. There were zero confirmed-rollback retries, unknown outcomes or lock/statement timeouts in the timed workloads. These are local measurements, not production SLAs. Detailed heap/working-set and transaction outcomes remain in the load TRX/JSON artifacts. Operational application cutover, entry of an actual development capital amount and all external broker/accounting delivery remain separate actions; qualification changed generated test scopes only.

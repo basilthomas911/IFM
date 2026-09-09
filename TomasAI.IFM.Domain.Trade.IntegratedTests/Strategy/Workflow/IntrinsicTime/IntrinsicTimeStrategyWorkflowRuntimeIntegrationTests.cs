@@ -819,7 +819,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         container.Options.AllowOverridingRegistrations = false;
     }
 
-    static decimal SignalValue(RegimeDiscoverySignalMetric metric) => metric switch
+    internal static decimal SignalValue(RegimeDiscoverySignalMetric metric) => metric switch
     {
         RegimeDiscoverySignalMetric.CurrentPrice => 105m,
         RegimeDiscoverySignalMetric.Ema20 => 103m,
@@ -854,7 +854,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         _ => 1m
     };
 
-    static MarketAnalyticsSignalKind SignalKind(RegimeDiscoverySignalMetric metric) => metric switch
+    internal static MarketAnalyticsSignalKind SignalKind(RegimeDiscoverySignalMetric metric) => metric switch
     {
         RegimeDiscoverySignalMetric.Ema20 or RegimeDiscoverySignalMetric.Ema50 or
             RegimeDiscoverySignalMetric.Ema200 or RegimeDiscoverySignalMetric.Ema20Slope or

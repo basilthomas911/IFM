@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 
 public enum LegacyFinancialDisposition { Quarantined=0, PostedHistory=1, HistoricalOnly=2 }
-public enum LedgerImportMode { FullPostedHistory=1, OpeningBalanceWithHistory=2 }
+public enum LedgerImportMode { FullPostedHistory=1, OpeningBalanceWithHistory=2, ReadOnlyHistoryWithDevelopmentCapital=3 }
 public sealed record LegacyFinancialEvidence(string Currency,bool CashMovementConfirmed,bool CommissionSignConfirmed,
     bool ValuationIsAbsolute,Guid? OriginalSourceId,string SourceReference);
 public sealed record LegacyFinancialClassificationResult(FundTransactionType SourceKind,LegacyFinancialDisposition Disposition,
@@ -43,6 +43,8 @@ public static class LegacyFinancialClassification
             return Quarantine("LEGACY.TYPE.UNKNOWN");
         if(source.TransactionId<=0 || source.FundId<0 || source.ValueDate==default || source.TransactionDate==default)
             return Quarantine("LEGACY.IDENTITY_OR_DATE.INVALID");
+        if(mode==LedgerImportMode.ReadOnlyHistoryWithDevelopmentCapital)
+            return Result(LegacyFinancialDisposition.HistoricalOnly,null,null,"LEGACY.RETAINED_READ_ONLY.NO_CAPITAL");
         if(evidence.Currency!="USD") return Quarantine("LEGACY.CURRENCY.UNQUALIFIED");
         if(string.IsNullOrWhiteSpace(evidence.SourceReference)) return Quarantine("LEGACY.SOURCE.UNQUALIFIED");
         if(mode is not (LedgerImportMode.FullPostedHistory or LedgerImportMode.OpeningBalanceWithHistory)) return Quarantine("LEGACY.MODE.INVALID");

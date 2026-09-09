@@ -69,6 +69,23 @@ public sealed class LegacyFinancialWriterFence(IPostgresEventTransaction transac
         await db.ExecuteAsync("INSERT INTO portfolio_financial.legacy_writer_scope(fund_id,state) VALUES($1,'Legacy') ON CONFLICT DO NOTHING;",[fundId],ct);
     }
 
+    /// <summary>Stops new legacy writes while retaining completed source history. Pending intents remain visible and block retention completion.</summary>
+    public Task<long> FreezeRetainedScopeAsync(int portfolioId,int fundId,Guid retentionId,CancellationToken token=default)
+    {
+        if(portfolioId<=0 || fundId<=0 || retentionId==Guid.Empty) throw new ArgumentException("Exact retained-history scope is required.");
+        return transactions.ExecuteAsync(async(db,ct)=>
+        {
+            await LockScope(db,fundId,ct);
+            var state=(await db.QueryAsync("SELECT state,portfolio_id,qualification_id FROM portfolio_financial.legacy_writer_scope WHERE fund_id=$1;",[fundId],
+                r=>(State:r.GetString(0),Portfolio:r.IsDBNull(1)?0:r.GetInt32(1),Id:r.IsDBNull(2)?Guid.Empty:r.GetGuid(2)),ct)).Single();
+            if(state.State=="Fenced")
+                Require(state.Portfolio==portfolioId && state.Id==retentionId,FinancialReasons.RequestMismatch,"Legacy scope is owned by another retention or qualification.");
+            else
+                await db.ExecuteAsync("UPDATE portfolio_financial.legacy_writer_scope SET state='Fenced',portfolio_id=$2,qualification_id=$3 WHERE fund_id=$1;",[fundId,portfolioId,retentionId],ct);
+            return Convert.ToInt64(await db.ScalarAsync("SELECT count(*) FROM portfolio_financial.legacy_write_intent WHERE fund_id=$1 AND state='Pending';",[fundId],ct));
+        },token);
+    }
+
     /// <summary>Records a completed empty-source read made after fencing; callers must not use this to qualify existing legacy history.</summary>
     public Task VerifyEmptySourceAsync(int portfolioId,int fundId,Guid qualificationId,CancellationToken token=default)
         =>transactions.ExecuteAsync(async(db,ct)=>

@@ -22,10 +22,11 @@ using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.MarketC
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection;
 internal static class TradeSelectionFixture
 {
-    public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode="LongFuture",TimeFrameType horizon=TimeFrameType.Daily, DateTime? atUtc=null, string contractId="ESZ6", int scopeId=1, bool compositionReady=false, bool compositionIntegrationTiming=false)
+    public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode="LongFuture",TimeFrameType horizon=TimeFrameType.Daily, DateTime? atUtc=null, string contractId="ESZ6", int scopeId=1, bool compositionReady=false, bool compositionIntegrationTiming=false,
+        ExecuteMarketConditionAssessmentCommand? actualAssessmentCommand=null,StrategyStageResultEnvelope? actualAssessmentEnvelope=null)
     {
-        var assessmentCommand=AssessmentFixture.Command(horizon,atUtc,contractId);
-        var at=assessmentCommand.RequestedAtUtc;
+        var assessmentCommand=actualAssessmentCommand??AssessmentFixture.Command(horizon,atUtc,contractId);
+        var at=actualAssessmentEnvelope is null?assessmentCommand.RequestedAtUtc:DateTime.UtcNow;
         var common=TradeSelectionDefaultProfiles.Create(atUtc.HasValue?Guid.NewGuid():Guid.Parse("11111111-1111-1111-1111-111111111111"),horizon) with {MaximumExecutionMilliseconds=atUtc.HasValue?60000:2000};
         var examples=StrategyCatalogExamples.Create();var sourceVariant=examples.Single(x=>x.Code==variantCode);
         var structure=examples.Single(x=>x.Key==sourceVariant.Parent);
@@ -33,11 +34,12 @@ internal static class TradeSelectionFixture
         var rule=common.VariantRules.Single(x=>x.BuilderCapabilityCode==builder.Code && x.Side==sourceVariant.Side && x.Bias==sourceVariant.Bias && x.PremiumMode==sourceVariant.PremiumMode);
         var decision=new RegimeDiscoveryDecision{IsComplete=true,Direction=rule.AllowedRegimeDirections[0],Confidence=.9m,Quality=RegimeOverallQuality.High,
             TrendPhase=rule.AllowedTrendPhases[0],TrendStrength=rule.AllowedTrendStrengths[0],VolatilityLevel=VolatilityRegimeLevel.Normal,VolatilityChange=VolatilityRegimeChange.Stable,StructureClassification=rule.AllowedStructureClassifications[0]};
-        var upstream=assessmentCommand.RegimeResultEnvelope.ReadRegimeResult() with {Decision=decision};
+        var upstream=assessmentCommand.RegimeResultEnvelope.ReadRegimeResult();
+        if(actualAssessmentEnvelope is null) upstream=upstream with {Decision=decision};
         var regimeEnvelope=StrategyStageResultEnvelope.CreateRegime(upstream);
         assessmentCommand=assessmentCommand with {RegimeResultEnvelope=regimeEnvelope,RegimePayloadSha256=regimeEnvelope.PayloadSha256,WorkflowView=assessmentCommand.WorkflowView with {RegimeDiscovery=assessmentCommand.WorkflowView.RegimeDiscovery with {Result=regimeEnvelope}}};
-        var assessment=new MarketConditionAssessmentCalculator().Calculate(assessmentCommand,Snapshot(assessmentCommand).Seal(),assessmentCommand.CommandId);
-        assessment=assessment with {Assessment=assessment.Assessment with {Availability=AssessmentAvailability.Available,ConditionType=rule.AllowedAssessmentConditions[0],AssessmentConfidence=.9m,
+        var assessment=actualAssessmentEnvelope?.AssessmentResult??new MarketConditionAssessmentCalculator().Calculate(assessmentCommand,Snapshot(assessmentCommand).Seal(),assessmentCommand.CommandId);
+        if(actualAssessmentEnvelope is null) assessment=assessment with {Assessment=assessment.Assessment with {Availability=AssessmentAvailability.Available,ConditionType=rule.AllowedAssessmentConditions[0],AssessmentConfidence=.9m,
             LiquidityCondition=AssessmentLiquidity.Healthy,SessionState=MarketSessionStatus.Open,EventRiskState=AssessmentEventContext.Clear,StressState=AssessmentStress.Normal,
             VolatilityBehavior=rule.AllowedVolatilityBehavior[0],TriggerAlignment=AssessmentTriggerAlignment.Aligned,DataQuality=MarketConditionDataQuality.Healthy,ValidUntilUtc=at.AddSeconds(30),UpstreamContext=decision,InheritedRestrictions=[]}};
         var assessmentEnvelope=StrategyStageResultEnvelope.CreateAssessment(assessment);

@@ -33,6 +33,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     readonly Button _fundState = PortfolioUiStyle.Button("Change Fund State...", "Change Fund state");
     readonly Button _financials = PortfolioUiStyle.Button("Financials...", "View selected Fund financials");
     IPortfolioFinancialApi? _financialApi;
+    TomasAI.IFM.UI.Net.Services.Fund.FundQueryService? _legacyQueries;
     readonly Button _configureAllocation = PortfolioUiStyle.Button("Allocation...", "Configure Fund allocation");
     readonly Button _configureEnvelope = PortfolioUiStyle.Button("Risk Envelope...", "Configure Fund risk envelope");
     readonly Button _configureAssignment = PortfolioUiStyle.Button("Trade Assignment...", "Configure Fund trade assignment");
@@ -100,6 +101,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     {
         if (fundQueries is not null)
         {
+            _legacyQueries = fundQueries;
             _metrics?.Dispose();
             _metrics = new FundMetricsViewModel(fundQueries);
             _metrics.PropertyChanged += (_, _) => RenderMetrics();
@@ -341,7 +343,8 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
         if(_financialApi is null || _viewModel?.SelectedFund is not { } fund) return;
         var scope=new FinancialReadScope { PortfolioId=fund.PortfolioId,FundId=fund.FundId,
             Access=new(Environment.UserName,_viewModel.CanMutate ? ["LedgerRead","LedgerPost","LedgerReverse","LedgerConfigure","LedgerPeriodReopen","LedgerImport"] : ["LedgerRead"],[fund.PortfolioId]) };
-        using var form=new FundFinancialForm(_financialApi,scope,fund.Name);
+        using var form=new FundFinancialForm(_financialApi,scope,fund.Name,
+            legacySourceFundId:fund.IsLegacyHistory?fund.HistoricalSourceFundId:null,legacyQueries:_legacyQueries);
         form.ShowDialog(this);
     }
     void ShowRiskPolicy() { if (_viewModel?.SelectedPortfolio is not { } portfolio || _queries is null || _identities is null) return; using var form = new PortfolioRiskPolicyForm(portfolio, _queries, _identities, _policyCommands, _referenceQueries, _viewModel.CanMutate); form.ShowDialog(this); }

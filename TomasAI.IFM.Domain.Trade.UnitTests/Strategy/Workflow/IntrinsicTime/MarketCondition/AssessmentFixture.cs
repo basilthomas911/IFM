@@ -18,7 +18,7 @@ internal static class AssessmentFixture
     public static ExecuteMarketConditionAssessmentCommand Command(TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, string contractId = "ESZ6")
     {
         var at = atUtc ?? new DateTime(2026, 8, 28, 14, 0, 0, DateTimeKind.Utc);
-        var workflowId = new StrategyWorkflowId(Guid.NewGuid());
+        var workflowId = new StrategyWorkflowId(Guid.CreateVersion7());
         var itiId = FuturesItiSignalEntityId.Create(contractId, DateOnly.FromDateTime(at), horizon);
         var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(itiId);
         var trigger = new FuturesItiSignalGeneratedEvent
@@ -28,7 +28,7 @@ internal static class AssessmentFixture
                 TimeFrameStartValueDate = itiId.ValueDate, TimePeriod = horizon, SequenceId = 1, IntrinsicTime = at,
                 IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
                 IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged, BandLevel = 1d, ReversalLevel = 0.1d,
-                TradingDays = 1 }
+                TradingDays = 1, IntrinsicPrice = 105d }
         };
         var upstream = new RegimeDiscoveryResult
         {

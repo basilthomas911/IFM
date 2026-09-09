@@ -69,7 +69,8 @@ public sealed class PortfolioLedgerControlForm:DarkTradingForm
         _action.DataSource=new[] { new ActionChoice(LedgerConfigurationAction.Reconcile,"Reconcile"),new(LedgerConfigurationAction.OpenPeriod,"Open period"),
             new(LedgerConfigurationAction.ClosePeriod,"Close period"),new(LedgerConfigurationAction.ReopenPeriod,"Reopen period"),
             new(LedgerConfigurationAction.RetireAccount,"Retire account"),new(LedgerConfigurationAction.RetirePostingRule,"Retire rule"),
-            new(LedgerConfigurationAction.QualifyDevelopmentBook,"Qualify book"),new(LedgerConfigurationAction.RefreshAuthority,"Refresh authority") };
+            new(LedgerConfigurationAction.QualifyDevelopmentBook,"Qualify book"),new(LedgerConfigurationAction.RefreshAuthority,"Refresh authority"),
+            new(LedgerConfigurationAction.AddAccountVersion,"Edit account"),new(LedgerConfigurationAction.AddPostingRuleVersion,"Edit rule") };
         _action.DisplayMember=nameof(ActionChoice.Label);_action.SelectedIndexChanged+=(_,_)=>UpdateEnabled();
         _apply.Click+=async(_,_)=>await RunAsync(ApplyAsync);_refresh.Click+=async(_,_)=>await RunAsync(LoadAsync);
         _setup.Click+=async(_,_)=>
@@ -135,15 +136,27 @@ public sealed class PortfolioLedgerControlForm:DarkTradingForm
         if(_pending?.Phase is not (PendingFinancialPhase.Prepared or PendingFinancialPhase.OutcomeUnknown))
         {
             if(_configuration is null || _action.SelectedItem is not ActionChoice action) return;
+            if(action.Value is LedgerConfigurationAction.AddAccountVersion or LedgerConfigurationAction.AddPostingRuleVersion)
+            {
+                var account=action.Value==LedgerConfigurationAction.AddAccountVersion?(_account.SelectedItem as AccountChoice)?.Value:null;
+                var rule=action.Value==LedgerConfigurationAction.AddPostingRuleVersion?(_rule.SelectedItem as RuleChoice)?.Value:null;
+                if(account is null && rule is null) throw new InvalidOperationException("Select an account or rule to edit.");
+                using var editor=new PortfolioLedgerVersionForm(_scope,_configuration,account,rule);
+                if(editor.ShowDialog(this)!=DialogResult.OK || editor.PreparedCommand is null) return;
+                _pending=new(editor.PreparedCommand,PendingFinancialPhase.Prepared,"Prepared configuration version.");
+            }
             if(action.Value==LedgerConfigurationAction.RefreshAuthority)
             {
                 using var review=new PortfolioFinancialAuthorityForm(_api,_scope,_store);review.ShowDialog(this);
                 if(!IsDisposed) await LoadAsync();return;
             }
+            if(_pending?.Phase!=PendingFinancialPhase.Prepared)
+            {
             var command=FinancialControlPreparation.Create(_scope,_configuration,action.Value,_reason.Text,DateTime.UtcNow,
                 (_period.SelectedItem as PeriodChoice)?.Value.PeriodId,DateOnly.FromDateTime(_start.Value),DateOnly.FromDateTime(_end.Value),
                 (_account.SelectedItem as AccountChoice)?.Value.Definition.AccountId,(_rule.SelectedItem as RuleChoice)?.Value.Definition.RuleId);
             _pending=new(command,PendingFinancialPhase.Prepared,"Prepared.");
+            }
         }
         _pending=_pending.Phase==PendingFinancialPhase.Prepared
             ?await _operations.SubmitAsync(_pending.Request,_lifetime.Token)
@@ -158,7 +171,8 @@ public sealed class PortfolioLedgerControlForm:DarkTradingForm
         _action.Enabled=editing;_reason.Enabled=editing;
         _period.Enabled=editing && action is LedgerConfigurationAction.ClosePeriod or LedgerConfigurationAction.ReopenPeriod;
         _start.Enabled=_end.Enabled=editing && action==LedgerConfigurationAction.OpenPeriod;
-        _account.Enabled=editing && action==LedgerConfigurationAction.RetireAccount;_rule.Enabled=editing && action==LedgerConfigurationAction.RetirePostingRule;
+        _account.Enabled=editing && action is LedgerConfigurationAction.RetireAccount or LedgerConfigurationAction.AddAccountVersion;
+        _rule.Enabled=editing && action is LedgerConfigurationAction.RetirePostingRule or LedgerConfigurationAction.AddPostingRuleVersion;
         _apply.Text=unresolved?"Check outcome":"Apply";
         _apply.Enabled=!_busy && _configuration is not null && (_scope.Access.Roles.Contains("PortfolioAdministrator") || _scope.Access.Roles.Contains("LedgerConfigure"));
         _refresh.Enabled=!_busy;

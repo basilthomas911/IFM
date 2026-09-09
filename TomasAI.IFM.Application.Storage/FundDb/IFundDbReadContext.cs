@@ -10,6 +10,10 @@ public interface IFundDbReadContext
     Task<FundReadModel?> GetFundAsync(int fundId);
     Task<bool> HasLegacyFinancialStateAsync(int fundId,CancellationToken token=default)
         => throw new NotSupportedException("Legacy financial qualification reads are unavailable.");
+    Task<bool> HasPendingLegacyFinancialWritesAsync(int fundId,DateOnly start,DateOnly end,CancellationToken token=default)
+        => throw new NotSupportedException("Legacy writer drain evidence is unavailable.");
+    Task<bool> HasLegacyFinancialRecordsOutsideRangeAsync(int fundId,DateOnly start,DateOnly end,CancellationToken token=default)
+        => throw new NotSupportedException("Legacy source range evidence is unavailable.");
     Task<ICollection<FundReadModel>> GetFundsAsync();
     Task<ICollection<FundReadModel>> GetFundsAsync(CancellationToken cancellationToken);
     Task<FundOrderReadModel?> GetFundOrderAsync(int fundId, int orderId);

@@ -20,8 +20,10 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 [Collection("PortfolioFinancialDatabase"),Trait("Category","PortfolioFinancial"),Trait("Gate","PF-FIN-06")]
 public sealed class LegacyFinancialInventoryIntegrationTests(PortfolioEventStoreFixture fixture):IClassFixture<PortfolioEventStoreFixture>
 {
-    [Fact]
-    public async Task Canonical_scylla_source_streams_into_replayable_postgres_quarantine_without_changing_money()
+    [Theory]
+    [InlineData("OpeningBalanceWithHistory")]
+    [InlineData("ReadOnlyHistoryWithDevelopmentCapital")]
+    public async Task Canonical_scylla_source_streams_into_replayable_postgres_quarantine_without_changing_money(string mode)
     {
         _=fixture;await new PortfolioFinancialSchema(Transactions()).InitializeAsync();
         var settings=new DbConnectionSettings().Add(FundDbContext.FundDbConnection,"Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db","System.Data.ScyllaDb");
@@ -29,22 +31,50 @@ public sealed class LegacyFinancialInventoryIntegrationTests(PortfolioEventStore
         var repositories=new Dictionary<Type,object>();var factory=new DbContextFactory(new DbContextResolver(type=>repositories[type]));
         var sequences=Substitute.For<ISequenceIdGenerator>();long next=Random.Shared.Next(100000,900000000);
         sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(),Arg.Any<CancellationToken>()).Returns(_=>new ValueTask<long>(Interlocked.Increment(ref next)));
-        var source=new FundDbContext(settings,factory,sequences,logger);repositories.Add(typeof(IObjectRepository<FundDbContext>),source);
+        var fence=new LegacyFinancialWriterFence(Transactions());
+        var source=new FundDbContext(settings,factory,sequences,logger,fence);repositories.Add(typeof(IObjectRepository<FundDbContext>),source);
         var id=Random.Shared.Next(100000,900000000);var when=new DateTime(2026,9,8,12,0,0,DateTimeKind.Utc);
         var row=new FundTransactionReadModel(0,when,FundTransactionType.OpeningTrade,id,1,1,TradeType.LongIronCondor,new(2026,9,8),TradeStatus.Open,"Owned migration fixture",10000,1000000);
+        var retained=false;
         try
         {
             await source.InsertFundTransactionAsync(row);
-            var scope=new LegacyFinancialInventoryScope(Guid.NewGuid(),id,id+1,id+2,new(2026,9,1),new(2026,9,30),"Scylla integration fixture","OpeningBalanceWithHistory");
+            var scope=new LegacyFinancialInventoryScope(Guid.NewGuid(),id,id+1,id+2,new(2026,9,1),new(2026,9,30),"Scylla integration fixture",mode);
             var inventory=new LegacyFinancialInventory(source,new(Transactions()));
             var first=await inventory.RunAsync(scope,default);var replay=await inventory.RunAsync(scope,default);
-            replay.Should().Be(first);first.Rows.Should().Be(1);first.Quarantined.Should().Be(1);first.State.Should().Be("UnfencedInventory");
+            replay.Should().Be(first);first.Rows.Should().Be(1);first.Quarantined.Should().Be(mode=="OpeningBalanceWithHistory"?1:0);first.State.Should().Be("UnfencedInventory");
             var saved=await Transactions().ExecuteAsync((db,ct)=>db.QueryAsync("SELECT payload::text,reason FROM portfolio_financial.legacy_financial_inventory_row WHERE inventory_id=$1;",
                 [scope.InventoryId],r=>(Payload:r.GetString(0),Reason:r.GetString(1)),ct));
-            saved.Single().Reason.Should().Be("LEGACY.CURRENCY.UNQUALIFIED");saved.Single().Payload.Should().Contain("1000000");
+            saved.Single().Reason.Should().Be(mode=="OpeningBalanceWithHistory"?"LEGACY.CURRENCY.UNQUALIFIED":"LEGACY.RETAINED_READ_ONLY.NO_CAPITAL");saved.Single().Payload.Should().Contain("1000000");
+            (await source.HasPendingLegacyFinancialWritesAsync(id,scope.Start,scope.End)).Should().BeFalse();
+            (await source.HasLegacyFinancialRecordsOutsideRangeAsync(id,scope.Start,scope.End)).Should().BeFalse();
+            (await source.HasLegacyFinancialRecordsOutsideRangeAsync(id,new(2026,9,9),scope.End)).Should().BeTrue();
+            (await source.HasLegacyFinancialRecordsOutsideRangeAsync(id,scope.Start,new(2026,9,7))).Should().BeTrue();
             (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(scope.DestinationPortfolioId)).Should().BeNull();
+            if(mode=="ReadOnlyHistoryWithDevelopmentCapital")
+            {
+                var sources=new TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioEventStore(fixture.EventSourceDb);
+                var fund=new TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioFundAggregate();var now=DateTime.UtcNow;
+                var portfolio=new TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioAggregate();
+                var portfolioCreated=portfolio.Create(Guid.NewGuid(),new() { PortfolioId=id+1,PortfolioVersion=1,OperatingState=TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioOperatingState.Draft,Name="Retention fixture",EffectiveFromUtc=now,CreatedOnUtc=now,CreatedBy="test" },now,"test");
+                await sources.AppendPortfolioAsync(new(id+1),portfolioCreated,0);
+                var added=portfolio.AddFund(Guid.NewGuid(),1,new(id+1,id+2),now,"test");await sources.AppendPortfolioAsync(new(id+1),added,1);
+                var created=fund.Create(Guid.NewGuid(),new() { PortfolioId=id+1,FundId=id+2,FundCode=(id+2).ToString(),Name="Retained source fixture",FundMandateVersion=1,
+                    OperatingState=TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundOperatingState.Draft,TradingYear=2026,DecisionHorizon="Daily",Objective="Read-only history",UnderlyingUniverse=["ES"],EligibleAssetTypes=["Futures"],
+                    PermittedDirections=["Long"],PermittedConditions=["Trending"],PermittedTradeFamilies=["Futures"],EffectiveFromUtc=now,CreatedOnUtc=now,CreatedBy="test",
+                    HistoricalSource="FundLegacyDb",HistoricalSourceFundId=id },now,"test");
+                await sources.AppendFundAsync(new(id+1,id+2),created,0);
+                var service=new LegacyFinancialRetention(source,sources,fence,new(Transactions()),new(Transactions()),new(true));
+                var access=new FinancialAccess("retention integration fixture",["LedgerImport"],[id+1]);
+                var sealedResult=await service.RetainAsync(scope,access,"Retain without capital conversion");retained=true;
+                sealedResult.State.Should().Be("RetainedReadOnly");
+                (await service.RetainAsync(scope,access,"Retain without capital conversion")).Should().Be(sealedResult);
+                (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(id+1)).Should().BeNull();
+                await FluentActions.Awaiting(()=>source.InsertFundTransactionAsync(row with { TransactionDate=now.AddMinutes(1) })).Should().ThrowAsync<FinancialOperationException>();
+                await FluentActions.Awaiting(()=>Transactions().ExecuteAsync((db,ct)=>db.ExecuteAsync("DELETE FROM portfolio_financial.ledger_migration WHERE migration_id=$1;",[scope.InventoryId],ct))).Should().ThrowAsync<Npgsql.PostgresException>();
+            }
         }
-        finally { await source.DeleteFundTransactionAsync(id,row.ValueDate,row.OrderId,row.TradeId,row.TradeType,row.TransactionType,when); }
+        finally { if(!retained && mode!="ReadOnlyHistoryWithDevelopmentCapital") await source.DeleteFundTransactionAsync(id,row.ValueDate,row.OrderId,row.TradeId,row.TradeType,row.TransactionType,when); }
     }
 
     [Fact]

@@ -68,6 +68,22 @@ public sealed class LegacyFinancialWriterFenceIntegrationTests(PortfolioEventSto
     }
 
     [Fact]
+    public async Task Retention_fences_new_writes_and_preserves_pending_intents_until_confirmed_completion()
+    {
+        await new PortfolioFinancialSchema(Transactions()).InitializeAsync();var id=Random.Shared.Next(100000,900000000);
+        var firstHost=new LegacyFinancialWriterFence(Transactions());var secondHost=new LegacyFinancialWriterFence(Transactions());
+        var ticket=await firstHost.BeginWriteAsync([id]);var retention=Guid.NewGuid();
+        (await secondHost.FreezeRetainedScopeAsync(id+1,id,retention)).Should().Be(1);
+        await FluentActions.Awaiting(()=>firstHost.BeginWriteAsync([id])).Should().ThrowAsync<FinancialOperationException>();
+        await firstHost.CompleteWriteAsync(ticket);
+        (await new LegacyFinancialWriterFence(Transactions()).FreezeRetainedScopeAsync(id+1,id,retention)).Should().Be(0);
+        await FluentActions.Awaiting(()=>secondHost.FreezeRetainedScopeAsync(id+1,id,Guid.NewGuid())).Should().ThrowAsync<FinancialOperationException>();
+        (await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT count(*) FROM portfolio_financial.legacy_write_intent WHERE ticket_id=$1 AND state='Completed';",[ticket],ct))).Should().Be(1L);
+        // A retained source must never be presented as independently verified empty.
+        (await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT empty_verified FROM portfolio_financial.legacy_writer_scope WHERE fund_id=$1;",[id],ct))).Should().Be(false);
+    }
+
+    [Fact]
     public async Task Independent_connections_cannot_both_start_a_legacy_write_and_freeze_the_same_fresh_scope()
     {
         await new PortfolioFinancialSchema(Transactions()).InitializeAsync();var id=Random.Shared.Next(100000,900000000);

@@ -181,7 +181,8 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         .UseSetting("IFM_TEST_NATS_URL",brokerUrl??"nats://127.0.0.1:14222").ConfigureServices(services=>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions{Enabled=false});
-            var validators=TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create()).Concat(new[]{"Future","CallVertical","PutVertical","IronCondor"}.Select(code=>(IStrategyCatalogCapabilityValidator)new FixtureOnlyDownstreamValidator(new("risk",code,1))));
+            var validators=TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create())
+                .Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model.RiskCatalogCapabilities.Create());
             var registry=new StrategyCatalogCapabilityRegistry(validators);services.RemoveAll<IStrategyCatalogCapabilities>();services.AddSingleton<IStrategyCatalogCapabilities>(registry);
             var container=(SimpleInjector.Container)services.Single(x=>x.ServiceType==typeof(SimpleInjector.Container)).ImplementationInstance!;
             var authority=Substitute.For<IPortfolioQueryApi>();
@@ -190,10 +191,4 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
             container.Options.AllowOverridingRegistrations=true;container.RegisterInstance<IPortfolioQueryApi>(authority);container.RegisterInstance<IStrategyCatalogCapabilities>(registry);configure?.Invoke(services);
         }));
     readonly record struct Values(object[] Items):TomasAI.IFM.Framework.Storage.IBindValue {public object Bind()=>Items;}
-    sealed class FixtureOnlyDownstreamValidator(CatalogCapability capability):IStrategyCatalogCapabilityValidator
-    {
-        public CatalogCapability Capability=>capability;
-        public void Validate(StrategyCatalogDefinition owner,IReadOnlyDictionary<CatalogKey,StoredStrategyCatalogDefinition> graph)
-        {if(owner.Key.Kind!=StrategyCatalogKind.Structure || owner.Legs.Length is <1 or >4)throw new ArgumentException("Invalid isolated downstream fixture.");}
-    }
 }

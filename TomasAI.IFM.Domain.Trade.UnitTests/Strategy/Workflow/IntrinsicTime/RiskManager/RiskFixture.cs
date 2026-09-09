@@ -22,17 +22,20 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ris
 
 internal static class RiskFixture
 {
-    internal static async Task<ExecuteRiskManagementPipelineCommand> Command(string variant="LongFuture", DateTime? atUtc=null,string contractId="ESZ6")
+    internal static async Task<ExecuteRiskManagementPipelineCommand> Command(string variant="LongFuture", DateTime? atUtc=null,string contractId="ESZ6",
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType horizon=TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily,
+        ExecuteOrderCompositionPipelineCommand? actualCompositionCommand=null,
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.OrderCompositionResult? actualCompositionResult=null,string environment="Test")
     {
-        var composed=await CompositionFixture.Command(variant,atUtc:atUtc,contractId:contractId);
-        var composition=new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()).Calculate(composed);
-        var candidate=composition.Candidate!; var at=composed.EvaluatedAtUtc;
+        var composed=actualCompositionCommand??await CompositionFixture.Command(variant,horizon,atUtc:atUtc,contractId:contractId);
+        var composition=actualCompositionResult??new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()).Calculate(composed);
+        var candidate=composition.Candidate!; var at=actualCompositionResult is null?composed.EvaluatedAtUtc:DateTime.UtcNow;
         var expires=candidate.ValidUntilUtc;
         var policy=RiskSizingPolicy.Default(candidate.TargetHorizon); var policyId=Guid.NewGuid(); long policyVersion=1;
         var evidence=new FinancialEvidenceReference { EvidenceId=Guid.NewGuid(),Version=1,ContentHash=new('A',64),Source="EmulatorFixture/v1",
-            Environment="Test",ObservedAtUtc=at,ValidUntilUtc=expires };
+            Environment=environment,ObservedAtUtc=at,ValidUntilUtc=expires };
         var authority=new RiskSizingAuthority(candidate.PortfolioId,candidate.FundId,candidate.DeploymentKey,FinancialScopeKeys.Underlying(candidate.Product.Symbol,candidate.Product.Exchange,candidate.Product.Currency),
-            1000000000,1000000000,1000000000,[],[],at,expires,"Test");
+            1000000000,1000000000,1000000000,[],[],at,expires,environment);
         var funding=Enumerable.Range(1,10).Select(q=>new RiskQuantityFunding(q,10000*q,10000*q,5*q,0,evidence)).ToImmutableArray();
         var template=RiskSizingModel.Requirements(new(100,100,100,0,100000,1,1,0,0,0,36),authority,funding[0]);
         authority=authority with { Limits=template.Exposures.Select(x=>new CapacityLimit(x.ScopeKind,x.ScopeKey,x.Measure,x.Unit,1000000000)).ToImmutableArray() };

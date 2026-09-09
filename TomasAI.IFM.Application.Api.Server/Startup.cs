@@ -486,6 +486,8 @@ public static class Startup
                 TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialWriterFence>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialInventoryStore>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialRetentionStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioFinancialDbContext,
                 TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialDbContext>();
             services.AddSingleton(provider => new TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy(
@@ -550,7 +552,9 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences, TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogReferenceAdapter>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
-                _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create())));
+                _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()
+                    .Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create())
+                    .Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model.RiskCatalogCapabilities.Create())));
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
@@ -928,6 +932,13 @@ public static class Startup
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialBookPreparation>(Lifestyle.Singleton);
+        _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.LegacyFinancialRetention>(()=>new(
+            (TomasAI.IFM.Application.Storage.FundDb.IFundDbReadContext)_siContainer.GetInstance<TomasAI.IFM.Application.Storage.FundDb.IFundDbContext>(),
+            _siContainer.GetInstance<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore>(),
+            _siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialWriterFence>(),
+            _siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialInventoryStore>(),
+            _siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialRetentionStore>(),
+            _siContainer.GetInstance<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy>()),Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialAuthorityPreparation>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.CapacityReservationCommandServices>(Lifestyle.Singleton);
         _siContainer.Register(

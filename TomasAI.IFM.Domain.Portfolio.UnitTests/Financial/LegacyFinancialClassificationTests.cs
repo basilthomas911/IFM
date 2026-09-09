@@ -50,5 +50,17 @@ public sealed class LegacyFinancialClassificationTests
             .Disposition.Should().Be(LegacyFinancialDisposition.Quarantined);
     }
     static readonly LegacyFinancialEvidence Evidence=new("USD",true,true,true,null,"qualified-source-fixture");
+    [Fact]
+    public void Retained_history_needs_no_invented_currency_and_never_recognizes_capital_for_any_kind()
+    {
+        foreach(var kind in Enum.GetValues<FundTransactionType>())
+        {
+            var source=Source(kind) with { Amount=0.123456789123456789m,Balance=decimal.MaxValue };
+            var result=LegacyFinancialClassification.Classify(source,new("",false,false,false,null,""),LedgerImportMode.ReadOnlyHistoryWithDevelopmentCapital);
+            result.PostingKind.Should().BeNull();result.PostingAmount.Should().BeNull();
+            result.Disposition.Should().Be(kind==FundTransactionType.Unknown?LegacyFinancialDisposition.Quarantined:LegacyFinancialDisposition.HistoricalOnly);
+            source.Amount.Should().Be(0.123456789123456789m);
+        }
+    }
     static FundTransactionReadModel Source(FundTransactionType kind)=>new(1,new DateTime(2026,9,8,12,0,0,DateTimeKind.Utc),kind,1,2,3,default,new(2026,9,8),TradeStatus.Open,"fixture",100,100);
 }

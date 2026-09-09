@@ -492,6 +492,8 @@ internal class FundDbCql
           """;
 
     public const string HasCanonicalFundTransaction = "SELECT transactionId FROM fund_transaction WHERE fundId=:fundId LIMIT 1;";
+    public const string HasCanonicalFundTransactionBefore = "SELECT transactionId FROM fund_transaction WHERE fundId=:fundId AND valueDate>=:startDate AND valueDate<:endDate LIMIT 1;";
+    public const string HasCanonicalFundTransactionAfter = "SELECT transactionId FROM fund_transaction WHERE fundId=:fundId AND valueDate>:startDate AND valueDate<=:endDate LIMIT 1;";
     public const string HasFundTransactionWriteIntent = "SELECT mutationId FROM fund_transaction_write_mutation_v3 WHERE fundId=:fundId LIMIT 1;";
     public const string HasFundTransactionWriteOwner = "SELECT fundId FROM fund_transaction_write_ownership_v3 WHERE fundId=:fundId LIMIT 1;";
 

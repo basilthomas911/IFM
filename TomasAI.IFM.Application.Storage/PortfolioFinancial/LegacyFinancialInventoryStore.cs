@@ -18,7 +18,7 @@ public sealed class LegacyFinancialInventoryStore(IPostgresEventTransaction tran
     {
         if(scope.InventoryId==Guid.Empty || scope.SourceFundId<=0 || scope.DestinationPortfolioId<=0 || scope.DestinationFundId<=0 ||
             scope.Start==default || scope.End<scope.Start || string.IsNullOrWhiteSpace(scope.SourceEnvironment) ||
-            scope.ImportMode is not ("FullPostedHistory" or "OpeningBalanceWithHistory")) throw new ArgumentException("Complete inventory scope is required.");
+            scope.ImportMode is not ("FullPostedHistory" or "OpeningBalanceWithHistory" or "ReadOnlyHistoryWithDevelopmentCapital")) throw new ArgumentException("Complete inventory scope is required.");
         return transactions.ExecuteAsync(async(db,ct)=>
         {
             await db.ExecuteAsync("""

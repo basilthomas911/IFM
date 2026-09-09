@@ -71,4 +71,25 @@ public sealed class FinancialControlPreparationTests
     static FinancialRead<FinancialLedgerConfiguration> Snapshot()=>new(FinancialReadStatus.Found,
         new(10,"USD","Emulator","Active","source:1",[new(PeriodId,new(2026,1,1),new(2026,12,31),3,"Open")],[],[],
             new(Guid.NewGuid(),4,1,2,100,100,[],"verified-ledger:4",new('A',64))),5,Now);
+
+    [Fact]
+    public void Editing_uses_exact_active_versions_and_does_not_rewrite_existing_definitions()
+    {
+        var cash=new LedgerAccountDefinition(20,2,"Cash",PostingSide.Debit,true,"");
+        var equity=new LedgerAccountDefinition(21,1,"Equity",PostingSide.Credit,true,"");
+        var rule=new LedgerPostingRule(Guid.NewGuid(),3,"",LedgerTransactionKind.DepositConfirmed,new(20,2),new(21,1),true);
+        var snapshot=Snapshot();snapshot=snapshot with { Value=snapshot.Value! with {
+            Accounts=[new(cash,"Active"),new(equity,"Active")],Rules=[new(rule,"Active",new(2026,1,1),null)] } };
+        var accountEdit=FinancialControlPreparation.EditAccount(Scope,snapshot,20,PostingSide.Debit,false,"Dimension review",Now);
+        accountEdit.Body.ExpectedVersion.Should().Be(2);accountEdit.Body.Accounts.Single().Version.Should().Be(3);
+        accountEdit.Body.Accounts.Single().Category.Should().Be("Cash");cash.FundDimensionRequired.Should().BeTrue();
+        var ruleEdit=FinancialControlPreparation.EditRule(Scope,snapshot,rule.RuleId,new(20,2),new(21,1),true,null,null,new(2026,9,9),"Rule review",Now);
+        ruleEdit.Body.ExpectedVersion.Should().Be(3);ruleEdit.Body.Rules.Single().Version.Should().Be(4);
+        ruleEdit.ExpectedFinancialRevision.Should().Be(snapshot.FinancialRevision);
+        ruleEdit.InputSha256.Should().Be(FinancialCanonicalHash.Request(ruleEdit));
+        Action stale=()=>FinancialControlPreparation.EditRule(Scope,snapshot,rule.RuleId,new(20,1),new(21,1),true,null,null,new(2026,9,9),"Stale",Now);
+        stale.Should().Throw<ArgumentException>();
+        Action unpaired=()=>FinancialControlPreparation.EditRule(Scope,snapshot,rule.RuleId,new(20,2),new(21,1),true,new(20,2),null,new(2026,9,9),"Unpaired",Now);
+        unpaired.Should().Throw<ArgumentException>();
+    }
 }

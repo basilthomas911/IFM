@@ -101,7 +101,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
         if(configure is not null) book=configure(book);
         await transactions.ExecuteAsync(async (db,ct)=>
         {
-            foreach(var stream in new[] { $"Portfolio.{id}",$"PortfolioFund.{id}.{id+1}",$"PortfolioFinancialPolicy.{id}.{id+2}" })
+            foreach(var stream in new[] { $"Portfolio.{id}",$"PortfolioFinancialPolicy.{id}.{id+2}" }.Concat(book.Funds.Select(x=>$"PortfolioFund.{id}.{x.FundId}")))
             {
                 var command=Guid.NewGuid();
                 await db.AppendAsync(stream,command,new PortfolioCreated(Guid.NewGuid(),command,1,DateTime.UtcNow,"integration",new()),0,ct);

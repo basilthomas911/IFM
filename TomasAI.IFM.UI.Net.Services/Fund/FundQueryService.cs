@@ -65,6 +65,19 @@ namespace TomasAI.IFM.UI.Net.Services.Fund
         public async Task GetFundTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate, Action<FundTransactionReadModel[]> onCompleted)
             => await ExecuteAsync(() => _queryApi.GetFundTransactionsAsync(fundId, startDate, endDate), onCompleted);
 
+        /// <summary>Reads original legacy records without translating amounts into financial authority.</summary>
+        public async Task<FundTransactionReadModel[]> GetLegacyTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate, CancellationToken token)
+        {
+            if(fundId<0 || startDate==default || endDate<startDate || endDate.DayNumber-startDate.DayNumber>366)
+                throw new ArgumentException("Select a legacy Fund and a date range of at most one year.");
+            var result=await _queryApi.GetFundTransactionsAsync(fundId,startDate,endDate).WaitAsync(token).ConfigureAwait(false);
+            if(result is null || !result.Success || result.Value is null)
+                throw new InvalidOperationException(result?.ErrorMessage??"Legacy history is unavailable.");
+            if(result.Value.Any(x=>x.FundId!=fundId || x.ValueDate<startDate || x.ValueDate>endDate))
+                throw new InvalidOperationException("Legacy history returned records outside the selected scope.");
+            return result.Value;
+        }
+
         /// <summary>
         /// get selcted fund balance
         /// </summary>

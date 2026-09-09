@@ -1497,6 +1497,34 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         return false;
     }
 
+    public async Task<bool> HasPendingLegacyFinancialWritesAsync(int fundId,DateOnly start,DateOnly end,CancellationToken token=default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fundId);
+        if(start==default || end<start) throw new ArgumentException("An explicit source date range is required.");
+        foreach(var (name,cql) in new[] { (nameof(FundDbCql.HasFundTransactionWriteIntent),FundDbCql.HasFundTransactionWriteIntent),
+            (nameof(FundDbCql.HasFundTransactionWriteOwner),FundDbCql.HasFundTransactionWriteOwner) })
+            if((await _dbFactory.FundDb.Use($"{nameof(FundDbCql)}.{name}",cql).SetParameters(new GetFundByFundId(fundId)).ExecuteQueryAsync(_=>true,token).ConfigureAwait(false)).Count>0)
+                return true;
+        var last=new DateOnly(end.Year,end.Month,1);
+        for(var month=new DateOnly(start.Year,start.Month,1);;month=month.AddMonths(1))
+        {
+            if((await GetFundTransactionProjectionMutationsAsync(fundId,month,token).ConfigureAwait(false)).Count>0) return true;
+            if(month==last) return false;
+        }
+    }
+
+    public async Task<bool> HasLegacyFinancialRecordsOutsideRangeAsync(int fundId,DateOnly start,DateOnly end,CancellationToken token=default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fundId);
+        if(start==default || end<start) throw new ArgumentException("An explicit source date range is required.");
+        var before=await _dbFactory.FundDb.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.HasCanonicalFundTransactionBefore)}",FundDbCql.HasCanonicalFundTransactionBefore)
+            .SetParameters(new GetFundTransactions(fundId,DateOnly.MinValue,start)).ExecuteQueryAsync(_=>true,token).ConfigureAwait(false);
+        if(before.Count>0) return true;
+        var after=await _dbFactory.FundDb.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.HasCanonicalFundTransactionAfter)}",FundDbCql.HasCanonicalFundTransactionAfter)
+            .SetParameters(new GetFundTransactions(fundId,end,DateOnly.MaxValue)).ExecuteQueryAsync(_=>true,token).ConfigureAwait(false);
+        return after.Count>0;
+    }
+
     /// <summary>Returns a single legacy Fund by its identifier.</summary>
     public async Task<FundReadModel?> GetFundAsync(int fundId)
         => await _dbFactory.FundDb

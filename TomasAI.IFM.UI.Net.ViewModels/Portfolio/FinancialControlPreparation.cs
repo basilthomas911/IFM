@@ -6,6 +6,47 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Portfolio;
 /// <summary>Builds a version-bound ledger control request from configured selectors, never user-entered business keys.</summary>
 public static class FinancialControlPreparation
 {
+    public static ConfigureLedgerCommand EditAccount(FinancialReadScope scope,FinancialRead<FinancialLedgerConfiguration> snapshot,
+        int accountId,PostingSide normalSide,bool fundDimensionRequired,string reason,DateTime now)
+    {
+        DemandEdit(scope,snapshot,reason,now);
+        var original=snapshot.Value!.Accounts.SingleOrDefault(x=>x.Definition.AccountId==accountId && x.State=="Active")?.Definition
+            ??throw new ArgumentException("Select an active account.");
+        if(normalSide is not (PostingSide.Debit or PostingSide.Credit)) throw new ArgumentException("Select a normal side.");
+        var next=original with { Version=checked(original.Version+1),NormalSide=normalSide,FundDimensionRequired=fundDimensionRequired,ContentHash=string.Empty };
+        next=next with { ContentHash=FinancialCanonicalHash.Compute(next) };
+        return Command(scope,snapshot.FinancialRevision,new() { Action=LedgerConfigurationAction.AddAccountVersion,BookId=snapshot.Value.BookId,
+            ExpectedVersion=original.Version,Accounts=[next],Reason=reason.Trim() },now);
+    }
+
+    public static ConfigureLedgerCommand EditRule(FinancialReadScope scope,FinancialRead<FinancialLedgerConfiguration> snapshot,
+        Guid ruleId,LedgerAccountBinding debit,LedgerAccountBinding credit,bool confirmedMovement,
+        LedgerAccountBinding? valuationAsset,LedgerAccountBinding? unrealizedPnl,DateOnly effectiveFrom,string reason,DateTime now)
+    {
+        DemandEdit(scope,snapshot,reason,now);
+        var original=snapshot.Value!.Rules.SingleOrDefault(x=>x.Definition.RuleId==ruleId && x.State=="Active")?.Definition
+            ??throw new ArgumentException("Select an active posting rule.");
+        if(effectiveFrom==default || !snapshot.Value.Periods.Any(x=>x.State=="Open" && effectiveFrom>=x.StartDate && effectiveFrom<=x.EndDate))
+            throw new ArgumentException("Choose an effective date in an open period.");
+        foreach(var binding in new[] { debit,credit,valuationAsset,unrealizedPnl }.OfType<LedgerAccountBinding>())
+            if(!snapshot.Value.Accounts.Any(x=>x.State=="Active" && x.Definition.AccountId==binding.AccountId && x.Definition.Version==binding.Version))
+                throw new ArgumentException("Select active exact account versions.");
+        if((valuationAsset is null)!=(unrealizedPnl is null)) throw new ArgumentException("Valuation asset and unrealized P&L accounts must be selected together.");
+        var next=original with { Version=checked(original.Version+1),Debit=debit,Credit=credit,RequiresConfirmedMovement=confirmedMovement,
+            ValuationAsset=valuationAsset,UnrealizedPnl=unrealizedPnl,ContentHash=string.Empty };
+        next=next with { ContentHash=FinancialCanonicalHash.Compute(next) };
+        return Command(scope,snapshot.FinancialRevision,new() { Action=LedgerConfigurationAction.AddPostingRuleVersion,BookId=snapshot.Value.BookId,
+            ExpectedVersion=original.Version,Rules=[next],PeriodStart=effectiveFrom,Reason=reason.Trim() },now);
+    }
+
+    static void DemandEdit(FinancialReadScope scope,FinancialRead<FinancialLedgerConfiguration> snapshot,string reason,DateTime now)
+    {
+        if(scope.PortfolioId<=0 || scope.FundId is not null || snapshot.Status!=FinancialReadStatus.Found || snapshot.Value is null ||
+            now.Kind!=DateTimeKind.Utc || string.IsNullOrWhiteSpace(reason) || reason.Trim().Length>1024)
+            throw new ArgumentException("Current Portfolio configuration and an audit reason are required.");
+        if(!scope.Access.Roles.Contains("PortfolioAdministrator") && !scope.Access.Roles.Contains("LedgerConfigure"))
+            throw new InvalidOperationException("Ledger configuration permission is required.");
+    }
     public static ConfigureLedgerCommand RefreshAuthority(FinancialReadScope scope,FinancialRead<FinancialAuthorityDraft> snapshot,string reason,DateTime now)
     {
         var draft=snapshot.Value?.Draft;

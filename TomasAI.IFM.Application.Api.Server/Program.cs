@@ -17,6 +17,7 @@ try
     var migrateStrategyCatalogOnly = args.Contains("--migrate-strategy-catalog-only", StringComparer.OrdinalIgnoreCase);
     var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
     var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
+    var retentionManifest = args.SingleOrDefault(x=>x.StartsWith("--retain-legacy-history-manifest=",StringComparison.OrdinalIgnoreCase))?.Split('=',2)[1];
     var builder = WebApplication.CreateBuilder(args);
     if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
     {
@@ -45,6 +46,20 @@ try
         // seed, HTTP listener, hosted service, actor or feed startup. This takes precedence
         // over bootstrap mode so a verification request cannot accidentally write data.
         Log.Information("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
+        await app.DisposeAsync();
+    }
+    else if (retentionManifest is not null)
+    {
+        // A reviewed immutable source manifest drives this maintenance mode. No actors, feeds or HTTP listeners run.
+        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        var request=System.Text.Json.JsonSerializer.Deserialize<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.LegacyFinancialRetentionRequest>(
+            await File.ReadAllTextAsync(retentionManifest,deadline.Token),new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive=true })
+            ??throw new InvalidDataException("A retained-history request manifest is required.");
+        if(!app.Environment.IsDevelopment()) throw new InvalidOperationException("Legacy retention maintenance requires the Development host.");
+        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>().InitializeAsync(deadline.Token);
+        var retention=app.Services.GetRequiredService<SimpleInjector.Container>().GetInstance<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.LegacyFinancialRetention>();
+        var result=await retention.RetainAsync(request.Scope,request.Access,request.Reason,deadline.Token);
+        Console.WriteLine($"Retained read-only inventory {result.InventoryId}: {result.Rows} records, {result.Quarantined} unqualified. No capital recognized.");
         await app.DisposeAsync();
     }
     else if (migrateStrategyCatalogOnly)

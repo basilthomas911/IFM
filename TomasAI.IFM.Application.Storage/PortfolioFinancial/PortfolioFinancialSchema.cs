@@ -251,7 +251,7 @@ public sealed class PortfolioFinancialSchema(IPostgresEventTransaction transacti
         CREATE TRIGGER immutable_transaction BEFORE UPDATE OR DELETE ON portfolio_financial.ledger_transaction FOR EACH ROW EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
         DROP TRIGGER IF EXISTS immutable_qualified_migration ON portfolio_financial.ledger_migration;
         CREATE TRIGGER immutable_qualified_migration BEFORE UPDATE OR DELETE ON portfolio_financial.ledger_migration
-          FOR EACH ROW WHEN (OLD.cutover_state='Qualified') EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
+          FOR EACH ROW WHEN (OLD.cutover_state IN ('Qualified','RetainedReadOnly')) EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
         DROP TRIGGER IF EXISTS immutable_legacy_inventory_row ON portfolio_financial.legacy_financial_inventory_row;
         CREATE TRIGGER immutable_legacy_inventory_row BEFORE UPDATE OR DELETE ON portfolio_financial.legacy_financial_inventory_row
           FOR EACH ROW EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
