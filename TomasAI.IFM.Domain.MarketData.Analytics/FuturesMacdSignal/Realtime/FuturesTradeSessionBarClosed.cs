@@ -28,6 +28,7 @@ public static class FuturesTradeSessionBarClosed
                     entityId.SlowEmaPeriod, TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
                 var result = await context.GenerateFuturesMacdSignalAsync(signalId, observation.Close, observation)
                     .ConfigureAwait(false);
+                FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
                 if (result is ServiceFailed<GuidResult> failed)
                 {
                     succeeded = false;

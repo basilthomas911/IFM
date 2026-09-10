@@ -47,7 +47,18 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
         context.AddRealtimeRouter(Route, Id);
         if (TypedContext.MarketDataApi.TryGetFuturesTermStructureContracts("VX", out var contracts)
             && contracts.IsValid)
-            _ = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
+        {
+            try
+            {
+                _ = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
+            }
+            catch (MarketDataApiNotRunningException)
+            {
+                // Actor registration precedes feed startup. Keep the price router attached;
+                // ReceiveAsync acquires both leases on the first update after the epoch starts.
+                TypedContext.Logger.LogInformation("VX term-structure stream acquisition deferred until the market-data epoch starts.");
+            }
+        }
     }
     /// <inheritdoc />
     protected override async ValueTask OnShutdown(IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context)

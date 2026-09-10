@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
@@ -19,7 +20,7 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
     IDbContextFactory dbFactory,
     IActorSupervisor supervisor,
     MarketOutlookSnapshotPersistencePolicy persistencePolicy,
-    ILogger<LatestMarketOutlookSnapshotPublisher> logger)
+    ILogger<LatestMarketOutlookSnapshotPublisher> logger, LivePipelineEvidence? healthEvidence = null)
     : BackgroundService, IMarketOutlookSnapshotPublisher
 {
     sealed record PendingSnapshot(MarketOutlookReadModel Snapshot, long Sequence);
@@ -80,6 +81,9 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
             notification.Subject,
             notification,
             cancellationToken).ConfigureAwait(false);
+        healthEvidence?.Record("Market Outlook inputs", "ES", string.IsNullOrWhiteSpace(latest.MissingInputs) ? "Healthy" : "Degraded",
+            string.IsNullOrWhiteSpace(latest.MissingInputs) ? "Required snapshot inputs are available." : latest.MissingInputs, latest.UpdatedAtUtc);
+        healthEvidence?.Record("Market Outlook publication", "ES", "Healthy", "Latest composed snapshot published.", latest.UpdatedAtUtc);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -137,6 +141,7 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
                         item.Snapshot,
                         item.Sequence,
                         cancellationToken).ConfigureAwait(false);
+                    healthEvidence?.Record("Market Outlook storage", "ES", "Healthy", "Latest restart snapshot persisted.", item.Snapshot.UpdatedAtUtc);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -145,6 +150,7 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
                 }
                 catch (Exception exception)
                 {
+                    healthEvidence?.Record("Market Outlook storage", "ES", "Degraded", exception.Message);
                     Requeue(item);
                     logger.LogError(
                         exception,

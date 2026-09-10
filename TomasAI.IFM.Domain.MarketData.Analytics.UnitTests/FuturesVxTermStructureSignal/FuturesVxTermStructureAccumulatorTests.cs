@@ -1,5 +1,9 @@
 ﻿using FluentAssertions;
 using NSubstitute;
+using Microsoft.Extensions.Logging.Abstractions;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
@@ -127,6 +131,46 @@ public sealed class FuturesVxTermStructureAccumulatorTests
             .WithMessage("Back route failed");
         await api.Received(1).StopStreamingFuturesTickDataAsync(
             EntityId.FrontContractId, frontOwner);
+    }
+
+    [Fact]
+    public async Task ActorStartup_BeforeEpoch_DefersLeasesAndAcquiresBothOnFirstPriceUpdate()
+    {
+        var api = TermStructureApi();
+        var ready = false;
+        api.StartStreamingFuturesTickDataAsync(Arg.Any<string>(), Arg.Any<TickerStreamOwner?>())
+            .Returns(_ => ready ? Task.FromResult(true) : throw new MarketDataApiNotRunningException());
+        api.IsTickDataStreamActive(Arg.Any<string>()).Returns(_ => ready);
+        var context = Substitute.For<IFuturesVxTermStructureSignalRealtimeContext>();
+        var id = new ActorMailboxId(ActorType.Realtime, FuturesVxTermStructureSignalRealtimeActor.ActorName);
+        context.ActorId.Returns(id);
+        context.MarketDataApi.Returns(api);
+        context.Logger.Returns(NullLogger<FuturesVxTermStructureSignalRealtimeActor>.Instance);
+        var supervisor = Substitute.For<IActorSupervisor>();
+        supervisor.GetProducer(id).Returns(Substitute.For<IActorProducer>());
+        var actor = new FuturesVxTermStructureSignalRealtimeActor(context);
+
+        await actor.StartAsync(supervisor);
+
+        Assert.True(actor.IsRunning);
+        context.Received(1).AddRealtimeRouter(Arg.Any<ActorTypeId>(), id);
+        ready = true;
+        api.ClearReceivedCalls();
+        var subject = new ActorSubject(ActorType.Realtime, FuturesVxTermStructureSignalRealtimeActor.ActorName,
+            FuturesMarketPriceUpdatedRealtimeEvent.Verb, EntityId.FrontContractId);
+        var message = Substitute.For<IActorMessage>();
+        message.Subject.Returns(subject);
+        message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(new FuturesMarketPriceUpdatedRealtimeEvent
+            { Subject = subject, UpdateSource = FuturesMarketPriceUpdateSource.Quote });
+        await actor.HandleMessageAsync(message);
+        await actor.HandleMessageAsync(message);
+
+        await api.Received(1).StartStreamingFuturesTickDataAsync(EntityId.FrontContractId,
+            new TickerStreamOwner("FuturesVxTermStructureSignal", "CurrentCurve", "Front"));
+        await api.Received(1).StartStreamingFuturesTickDataAsync(EntityId.BackContractId,
+            new TickerStreamOwner("FuturesVxTermStructureSignal", "CurrentCurve", "Back"));
+        await actor.StopAsync();
+        await api.Received(2).StopStreamingFuturesTickDataAsync(Arg.Any<string>(), Arg.Any<TickerStreamOwner?>());
     }
 
     static readonly DateTimeOffset FrontTimestamp = new(2026, 8, 26, 14, 30, 0, TimeSpan.Zero);

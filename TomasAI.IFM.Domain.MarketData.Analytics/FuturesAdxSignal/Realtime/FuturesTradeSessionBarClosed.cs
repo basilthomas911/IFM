@@ -42,6 +42,7 @@ public static class FuturesTradeSessionBarClosed
                         observation.Close,
                         observation)
                     .ConfigureAwait(false);
+                FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
                 if (result is ServiceFailed<GuidResult> failed)
                 {
                     succeeded = false;

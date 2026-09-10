@@ -1,3 +1,4 @@
+using TomasAI.IFM.UI.Net.Services.MarketData;
 using System;
 using System.Reflection;
 using System.Linq;
@@ -39,6 +40,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     const int DwmUseImmersiveDarkModeBefore20H1 = 19;
     const int DwmCaptionColor = 35;
     const int DwmTextColor = 36;
+    private readonly IMarketDataOperationsHealthQueryService? _pipelineHealth;
     private IAppRoot _appRoot;
     private readonly IViewNavigator _navigator;
     private readonly IEconomicCalendarService _economicCalendarService;
@@ -56,8 +58,10 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         IAppRoot appRoot,
         IViewNavigator navigator,
         IReferenceDataService referenceDataService,
-        IEconomicCalendarService economicCalendarService)
+        IEconomicCalendarService economicCalendarService,
+        IMarketDataOperationsHealthQueryService? pipelineHealth = null)
     {
+        _pipelineHealth = pipelineHealth;
         _appRoot = appRoot;
         _navigator = navigator;
         _referenceDataService = referenceDataService;
@@ -137,7 +141,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
             _appVersion,
             _appRoot.AppEnvironment,
             this,
-            _economicCalendarService);
+            _economicCalendarService, pipelineHealth: _pipelineHealth);
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
         RenderShellState();
         try
@@ -252,11 +256,17 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                 break;
             case nameof(IFMAppViewModel.FuturesTradeSignal):
                 if (_viewModel.FuturesTradeSignal is { } tradeSignal)
+                {
                     marketOutlookView1.RefreshView(tradeSignal);
+                    _viewModel.ConfirmOutlookRendered();
+                }
                 break;
             case nameof(IFMAppViewModel.LatestFuturesBarSnapshot):
                 if (_viewModel.LatestFuturesBarSnapshot is { } futuresBars)
-                    marketDataView1.RefreshView(futuresBars);
+                {
+                    if (marketDataView1.RefreshView(futuresBars))
+                        _viewModel.ConfirmChartRendered(futuresBars);
+                }
                 break;
             case nameof(IFMAppViewModel.LastError):
                 RenderLatestError();
@@ -281,7 +291,10 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         if (_viewModel.FuturesTradeSignal is { } tradeSignal)
             marketOutlookView1.RefreshView(tradeSignal);
         foreach (var futuresBars in _viewModel.FuturesBarSnapshots)
-            marketDataView1.RefreshView(futuresBars.Value);
+        {
+            if (marketDataView1.RefreshView(futuresBars.Value))
+                _viewModel.ConfirmChartRendered(futuresBars.Value);
+        }
         RenderLatestError();
     }
 

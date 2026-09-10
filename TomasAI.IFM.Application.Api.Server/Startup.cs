@@ -256,6 +256,7 @@ public static class Startup
             services.AddHealthChecks()
                 .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["bootstrap", "ready"])
                 .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["application", "ready"])
+                .AddCheck<LivePipelineHealthCheck>("live_pipeline", tags: ["application", "ready"])
                 .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])
                 .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["bootstrap", "ready"])
                 .AddCheck<ApplicationLifecycleHealthCheck>("application_lifecycle", tags: ["application", "ready"]);
@@ -845,6 +846,12 @@ public static class Startup
             services.AddHostedService(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService<MarketDataOperationsHealthObserver>();
+            services.AddSingleton<LivePipelineEvidence>();
+            services.AddSingleton<MarketDataRuntimeHealthCheck>();
+            services.AddSingleton<ActorRuntimeHealthCheck>();
+            services.AddSingleton<ILivePipelineProbe, LivePipelineProbe>();
+            services.AddSingleton<LivePipelineMonitor>();
+            services.AddHostedService(provider => provider.GetRequiredService<LivePipelineMonitor>());
             services.AddHostedService<ApplicationStartupCommandDispatcher>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")

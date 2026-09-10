@@ -14,6 +14,42 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 public sealed class TickAggregationEventPublisherRealtimeTests
 {
     [Fact]
+    public async Task Diagnostics_snapshot_counts_queued_publications_without_using_channel_reader_count()
+    {
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IActorProducer>();
+        supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+                Arg.Any<ActorSubject>(),
+                Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                deliveryStarted.TrySetResult();
+                return new ValueTask(releaseDelivery.Task);
+            });
+
+        await using var publisher = new TickAggregationEventPublisher(supervisor);
+        await publisher.StartAsync();
+        try
+        {
+            await publisher.PublishAsync(CreateEvent());
+            await deliveryStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await publisher.PublishAsync(CreateEvent());
+            await publisher.PublishAsync(CreateEvent());
+
+            Assert.Equal(2, publisher.GetSnapshot().Depth);
+        }
+        finally
+        {
+            releaseDelivery.TrySetResult();
+            await publisher.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Market_price_update_uses_primary_actor_core_producer_without_owning_its_lifecycle()
     {
         var supervisor = Substitute.For<IActorSupervisor>();

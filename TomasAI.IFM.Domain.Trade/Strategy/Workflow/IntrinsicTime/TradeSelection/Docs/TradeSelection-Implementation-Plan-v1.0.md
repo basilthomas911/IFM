@@ -1,5 +1,81 @@
 # TradeSelection Implementation Plan v1.1
 
+## Operator-owned `StartPipelineAsync` correction - 2026-09-10
+
+**Status:** Planned correction to the implemented FunctionActor baseline.
+
+Trade Selection initialization occurs only after Strategy Workflow has durably entered and
+projected the Trade Selection stage. The ITI handler and workflow-start path do not resolve a
+strategy activation, Portfolio/Fund authority, selection binding, catalog candidates, or selector
+capabilities. `StartPipelineAsync` resolves and freezes those operator-owned inputs. Failure returns
+a typed `TradeSelectionPipelineFailedEvent`; Strategy Workflow persists the failed stage and makes
+its complete explanation available to Strategy Viewer.
+
+```csharp
+public sealed record TradeSelectionPipelineInitialization(
+    TradeSelectionParameterSet ParameterSet,
+    string ParameterPayloadSha256,
+    TradeSelectionBinding Binding,
+    RegimeDiscoveryResult AcceptedRegimeResult,
+    MarketConditionAssessmentResult AcceptedAssessment,
+    IReadOnlyList<SelectionCandidateBinding> Candidates);
+
+Task<PipelineStartResult<TradeSelectionPipelineInitialization>> StartPipelineAsync(
+    ExecuteTradeSelectionPipelineCommand command,
+    CancellationToken cancellationToken);
+```
+
+`StartPipelineAsync` owns these Trade Selection prerequisites at the workflow's fixed
+`RequestedAtUtc`:
+
+1. Validate workflow ID/revision, trigger, ES root, and exact Daily/Weekly/Monthly horizon.
+2. Load the accepted Regime Discovery and Market Condition envelopes and validate their workflow,
+   trigger, horizon, lineage, hashes, acceptance, validity, and inherited restrictions.
+3. Resolve the exact effective workflow activation for the contract and horizon and pin its
+   version/hash. Missing, ambiguous, retired, or mismatched activation is a typed initialization
+   failure inside this stage.
+4. Resolve the exact published Trade Selection policy referenced by that activation and validate
+   schema, canonical hash, common-policy identity, rule completeness, bounds, and effective time.
+5. Resolve current Portfolio/Fund selection authority at the fixed request time, including exact
+   Fund ownership, mandate, allowed horizon/product, deployment permissions, assignment versions,
+   denial states, and bounded authority snapshot/hash.
+6. Resolve published catalog deployments, strategies, structures, variants, parameter schemas,
+   roles, and selection/construction profile references authorized by that Fund. Detect zero,
+   overflow, duplicate, conflicting, unsupported, or hash-mismatched candidates explicitly.
+7. Validate registered selector and downstream capability descriptors required by each candidate;
+   no fixture or permissive fallback may make a production candidate eligible.
+8. Freeze the complete `TradeSelectionBinding` and candidate set and validate size limits,
+   deterministic ordering, content hashes, and the calculation deadline.
+
+`ExecuteAsync` calls `StartPipelineAsync` once and gives the evaluator only its immutable result.
+Normal evaluation with no eligible strategy remains a completed `NoTrade` result. Missing or
+invalid authority, configuration, lineage, catalog, capability, or binding is an initialization
+failure and must not be reported as an ordinary no-selection decision.
+
+The initialization error records bounded code/type/message, all reason codes, activation and
+policy identity, Portfolio/Fund and authority revision when known, rejected catalog identities,
+failed capability, safe diagnostics, and timing. Strategy Viewer shows
+`TradeSelection / Initializing`, the start/failure details, selected or rejected candidates, and
+the eventual `Processing`, `NoTrade`, `Completed`, or `Failed` state. Query reconciliation is
+authoritative after reconnect.
+
+Implementation and verification order:
+
+1. Add failing tests for missing/ambiguous activation, invalid upstream lineage, expired
+   assessment, missing Fund mandate, denied horizon, catalog/hash conflicts, unsupported
+   capabilities, candidate overflow, and deadline expiry.
+2. Add the typed initialization contract and compatible serialization registration.
+3. Move activation, selection-policy, authority, catalog, capability, and binding resolution from
+   pre-workflow/pre-stage orchestration into `StartPipelineAsync`.
+4. Map initialization failure to the existing typed Function failure and durable workflow failure.
+5. Extend workflow projections, start/stage queries, notifications, and Strategy Viewer details.
+6. Run real NATS/PostgreSQL/ConfigurationDb/Portfolio/Scylla tests across all twelve variants and
+   Daily/Weekly/Monthly, including no-strategy, duplicate, restart, timeout, and storage faults.
+
+**Acceptance:** every workflow reaching Trade Selection displays an initialization attempt and an
+exact terminal or continuing outcome. Activation, Fund, catalog, or binding problems can no longer
+prevent workflow visibility or disappear as a warning-only return.
+
 ## Composition prerequisite continuation - 2026-09-08 UTC
 
 The existing reservation handoff now passes through mapped market-preparation acceptance before durable Start dispatch. Real NATS/PostgreSQL/Scylla verification covers withheld notification, reload and identical retry bytes. Construction policy schema 2 pins a finite reviewed `marketData` universe; schema 1 preserves its prior shape/hash. The selector remains responsible only for strategy intent. Final composer Function construction, concrete durable business-source adapters, automatic route/context restoration and live qualification remain open in the [OCP record](../../OrderComposer/Docs/OrderComposition-Prerequisite-Implementation-Record-v1.0.md).

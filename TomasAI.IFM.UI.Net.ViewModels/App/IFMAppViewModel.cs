@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Services.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -176,8 +177,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         IEconomicCalendarService economicCalendarService,
         TimeProvider? timeProvider = null,
         TimeSpan? startupReferenceDataImportTimeout = null,
-        TimeSpan? marketDataFeedTerminalTimeout = null)
+        TimeSpan? marketDataFeedTerminalTimeout = null,
+        IMarketDataOperationsHealthQueryService? pipelineHealth = null)
     {
+        _pipelineHealth = pipelineHealth;
         _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
         _appVersion = appVersion ?? throw new ArgumentNullException(nameof(appVersion));
         _appEnvironment = string.IsNullOrWhiteSpace(appEnvironment)
@@ -362,7 +365,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     /// <summary>Gets the visible current market-data feed state.</summary>
     public string MarketDataFeedStateText
-        => IsMarketDataFeedOperationInProgress
+        => _pipelineHealth is not null
+            ? LivePipelineHealth is null ? "Live pipeline: health unavailable"
+                : "Live pipeline: " + LivePipelineHealth.Status + " ? " + (LivePipelineHealth.Checks.FirstOrDefault(x => x.Required && x.Status is "Degraded" or "Unhealthy" or "Unknown")?.Reason ?? "All required stages verified")
+            : IsMarketDataFeedOperationInProgress
             ? "Market Feed: Changing"
             : ValueDate.HasValue && !IsMarketOpen && !IsMarketDataFeedActive
                 ? "Market Feed: Session Closed â€” read-only application features remain available"
@@ -950,6 +956,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        lock (_marketDataStreamGate) _outlookReceived = snapshot.UpdatedAtUtc;
         if (snapshot.FuturesEodData.IsValid)
             MarketOutlook = new FuturesEodDataUIViewModel(snapshot);
         var updatedUtc = snapshot.UpdatedAtUtc.Kind == DateTimeKind.Utc
@@ -1742,8 +1749,58 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     void ApplyMarketDataFeedHealth(MarketDataFeedHealthSnapshot snapshot)
         => MarketDataFeedHealthState = snapshot.State;
 
+    readonly IMarketDataOperationsHealthQueryService? _pipelineHealth;
+    int _uiRecoveryAttempts;
+    readonly Dictionary<string, DateTime> _renderedBars = new();
+    DateTime? _outlookReceived;
+    DateTime? _outlookRendered;
+    public void ConfirmOutlookRendered()
+    {
+        lock (_marketDataStreamGate) _outlookRendered = _outlookReceived;
+    }
+    public LivePipelineHealthSnapshot? LivePipelineHealth { get; private set; }
+    public void ConfirmChartRendered(FuturesBarChartSnapshot snapshot)
+    {
+        if (snapshot.Bars.Length == 0) return;
+        lock (_marketDataStreamGate) _renderedBars[snapshot.Symbol] = snapshot.Bars.Max(x => x.BarDate);
+    }
+
     async Task RefreshDatabentoReadinessAsync()
     {
+        if (_pipelineHealth is not null && ValueDate is { } date)
+        {
+            LiveUiStreamEvidence[] streams;
+            lock (_marketDataStreamGate)
+                streams = new[] { "ES", "VX" }.Select(symbol => new LiveUiStreamEvidence(symbol,
+                    FuturesBarSnapshots.TryGetValue(symbol, out var bars) && bars.Bars.Length > 0 ? bars.Bars.Max(x => x.BarDate) : null,
+                    _renderedBars.TryGetValue(symbol, out var rendered) ? rendered : null,
+                    FuturesBarSnapshots.TryGetValue(symbol, out var currentBars) ? currentBars.Bars.FirstOrDefault()?.ContractId ?? "" : ""))
+                    .Append(new LiveUiStreamEvidence("Outlook", _outlookReceived, _outlookRendered, GetMarketOutlookContract()?.ContractId ?? "")).ToArray();
+            LivePipelineHealth = await _pipelineHealth.ReportAndCheckAsync(new(_siteId, date, streams));
+            OnPropertyChanged(nameof(LivePipelineHealth));
+            OnPropertyChanged(nameof(MarketDataFeedStateText));
+            if (LivePipelineHealth?.Status == "Healthy") _uiRecoveryAttempts = 0;
+            if (_uiRecoveryAttempts < 3 && LivePipelineHealth is { } observed
+                && observed.Checks.Any(x => x.Component.StartsWith("UI", StringComparison.Ordinal) && x.Scope.StartsWith(_siteId.ToString("N"), StringComparison.Ordinal) && x.Status == "Degraded")
+                && observed.Checks.Where(x => x.Component == "Chart storage/query").All(x => x.Status == "Healthy"))
+            {
+                _uiRecoveryAttempts++;
+                await StopFuturesBarDataEventConsumer();
+                await StartFuturesBarDataEventConsumer(CancellationToken.None);
+                await GetLastFuturesBarData(date);
+                await WriteStatusConsoleAsync($"UI stream recovery attempt {_uiRecoveryAttempts}/3; awaiting delivery/render confirmation.");
+            }
+            var runtime = await _appRoot.Services.FeedQueries.GetRuntimeStatusAsync();
+            IsMarketDataFeedActive = runtime is { IsValid: true, IsRunning: true };
+            MarketDataFeedHealthState = LivePipelineHealth?.Status switch
+            {
+                "Healthy" when IsMarketDataFeedActive => MarketState == FuturesMarketState.OffTrading
+                    ? MarketDataFeedHealthState.OffHoursActive : MarketDataFeedHealthState.Healthy,
+                "Unhealthy" => MarketDataFeedHealthState.Critical,
+                _ => MarketDataFeedHealthState.Intermittent
+            };
+            return;
+        }
         var readiness = await _appRoot.Services.FeedQueries.GetDatabentoReadinessAsync();
         if (readiness is null) return;
         IsMarketDataFeedActive = IsDatabentoLifecycleActive(readiness.State);
@@ -1768,6 +1825,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     async Task ApplyMarketDataFeedHealthAsync(MarketDataFeedHealthSnapshot snapshot)
     {
+        if (_pipelineHealth is not null) return;
         ApplyMarketDataFeedHealth(snapshot);
         if (!snapshot.EnteredCritical)
             return;

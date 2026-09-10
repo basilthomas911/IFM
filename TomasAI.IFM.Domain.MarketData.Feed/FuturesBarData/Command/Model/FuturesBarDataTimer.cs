@@ -12,6 +12,9 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
     readonly ConcurrentDictionary<FuturesBarDataStreamingId, Registration> _registrations = new();
     readonly TimeSpan _period;
 
+    public bool IsRunning(FuturesBarDataStreamingId entityId)
+        => _registrations.TryGetValue(entityId, out var registration) && registration.IsRunning;
+
     public FuturesBarDataTimer() : this(DefaultPeriod)
     {
     }
@@ -28,6 +31,8 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
         ArgumentNullException.ThrowIfNull(entityId);
         ArgumentNullException.ThrowIfNull(timerAction);
 
+        if (_registrations.TryGetValue(entityId, out var previous) && previous.IsTerminal)
+            _registrations.TryRemove(new KeyValuePair<FuturesBarDataStreamingId, Registration>(entityId, previous));
         var registration = new Registration(timerAction, _period);
         if (!_registrations.TryAdd(entityId, registration))
             return false;
@@ -77,6 +82,8 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
         Task _loopTask = Task.CompletedTask;
         bool _started;
         bool _stopped;
+        internal bool IsTerminal { get { lock (_lifecycleLock) return _started && _loopTask.IsCompleted; } }
+        internal bool IsRunning { get { lock (_lifecycleLock) return _started && !_stopped && !_loopTask.IsCompleted; } }
 
         public void Start()
         {
@@ -124,6 +131,7 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
 
 public interface IFuturesBarDataTimer
 {
+    bool IsRunning(FuturesBarDataStreamingId entityId) => false;
     bool Start(FuturesBarDataStreamingId entityId, Func<ValueTask> timerAction);
     ValueTask<bool> StopAsync(FuturesBarDataStreamingId entityId);
     ValueTask StopAllAsync();

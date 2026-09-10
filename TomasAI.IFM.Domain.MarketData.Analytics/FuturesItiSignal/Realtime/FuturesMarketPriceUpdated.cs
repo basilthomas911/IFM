@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
@@ -44,7 +45,7 @@ public static class FuturesMarketPriceUpdated
         IMarketDataApi marketDataApi,
         FuturesItiSignalStreamOwnership streamOwnership,
         FuturesItiSignalRealtimeState realtimeState,
-        ILogger<FuturesItiSignalRealtimeActor> logger)
+        ILogger<FuturesItiSignalRealtimeActor> logger, LivePipelineEvidence? healthEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
@@ -97,7 +98,10 @@ public static class FuturesMarketPriceUpdated
             var vxPrice = await marketDataApi.GetFuturesPriceAsync(vxContract.ContractId)
                 .ConfigureAwait(false);
             if (vxPrice is null)
+            {
+                healthEvidence?.Record("ITI", "ES", "Degraded", "Waiting for a fresh VX trade price.");
                 return true;
+            }
 
             var evaluations = await realtimeState.EvaluateAsync(
                 esContract.ContractId,
@@ -112,11 +116,18 @@ public static class FuturesMarketPriceUpdated
                     .ConfigureAwait(false);
                 if (success)
                     realtimeState.Confirm(evaluation);
+                else
+                {
+                    healthEvidence?.Record("ITI", "ES", "Unhealthy", "ITI persistence/publication failed.");
+                    return false;
+                }
             }
+            healthEvidence?.Record("ITI", "ES", "Healthy", "Daily, weekly and monthly evaluations completed; no signal is also a valid result.", esTrade.EventTimestamp.UtcDateTime);
             return true;
         }
         catch (Exception exception)
         {
+            healthEvidence?.Record("ITI", "ES", "Unhealthy", exception.Message);
             logger.LogErrorEvent(
                 ServiceId,
                 exception,

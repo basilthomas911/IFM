@@ -48,7 +48,7 @@ public partial class MarketDataView : DarkTradingView
     /// Refreshes the view with every futures bar in the snapshot's fixed wall-clock window.
     /// </summary>
     /// <param name="snapshot">The symbol, six-hour UTC window, and persisted bars to render.</param>
-    public void RefreshView(FuturesBarChartSnapshot snapshot)
+    public bool RefreshView(FuturesBarChartSnapshot snapshot)
     {
         try
         {
@@ -56,7 +56,7 @@ public partial class MarketDataView : DarkTradingView
             var symbol = snapshot.Symbol;
             var futuresBarData = snapshot.Bars;
             if (futuresBarData?.Length  == 0) 
-                return;
+                return false;
             var graph = default(Chart);
             var minMaxOffset = 0.0;
             switch (symbol)
@@ -70,7 +70,7 @@ public partial class MarketDataView : DarkTradingView
                     minMaxOffset = 0.025;
                     break;
                 default:
-                    return;
+                    return false;
             }
             graph.AccessibleName = $"{symbol} futures bar chart";
             graph.AccessibleDescription = $"{futuresBarData.Length} futures bar data point(s)";
@@ -143,8 +143,9 @@ public partial class MarketDataView : DarkTradingView
             graph.ChartAreas[0].RecalculateAxesScale();
             graph.Update();
             graph.ResumeLayout();
+            return true;
         }
-        catch {  }
+        catch { return false; }
     }
 
 }

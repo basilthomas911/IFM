@@ -109,7 +109,14 @@ public sealed class ApiApplicationStartupActivities(
             && runtimeStatus.Value.ActiveValueDate == context.ValueDate)
         {
             if (nativeUp)
+            {
+                if (!contractsByValueDate.TryGetValue(context.ValueDate, out var activeContracts))
+                    throw new InvalidOperationException("Qualified current contracts are unavailable.");
+                foreach (var contract in activeContracts)
+                    await RequireAcceptedAsync(marketDataFeedCommandApi.StartFuturesTickDataStreamingAsync(contract, context.ValueDate, false), "Tick route").ConfigureAwait(false);
+                await RequireAcceptedAsync(marketDataFeedCommandApi.StartFuturesBarDataStreamingAsync(activeContracts, context.ValueDate), "Chart bars").ConfigureAwait(false);
                 return ApplicationStartupActivityOutcome.AlreadySatisfied;
+            }
             throw new InvalidOperationException(
                 "Market Data is marked running for the requested value date, but Databento is not up.");
         }

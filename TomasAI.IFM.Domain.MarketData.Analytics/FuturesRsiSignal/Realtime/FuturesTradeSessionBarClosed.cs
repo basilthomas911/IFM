@@ -29,6 +29,7 @@ public static class FuturesTradeSessionBarClosed
                 var result = await context.GenerateFuturesRsiSignalAsync(signalId, observation.Close,
                     observation.LastSourceSequence, observation.LastMarketEventUtc.UtcDateTime, observation)
                     .ConfigureAwait(false);
+                FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
                 if (result is ServiceFailed<GuidResult> failed)
                 {
                     succeeded = false;

@@ -20,6 +20,15 @@ public sealed class NatsConnectionManager : IAsyncDisposable
     int _disposeState;
     bool _disposed;
 
+    /// <summary>Checks the connection actually used by the pipeline without creating a replacement.</summary>
+    public async ValueTask<TimeSpan?> ProbeAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var client = Volatile.Read(ref _client);
+        if (client is null) return null;
+        return await client.PingAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<NatsClient> GetClientAsync(string url, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

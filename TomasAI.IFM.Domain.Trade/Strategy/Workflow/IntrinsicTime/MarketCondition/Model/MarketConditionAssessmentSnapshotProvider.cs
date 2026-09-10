@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
@@ -18,7 +19,7 @@ public interface IMarketConditionAssessmentSnapshotProvider
 /// <summary>Captures market authorities only. Never starts feeds or queries options, fund mandates or brokers.</summary>
 public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi marketData,
     IDbContextFactory storage, IMarketSessionCalendar calendar,
-    IMarketConditionEventRiskAdapter events) : IMarketConditionAssessmentSnapshotProvider
+    IMarketConditionEventRiskAdapter events, LivePipelineEvidence? pipelineHealth = null) : IMarketConditionAssessmentSnapshotProvider
 {
     public async ValueTask<MarketConditionAssessmentSnapshot> CaptureAsync(MarketConditionAssessmentParameterSet p,
         DateTime at, CancellationToken cancellationToken)
@@ -90,7 +91,7 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
             var stillHasContract = marketData.TryGetOnTheRunFuturesContract(p.InstrumentRoot, out var latestContract);
             if (hasContract != stillHasContract || hasContract && latestContract.ContractId != contract.ContractId || before.ValueDate != after.ValueDate || before.Running != after.Running || before.Generation != after.Generation)
                 continue;
-            var healthy = after.Running && after.Healthy;
+            var healthy = after.Running && after.Healthy && (pipelineHealth is null || pipelineHealth.AllowsNewDecisions);
             observations["FeedHealth"] = Observed("FeedHealth",after.ObservedAtUtc,after.ObservedAtUtc,after.Sequence) with
             {
                 Availability = healthy ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable,

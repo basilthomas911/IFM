@@ -87,7 +87,7 @@ public class FuturesItiSignalRealtimeActor(
                         context.MarketDataApi,
                         ownership,
                         state,
-                        context.Logger)
+                        context.Logger, context.HealthEvidence)
                     .ConfigureAwait(false);
             },
             [typeof(FuturesItiSignalGeneratedCompleteEvent)] = async (
@@ -143,6 +143,7 @@ public class FuturesItiSignalRealtimeActor(
         ArgumentNullException.ThrowIfNull(context);
         await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
+        ActorContext.HealthEvidence?.Record("ITI route", "ES", "Healthy", "Realtime price router attached.");
     }
 
     /// <summary>Removes the route from the primary market-price actor.</summary>
@@ -150,6 +151,7 @@ public class FuturesItiSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
+        ActorContext.HealthEvidence?.Record("ITI route", "ES", "Degraded", "Realtime price router detached.");
         await actorContext.Projector.StopAsync().ConfigureAwait(false);
         await _streamOwnership.ReleaseAsync(actorContext.MarketDataApi).ConfigureAwait(false);
     }

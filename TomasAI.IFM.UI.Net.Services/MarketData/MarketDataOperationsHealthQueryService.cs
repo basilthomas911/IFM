@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System.Net;
 using System.Text.Json;
 using TomasAI.IFM.UI.Net.Models.MarketData;
@@ -9,6 +11,8 @@ namespace TomasAI.IFM.UI.Net.Services.MarketData;
 public interface IMarketDataOperationsHealthQueryService
 {
     Task<UiOperationResult<MarketDataOperationsHealthSnapshot>> GetAsync(CancellationToken cancellationToken = default);
+    Task<LivePipelineHealthSnapshot?> ReportAndCheckAsync(LiveUiHealthReport report, CancellationToken token = default)
+        => Task.FromResult<LivePipelineHealthSnapshot?>(null);
 }
 
 /// <summary>Uses the configured central HTTP health endpoint; never invokes a recovery command.</summary>
@@ -64,7 +68,7 @@ public sealed class MarketDataOperationsHealthQueryService : IMarketDataOperatio
                 payload, JsonOptions, deadline.Token).ConfigureAwait(false);
             if (value is null || value.SchemaVersion != 1 || value.ObservedOnUtc == default
                 || value.Stages is null || value.Datasets is null
-                || value.Stages.Count > 64 || value.Datasets.Count > 16 || !ValidStatus(value.OverallStatus)
+                || value.Stages.Count > 512 || value.Datasets.Count > 16 || !ValidStatus(value.OverallStatus)
                 || value.Stages.Any(stage => stage is null || !ValidStatus(stage.Status)
                     || !Bounded(stage.Stage, 128) || !Bounded(stage.ReasonCode, 128) || !Bounded(stage.Reason, 4096))
                 || value.Datasets.Any(dataset => dataset is null || !ValidStatus(dataset.Status)
@@ -83,6 +87,22 @@ public sealed class MarketDataOperationsHealthQueryService : IMarketDataOperatio
         {
             return Failed("Operations health could not be read; current health is unknown.");
         }
+    }
+
+    public async Task<LivePipelineHealthSnapshot?> ReportAndCheckAsync(LiveUiHealthReport report, CancellationToken token = default)
+    {
+        if (endpoint is null) return null;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var healthUrl = new Uri(endpoint, "live-health");
+            using var sent = await System.Net.Http.Json.HttpClientJsonExtensions.PostAsJsonAsync(client, new Uri(endpoint, "live-health/ui"), report, deadline.Token).ConfigureAwait(false);
+            sent.EnsureSuccessStatusCode();
+            return await client.GetFromJsonAsync<LivePipelineHealthSnapshot>(healthUrl, deadline.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException)
+        { return null; }
     }
 
     static UiOperationResult<MarketDataOperationsHealthSnapshot> Failed(string reason) =>

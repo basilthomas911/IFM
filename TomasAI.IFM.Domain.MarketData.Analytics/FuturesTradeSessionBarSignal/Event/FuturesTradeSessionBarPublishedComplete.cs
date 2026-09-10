@@ -35,6 +35,7 @@ public static class FuturesTradeSessionBarPublishedComplete
         };
         await context.SendAsync<FuturesTradeSessionBarClosedRealtimeEvent,
             FuturesTradeSessionBarEntityId>(realtime).ConfigureAwait(false);
+        FuturesTradeSessionBarPublicationProgress.Record(@event.Bar);
         return true;
     }
 }

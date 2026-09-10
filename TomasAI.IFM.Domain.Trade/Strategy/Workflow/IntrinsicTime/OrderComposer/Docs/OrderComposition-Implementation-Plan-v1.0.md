@@ -11,6 +11,87 @@
 
 This document records the composer gate scope. The [composer implementation record](OrderComposition-Implementation-Record-v1.0.md) records actual code and verification separately from the earlier prerequisite record. Automated composer qualification and operational broker/risk readiness are distinct.
 
+## Operator-owned `StartPipelineAsync` correction - 2026-09-10
+
+**Status:** Planned correction to the implemented FunctionActor and prerequisite-handoff baseline.
+
+Order Composition initialization begins after Strategy Workflow has durably entered and projected
+the Order Composition stage. The upstream coordinator must not withhold dispatch while it checks
+construction policy, business-ID reservation, market preparation, instrument metadata, quotes,
+rates, or pricing readiness. `StartPipelineAsync` owns that work and returns either one immutable
+composition input or a typed `OrderCompositionPipelineFailedEvent` that Strategy Workflow persists
+and Strategy Viewer displays.
+
+```csharp
+public sealed record OrderCompositionPipelineInitialization(
+    OrderCompositionParameterSet ParameterSet,
+    string ParameterPayloadSha256,
+    TradeSelectionResult AcceptedSelection,
+    OrderCompositionBusinessIdentity BusinessIdentity,
+    OrderCompositionMarketSnapshot MarketSnapshot,
+    OrderCompositionPricingContext PricingContext);
+
+Task<PipelineStartResult<OrderCompositionPipelineInitialization>> StartPipelineAsync(
+    ExecuteOrderCompositionPipelineCommand command,
+    CancellationToken cancellationToken);
+```
+
+`StartPipelineAsync` owns these Order Composition prerequisites at the workflow's fixed
+`RequestedAtUtc`:
+
+1. Validate workflow ID/revision, trigger, ES root, and exact horizon, plus accepted Regime,
+   Market Condition, and Trade Selection lineage, hashes, validity, restrictions, and selected
+   candidate identity.
+2. Resolve the exact published construction profile/policy referenced by the accepted selection;
+   validate version, schema, canonical hash, variant signature, capability version, effective time,
+   and Fund-authorized deployment/assignment binding.
+3. Reserve or reload the deterministic Portfolio/Fund/order/trade business identities through the
+   existing durable idempotent reservation path. A retry uses the same reservation identity and
+   cannot allocate different IDs for the same workflow invocation.
+4. Validate the selected structure, side, bias, premium mode, leg count/roles/ratios, expiration
+   groups, product/settlement rules, and construction bounds for the selected one-unit candidate.
+5. Accept or rebuild the exact immutable market-preparation evidence required by the policy,
+   including reference futures, option universe, contract definitions, quote generations,
+   exchange/session state, and snapshot identity/hash.
+6. Validate instrument definitions, expirations, strikes, rights, multipliers, underlying links,
+   quote presence/order/size/time/skew/staleness, liquidity limits, and configured provider/feed
+   quality. Missing or corrupt required evidence is failure; it cannot silently reduce the universe.
+7. Resolve and validate the policy's Treasury/rate source and calendar, day-count, volatility and
+   pricing-model inputs, fees, tick/rounding rules, and applicable validity limits.
+8. Validate snapshot consistency, bounded collection/payload sizes, calculation deadline, and that
+   every selected contract is still represented by the frozen evidence.
+
+`ExecuteAsync` invokes `StartPipelineAsync` once and calculates from only the returned immutable
+value. A valid search that finds no constructible candidate is the operator's explicit business
+outcome when allowed by the specification. Missing policy, authority, identity reservation,
+market evidence, instrument definition, quote, rate, or pricing capability is initialization
+failure. Risk sizing, capacity reservation, Fund financial authorization, and broker submission
+remain downstream responsibilities.
+
+The initialization error includes bounded code/type/message, all reason codes, selected
+deployment/variant and construction-profile identity, reservation identity/status, failed market
+or pricing dependency, snapshot identity/hash when available, safe diagnostics, and timing.
+Strategy Viewer shows `OrderComposition / Initializing`, then `Processing`, `NoTrade`, `Completed`,
+or `Failed`, with the exact initialization evidence and reason details.
+
+Implementation and verification order:
+
+1. Add failing tests for invalid upstream lineage, missing/mismatched construction policy,
+   reservation conflict, unsupported variant, absent definitions/quotes/rates, stale or inconsistent
+   market preparation, payload overflow, and deadline expiry.
+2. Add the typed initialization contract and compatible serialization registration.
+3. Move prerequisite acceptance, ID reservation, market preparation, policy resolution, and
+   pricing readiness into the Function's `StartPipelineAsync` boundary.
+4. Preserve idempotent reservation/replay and map every initialization failure to durable workflow
+   failure without manufacturing a composed result.
+5. Extend workflow projections, queries, notifications, and Strategy Viewer detail.
+6. Run real NATS/PostgreSQL/ConfigurationDb/Portfolio/Scylla and market-provider fixtures for all
+   twelve variants and three horizons, plus retry, restart, timeout, and fault injection.
+
+**Acceptance:** every workflow reaching Order Composition is visible before prerequisites run;
+every readiness failure is attached to that workflow; and calculation receives one sealed,
+fully qualified construction input.
+
 ## 1. Entry, dependencies and layering
 
 The market-data boundary now has explicit qualification, Treasury conversion, context refresh, Black-76 enrichment and a bounded snapshot assembler connected to supervised worker sources. A mapped workflow acceptance transition commits an evidence-linked Start request before dispatch. The composer now extends this preparation into a frozen Execute Function request and typed workflow acceptance. Concrete committed business-source projection, persisted reconstruction plans, durable startup recovery/context refresh and selected-leg discovery-release receipts are implemented. Reviewed reference publication and an initial combined live pricing/handoff/replacement canary have now passed; see the [publication record](OrderComposition-Reference-Publication-and-Qualification-v1.0.md) and [closure audit](OrderComposition-Closure-Audit-v1.0.md) for sustained qualification and the separate broader Stage 4 acceptance boundary.

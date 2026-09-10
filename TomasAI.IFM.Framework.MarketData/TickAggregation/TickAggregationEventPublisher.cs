@@ -18,6 +18,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private Task? _worker;
     private int _running;
+    private long _pending;
     private readonly BoundedRealtimeTickPublisher? _bounded;
 
     public TickAggregationEventPublisher(IActorSupervisor supervisor, int capacity = 1024,
@@ -33,7 +34,8 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     public bool IsRunning => _bounded?.IsRunning ?? Volatile.Read(ref _running) != 0;
 
     public RealtimeTickPublisherSnapshot GetSnapshot() => _bounded?.GetSnapshot()
-        ?? new(false, IsRunning, false, false, false, 0, _channel?.Reader.Count ?? 0, 0,
+        ?? new(false, IsRunning, false, false, false, 0,
+            (int)Math.Min(int.MaxValue, Math.Max(0, Interlocked.Read(ref _pending))), 0,
             TimeSpan.Zero, TimeSpan.Zero, 0, 0, 0, 0, 0, 0, 0, 0,
             RealtimeTickPublisherFailure.None, "Legacy publisher; bounded Stage 3 policy is disabled.");
 
@@ -52,6 +54,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
                 ActorType.Realtime,
                 FuturesTickTradeDataChangedEvent.Actor));
             _channel = CreateChannel();
+            Interlocked.Exchange(ref _pending, 0);
             Volatile.Write(ref _running, 1);
             _worker = Task.Run(ProcessAsync);
         }
@@ -67,7 +70,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     {
         if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
-        return _channel!.Writer.WriteAsync(
+        return EnqueueAsync(
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
@@ -81,7 +84,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        return _channel!.Writer.WriteAsync(
+        return EnqueueAsync(
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
@@ -95,7 +98,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        return _channel!.Writer.WriteAsync(
+        return EnqueueAsync(
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
@@ -119,7 +122,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             await _bounded.PublishAsync(@event, lease, cancellationToken).ConfigureAwait(false);
             return;
         }
-        await _channel!.Writer.WriteAsync(
+        await EnqueueAsync(
             new Publication(@event, lease, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
@@ -145,6 +148,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             }
             _worker = null;
             _channel = null;
+            Interlocked.Exchange(ref _pending, 0);
             Volatile.Write(ref _running, 0);
             _realtimeProducer = null;
             if (failure is not null) throw failure;
@@ -159,6 +163,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         {
             await foreach (var publication in channel.Reader.ReadAllAsync().ConfigureAwait(false))
             {
+                Interlocked.Decrement(ref _pending);
                 try
                 {
                     if (publication.CancellationToken.IsCancellationRequested)
@@ -198,6 +203,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             channel.Writer.TryComplete(exception);
             while (channel.Reader.TryRead(out var pending))
             {
+                Interlocked.Decrement(ref _pending);
                 pending.DisposeLease();
             }
             Volatile.Write(ref _running, 0);
@@ -208,6 +214,20 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     private void EnsureRunning()
     {
         if (!IsRunning) throw new InvalidOperationException("The tick aggregation publisher is not running.");
+    }
+
+    private async ValueTask EnqueueAsync(Publication publication, CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _pending);
+        try
+        {
+            await _channel!.Writer.WriteAsync(publication, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            Interlocked.Decrement(ref _pending);
+            throw;
+        }
     }
 
     private static Channel<Publication> CreateChannel() =>

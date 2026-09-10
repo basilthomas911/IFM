@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
@@ -20,6 +21,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Acto
 public interface IFuturesItiSignalRealtimeContext : IRealtimeActorContext<FuturesItiSignalRealtimeActor>
 {
     /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
+    LivePipelineEvidence? HealthEvidence => null;
     IActorSupervisor Supervisor { get; }
     /// <summary>Gets the Projector service supplied to the actor context.</summary>
     IRealtimeProjector<FuturesItiSignalRealtimeActor> Projector { get; }
@@ -43,9 +45,10 @@ public sealed class FuturesItiSignalRealtimeContext : EventActorContext, IRealti
         IMarketDataApi marketDataApi,
         IDbContextFactory dbFactory,
         IStatusConsoleWriter statusConsoleWriter,
-        ILogger<FuturesItiSignalRealtimeActor> logger)
+        ILogger<FuturesItiSignalRealtimeActor> logger, LivePipelineEvidence? healthEvidence = null)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName))
     {
+        HealthEvidence = healthEvidence;
         Supervisor = IsArgumentNull.Set(supervisor);
         Projector = IsArgumentNull.Set(projector);
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
@@ -55,6 +58,7 @@ public sealed class FuturesItiSignalRealtimeContext : EventActorContext, IRealti
     }
 
     /// <inheritdoc/>
+    public LivePipelineEvidence? HealthEvidence { get; }
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
     public IRealtimeProjector<FuturesItiSignalRealtimeActor> Projector { get; }

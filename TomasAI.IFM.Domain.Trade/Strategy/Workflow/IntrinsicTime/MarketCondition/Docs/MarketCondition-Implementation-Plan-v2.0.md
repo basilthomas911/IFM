@@ -1,5 +1,78 @@
 # Market Condition Implementation Plan v2.0
 
+## Operator-owned `StartPipelineAsync` correction - 2026-09-10
+
+**Status:** Planned correction to the implemented FunctionActor baseline.
+
+Market Condition must not depend on the ITI receiver or Strategy Workflow admission path to prove
+that an assessment can run. Workflow admission first persists and projects the workflow. When the
+workflow reaches Market Condition, the Market Condition Function calls `StartPipelineAsync`; that
+method returns either immutable calculation inputs or a typed initialization error. Any failure is
+returned to Strategy Workflow as `MarketConditionAssessmentFailedEvent`, persisted against the
+already visible workflow, and displayed in Strategy Viewer.
+
+The shared initialization result follows the Regime Discovery contract:
+
+```csharp
+public sealed record MarketConditionPipelineInitialization(
+    MarketConditionAssessmentParameterSet ParameterSet,
+    string ParameterPayloadSha256,
+    RegimeDiscoveryResult AcceptedRegimeResult,
+    MarketConditionAssessmentSnapshot Snapshot);
+
+Task<PipelineStartResult<MarketConditionPipelineInitialization>> StartPipelineAsync(
+    ExecuteMarketConditionAssessmentCommand command,
+    CancellationToken cancellationToken);
+```
+
+`StartPipelineAsync` owns these Market Condition prerequisites, evaluated using the workflow's fixed
+`RequestedAtUtc` and identity:
+
+1. Validate workflow ID/revision, trigger identity, instrument root, and exact Daily/Weekly/Monthly
+   horizon agreement.
+2. Load and validate the accepted Regime Discovery result, including workflow/trigger identity,
+   profile/version, payload hash, horizon, production time, validity, and restrictions.
+3. Resolve the exact published and effective assessment parameter set for market profile, ES root,
+   horizon, and request time; validate schema, canonical payload hash, and upstream profile binding.
+4. Validate reference-instrument, roll-policy, CME session, required-source, and FMP calendar
+   provider/coverage bindings. Fund, strategy-family, option-universe, and broker concerns remain
+   outside this operator.
+5. Capture one revision-stable assessment snapshot within the configured attempt bound.
+6. Validate required quotes and observations for presence, identity, finite values, event time,
+   staleness, feed/cache quality, schema/calculation version, and snapshot hash consistency.
+7. Validate calendar download evidence, coverage dates, provider/scope, content hash, freshness,
+   and resulting validity cap. Known unavailable required data produces the specified unavailable
+   assessment only where the Market Condition contract permits it; corrupt or contradictory
+   evidence is initialization failure.
+8. Validate the effective calculation deadline and return a sealed immutable initialization value.
+
+`ExecuteAsync` invokes `StartPipelineAsync` exactly once. It passes only the returned initialization
+value to the calculator and performs no later mutable profile or snapshot lookup. The error contract
+contains a bounded code/type/message, all reason codes, safe diagnostics, failed prerequisite,
+configuration identity/hash when known, snapshot identity when created, and initialization timing.
+
+Strategy Viewer must show `MarketCondition / Initializing`, then `Processing`, `Completed`, or
+`Failed`. A failed detail shows the assessment profile, horizon, accepted Regime identity, failed
+source/coverage check, reason codes, timestamps, and workflow revision. Query reconciliation must
+restore the same details after missed notifications or UI restart.
+
+Implementation and verification order:
+
+1. Add failing tests for missing/mismatched profile, invalid/stale Regime input, missing required
+   observations, corrupt calendar evidence, inconsistent snapshot, and deadline expiry.
+2. Add the typed initialization contract and compatible serialization registration.
+3. Move profile resolution, upstream qualification, and snapshot capture into
+   `StartPipelineAsync`; remove those gates from earlier workflow stages.
+4. Map every initialization failure to the existing typed Function failure and durable workflow
+   failure command.
+5. Extend workflow projections, queries, notifications, and Strategy Viewer details.
+6. Run real NATS/PostgreSQL/ConfigurationDb/Scylla tests for Daily, Weekly, and Monthly success;
+   unavailable data; invalid evidence; timeout; duplicate/replay; restart; and projection failure.
+
+**Acceptance:** reaching Market Condition always creates a visible initialization attempt. No
+assessment prerequisite can cause a log-and-return outside the persisted workflow, and the
+calculator cannot run without one successful immutable initialization result.
+
 ## Typed execution-policy alignment - 2026-09-07
 
 The Function actor has five frozen maps, including exact-command `_executionPolicyMap`. Its `ResolveExecutionPolicy` override only calls the base mapped dispatcher. A `Resolve*ExecutionPolicy` extension in `Function/` returns the typed clock/deadline policy. No actor override reads policy settings, computes deadlines or constructs commit/replay callback contexts. The base enforces timers/cancellation and routes `FunctionEventPhase.Committed`/`Replayed` through `_eventMap`; Complete handlers observe and return the same completed event. Observation faults are logged without replacing durable completion. See [system actor conventions](../../../../../../Documents/system/Actor-Implementation-Conventions.md), section 13.3, for the normative contract.

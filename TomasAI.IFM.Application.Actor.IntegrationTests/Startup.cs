@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.AspNetCore.Builder;
@@ -386,6 +386,9 @@ public static class Startup
 
         void RegisterStorageServices()
         {
+            services.AddSingleton<TomasAI.IFM.Application.Storage.ReferenceDb.ITradeStrategyFamilyCatalogStore, TomasAI.IFM.Application.Storage.ReferenceDb.TradeStrategyFamilyCatalogStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
             // Match production's implemented selector capabilities; unsupported downstream capabilities remain denied.
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
                 _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()));
@@ -584,6 +587,7 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookHotCache>());
             services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
                 provider.GetRequiredService<MarketOutlookHotCache>());
+            services.AddSingleton(_ => new TomasAI.IFM.Application.MarketData.OperationsHealth.LivePipelineEvidence(TimeProvider.System));
             services.AddSingleton<MarketOutlookProcessorMetrics>();
             services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
                 provider.GetRequiredService<MarketOutlookProcessorMetrics>());

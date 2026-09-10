@@ -353,6 +353,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Mar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Strategy.Contracts.Shared", "TomasAI.IFM.Domain.Strategy.Contracts.Shared\TomasAI.IFM.Domain.Strategy.Contracts.Shared.csproj", "{8E89D029-6C35-48A3-8601-A73FCF6B6B3D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.LivePipeline.IntegrationTests", "TomasAI.IFM.LivePipeline.IntegrationTests\TomasAI.IFM.LivePipeline.IntegrationTests.csproj", "{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -3567,6 +3569,26 @@ Global
 		{8E89D029-6C35-48A3-8601-A73FCF6B6B3D}.Release|x64.Build.0 = Release|Any CPU
 		{8E89D029-6C35-48A3-8601-A73FCF6B6B3D}.Release|x86.ActiveCfg = Release|Any CPU
 		{8E89D029-6C35-48A3-8601-A73FCF6B6B3D}.Release|x86.Build.0 = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|ARM.Build.0 = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|x64.Build.0 = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Debug|x86.Build.0 = Debug|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|ARM.ActiveCfg = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|ARM.Build.0 = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|ARM64.Build.0 = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|x64.ActiveCfg = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|x64.Build.0 = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|x86.ActiveCfg = Release|Any CPU
+		{8CE69BF5-75F0-44D1-A3A0-7A78DB7989A5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

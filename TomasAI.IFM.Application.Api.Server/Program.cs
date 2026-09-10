@@ -40,7 +40,8 @@ try
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
     app.MapGet("/api/market-data/operations-health",
-        (MarketDataOperationsHealthService health) => Results.Ok(health.GetReadModel()));
+        (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)));
+    app.MapLivePipelineHealth();
     if (verifyStartupOnly)
     {
         // Run the real composition root/container checks, then exit before any schema,

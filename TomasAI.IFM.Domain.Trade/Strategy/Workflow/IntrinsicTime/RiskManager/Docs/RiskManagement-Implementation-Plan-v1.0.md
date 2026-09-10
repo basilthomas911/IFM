@@ -2,6 +2,91 @@
 
 Date: 2026-09-09. Baseline: `5d93bf7c` plus the Risk Manager specification documentation. Status: implementation delivered; final qualification is tracked in [delivery and runbook](RiskManagement-Delivery-and-Runbook.md). The sections below retain the original gate acceptance baseline; the delivery record documents the final additive sidecar/storage design.
 
+## Operator-owned `StartPipelineAsync` correction - 2026-09-10
+
+**Status:** Planned correction to the implemented Risk Function and financial-handoff baseline.
+
+Risk Management initialization begins only after Strategy Workflow has durably entered and
+projected the Risk Management stage. Its Function owns validation and freezing of upstream
+evidence, the deployment-bound Risk policy, current Portfolio/Fund financial authority, and the
+complete quantity-funding evidence needed to calculate. Failure returns a typed
+`RiskManagementPipelineFailedEvent`; Strategy Workflow persists it against the visible workflow
+and the Risk/Strategy views display the details.
+
+```csharp
+public sealed record RiskManagementPipelineInitialization(
+    RiskManagementParameterSet Policy,
+    string ConfigurationPayloadSha256,
+    OrderCompositionResult AcceptedComposition,
+    RiskSizingAuthority SizingAuthority,
+    IReadOnlyList<RiskQuantityFunding> Funding,
+    RiskManagementMarketSnapshot MarketSnapshot);
+
+Task<PipelineStartResult<RiskManagementPipelineInitialization>> StartPipelineAsync(
+    ExecuteRiskManagementPipelineCommand command,
+    CancellationToken cancellationToken);
+```
+
+`StartPipelineAsync` owns these Risk Management prerequisites at the workflow's fixed
+`RequestedAtUtc`/evaluation time:
+
+1. Validate workflow ID/revision, invocation identity/ordinal, trigger, ES root, execution
+   environment, and exact Daily/Weekly/Monthly horizon.
+2. Load and validate accepted Regime Discovery, Market Condition, Trade Selection, and Order
+   Composition results, including exact workflow/trigger lineage, hashes, revisions, validity,
+   restrictions, Portfolio/Fund/deployment/assignment, candidate, order/trade IDs, and horizon.
+3. Validate the composed one-unit candidate, structure/variant capability, legs, ratios,
+   instruments, multiplier, settlement/exercise conventions, pricing, execution envelope,
+   liquidity ceiling, snapshot linkage, and all canonical hashes.
+4. Resolve the exact published and effective deployment-bound Risk policy; validate schema,
+   policy/configuration hashes, root/currency/environment/horizon, bounds, and capability version.
+5. Read the authoritative Portfolio financial admission snapshot for the exact Portfolio, Fund,
+   deployment, and underlying. Require Found, current revision, correct ownership/book/environment,
+   Active operating state, migration qualification, preparation permission, and fresh observation.
+6. Validate financial authority epoch and version chain, source/valuation watermarks, assignment,
+   validity, available cash, maximum per-trade risk, and complete nonduplicated Portfolio/Fund/
+   deployment/underlying limit and usage keys. Missing/unavailable authority is not zero capacity.
+7. Load and validate the complete quantity-funding grid through the maximum feasible units,
+   including evidence IDs/source/version/hash, amounts, environment, observation age, and validity.
+   Missing a larger quantity fails initialization rather than silently selecting a smaller size.
+8. Validate original market snapshot and quote identities, times, skew, staleness policy,
+   definitions, option valuation inputs, finite numeric ranges, payload limits, and effective
+   deadline, then persist/reuse the immutable invocation before calculation dispatch.
+
+`ExecuteAsync` calls `StartPipelineAsync` once and gives the Risk calculators only its immutable
+result. A fully initialized calculation that finds zero feasible units remains the explicit
+business rejection `NoTrade`. Missing/invalid configuration, authority, lineage, market evidence,
+funding rows, or limits is initialization failure. Portfolio capacity reservation and Fund
+authorization occur only after an approved calculation; they are durable downstream handoff
+transitions and are not speculative initialization probes.
+
+The initialization error contains bounded code/type/message, all reason codes, invocation and
+policy identities/hashes, Portfolio/Fund/authority revision, failed evidence or limit key,
+snapshot/funding identities when known, safe diagnostics, and timing. Strategy Viewer and Risk
+detail show `RiskManagement / Initializing`, then `Processing`, `NoTrade`, `ReservePending`,
+`FundPending`, `Authorized`, or `Failed`, while keeping calculation eligibility distinct from
+financial authorization.
+
+Implementation and verification order:
+
+1. Add failing tests for every upstream lineage mismatch, stale candidate/snapshot, policy error,
+   unavailable or unqualified authority, missing/duplicate limit, incomplete funding grid,
+   valuation mismatch, payload overflow, and deadline expiry.
+2. Add the typed initialization contract and compatible serialization registration.
+3. Move Risk preparation and immutable invocation construction behind `StartPipelineAsync`, while
+   preserving fixed evaluation time and the bounded three-attempt resizing rules.
+4. Map initialization failure to the existing Function failure, workflow failure, Risk history,
+   Fund terminal synchronization where applicable, and detailed projections.
+5. Extend Strategy Viewer/Risk queries and notifications with initialization evidence and phase.
+6. Run real NATS/PostgreSQL/ConfigurationDb/Portfolio financial/Scylla tests for all variants and
+   horizons, business rejection, approval/authorization, contention, duplicate/replay, restart,
+   timeout, uncertain commit, and storage faults.
+
+**Acceptance:** every workflow reaching Risk Management exposes a durable initialization attempt;
+zero capacity is never inferred from missing authority; every preparation failure is visible; and
+no capacity reservation or Fund authorization can begin without one successful immutable Risk
+initialization result.
+
 ## 1. Delivery objective
 
 Deliver a fully observable Risk decision workflow using the exact Order Composer result and Portfolio financial authority, ending at a durable **Authorized intent**. Include dedicated Risk history queries, a usable WinForms observation UI, detailed rejection explanations, consistent Fund outcomes and verified recovery. Preserve the existing calculation, reservation and authorization controls.
