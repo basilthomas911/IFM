@@ -16,6 +16,13 @@ public partial class TradeDbContext
     {
         var row = RiskHistoryIdentity.Row(snapshot);
         if (row is null) return;
+        token.ThrowIfCancellationRequested();
+
+        // The exact invocation row and its scoped summary are one rebuildable projection unit.
+        // Once the unit starts, finish every idempotent Scylla statement even if the recovery
+        // worker is asked to stop; otherwise shutdown can leave an exact row without its history
+        // row and surface cancellation from the second statement as an unhandled worker error.
+        var projectionToken = CancellationToken.None;
         if (snapshot.WorkflowId != snapshot.State.WorkflowId || snapshot.WorkflowRevision != row.Revision || snapshot.EntityId != snapshot.State.EntityId)
             throw new InvalidDataException("Risk history source identity mismatch.");
         var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(
@@ -23,19 +30,19 @@ public partial class TradeDbContext
         var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
         var hash = RiskContracts.Hash(canonical);
         var inserted = await _dbFactory.TradeDb.Use("RiskHistory.Insert", "INSERT INTO risk_management_invocation (workflow_id,invocation_id,revision,payload,content_hash) VALUES (?,?,?,?,?) IF NOT EXISTS;")
-            .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision,payload,hash])).ExecuteSingleAsync(r=>r.GetBool(0),token);
+            .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision,payload,hash])).ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
         if (!inserted)
         {
             var old = await _dbFactory.TradeDb.Use("RiskHistory.Verify", "SELECT content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? AND revision=?;")
-                .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision])).ExecuteSingleAsync(r=>r.GetString(0),token);
+                .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision])).ExecuteSingleAsync(r=>r.GetString(0),projectionToken);
             if (old != hash) throw new InvalidDataException("Conflicting Risk history source revision.");
         }
         var summary = MessagePackBinarySerializer.Shared.Serialize(row);
         var added = await _dbFactory.TradeDb.Use("RiskHistory.SummaryInsert", "INSERT INTO risk_management_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload) VALUES (?,?,?,?,?,?,?) IF NOT EXISTS;")
-            .SetParameters(new RiskValues([row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision,summary])).ExecuteSingleAsync(r=>r.GetBool(0),token);
+            .SetParameters(new RiskValues([row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision,summary])).ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
         if (!added)
             await _dbFactory.TradeDb.Use("RiskHistory.SummaryAdvance", "UPDATE risk_management_history SET revision=?,payload=? WHERE portfolio_id=? AND fund_id=? AND value_date=? AND evaluated_at_utc=? AND invocation_id=? IF revision<?;")
-                .SetParameters(new RiskValues([row.Revision,summary,row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision])).ExecuteSingleAsync(r=>r.GetBool(0),token);
+                .SetParameters(new RiskValues([row.Revision,summary,row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision])).ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
     }
     public Task<WorkflowStrategyStateUpdatedEvent?> GetRiskInvocationAsync(Guid workflow, Guid invocation, CancellationToken token = default)
     {

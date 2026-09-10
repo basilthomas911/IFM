@@ -41,6 +41,59 @@ fn config(record_count: u32, ring_records: u64) -> FeedConfigV1 {
     }
 }
 
+#[cfg(feature = "live")]
+#[test]
+fn live_ticker_mappings_wait_for_provider_resolution() {
+    let dataset = b"GLBX.MDP3";
+    let mut value = config(0, 128);
+    value.data_source = DATA_SOURCE_DATABENTO_LIVE;
+    value.heartbeat_interval_ms = 5_000;
+    value.dataset_length = dataset.len() as u32;
+    let mut feed = ptr::null_mut();
+    unsafe {
+        assert_eq!(
+            dbf_feed_create(
+                &value,
+                dataset.as_ptr(),
+                dataset.len() as u32,
+                &mut feed,
+            ),
+            OK
+        );
+        let symbol = b"ESZ6";
+        let subscription = TickerSubscriptionV1 {
+            struct_size: size_of::<TickerSubscriptionV1>() as u32,
+            abi_version: ABI_VERSION,
+            symbol_offset: 0,
+            symbol_length: symbol.len() as u32,
+            input_symbology: 1,
+            data_kinds: MARKET_DATA_QUOTE | MARKET_DATA_TRADE,
+            reserved: 0,
+        };
+        assert_eq!(
+            dbf_feed_subscribe_tickers(
+                feed,
+                &subscription,
+                1,
+                symbol.as_ptr(),
+                symbol.len() as u32,
+                2_000,
+            ),
+            OK
+        );
+        let mappings = (*feed)
+            .mappings
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        assert_eq!(mappings.len(), 1);
+        assert_eq!(mappings[0].instrument_id, 0);
+        assert_eq!(mappings[0].publisher_id, 0);
+        assert!(!mappings[0].resolved);
+        drop(mappings);
+        assert_eq!(dbf_feed_destroy(feed.cast()), OK);
+    }
+}
+
 unsafe fn create_subscribed(
     record_count: u32,
     ring_records: u64,

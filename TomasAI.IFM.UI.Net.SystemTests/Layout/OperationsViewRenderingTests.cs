@@ -6,8 +6,10 @@ using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.App;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.Views.App;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
@@ -24,7 +26,7 @@ public sealed class OperationsViewRenderingTests
         var selectorLabel = operations.Controls.Find("lblTimeFrame", true)
             .OfType<Label>()
             .Single();
-        var eventList = operations.Controls.Find("lstItiEvents", true)
+        var eventList = operations.Controls.Find("lstStrategyWorkflows", true)
             .OfType<ListView>()
             .Single();
 
@@ -40,23 +42,29 @@ public sealed class OperationsViewRenderingTests
         selectorLabel.Height.Should().Be(selector.Height);
         selectorLabel.Width.Should().BeGreaterThanOrEqualTo(selectorLabel.PreferredWidth);
         eventList.Columns.Cast<ColumnHeader>().Select(column => column.Text)
-            .Should().Equal("Time", "Change", "Trend", "Price");
+            .Should().Equal(
+                "Date/Time",
+                "Futures ITI Signal Event",
+                "Trend Type",
+                "Futures Price",
+                "Pipeline State",
+                "Workflow End State");
         eventList.Columns[0].Width.Should().BeGreaterThanOrEqualTo(185);
 
     }
 
     [Fact]
-    public void StrategyComposesChartAndHistoryAbovePropertyGrid()
+    public void StrategyComposesChartAndWorkflowListAboveDetailsAndSummaryTabs()
     {
         using var operations = new OperationsView();
         var chart = operations.Controls.Find("itiChart", true)
             .OfType<Chart>()
             .Single();
-        var history = operations.Controls.Find("lstItiEvents", true)
+        var history = operations.Controls.Find("lstStrategyWorkflows", true)
             .OfType<ListView>()
             .Single();
-        var propertyGrid = operations.Controls.Find("itiPropertyGrid", true)
-            .OfType<PropertyGrid>()
+        var workflowTabs = operations.Controls.Find("workflowTabs", true)
+            .OfType<TabControl>()
             .Single();
         var contentSplitter = operations.Controls.Find("strategyContentSplitter", true)
             .OfType<SplitContainer>()
@@ -69,7 +77,11 @@ public sealed class OperationsViewRenderingTests
         contentSplitter.Panel1.Controls.Cast<Control>().Should().Contain(chart);
         contentSplitter.Panel2.Controls.Cast<Control>().Should().Contain(history);
         detailSplitter.Panel1.Controls.Cast<Control>().Should().Contain(contentSplitter);
-        detailSplitter.Panel2.Controls.Cast<Control>().Should().Contain(propertyGrid);
+        detailSplitter.Panel2.Controls.Cast<Control>().Should().Contain(workflowTabs);
+        workflowTabs.TabPages.Cast<TabPage>().Select(page => page.Text)
+            .Should().Equal("Details", "Summary");
+        operations.Controls.Find("lblWorkflowSummaryUnavailable", true)
+            .OfType<Label>().Single().Text.Should().Be("Summary is not available.");
         chart.ChartAreas.Single().AxisX.Title.Should().Be("Market Time (ET)");
         chart.ChartAreas.Single().AxisY.Title.Should().Be("ITI Signal Price");
         chart.Titles.Should().BeEmpty();
@@ -97,6 +109,63 @@ public sealed class OperationsViewRenderingTests
             "Direction Down",
             "Selection"
         ]);
+    }
+
+    [Theory]
+    [InlineData(PipelineActorDisplayState.Processing, "Yellow")]
+    [InlineData(PipelineActorDisplayState.Continued, "Lime")]
+    [InlineData(PipelineActorDisplayState.Stopped, "Red")]
+    public void StrategyPipelineStatesUseApprovedBrightColors(
+        PipelineActorDisplayState state,
+        string expectedColorName)
+    {
+        var color = (Color)typeof(OperationsView)
+            .GetMethod("PipelineColor", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [state])!;
+
+        color.Name.Should().Be(expectedColorName);
+    }
+
+    [Fact]
+    public void StrategyPipelineOwnerDrawingRendersEveryApprovedCircleColor()
+    {
+        using var operations = new OperationsView();
+        using var bitmap = new Bitmap(400, 40);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Black);
+        PipelineActorIndicator[] actors =
+        [
+            new(StrategyWorkflowStage.RegimeDiscovery, "RD", "Regime Discovery", PipelineActorDisplayState.Continued, "Regime Discovery completed"),
+            new(StrategyWorkflowStage.MarketCondition, "MC", "Market Condition", PipelineActorDisplayState.Processing, "Market Condition processing"),
+            new(StrategyWorkflowStage.TradeSelection, "TS", "Trade Selection", PipelineActorDisplayState.Stopped, "Trade Selection failed")
+        ];
+
+        typeof(OperationsView)
+            .GetMethod("DrawPipelineActors", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(operations, [graphics, new Rectangle(0, 0, bitmap.Width, bitmap.Height), actors, false]);
+
+        var pixels = Enumerable.Range(0, bitmap.Width)
+            .SelectMany(x => Enumerable.Range(0, bitmap.Height).Select(y => bitmap.GetPixel(x, y).ToArgb()))
+            .ToArray();
+        pixels.Count(value => value == Color.Lime.ToArgb()).Should().BeGreaterThan(20);
+        pixels.Count(value => value == Color.Yellow.ToArgb()).Should().BeGreaterThan(20);
+        pixels.Count(value => value == Color.Red.ToArgb()).Should().BeGreaterThan(20);
+    }
+
+    [Fact]
+    public void StrategyWorkflowSelectionHighlightsOnlyAMatchingChartPoint()
+    {
+        using var operations = new OperationsView();
+        var chart = operations.Controls.Find("itiChart", true).OfType<Chart>().Single();
+        var point = chart.Series["ITI Price"].Points.AddXY(1d, 6500d);
+        chart.Series["ITI Price"].Points[point].Tag = "signal-identity";
+        var highlight = typeof(OperationsView)
+            .GetMethod("HighlightChartPoint", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        highlight.Invoke(operations, ["signal-identity"]);
+        chart.Series["Selection"].Points.Should().ContainSingle();
+        highlight.Invoke(operations, ["missing-signal"]);
+        chart.Series["Selection"].Points.Should().BeEmpty();
     }
 
     [Theory]

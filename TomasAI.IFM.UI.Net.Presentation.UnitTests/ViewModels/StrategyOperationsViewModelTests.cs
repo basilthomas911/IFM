@@ -1,15 +1,22 @@
 using FluentAssertions;
+using MessagePack;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Models.Operations;
 using TomasAI.IFM.UI.Net.Presentation.UnitTests.TestDoubles;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using Xunit.Abstractions;
 
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
@@ -17,6 +24,9 @@ public sealed class StrategyOperationsViewModelTests
 {
     const string ContractId = "ESZ26";
     static readonly DateOnly ValueDate = new(2026, 8, 21);
+    readonly ITestOutputHelper _output;
+
+    public StrategyOperationsViewModelTests(ITestOutputHelper output) => _output = output;
 
     [Fact]
     public async Task Initialize_SubscribesBeforeHistoryAndPublishesCompleteSelectedTimeFrame()
@@ -246,6 +256,334 @@ public sealed class StrategyOperationsViewModelTests
         await operations.DisposeAsync();
     }
 
+    [Fact]
+    public async Task WorkflowNotifications_RevealOnlyStartedActorsAndApplyApprovedColors()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var workflow = Workflow(1) with
+        {
+            RegimeDiscovery = Stage(StrategyActorProcessingStatus.Processing)
+        };
+
+        subject.WorkflowEventSource.Publish(workflow);
+
+        subject.ViewModel.Workflows.Should().ContainSingle();
+        subject.ViewModel.Workflows[0].PipelineActors.Should().ContainSingle()
+            .Which.DisplayState.Should().Be(PipelineActorDisplayState.Processing);
+
+        subject.WorkflowEventSource.Publish(workflow with
+        {
+            WorkflowRevision = 2,
+            RegimeDiscovery = Stage(
+                StrategyActorProcessingStatus.Completed,
+                StrategyWorkflowContinuationDecision.Proceed),
+            MarketCondition = Stage(StrategyActorProcessingStatus.Processing),
+            CurrentStage = StrategyWorkflowStage.MarketCondition
+        });
+
+        subject.ViewModel.Workflows[0].PipelineActors.Select(actor => actor.DisplayState)
+            .Should().Equal(PipelineActorDisplayState.Continued, PipelineActorDisplayState.Processing);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task WorkflowNotifications_StopAtAnyActorAndNeverRegressRevision()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var failed = Workflow(3) with
+        {
+            CurrentStage = StrategyWorkflowStage.TradeSelection,
+            Status = WorkflowStrategyMachineStatus.Failed,
+            Outcome = StrategyWorkflowOutcome.PipelineFailed,
+            RegimeDiscovery = Stage(StrategyActorProcessingStatus.Completed, StrategyWorkflowContinuationDecision.Proceed),
+            MarketCondition = Stage(StrategyActorProcessingStatus.Completed, StrategyWorkflowContinuationDecision.Proceed),
+            TradeSelection = Stage(StrategyActorProcessingStatus.Failed)
+        };
+
+        subject.WorkflowEventSource.Publish(failed);
+        subject.WorkflowEventSource.Publish(failed with
+        {
+            WorkflowRevision = 2,
+            Status = WorkflowStrategyMachineStatus.Started,
+            Outcome = StrategyWorkflowOutcome.None
+        });
+
+        var row = subject.ViewModel.Workflows.Single();
+        row.WorkflowRevision.Should().Be(3);
+        row.PipelineActors.Select(actor => actor.DisplayState).Should().Equal(
+            PipelineActorDisplayState.Continued,
+            PipelineActorDisplayState.Continued,
+            PipelineActorDisplayState.Stopped);
+        row.PipelineActors.Should().HaveCount(3, "actors after the stopping stage remain hidden");
+        row.EndState.Should().Be("Pipeline Failed");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SelectedWorkflow_DetailsRetainEveryStageHeadingAndExplicitMissingResults()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var workflow = Workflow(1) with
+        {
+            RegimeDiscovery = Stage(StrategyActorProcessingStatus.Processing)
+        };
+        subject.WorkflowEventSource.Publish(workflow);
+
+        subject.ViewModel.SelectWorkflow(workflow.WorkflowId);
+
+        subject.ViewModel.SelectedWorkflowDetails.Should().Contain("=== REGIME DISCOVERY RESULT ===")
+            .And.Contain("=== MARKET CONDITION RESULT ===")
+            .And.Contain("=== TRADE SELECTION RESULT ===")
+            .And.Contain("=== ORDER COMPOSITION RESULT ===")
+            .And.Contain("=== RISK MANAGEMENT RESULT ===")
+            .And.Contain("None — workflow did not reach this pipeline result yet.");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(StrategyWorkflowStage.RegimeDiscovery, 1)]
+    [InlineData(StrategyWorkflowStage.MarketCondition, 2)]
+    [InlineData(StrategyWorkflowStage.TradeSelection, 3)]
+    [InlineData(StrategyWorkflowStage.OrderComposition, 4)]
+    [InlineData(StrategyWorkflowStage.RiskManagement, 5)]
+    public async Task WorkflowStop_UsesTheStoppingActorAsFinalRedCircle(
+        StrategyWorkflowStage stage,
+        int visibleActors)
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.WorkflowEventSource.Publish(AtStage(
+            Workflow(1),
+            stage,
+            StrategyActorProcessingStatus.Completed,
+            StrategyWorkflowContinuationDecision.Stop) with
+        {
+            Status = WorkflowStrategyMachineStatus.Completed,
+            Outcome = StrategyWorkflowOutcome.NoTrade
+        });
+
+        var row = subject.ViewModel.Workflows.Single();
+        row.PipelineActors.Should().HaveCount(visibleActors);
+        row.PipelineActors.Take(visibleActors - 1).Should()
+            .OnlyContain(actor => actor.DisplayState == PipelineActorDisplayState.Continued);
+        row.PipelineActors[^1].DisplayState.Should().Be(PipelineActorDisplayState.Stopped);
+        row.EndState.Should().Be("No Trade");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(StrategyActorProcessingStatus.Failed, StrategyWorkflowOutcome.PipelineFailed, "Pipeline Failed")]
+    [InlineData(StrategyActorProcessingStatus.TimedOut, StrategyWorkflowOutcome.TimedOut, "Timed Out")]
+    [InlineData(StrategyActorProcessingStatus.Cancelled, StrategyWorkflowOutcome.Cancelled, "Cancelled")]
+    public async Task WorkflowTerminalFailures_UseRedForTheActiveActor(
+        StrategyActorProcessingStatus processingStatus,
+        StrategyWorkflowOutcome outcome,
+        string endState)
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var machineStatus = processingStatus switch
+        {
+            StrategyActorProcessingStatus.TimedOut => WorkflowStrategyMachineStatus.TimedOut,
+            StrategyActorProcessingStatus.Cancelled => WorkflowStrategyMachineStatus.Cancelled,
+            _ => WorkflowStrategyMachineStatus.Failed
+        };
+        subject.WorkflowEventSource.Publish(AtStage(
+            Workflow(1),
+            StrategyWorkflowStage.OrderComposition,
+            processingStatus) with { Status = machineStatus, Outcome = outcome });
+
+        var row = subject.ViewModel.Workflows.Single();
+        row.PipelineActors.Should().HaveCount(4);
+        row.PipelineActors[^1].DisplayState.Should().Be(PipelineActorDisplayState.Stopped);
+        row.EndState.Should().Be(endState);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ApprovedAndRiskRejectedWorkflows_RenderTheFiveActorTerminalSemantics()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var approved = AtStage(
+            Workflow(1),
+            StrategyWorkflowStage.RiskManagement,
+            StrategyActorProcessingStatus.Completed,
+            StrategyWorkflowContinuationDecision.Proceed) with
+        {
+            Status = WorkflowStrategyMachineStatus.Completed,
+            Outcome = StrategyWorkflowOutcome.Completed
+        };
+        var rejected = AtStage(
+            Workflow(1),
+            StrategyWorkflowStage.RiskManagement,
+            StrategyActorProcessingStatus.Completed,
+            StrategyWorkflowContinuationDecision.Stop) with
+        {
+            Status = WorkflowStrategyMachineStatus.Completed,
+            Outcome = StrategyWorkflowOutcome.NoTrade
+        };
+        subject.WorkflowEventSource.Publish(approved);
+        subject.WorkflowEventSource.Publish(rejected);
+
+        var approvedRow = subject.ViewModel.Workflows.Single(row => row.WorkflowId == approved.WorkflowId);
+        approvedRow.PipelineActors.Should().HaveCount(5)
+            .And.OnlyContain(actor => actor.DisplayState == PipelineActorDisplayState.Continued);
+        approvedRow.EndState.Should().Be("Approved");
+        var rejectedRow = subject.ViewModel.Workflows.Single(row => row.WorkflowId == rejected.WorkflowId);
+        rejectedRow.PipelineActors.Take(4).Should()
+            .OnlyContain(actor => actor.DisplayState == PipelineActorDisplayState.Continued);
+        rejectedRow.PipelineActors[^1].DisplayState.Should().Be(PipelineActorDisplayState.Stopped);
+        rejectedRow.EndState.Should().Be("No Trade");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SameRevisionConflict_IsDiagnosedWithoutReplacingTheRetainedView()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var original = Workflow(5) with
+        {
+            RegimeDiscovery = Stage(StrategyActorProcessingStatus.Processing)
+        };
+        subject.WorkflowEventSource.Publish(original);
+        subject.WorkflowEventSource.Publish(original with { StopReasonCode = "CONFLICTING-COPY" });
+
+        subject.ViewModel.Workflows.Single().WorkflowRevision.Should().Be(5);
+        subject.ViewModel.Workflows.Single().PipelineActors.Single().DisplayState
+            .Should().Be(PipelineActorDisplayState.Processing);
+        subject.ViewModel.LastError.Should().NotBeNull();
+        subject.ViewModel.LastError!.ErrorCode.Should().Be(409);
+        subject.ViewModel.LastError.Caption.Should().Be("Strategy Workflow Revision Conflict");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Reconciliation_RecoversMissedTerminalWorkflowAndReusesBoundedTerminalCache()
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 21, 14, 0, 0, TimeSpan.Zero));
+        var interval = TimeSpan.FromMinutes(1);
+        var terminal = AtStage(
+            Workflow(2),
+            StrategyWorkflowStage.RiskManagement,
+            StrategyActorProcessingStatus.Completed,
+            StrategyWorkflowContinuationDecision.Proceed) with
+        {
+            Status = WorkflowStrategyMachineStatus.Completed,
+            Outcome = StrategyWorkflowOutcome.Completed
+        };
+        var subject = CreateSubject(timeProvider, interval);
+        var historyCalls = 0;
+        subject.WorkflowQueryApi.GetRecentAsync(
+                terminal.EntityId.Format(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>())
+            .Returns(_ => Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>>(
+                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>(
+                    Interlocked.Increment(ref historyCalls) == 1
+                        ? []
+                        : [History(terminal)])));
+        subject.WorkflowQueryApi.GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision)
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(terminal)));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.ViewModel.Workflows.Should().BeEmpty();
+        timeProvider.Advance(interval);
+        await WaitUntilAsync(() => subject.ViewModel.Workflows.Count == 1);
+        subject.ViewModel.Workflows.Single().EndState.Should().Be("Approved");
+
+        timeProvider.Advance(interval);
+        await WaitUntilAsync(() => Volatile.Read(ref historyCalls) >= 3);
+        await subject.WorkflowQueryApi.Received(1).GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task WorkflowRows_AreBoundedFilteredByTimeframeAndRejectUpdatesAfterStop()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        for (var index = 0; index < 501; index++)
+            subject.WorkflowEventSource.Publish(Workflow(index + 1) with
+            {
+                WorkflowId = new StrategyWorkflowId(Guid.NewGuid()),
+                StartedAtUtc = new DateTime(2026, 8, 21, 13, 0, 0, DateTimeKind.Utc).AddSeconds(index)
+            });
+        subject.ViewModel.Workflows.Should().HaveCount(500);
+
+        var weekly = Workflow(1) with
+        {
+            WorkflowId = new StrategyWorkflowId(Guid.NewGuid()),
+            EntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(
+                new FuturesItiSignalEntityId(ContractId, ValueDate, TimeFrameType.Weekly))
+        };
+        subject.WorkflowEventSource.Publish(weekly);
+        subject.ViewModel.SelectedTimeFrame = TimeFrameType.Weekly;
+        subject.ViewModel.Workflows.Should().ContainSingle()
+            .Which.WorkflowId.Should().Be(weekly.WorkflowId);
+
+        await subject.ViewModel.StopAsync(CancellationToken.None);
+        subject.WorkflowEventSource.Publish(weekly with
+        {
+            WorkflowId = new StrategyWorkflowId(Guid.NewGuid()),
+            WorkflowRevision = 2
+        });
+        subject.ViewModel.Workflows.Should().ContainSingle();
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    [Trait("Category", "PerformanceObservation")]
+    public async Task WorkflowUiLatency_IsMeasuredWithoutQualificationLimit()
+    {
+        var terminal = AtStage(
+            Workflow(7),
+            StrategyWorkflowStage.RiskManagement,
+            StrategyActorProcessingStatus.Completed,
+            StrategyWorkflowContinuationDecision.Proceed) with
+        {
+            Status = WorkflowStrategyMachineStatus.Completed,
+            Outcome = StrategyWorkflowOutcome.Completed
+        };
+        var subject = CreateSubject();
+        subject.WorkflowQueryApi.GetRecentAsync(
+                terminal.EntityId.Format(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>())
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>([History(terminal)]));
+        subject.WorkflowQueryApi.GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision)
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(terminal)));
+
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        timer.Stop();
+        var hydrationMilliseconds = timer.Elapsed.TotalMilliseconds;
+        subject.ViewModel.SelectWorkflow(terminal.WorkflowId);
+
+        var updated = terminal with
+        {
+            WorkflowRevision = terminal.WorkflowRevision + 1,
+            UpdatedAtUtc = terminal.UpdatedAtUtc.AddMilliseconds(1)
+        };
+        timer.Restart();
+        subject.WorkflowEventSource.Publish(updated);
+        timer.Stop();
+        var liveUpdateMilliseconds = timer.Elapsed.TotalMilliseconds;
+
+        subject.ViewModel.Workflows.Single().WorkflowRevision.Should().Be(updated.WorkflowRevision);
+        subject.ViewModel.SelectedWorkflowDetails.Should().Contain($"Revision: {updated.WorkflowRevision}");
+        _output.WriteLine(
+            "SWUI observational timing: one persisted workflow hydrate/startup={0:F3} ms; selected live revision reduce+details={1:F3} ms. No qualification limit applied.",
+            hydrationMilliseconds,
+            liveUpdateMilliseconds);
+        await subject.ViewModel.DisposeAsync();
+    }
+
     static Subject CreateSubject(
         TimeProvider? timeProvider = null,
         TimeSpan? reconciliationInterval = null)
@@ -266,7 +604,13 @@ public sealed class StrategyOperationsViewModelTests
 
         var consumer = Substitute.For<IFuturesItiSignalUIEventConsumer>();
         var eventSource = new TestEventSource(consumer);
-        var model = new StrategyOperationsService(queryApi, consumer);
+        var workflowApi = Substitute.For<IIntrinsicTimeStrategyWorkflowQueryApi>();
+        workflowApi.GetRecentAsync(Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<int>())
+            .Returns(Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>>(
+                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>([])));
+        var workflowConsumer = Substitute.For<IIntrinsicTimeStrategyWorkflowUIEventConsumer>();
+        var workflowEventSource = new TestWorkflowEventSource(workflowConsumer);
+        var model = new StrategyOperationsService(queryApi, consumer, workflowApi, workflowConsumer);
         return new Subject(
             new StrategyOperationsViewModel(
                 model,
@@ -275,7 +619,9 @@ public sealed class StrategyOperationsViewModelTests
                 timeProvider,
                 reconciliationInterval),
             queryApi,
-            eventSource);
+            eventSource,
+            workflowApi,
+            workflowEventSource);
     }
 
     static async Task WaitUntilAsync(Func<bool> condition)
@@ -323,7 +669,9 @@ public sealed class StrategyOperationsViewModelTests
     sealed record Subject(
         StrategyOperationsViewModel ViewModel,
         IMarketDataAnalyticsQueryApi QueryApi,
-        TestEventSource EventSource);
+        TestEventSource EventSource,
+        IIntrinsicTimeStrategyWorkflowQueryApi WorkflowQueryApi,
+        TestWorkflowEventSource WorkflowEventSource);
 
     sealed class TestEventSource
     {
@@ -366,4 +714,146 @@ public sealed class StrategyOperationsViewModelTests
                     FuturesItiSignal = signal
                 });
     }
+
+    sealed class TestWorkflowEventSource
+    {
+        Action<IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent>? _eventAction;
+
+        public TestWorkflowEventSource(IIntrinsicTimeStrategyWorkflowUIEventConsumer consumer)
+        {
+            consumer.StartAsync(
+                    Arg.Any<Guid>(),
+                    Arg.Any<Action<IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent>>())
+                .Returns(call =>
+                {
+                    _eventAction = call.ArgAt<Action<IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent>>(1);
+                    return ValueTask.CompletedTask;
+                });
+            consumer.StopAsync(Arg.Any<Guid>()).Returns(ValueTask.CompletedTask);
+        }
+
+        public void Publish(IntrinsicTimeStrategyWorkflowView view)
+            => (_eventAction ?? throw new InvalidOperationException("Workflow listener not started."))(
+                new IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent
+                {
+                    Subject = new ActorSubject(
+                        ActorType.Notify,
+                        IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent.Actor,
+                        IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent.Verb,
+                        view.EntityId.Format()),
+                    Id = Guid.NewGuid(),
+                    SourceEventId = Guid.NewGuid(),
+                    EntityId = view.EntityId,
+                    WorkflowId = view.WorkflowId,
+                    WorkflowRevision = view.WorkflowRevision,
+                    State = view,
+                    UpdatedAtUtc = view.UpdatedAtUtc
+                });
+    }
+
+    static IntrinsicTimeStrategyWorkflowView Workflow(long revision)
+    {
+        var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(
+            new FuturesItiSignalEntityId(ContractId, ValueDate, TimeFrameType.Daily));
+        var signal = Signal(TimeFrameType.Daily, 1, IntrinsicTimeModeType.TrendDirectionChanged);
+        var now = new DateTime(2026, 8, 21, 13, 30, 1, DateTimeKind.Utc);
+        var trigger = new FuturesItiSignalGeneratedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor,
+                FuturesItiSignalGeneratedEvent.Verb, signal.EntityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = signal.EntityId,
+            CommandId = Guid.NewGuid(),
+            CreatedOn = now,
+            ReceivedOn = now,
+            FuturesItiSignal = signal
+        };
+        return new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = entity,
+            WorkflowId = new StrategyWorkflowId(Guid.NewGuid()),
+            TriggerEventId = trigger.Id,
+            TriggerEvent = trigger,
+            WorkflowDefinitionVersion = 1,
+            Status = WorkflowStrategyMachineStatus.Started,
+            CurrentStage = StrategyWorkflowStage.RegimeDiscovery,
+            WorkflowRevision = revision,
+            StartedAtUtc = now,
+            UpdatedAtUtc = now.AddMilliseconds(revision),
+            ExpiresAtUtc = now.AddMinutes(1)
+        };
+    }
+
+    static StrategyWorkflowStageState Stage(
+        StrategyActorProcessingStatus status,
+        StrategyWorkflowContinuationDecision continuation = StrategyWorkflowContinuationDecision.None)
+        => new()
+        {
+            ProcessingStatus = status,
+            ContinuationDecision = continuation,
+            StartedAtUtc = status == StrategyActorProcessingStatus.NotStarted
+                ? null
+                : new DateTime(2026, 8, 21, 13, 30, 1, DateTimeKind.Utc)
+        };
+
+    static IntrinsicTimeStrategyWorkflowView AtStage(
+        IntrinsicTimeStrategyWorkflowView workflow,
+        StrategyWorkflowStage currentStage,
+        StrategyActorProcessingStatus currentStatus,
+        StrategyWorkflowContinuationDecision currentContinuation = StrategyWorkflowContinuationDecision.None)
+    {
+        var completed = Stage(
+            StrategyActorProcessingStatus.Completed,
+            StrategyWorkflowContinuationDecision.Proceed);
+        StrategyWorkflowStageState StateFor(StrategyWorkflowStage stage)
+            => (int)stage < (int)currentStage
+                ? completed
+                : stage == currentStage
+                    ? Stage(currentStatus, currentContinuation)
+                    : new StrategyWorkflowStageState();
+        return workflow with
+        {
+            CurrentStage = currentStage,
+            RegimeDiscovery = StateFor(StrategyWorkflowStage.RegimeDiscovery),
+            MarketCondition = StateFor(StrategyWorkflowStage.MarketCondition),
+            TradeSelection = StateFor(StrategyWorkflowStage.TradeSelection),
+            OrderComposition = StateFor(StrategyWorkflowStage.OrderComposition),
+            RiskManagement = StateFor(StrategyWorkflowStage.RiskManagement)
+        };
+    }
+
+    static IntrinsicTimeStrategyWorkflowHistoryReadModel History(IntrinsicTimeStrategyWorkflowView workflow)
+        => new(
+            workflow.EntityId.Format(),
+            workflow.StartedAtUtc,
+            workflow.WorkflowId,
+            StrategyWorkflowStatus.Completed,
+            workflow.Outcome,
+            workflow.CurrentStage,
+            workflow.WorkflowRevision,
+            workflow.TerminalAtUtc,
+            workflow.StopReasonCode);
+
+    static IntrinsicTimeStrategyWorkflowReadModel Detail(IntrinsicTimeStrategyWorkflowView workflow)
+        => new(
+            workflow.WorkflowId,
+            workflow.EntityId.Format(),
+            workflow.EntityId.WorkflowDefinitionId,
+            workflow.WorkflowDefinitionVersion,
+            workflow.EntityId.ItiSignalEntityId.ContractId,
+            workflow.EntityId.ItiSignalEntityId.TimeFrameStartValueDate,
+            workflow.EntityId.ItiSignalEntityId.TimePeriod,
+            workflow.TriggerEventId,
+            workflow.CorrelationId,
+            StrategyWorkflowStatus.Completed,
+            workflow.Outcome,
+            workflow.CurrentStage,
+            workflow.WorkflowRevision,
+            1,
+            2,
+            MessagePackSerializer.Serialize(workflow),
+            workflow.StopReasonCode,
+            workflow.StartedAtUtc,
+            workflow.TerminalAtUtc,
+            workflow.UpdatedAtUtc);
 }

@@ -24,12 +24,18 @@ partial class OperationsView
         strategySplitter = new SplitContainer();
         strategyContentSplitter = new SplitContainer();
         itiChart = new System.Windows.Forms.DataVisualization.Charting.Chart();
-        lstItiEvents = new ListView();
+        lstStrategyWorkflows = new ListView();
         colTime = new ColumnHeader();
-        colMode = new ColumnHeader();
+        colSignalEvent = new ColumnHeader();
         colTrend = new ColumnHeader();
         colPrice = new ColumnHeader();
-        itiPropertyGrid = new PropertyGrid();
+        colPipelineState = new ColumnHeader();
+        colWorkflowEndState = new ColumnHeader();
+        workflowTabs = new DarkTabControl();
+        tabWorkflowDetails = new TabPage();
+        tabWorkflowSummary = new TabPage();
+        txtWorkflowDetails = new RichTextBox();
+        lblWorkflowSummaryUnavailable = new Label();
         tabLatency = new TabPage();
         tabTraffic = new TabPage();
         tabErrors = new TabPage();
@@ -157,7 +163,7 @@ partial class OperationsView
         strategySplitter.Orientation = Orientation.Horizontal;
         strategySplitter.Panel1.Controls.Add(strategyContentSplitter);
         strategySplitter.Panel1MinSize = 260;
-        strategySplitter.Panel2.Controls.Add(itiPropertyGrid);
+        strategySplitter.Panel2.Controls.Add(workflowTabs);
         strategySplitter.Panel2MinSize = 120;
         strategySplitter.Size = new Size(513, 733);
         strategySplitter.SplitterDistance = 490;
@@ -174,7 +180,7 @@ partial class OperationsView
         strategyContentSplitter.Orientation = Orientation.Horizontal;
         strategyContentSplitter.Panel1.Controls.Add(itiChart);
         strategyContentSplitter.Panel1MinSize = 120;
-        strategyContentSplitter.Panel2.Controls.Add(lstItiEvents);
+        strategyContentSplitter.Panel2.Controls.Add(lstStrategyWorkflows);
         strategyContentSplitter.Panel2MinSize = 120;
         strategyContentSplitter.Size = new Size(513, 490);
         strategyContentSplitter.SplitterDistance = 243;
@@ -192,51 +198,84 @@ partial class OperationsView
         itiChart.TabIndex = 0;
         itiChart.MouseClick += itiChart_MouseClick;
         //
-        // lstItiEvents
+        // lstStrategyWorkflows
         //
-        lstItiEvents.BackColor = Color.Black;
-        lstItiEvents.BorderStyle = BorderStyle.None;
-        lstItiEvents.Columns.AddRange([colTime, colMode, colTrend, colPrice]);
-        lstItiEvents.Dock = DockStyle.Fill;
-        lstItiEvents.ForeColor = Color.White;
-        lstItiEvents.FullRowSelect = true;
-        lstItiEvents.HideSelection = false;
-        lstItiEvents.Location = new Point(0, 0);
-        lstItiEvents.MultiSelect = false;
-        lstItiEvents.Name = "lstItiEvents";
-        lstItiEvents.Size = new Size(513, 242);
-        lstItiEvents.TabIndex = 1;
-        lstItiEvents.UseCompatibleStateImageBehavior = false;
-        lstItiEvents.View = View.Details;
-        lstItiEvents.SelectedIndexChanged += lstItiEvents_SelectedIndexChanged;
-        colTime.Text = "Time";
+        lstStrategyWorkflows.BackColor = Color.Black;
+        lstStrategyWorkflows.BorderStyle = BorderStyle.None;
+        lstStrategyWorkflows.Columns.AddRange([colTime, colSignalEvent, colTrend, colPrice, colPipelineState, colWorkflowEndState]);
+        lstStrategyWorkflows.Dock = DockStyle.Fill;
+        lstStrategyWorkflows.ForeColor = Color.White;
+        lstStrategyWorkflows.FullRowSelect = true;
+        lstStrategyWorkflows.HideSelection = false;
+        lstStrategyWorkflows.Location = new Point(0, 0);
+        lstStrategyWorkflows.MultiSelect = false;
+        lstStrategyWorkflows.Name = "lstStrategyWorkflows";
+        lstStrategyWorkflows.ShowItemToolTips = true;
+        lstStrategyWorkflows.Size = new Size(513, 242);
+        lstStrategyWorkflows.TabIndex = 1;
+        lstStrategyWorkflows.UseCompatibleStateImageBehavior = false;
+        lstStrategyWorkflows.View = View.Details;
+        lstStrategyWorkflows.SelectedIndexChanged += lstStrategyWorkflows_SelectedIndexChanged;
+        colTime.Text = "Date/Time";
         colTime.Width = 185;
-        colMode.Text = "Change";
-        colMode.Width = 132;
-        colTrend.Text = "Trend";
-        colTrend.Width = 75;
-        colPrice.Text = "Price";
+        colSignalEvent.Text = "Futures ITI Signal Event";
+        colSignalEvent.Width = 165;
+        colTrend.Text = "Trend Type";
+        colTrend.Width = 90;
+        colPrice.Text = "Futures Price";
         colPrice.Width = 85;
+        colPipelineState.Text = "Pipeline State";
+        colPipelineState.Width = 235;
+        colWorkflowEndState.Text = "Workflow End State";
+        colWorkflowEndState.Width = 135;
         //
-        // itiPropertyGrid
+        // workflowTabs
         //
-        itiPropertyGrid.BackColor = Color.Black;
-        itiPropertyGrid.CategoryForeColor = Color.White;
-        itiPropertyGrid.CommandsBackColor = Color.Black;
-        itiPropertyGrid.CommandsForeColor = Color.White;
-        itiPropertyGrid.Dock = DockStyle.Fill;
-        itiPropertyGrid.HelpBackColor = Color.Black;
-        itiPropertyGrid.HelpForeColor = Color.White;
-        itiPropertyGrid.HelpVisible = false;
-        itiPropertyGrid.LineColor = Color.FromArgb(64, 64, 64);
-        itiPropertyGrid.Location = new Point(0, 0);
-        itiPropertyGrid.Name = "itiPropertyGrid";
-        itiPropertyGrid.PropertySort = PropertySort.NoSort;
-        itiPropertyGrid.Size = new Size(513, 240);
-        itiPropertyGrid.TabIndex = 0;
-        itiPropertyGrid.ToolbarVisible = false;
-        itiPropertyGrid.ViewBackColor = Color.Black;
-        itiPropertyGrid.ViewForeColor = Color.White;
+        workflowTabs.BackColor = Color.Black;
+        workflowTabs.Controls.Add(tabWorkflowDetails);
+        workflowTabs.Controls.Add(tabWorkflowSummary);
+        workflowTabs.Dock = DockStyle.Fill;
+        workflowTabs.ForeColor = Color.White;
+        workflowTabs.Name = "workflowTabs";
+        workflowTabs.SelectedIndex = 0;
+        workflowTabs.TabIndex = 0;
+        //
+        // tabWorkflowDetails
+        //
+        tabWorkflowDetails.BackColor = Color.Black;
+        tabWorkflowDetails.Controls.Add(txtWorkflowDetails);
+        tabWorkflowDetails.Name = "tabWorkflowDetails";
+        tabWorkflowDetails.Text = "Details";
+        tabWorkflowDetails.UseVisualStyleBackColor = false;
+        //
+        // txtWorkflowDetails
+        //
+        txtWorkflowDetails.BackColor = Color.Black;
+        txtWorkflowDetails.BorderStyle = BorderStyle.None;
+        txtWorkflowDetails.Dock = DockStyle.Fill;
+        txtWorkflowDetails.Font = new Font("Consolas", 10F);
+        txtWorkflowDetails.ForeColor = Color.White;
+        txtWorkflowDetails.Name = "txtWorkflowDetails";
+        txtWorkflowDetails.ReadOnly = true;
+        txtWorkflowDetails.Text = "Select a strategy workflow to inspect its pipeline results.";
+        txtWorkflowDetails.WordWrap = false;
+        //
+        // tabWorkflowSummary
+        //
+        tabWorkflowSummary.BackColor = Color.Black;
+        tabWorkflowSummary.Controls.Add(lblWorkflowSummaryUnavailable);
+        tabWorkflowSummary.Name = "tabWorkflowSummary";
+        tabWorkflowSummary.Text = "Summary";
+        tabWorkflowSummary.UseVisualStyleBackColor = false;
+        //
+        // lblWorkflowSummaryUnavailable
+        //
+        lblWorkflowSummaryUnavailable.BackColor = Color.Black;
+        lblWorkflowSummaryUnavailable.Dock = DockStyle.Fill;
+        lblWorkflowSummaryUnavailable.ForeColor = Color.Silver;
+        lblWorkflowSummaryUnavailable.Name = "lblWorkflowSummaryUnavailable";
+        lblWorkflowSummaryUnavailable.Text = "Summary is not available.";
+        lblWorkflowSummaryUnavailable.TextAlign = ContentAlignment.MiddleCenter;
         //
         // placeholders
         //
@@ -300,10 +339,16 @@ partial class OperationsView
     SplitContainer strategySplitter = null!;
     SplitContainer strategyContentSplitter = null!;
     System.Windows.Forms.DataVisualization.Charting.Chart itiChart = null!;
-    ListView lstItiEvents = null!;
+    ListView lstStrategyWorkflows = null!;
     ColumnHeader colTime = null!;
-    ColumnHeader colMode = null!;
+    ColumnHeader colSignalEvent = null!;
     ColumnHeader colTrend = null!;
     ColumnHeader colPrice = null!;
-    PropertyGrid itiPropertyGrid = null!;
+    ColumnHeader colPipelineState = null!;
+    ColumnHeader colWorkflowEndState = null!;
+    TabControl workflowTabs = null!;
+    TabPage tabWorkflowDetails = null!;
+    TabPage tabWorkflowSummary = null!;
+    RichTextBox txtWorkflowDetails = null!;
+    Label lblWorkflowSummaryUnavailable = null!;
 }

@@ -29,14 +29,18 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         CapacityAdmissionCalculation validate, Func<CapacityReservationReceipt, CapacityReservationCompletedEvent> complete, CancellationToken token = default)
         => CommitAsync(request, async (db, authority, cancellation) =>
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.reserve");
         var body = request.Body; var now = DateTime.UtcNow;
         Require(authority.State == "Active" && body.BookId == authority.Book.BookId && body.ExecutionEnvironment == authority.Book.Environment,
             FinancialReasons.AuthorityDenied, "Financial book/environment is not active for this reservation.");
         await ValidateFundSourcesAsync(db, authority.Book, body.FundId, true, cancellation);
         // This evidence is read from a committed Risk event, never accepted from the reserve caller.
+        using var evidenceTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.read_risk_evidence");
         var result = await ReadEvidenceAsync<ICapacityAssessmentCompletedEvent>(db, body.RiskInvocationId, cancellation);
+        evidenceTrace?.Stop();
         Require(result is not null, FinancialReasons.AuthorityDenied, "Committed qualified Risk assessment is unavailable.");
         Require(body.Requirements.Exposures.Length is >0 and <=256,FinancialReasons.InvalidContract,"Capacity scope count exceeds its bound.");
+        using var usageTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.read_usage");
         var used = await db.QueryAsync("""
             SELECT u.scope_kind,u.scope_key,u.measure,u.unit,u.held,u.working,u.position
             FROM portfolio_financial.capacity_usage u
@@ -47,13 +51,19 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
             """, [request.PortfolioId,Json(body.Requirements.Exposures.Select(x=>new
                 { scope_kind=(int)x.ScopeKind,scope_key=x.ScopeKey,measure=(int)x.Measure,unit=(int)x.Unit }).ToArray())], r => new CapacityUsed((CapacityScopeKind)r.GetInt32(0), r.GetString(1),
                 (CapacityMeasure)r.GetInt32(2), (CapacityUnit)r.GetInt32(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6)), cancellation);
+        usageTrace?.Stop();
         Require(used.Count<=256,FinancialReasons.InvalidContract,"Capacity usage exceeds its bound.");
+        using var cashTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.read_cash");
         var available = await GeneralLedgerStore.AvailableCash(db, body.BookId, body.FundId, cancellation);
-        validate(body, result!.CapacityAssessment, authority.Book, available, used, now);
+        cashTrace?.Stop();
+        using (FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.validate"))
+            validate(body, result!.CapacityAssessment, authority.Book, available, used, now);
+        using var existingTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.find_existing");
         var existing = await db.ScalarAsync("""
             SELECT reservation_id FROM portfolio_financial.capacity_reservation
             WHERE reservation_id=$1 OR (portfolio_id=$2 AND order_id=$3 AND status NOT IN (8,9));
             """, [body.ReservationId, request.PortfolioId, body.OrderId], cancellation);
+        existingTrace?.Stop();
         Require(existing is null, FinancialReasons.RequestMismatch, "Reservation identity/order already has a capacity decision.");
         var revision = checked(authority.Revision + 1);
         var receipt = new CapacityReservationReceipt
@@ -67,6 +77,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
             ValidUntilUtc=body.ValidUntilUtc, ExecutionEnvironment=body.ExecutionEnvironment,
             CompletedEventId=Guid.NewGuid(), InputHash=request.InputSha256
         };
+        using var writeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.write_reservation");
         await db.ExecuteAsync("""
             INSERT INTO portfolio_financial.capacity_reservation(reservation_id,portfolio_id,operation_id,fund_id,book_id,order_id,
               candidate_hash,risk_hash,sized_order_hash,strategy_units,requirements,environment,expires_at_utc,status,version,
@@ -75,8 +86,10 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
             """, [body.ReservationId,request.PortfolioId,request.OperationId,body.FundId,body.BookId,body.OrderId,
                 body.UnitCandidateHash,body.RiskAssessmentHash,body.SizedOrderHash,body.StrategyUnits,Json(body.Requirements),
                 body.ExecutionEnvironment,body.ValidUntilUtc,receipt.CompletedEventId,Json(body),Json(receipt),request.InputSha256], cancellation);
-        foreach(var exposure in body.Requirements.Exposures)
-            await AddUsageAsync(db, request.PortfolioId, exposure, (0,0,0), (1,0,0), revision, cancellation);
+        writeTrace?.Stop();
+        using (FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.write_usage"))
+            foreach(var exposure in body.Requirements.Exposures)
+                await AddUsageAsync(db, request.PortfolioId, exposure, (0,0,0), (1,0,0), revision, cancellation);
         var completed = complete(receipt);
         CheckOutcome(request, completed, receipt.CompletedEventId);
         await SaveOutcomeAsync(db, request, completed, revision, true, cancellation);

@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 
 try
 {
@@ -102,6 +103,19 @@ try
         await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>().EnsureAsync();
+        var workflowOptions = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>();
+        if (app.Environment.IsDevelopment() && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
+        {
+            var defaults = await app.Services
+                .GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.MarketConditionAssessmentDefaultProvisioner>()
+                .EnsureAsync(workflowOptions.MarketConditionAssessmentProfileId, DateTime.UtcNow, "IFM Development startup");
+            Log.Information(
+                "Development Market Condition Assessment defaults ready for {MarketProfileId}: {ExistingProfiles} existing, {PublishedProfiles} published, {ReplacedProfiles} replaced",
+                workflowOptions.MarketConditionAssessmentProfileId,
+                defaults.ExistingProfiles,
+                defaults.PublishedProfiles,
+                defaults.ReplacedProfiles);
+        }
         app.EnableServerManagerStandardInputShutdown(args, logger);
         // Bind the HTTP endpoint and start hosted infrastructure before exposing
         // any NATS actor subscriptions. If Kestrel cannot bind (for example, a
@@ -114,6 +128,15 @@ try
         {
             await app.MapEventModelActorsAsync(logger);
             actorsStarted = true;
+            var developmentPortfolio = app.Services.GetRequiredService<DevelopmentTradingPortfolioOptions>();
+            if (app.Environment.IsDevelopment()
+                && developmentPortfolio.Enabled
+                && string.IsNullOrWhiteSpace(app.Configuration["IFM_TEST_ACTOR_DOMAIN"]))
+            {
+                using var provisioningDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                await app.Services.GetRequiredService<DevelopmentTradingPortfolioProvisioner>()
+                    .EnsureAsync(provisioningDeadline.Token);
+            }
             await app.WaitForShutdownAsync();
         }
         finally

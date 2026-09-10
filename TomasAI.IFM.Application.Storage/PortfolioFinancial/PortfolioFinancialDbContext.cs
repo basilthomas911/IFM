@@ -74,6 +74,7 @@ public sealed class PortfolioFinancialDbContext(IPostgresEventTransaction transa
     internal static async Task<T?> ReadOperationAsync<T>(EnlistedEventTransaction db, int portfolioId, Guid operationId,
         string? inputHash,CancellationToken token) where T:class,IFinancialCompletedEvent
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.operation.read_receipt");
         var rows=await db.QueryAsync("""
             SELECT r.input_hash,e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
             FROM portfolio_financial.financial_operation_receipt r JOIN event_log e ON e.eventversion=r.event_version
@@ -89,6 +90,7 @@ public sealed class PortfolioFinancialDbContext(IPostgresEventTransaction transa
     internal static async Task<(FinancialBookConfiguration Book,long Revision,string State)> LockAuthorityAsync(
         EnlistedEventTransaction db,int portfolioId,long? expectedRevision,CancellationToken token)
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.authority.lock");
         var lockStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         var rows=await db.QueryAsync("""
             SELECT policy_source_versions::text,financial_revision,operating_state FROM portfolio_financial.financial_authority
@@ -104,6 +106,7 @@ public sealed class PortfolioFinancialDbContext(IPostgresEventTransaction transa
     internal static async Task ValidateFundSourcesAsync(EnlistedEventTransaction db,FinancialBookConfiguration book,
         int fundId,bool spending,CancellationToken token)
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.authority.validate_fund_sources");
         var fund=book.Funds.SingleOrDefault(x=>x.FundId==fundId);
         Require(fund is not null,FinancialReasons.AuthorityDenied,"Fund does not belong to this financial book.");
         if(!spending) return; // Authenticated financial facts still post after a mandate is suspended.
@@ -123,6 +126,7 @@ public sealed class PortfolioFinancialDbContext(IPostgresEventTransaction transa
     internal static async Task<long> SaveOutcomeAsync(EnlistedEventTransaction db,IFinancialRequest request,
         IFinancialCompletedEvent completed,long revision,bool function,CancellationToken token)
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.operation.save_outcome");
         var stream=request.Subject.StreamId;
         var expected=function?0:Convert.ToInt64(await db.ScalarAsync("SELECT currentversion FROM event_stream_id WHERE eventstream=$1;",[stream],token)??0L);
         var eventVersion=await db.AppendAsync(stream,request.CommandId,completed,expected,token);

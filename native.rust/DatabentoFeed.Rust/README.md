@@ -35,8 +35,9 @@ Outputs are staged under `out/build/<Configuration>` or
 `out/live-build/<Configuration>`. Only one implementation of the canonical DLL name may
 be copied to a managed application's runtime directory.
 
-The existing managed projects keep C++ as the default. Select Rust without changing the
-P/Invoke declarations:
+Managed Debug builds use the Rust implementation by default so Development hosts consume
+the current ABI whenever this crate is rebuilt. Release builds keep C++ as the default.
+Either implementation can be selected explicitly without changing the P/Invoke declarations:
 
 ```powershell
 dotnet test ..\..\TomasAI.IFM.Framework.MarketData.DataBento.UnitTests `

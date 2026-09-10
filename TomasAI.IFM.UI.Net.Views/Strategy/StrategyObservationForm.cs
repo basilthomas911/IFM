@@ -53,8 +53,8 @@ public sealed class StrategyObservationForm:DarkTradingForm,IForm<StrategyObserv
         };
         _risk.Click+=(_,_)=>
         {
-            if(_riskApi is null || _view?.OrderComposition.Result?.CompositionResult?.Candidate is not {} candidate)return;
-            using var form=new RiskHistoryForm(_riskApi,candidate.PortfolioId,candidate.FundId,_view.WorkflowId,_view.RiskExecution?.CommandId ?? _view.CausationId);
+            if(_riskApi is null || _view is not { OrderComposition: { Result: { CompositionResult: { Candidate: { } candidate } } } } view)return;
+            using var form=new RiskHistoryForm(_riskApi,candidate.PortfolioId,candidate.FundId,view.WorkflowId,view.RiskExecution?.CommandId ?? view.CausationId);
             form.ShowDialog(this);
         };
         FormClosed+=(_,_)=>{_lifetime.Cancel();_lifetime.Dispose();};
@@ -89,11 +89,11 @@ public sealed class StrategyObservationForm:DarkTradingForm,IForm<StrategyObserv
             var result=await _assessments.GetAsync(view.WorkflowId,_lifetime.Token);
             if(result.Success)projected=result.Value;
         }
-        if(!IsDisposed&&revision==_revision){_view=view;_risk.Enabled=_riskApi is not null && view.CurrentStage==StrategyWorkflowStage.RiskManagement && view.OrderComposition.Result?.CompositionResult?.Candidate is not null;_details.Text=MarketAssessmentPresenter.Render(view,projected,DateTime.UtcNow);}
+        if(!IsDisposed&&revision==_revision){_view=view;_risk.Enabled=_riskApi is not null && view.CurrentStage==StrategyWorkflowStage.RiskManagement && view.OrderComposition is { Result: { CompositionResult: { Candidate: not null } } };_details.Text=MarketAssessmentPresenter.Render(view,projected,DateTime.UtcNow);}
     }
     sealed record HistoryItem(MarketConditionAssessmentCompletedEvent Completed)
     {
         public override string ToString()
-        {var r=MarketConditionAssessmentContracts.ReadResult(Completed.Result);return $"{r.EvaluatedAtUtc:yyyy-MM-dd HH:mm:ss} {r.TargetHorizon} {r.Assessment.Availability} {r.Assessment.ConditionType}";}
+        {var envelope=Completed is { Result: { } value }?value:throw new InvalidOperationException("Assessment result is unavailable.");var r=MarketConditionAssessmentContracts.ReadResult(envelope);return $"{r.EvaluatedAtUtc:yyyy-MM-dd HH:mm:ss} {r.TargetHorizon} {r.Assessment.Availability} {r.Assessment.ConditionType}";}
     }
 }

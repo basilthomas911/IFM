@@ -44,6 +44,8 @@ public sealed class FeedOptionsTests
             "GLBX.MDP3");
 
         Assert.Equal(TimeSpan.FromSeconds(30), options.RingBackpressure.RingFullTimeout);
+        Assert.False(options.CpuAffinity.PinFeedThreads);
+        Assert.False(options.CpuAffinity.RequirePerformanceCore);
     }
 
     [Fact]

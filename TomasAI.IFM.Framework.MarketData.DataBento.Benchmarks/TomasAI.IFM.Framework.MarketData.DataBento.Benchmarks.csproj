@@ -5,6 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DatabentoNativeConfiguration Condition="'$(DatabentoNativeConfiguration)' == ''">Release</DatabentoNativeConfiguration>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,9 +16,9 @@
   <Target Name="BuildDatabentoSyntheticNative"
           BeforeTargets="Build"
           Condition="'$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true'">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\build-native.ps1&quot; -Configuration $(Configuration)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\build-native.ps1&quot; -Configuration $(DatabentoNativeConfiguration)" />
     <ItemGroup>
-      <DatabentoNativeRuntimeDll Include="$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll" />
+      <DatabentoNativeRuntimeDll Include="$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\out\build\$(DatabentoNativeConfiguration)\*.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(DatabentoNativeRuntimeDll)" DestinationFolder="$(OutDir)runtimes\win-x64\native" />
   </Target>

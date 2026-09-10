@@ -16,11 +16,18 @@ public static class CompositionDispatch
     public static ExecuteOrderCompositionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view,
         CompositionPreparation preparation, DateTime now)
     {
+        using var trace = WorkflowTrace.Start("composer.dispatch.create", view);
         var start = view.CompositionDispatch ?? throw new InvalidDataException("Accepted preparation is required.");
-        TradeSelectionHandoff.ValidateStart(start, now);
-        CompositionPreparationService.Validate(preparation);
+        using (WorkflowTrace.Start("composer.dispatch.validate_preparation", view))
+        {
+            TradeSelectionHandoff.ValidateStart(start, now);
+            CompositionPreparationService.Validate(preparation);
+        }
+        using var bindingTrace = WorkflowTrace.Start("composer.dispatch.resolve_binding", view);
         var selected = TradeSelectionContracts.ReadResult(start.AcceptedSelection!);
         var binding = CompositionBindingResolver.Resolve(selected, start.SelectionBinding!, now);
+        bindingTrace?.Stop();
+        using var requestTrace = WorkflowTrace.Start("composer.dispatch.build_request", view);
         var p = binding.Rules.VariantRules.Single(x => x.VariantKey == binding.Selected.VariantKey).BaseParameters;
         var id = new OrderCompositionExecutionId(view.EntityId, view.WorkflowId, view.WorkflowRevision);
         var request = new ExecuteOrderCompositionPipelineCommand
@@ -34,9 +41,14 @@ public static class CompositionDispatch
             AcceptedSelectionEnvelope = start.AcceptedSelection!, SelectionBinding = start.SelectionBinding!, Reservation = start.Reservation!,
             CompositionBinding = binding, MarketSnapshot = CompositionSnapshotAdapter.From(preparation.Snapshot)
         };
-        request = request with { InputSha256 = request.Fingerprint() };
-        var errors = new List<ValidationError>().ValidateCompositionFields(request).ValidateCompositionEvidence(request);
-        if (errors.Count != 0) throw new CompositionException("OC.CONTRACT.INVALID");
+        requestTrace?.Stop();
+        using (WorkflowTrace.Start("composer.dispatch.fingerprint", view))
+            request = request with { InputSha256 = request.Fingerprint() };
+        using (WorkflowTrace.Start("composer.dispatch.validate_request", view))
+        {
+            var errors = new List<ValidationError>().ValidateCompositionFields(request).ValidateCompositionEvidence(request);
+            if (errors.Count != 0) throw new CompositionException("OC.CONTRACT.INVALID");
+        }
         return request;
     }
 }

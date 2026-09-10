@@ -276,6 +276,15 @@ public class UiArchitectureBaselineTests
         consumer.Should().NotContain("IntrinsicTimeModeType",
             "the notification boundary must forward every authoritative ITI mode");
 
+        var workflowConsumer = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.EventConsumer",
+            "IntrinsicTimeStrategyWorkflowUIEventConsumer.cs"));
+        workflowConsumer.Should().Contain("ActorType.Notify");
+        workflowConsumer.Should().Contain("IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent");
+        workflowConsumer.Should().NotContain("ActorType.Event");
+        workflowConsumer.Should().Contain("ConcurrentDictionary<Guid");
+
         var operationsDesigner = File.ReadAllText(Path.Combine(
             SolutionSource.RootPath,
             "TomasAI.IFM.UI.Net.Views",
@@ -295,15 +304,17 @@ public class UiArchitectureBaselineTests
         operationsDesigner.Should().Contain("lblTitle.Text = \"Operations\"");
         operationsDesigner.Should().Contain("strategySplitter.Panel1.Controls.Add(strategyContentSplitter)");
         operationsDesigner.Should().Contain("strategyContentSplitter.Panel1.Controls.Add(itiChart)");
-        operationsDesigner.Should().Contain("strategyContentSplitter.Panel2.Controls.Add(lstItiEvents)");
-        operationsDesigner.Should().Contain("strategySplitter.Panel2.Controls.Add(itiPropertyGrid)");
-        operationsDesigner.Should().Contain("itiPropertyGrid.PropertySort = PropertySort.NoSort");
-        operationsDesigner.Should().Contain("itiPropertyGrid.ViewBackColor = Color.Black");
+        operationsDesigner.Should().Contain("strategyContentSplitter.Panel2.Controls.Add(lstStrategyWorkflows)");
+        operationsDesigner.Should().Contain("strategySplitter.Panel2.Controls.Add(workflowTabs)");
+        operationsDesigner.Should().Contain("tabWorkflowDetails.Text = \"Details\"");
+        operationsDesigner.Should().Contain("tabWorkflowSummary.Text = \"Summary\"");
+        operationsDesigner.Should().Contain("lblWorkflowSummaryUnavailable.Text = \"Summary is not available.\"");
         operationsView.Should().Contain("const double StrategyDetailHeightRatio = 0.33");
         operationsView.Should().Contain("Futures ITI - {strategy.ContractId}");
         operationsView.Should().Contain("area.AxisX.Title = \"Market Time (ET)\"");
         operationsView.Should().Contain("area.AxisY.Title = \"ITI Signal Price\"");
-        operationsView.Should().Contain("itiPropertyGrid.SelectedObject = new ItiSignalPropertyGridModel(row)");
+        operationsView.Should().Contain("PipelineColor(actor.DisplayState)");
+        operationsView.Should().Contain("SelectWorkflow(row.WorkflowId)");
 
         var shellDesigner = File.ReadAllText(Path.Combine(
             SolutionSource.RootPath,

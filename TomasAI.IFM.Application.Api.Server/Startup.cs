@@ -92,6 +92,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.F
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
@@ -320,9 +321,16 @@ public static class Startup
             {
                 Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
                 MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
+                ProvisionDevelopmentMarketConditionAssessmentDefaults = provider.GetRequiredService<IConfiguration>().GetValue(
+                    "AppSettings:IntrinsicTimeStrategyWorkflow:ProvisionDevelopmentMarketConditionAssessmentDefaults", false),
                 FundId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:FundId", 1),
                 RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
             });
+            var developmentPortfolio = config.GetSection(DevelopmentTradingPortfolioOptions.SectionName)
+                .Get<DevelopmentTradingPortfolioOptions>() ?? new DevelopmentTradingPortfolioOptions();
+            services.AddSingleton(developmentPortfolio.Validate());
+            services.AddSingleton<DevelopmentTradingPortfolioProvisioner>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.ConfigurationDb.MarketConditionAssessmentDefaultProvisioner>();
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
                 MaximumExecutionDuration = config.GetValue(
@@ -424,6 +432,11 @@ public static class Startup
             services.AddSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
+            services.AddSingleton<SupervisorActorProducer>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioCommandApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.PortfolioCommandApi(provider.GetRequiredService<SupervisorActorProducer>()));
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFinancialPolicyCommandApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialPolicyCommandApi(provider.GetRequiredService<SupervisorActorProducer>()));
         }
 
         void RegisterEventApiServices()
@@ -450,7 +463,15 @@ public static class Startup
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
             services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
-            services.AddSingleton<IReferenceQueryApi, TomasAI.IFM.Application.Api.Nats.Client.ReferenceQueryApi>();
+            services.AddSingleton<IReferenceQueryApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.ReferenceQueryApi(
+                    provider.GetRequiredService<SupervisorActorProducer>()));
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.PortfolioQueryApi(provider.GetRequiredService<SupervisorActorProducer>()));
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFundCommandApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFundCommandApi(
+                    provider.GetRequiredService<SupervisorActorProducer>(),
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi>()));
         }
 
         void RegisterStorageServices()
@@ -502,8 +523,9 @@ public static class Startup
                 TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialHistoryProjection>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IFinancialQueryStore,
                 TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialQueryStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi,
-                TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>(provider =>
+                    new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi(
+                        provider.GetRequiredService<SupervisorActorProducer>()));
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.AccountingExportStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.EmulatorExecutionStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioAuthorityFence,

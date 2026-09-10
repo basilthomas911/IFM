@@ -16,14 +16,19 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
     public Task AppendAsync(int portfolioId,int? fundId,string stream,IEvent domainEvent,long expectedRevision,bool changesAuthority,CancellationToken token=default)
         =>transactions.ExecuteAsync(async(db,ct)=>
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.append");
         // Also serializes first-time book creation with configuration writes before an authority row exists.
-        await db.ScalarAsync("SELECT pg_advisory_xact_lock(34100,$1);",[portfolioId],ct);
+        using (FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.advisory_lock"))
+            await db.ScalarAsync("SELECT pg_advisory_xact_lock(34100,$1);",[portfolioId],ct);
+        using var lockTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.lock_authority");
         var rows=await db.QueryAsync("""
             SELECT policy_source_versions::text,authority_epoch,financial_revision,operating_state FROM portfolio_financial.financial_authority
             WHERE portfolio_id=$1 FOR UPDATE;
             """,[portfolioId],r=>(Book:Decode<FinancialBookConfiguration>(r.GetString(0)),Epoch:r.GetInt64(1),Revision:r.GetInt64(2),State:r.GetString(3)),ct);
+        lockTrace?.Stop();
         if (domainEvent is IFundRiskAuthorizedEvent { FinancialAuthorization: { } authorization })
         {
+            using var validateTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.validate_authorization");
             Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "Financial authority is required for Fund approval.");
             await FundRiskAuthorizationStore.ValidateAsync(db, portfolioId, fundId, authorization, rows[0].Book, rows[0].State, ct);
         }

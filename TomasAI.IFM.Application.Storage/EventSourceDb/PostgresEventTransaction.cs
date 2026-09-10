@@ -32,10 +32,13 @@ public sealed class PostgresEventTransaction(IDbConnectionSettings settings) : I
         ArgumentNullException.ThrowIfNull(operation);
         for(var attempt=0;;attempt++)
         {
+            using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction");
+            trace?.SetTag("financial.transaction.attempt", attempt + 1);
             var started=Stopwatch.GetTimestamp();
             try
             {
                 var result=await ExecuteAttemptAsync(operation,cancellationToken).ConfigureAwait(false);
+                trace?.SetTag("financial.transaction.outcome", "committed");
                 FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds,"committed");return result;
             }
             catch(PostgresException error) when(attempt<2 && error.SqlState is PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure)
@@ -43,6 +46,7 @@ public sealed class PostgresEventTransaction(IDbConnectionSettings settings) : I
                 // Only a confirmed server rollback may replay this database-only delegate.
                 // COMMIT uncertainty, uniqueness conflicts, lock timeouts and application refusals never retry here.
                 FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds,"rolled_back_retry");
+                trace?.SetTag("financial.transaction.outcome", "rolled_back_retry");
                 FinancialTelemetry.Retry();
                 await Task.Delay(TimeSpan.FromMilliseconds(10*(attempt+1)),cancellationToken).ConfigureAwait(false);
             }
@@ -51,6 +55,7 @@ public sealed class PostgresEventTransaction(IDbConnectionSettings settings) : I
                 var outcome=error switch { FunctionCommitOutcomeUnknownException=>"unknown",OperationCanceledException=>"cancelled",
                     PostgresException { SqlState:PostgresErrorCodes.LockNotAvailable }=>"lock_timeout",
                     PostgresException { SqlState:PostgresErrorCodes.QueryCanceled }=>"statement_timeout",_=>"failed" };
+                trace?.SetTag("financial.transaction.outcome", outcome);
                 FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds,outcome);throw;
             }
         }
@@ -59,25 +64,36 @@ public sealed class PostgresEventTransaction(IDbConnectionSettings settings) : I
     async Task<T> ExecuteAttemptAsync<T>(Func<EnlistedEventTransaction,CancellationToken,Task<T>> operation,CancellationToken cancellationToken)
     {
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.open_connection"))
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        using var beginTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.begin");
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+        beginTrace?.Stop();
         var enlisted = new EnlistedEventTransaction(connection, transaction);
         T result;
         try
         {
             // Limit lock/provider waits; caller cancellation can impose a stricter operation deadline.
-            await enlisted.ExecuteAsync("SET LOCAL lock_timeout = '1000ms'; SET LOCAL statement_timeout = '2000ms';", [], cancellationToken).ConfigureAwait(false);
-            result = await operation(enlisted, cancellationToken).ConfigureAwait(false);
+            using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.configure"))
+                await enlisted.ExecuteAsync("SET LOCAL lock_timeout = '1000ms'; SET LOCAL statement_timeout = '2000ms';", [], cancellationToken).ConfigureAwait(false);
+            using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.apply"))
+                result = await operation(enlisted, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
         }
         catch
         {
             // COMMIT has not been sent. Disposal closes a connection if rollback itself cannot be confirmed.
-            try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            try
+            {
+                using var rollbackTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.rollback");
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch { }
             throw;
         }
         try
         {
+            using var commitTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.commit");
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (PostgresException)
@@ -133,6 +149,7 @@ public sealed class EnlistedEventTransaction
     public async Task<long> AppendAsync(string stream, Guid commandId, IEvent domainEvent,
         long expectedStreamVersion, CancellationToken cancellationToken)
     {
+        using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.append");
         ArgumentException.ThrowIfNullOrWhiteSpace(stream);
         ArgumentNullException.ThrowIfNull(domainEvent);
         if (commandId == Guid.Empty || expectedStreamVersion < 0) throw new ArgumentException("Invalid event identity/version.");
@@ -144,9 +161,15 @@ public sealed class EnlistedEventTransaction
         var nameId = (int)(await ScalarAsync("SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;",
             [type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId,[type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false))!;
-        var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = EventLogMessagePackCodec.Shared.Serialize(domainEvent) };
+        using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
+        var payloadBytes = EventLogMessagePackCodec.Shared.Serialize(domainEvent);
+        var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = payloadBytes };
+        serializeTrace?.SetTag("event.payload.bytes", payloadBytes.Length);
+        serializeTrace?.Stop();
+        using var insertTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.insert");
         var eventId = await ScalarAsync(EventSourceDbSql.InsertEventLogExpectedVersion,
             [streamId, nameId, payload, commandId, DateTime.UtcNow, expectedStreamVersion], cancellationToken).ConfigureAwait(false);
+        insertTrace?.Stop();
         if (eventId is not long id) throw new ConcurrencyException($"Event stream {stream} is not at expected version {expectedStreamVersion}.");
         // EventId is transport/storage metadata. The immutable business event identity remains domainEvent.Id.
         EventInitHelper.SetProperty(domainEvent, nameof(IEvent.EventId), id);

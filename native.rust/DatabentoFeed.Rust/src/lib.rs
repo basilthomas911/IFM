@@ -313,6 +313,7 @@ mod exports {
             let subscriptions =
                 unsafe { slice::from_raw_parts(subscriptions, subscription_count as usize) };
             let mut mappings = Vec::new();
+            let synthetic = feed.config.data_source == DATA_SOURCE_SYNTHETIC;
             if mappings.try_reserve(subscription_count as usize).is_err() {
                 return NO_MEMORY;
             }
@@ -341,13 +342,13 @@ mod exports {
                     .to_vec();
                 mappings.push(Mapping {
                     subscription_index: index as u32,
-                    instrument_id: index as u32 + 1,
-                    publisher_id: 1,
+                    instrument_id: if synthetic { index as u32 + 1 } else { 0 },
+                    publisher_id: if synthetic { 1 } else { 0 },
                     data_kinds: item.data_kinds & 31,
                     input_symbology: item.input_symbology,
                     requested_symbol: symbol.clone(),
                     raw_symbol: symbol,
-                    resolved: true,
+                    resolved: synthetic,
                 });
             }
             *feed.mappings.lock().unwrap_or_else(|e| e.into_inner()) = mappings;

@@ -65,7 +65,9 @@ Final regression verification: all 1,023 Trade unit tests passed (`trade-units-o
 
 `Category=SuccessiveWorkflowStages` runs five independent Daily LongFuture workflows with one through five real pipeline actors. Every case starts at the workflow command boundary. For the first four, a test-only projector wrapper forwards preceding commits to the production projector and suppresses the endpoint commit's projection/notification. PostgreSQL still contains the accepted endpoint result; withholding the notification prevents the next actor from executing. Assertions verify every preceding result is accepted, all later results are absent, and no Risk capacity reservation occurs. These partial cases intentionally leave the production workflow nonterminal; they do not change business continuation rules.
 
-The fifth case uses the complete production projection/dispatch chain and requires Approved Risk and Authorized intent. Timing starts immediately before sending the workflow-start command. The first four stop timing at the endpoint's authoritative commit callback; the fifth stops when final authorization is observed and loaded. Fixture/host setup, including creation and funding of the isolated financial book, is excluded. Measurements have no latency qualification threshold and are separate observations, not additive stage timings. The production Portfolio services and controlled market boundary described above apply.
+The fifth case uses the complete production projection/dispatch chain and requires Approved Risk and Authorized intent. Timing starts immediately before sending the workflow-start command. The first four stop timing at the endpoint's authoritative commit callback. The repeated performance harness now records the fifth endpoint at the durable Authorized commit callback and reports active-projection cache visibility and verification separately. Fixture/host setup, including creation and funding of the isolated financial book, is excluded. Measurements have no latency qualification threshold and are separate observations, not additive stage timings. The production Portfolio services and controlled market boundary described above apply.
+
+The historical results below, including the 7.314-second actual-Portfolio observation, used the older fifth-endpoint boundary: projection observation plus the verification state load. They cannot be directly compared with the new durable-commit measurements. See [the repeated benchmark protocol and results](RiskManagement-Workflow-Performance-Benchmark.md) for matched baseline/candidate evidence.
 
 Run with the preceding command's filter changed to `Category=SuccessiveWorkflowStages`. The delivery runner includes both categories.
 
@@ -134,3 +136,19 @@ All five `SuccessiveWorkflowStages` cases passed after replacing the in-memory P
 Risk observed candidate and oldest-quote age of 2,245.571 ms. Development age-limit enforcement remained disabled, so this was recorded rather than used as a qualification threshold. The real-service five-stage result was 17.90% slower than the earlier 6.204-second controlled-Portfolio binary observation. Single-run variation also affects the first four cases, so that difference is diagnostic rather than a benchmark percentile.
 
 Evidence: `TestResults/full-workflow-binary/successive-stages-actual-portfolio.trx` and `successive-stages-actual-portfolio.log`. The isolated NATS broker was `127.0.0.1:14222`; application configuration targeted the repository's development test databases and keyspaces.
+
+## Successive endpoint checks after projection optimization - 2026-09-09
+
+All five `SuccessiveWorkflowStages` cases passed with the optimized projector and actual Portfolio services. Timers now stop at the persisted endpoint commit; the final case separately records active-cache visibility. These boundaries differ from the earlier inclusive polling/verification observations, so no percentage comparison is made against them.
+
+| Stages | Endpoint from Regime Discovery | Persisted endpoint | Result |
+| ---: | --- | ---: | --- |
+| 1 | Regime Discovery | 1.058 s | Accepted |
+| 2 | Market Assessment | 0.370 s | Accepted |
+| 3 | Trade Selection | 0.765 s | Accepted |
+| 4 | Order Composer | 2.225 s | Accepted |
+| 5 | Risk Manager / Authorized intent | 6.871 s | Approved / Authorized |
+
+The final active-cache visibility observation was 6.898 s. These are independent workflows executed once in runner order 1, 5, 4, 3, 2, with different first-use effects; they are neither incremental stage costs nor percentiles. The [repeated Release benchmark](RiskManagement-Workflow-Performance-Benchmark.md) supplies matched before/after evidence across five full-workflow scenarios, with cold and warm observations separated.
+
+Evidence: `TestResults/strategy-workflow-performance/successive-stages/successive-stages-optimized.trx` and `timings.json`. Risk age limits remained disabled in Development. No broker trade was submitted.

@@ -169,7 +169,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
             SetSelectionButtons();
             await SelectFundAsync();
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { return; }
         catch (Exception exception)
         {
             if (!IsDisposed && !Disposing && generation == _portfolioSelectionGeneration)
@@ -199,7 +199,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
                 ? $"Fund {fund.FundId} version {fund.FundMandateVersion} selected." : null);
             SetSelectionButtons();
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { return; }
         catch (Exception exception)
         {
             if (!IsDisposed && !Disposing && generation == _fundSelectionGeneration)

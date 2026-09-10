@@ -298,7 +298,8 @@ public sealed class PortfolioFundCommandActor(
             if (command is CreateFundMandateCommand create && committed is FundMandateCreated prior &&
                 !string.Equals(PortfolioCanonicalHash.Compute(create.Payload.Mandate.DefensiveCopy()), PortfolioCanonicalHash.Compute(prior.Mandate.DefensiveCopy()), StringComparison.Ordinal))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
-            await _projector.DomainEventsProjectionAsync(new DomainEventCollection([committed])).ConfigureAwait(false);
+            using (PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.project"))
+                await _projector.DomainEventsProjectionAsync(new DomainEventCollection([committed])).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         if (command is CreateFundMandateCommand requestedCreate)
@@ -311,7 +312,9 @@ public sealed class PortfolioFundCommandActor(
         var aggregate = state.Aggregate;
         await ValidateFamilyReferencesAsync(command, cancellationToken).ConfigureAwait(false);
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
+        using var transitionTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.transition");
         var domainEvent = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
+        transitionTrace?.Stop();
         if (domainEvent is not null)
         {
             await _events.AppendFundAsync(
@@ -320,7 +323,8 @@ public sealed class PortfolioFundCommandActor(
                 domainEvent.Revision - 1,
                 Metadata(command, now),
                 cancellationToken).ConfigureAwait(false);
-            await _projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
+            using (PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.project"))
+                await _projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
         }
         PortfolioTelemetry.CommandOutcomes.Add(1,
             new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),

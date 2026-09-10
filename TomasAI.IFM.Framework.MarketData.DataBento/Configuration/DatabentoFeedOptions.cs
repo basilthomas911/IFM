@@ -175,6 +175,11 @@ public sealed record DatabentoFeedOptions
                 DeploymentProfile = profile,
                 Dataset = dataset,
                 DataSource = FeedDataSourceMode.Synthetic,
+                CpuAffinity = new FeedCpuAffinityOptions
+                {
+                    PinFeedThreads = false,
+                    RequirePerformanceCore = false
+                },
                 RingBackpressure = new FeedRingBackpressureOptions
                 {
                     RingFullTimeout = TimeSpan.FromSeconds(30)

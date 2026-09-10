@@ -3,7 +3,7 @@ namespace TomasAI.IFM.UI.Net.Views.Presentation;
 public sealed record CheckedDropdownItem(string Value, string DisplayName, bool IsEnabled = true);
 
 /// <summary>Reusable multi-select dropdown. Text is a read-only summary; values retain their stable identity.</summary>
-public sealed class CheckedDropdown : UserControl
+public sealed class CheckedDropdown : DarkTradingView
 {
     readonly TextBox display = new() { ReadOnly = true, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill, TabStop = false };
     readonly Button toggle = new() { Text = "▼", Dock = DockStyle.Right, Width = 28, TabStop = true, AccessibleName = "Open selections" };

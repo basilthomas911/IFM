@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using System.Reflection;
 using FluentAssertions;
@@ -18,20 +19,25 @@ public sealed class TradeFamilyCatalogUiTests
         new StrategyDeploymentChoice(new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId("UI-deployment-" + i), 1), "Deployment-" + i,
             "Example deployment " + i, CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(71 + i, "ES", "XCME", "USD")], ["FuturesOption"], [], [])).ToArray();
     static PortfolioReadModel Portfolio() => new() { PortfolioId = 1, PortfolioVersion = 1 };
+    static FundSelectionCatalog Selections() => new(["ES"],
+        [Lookup(LookupDefinitionGroups.AssetTypes, "FuturesOption")],
+        [Lookup(LookupDefinitionGroups.Directions, "Bullish")],
+        [Lookup(LookupDefinitionGroups.MarketConditions, "RangeBound")]);
+    static LookupDefinitionReadModel Lookup(string group, string value) => new(1, group, value, value, "", 1, true, DateTime.UtcNow, DateTime.UtcNow);
     [Fact]
     public void Duplicate_system_keys_are_disambiguated_by_exact_id_version_and_not_legacy_text()
     {
         var es = Catalog()[1];
         var nq = es with { Key = es.Key with { Id = Guid.NewGuid() }, Code = "NQ", Products = [new(99, "NQ", "XCME", "USD")], Name = "Weekly NQ spread" };
         var fund = Fund(nq.SystemKey) with { SchemaVersion = 3, PermittedTradeStrategyFamilies = [nq.Reference] };
-        using var mandate = new FundMandateEditorForm(1, 2, fund, [es, nq]);
+        using var mandate = new FundMandateEditorForm(1, 2, fund, [es, nq], Selections());
         InvokeSave(mandate);
         mandate.Value!.PermittedTradeStrategyFamilies.Should().Equal(TradeStrategyFamilyReference.From(nq));
         using var assignment = new FundAssignmentEditorForm(Portfolio(), fund, [es, nq]);
         Field<ComboBox>(assignment, "_family").Items.Count.Should().Be(1);
         PopulateAssignment(assignment); InvokeSave(assignment);
         assignment.Value!.TradeStrategyFamily.Should().Be(TradeStrategyFamilyReference.From(nq));
-        using var legacy = new FundMandateEditorForm(1, 2, Fund("unmapped legacy name"), [es, nq]);
+        using var legacy = new FundMandateEditorForm(1, 2, Fund("unmapped legacy name"), [es, nq], Selections());
         InvokeSave(legacy); legacy.Value.Should().BeNull("ambiguous legacy names must be explicitly reselected");
         using var legacyAssignment = new FundAssignmentEditorForm(Portfolio(), Fund("unmapped legacy name"), [es, nq]);
         Field<ComboBox>(legacyAssignment, "_family").Items.Count.Should().Be(0);
@@ -48,7 +54,7 @@ public sealed class TradeFamilyCatalogUiTests
     public void Mandate_displays_catalog_descriptions_restores_checked_keys_and_saves_multiple_system_keys()
     {
         var catalog = Catalog();
-        using var form = new FundMandateEditorForm(1, 2, Fund(catalog[1].SystemKey), catalog);
+        using var form = new FundMandateEditorForm(1, 2, Fund(catalog[1].SystemKey), catalog, Selections());
         var list = Field<CheckedListBox>(form, "_families");
         list.CheckOnClick.Should().BeTrue();
         list.BackColor.Should().Be(Color.Black);
@@ -66,11 +72,15 @@ public sealed class TradeFamilyCatalogUiTests
     [Fact]
     public void New_mandate_does_not_implicitly_permit_all_catalog_families()
     {
-        using var form = new FundMandateEditorForm(1, 2, catalog: Catalog());
+        using var form = new FundMandateEditorForm(1, 2, catalog: Catalog(), selections: Selections());
         Field<CheckedListBox>(form, "_families").CheckedItems.Count.Should().Be(0);
+        Field<TextBox>(form, "_name").Text = "Unassigned Draft";
+        Field<TextBox>(form, "_objective").Text = "Awaiting deployment assignment";
+        Field<TomasAI.IFM.UI.Net.Views.Presentation.CheckedDropdown>(form, "_underlyings").SetSelectedValues(["ES"]);
+        Field<TomasAI.IFM.UI.Net.Views.Presentation.CheckedDropdown>(form, "_assets").SetSelectedValues(["FuturesOption"]);
         InvokeSave(form);
-        form.Value.Should().BeNull();
-        Field<Label>(form, "_error").Text.Should().Contain("Select at least one");
+        form.Value.Should().NotBeNull();
+        form.Value!.PermittedTradeStrategyFamilies.Should().BeEmpty();
     }
 
     [Theory]
@@ -80,7 +90,7 @@ public sealed class TradeFamilyCatalogUiTests
     public void Unresolved_existing_family_remains_visible_and_blocks_save_until_explicitly_removed(string oldKey)
     {
         var catalog = Catalog();
-        using var form = new FundMandateEditorForm(1, 2, Fund(catalog[1].SystemKey, oldKey) with { PermittedTradeStrategyFamilies = [] }, catalog);
+        using var form = new FundMandateEditorForm(1, 2, Fund(catalog[1].SystemKey, oldKey) with { PermittedTradeStrategyFamilies = [] }, catalog, Selections());
         var list = Field<CheckedListBox>(form, "_families");
         Keys(list.CheckedItems).Should().Contain(oldKey);
         list.Items[IndexOf(list, oldKey)].ToString().Should().Contain("Unavailable");
@@ -97,9 +107,9 @@ public sealed class TradeFamilyCatalogUiTests
     {
         var catalog = Catalog();
         catalog[0] = catalog[0] with { Status = CatalogLifecycleStatus.Retired };
-        using var fresh = new FundMandateEditorForm(1, 2, catalog: catalog);
+        using var fresh = new FundMandateEditorForm(1, 2, catalog: catalog, selections: Selections());
         Keys(Field<CheckedListBox>(fresh, "_families").Items).Should().NotContain(catalog[0].SystemKey);
-        using var existing = new FundMandateEditorForm(1, 2, Fund(catalog[0].SystemKey), catalog);
+        using var existing = new FundMandateEditorForm(1, 2, Fund(catalog[0].SystemKey), catalog, Selections());
         InvokeSave(existing);
         existing.Value.Should().BeNull();
     }
@@ -111,12 +121,12 @@ public sealed class TradeFamilyCatalogUiTests
     {
         var original = Catalog()[0];
         var latest = original with { Key = original.Key with { Version = 2 }, Name = "Updated ES deployment", Status = state };
-        using var fresh = new FundMandateEditorForm(1, 2, catalog: [original, latest]);
+        using var fresh = new FundMandateEditorForm(1, 2, catalog: [original, latest], selections: Selections());
         var choices = Field<CheckedListBox>(fresh, "_families");
         choices.Items.Count.Should().Be(offered);
         if (offered > 0) choices.Items[0].ToString().Should().Contain("v2");
         using var existing = new FundMandateEditorForm(1, 2,
-            Fund(original.SystemKey) with { SchemaVersion = 2, PermittedTradeStrategyFamilies = [TradeStrategyFamilyReference.From(original)] }, [original, latest]);
+            Fund(original.SystemKey) with { SchemaVersion = 2, PermittedTradeStrategyFamilies = [TradeStrategyFamilyReference.From(original)] }, [original, latest], Selections());
         Field<CheckedListBox>(existing, "_families").CheckedItems.Cast<object>().Should().Contain(x => x.ToString()!.Contains("Unavailable"));
         InvokeSave(existing); existing.Value.Should().BeNull();
     }
@@ -169,7 +179,7 @@ public sealed class TradeFamilyCatalogUiTests
     [Fact]
     public void Missing_catalog_does_not_fall_back_to_hard_coded_seeds()
     {
-        using var mandate = new FundMandateEditorForm(1, 2, Fund("Futures-Futures"));
+        using var mandate = new FundMandateEditorForm(1, 2, Fund("Futures-Futures"), selections: Selections());
         InvokeSave(mandate);
         mandate.Value.Should().BeNull();
         using var assignment = new FundAssignmentEditorForm(Portfolio(), Fund("Futures-Futures"));
@@ -235,7 +245,7 @@ public sealed class TradeFamilyCatalogUiTests
         return form;
     }
     static Task<StrategyDeploymentChoice[]?> LoadCatalog(PortfolioAdministrationForm form) =>
-        (Task<StrategyDeploymentChoice[]?>)form.GetType().GetMethod("LoadTradeFamilyCatalogAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null)!;
+        (Task<StrategyDeploymentChoice[]?>)form.GetType().GetMethod("LoadTradeFamilyCatalogAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [true])!;
     static void InvokeSave(Form form) => form.GetType().GetMethod(form is FundMandateEditorForm ? "Save" : "SaveCore", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null);
     static T Field<T>(object owner, string name) => (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner)!;
     static string Key(object item) => (string)item.GetType().GetProperty("SystemKey")!.GetValue(item)!;

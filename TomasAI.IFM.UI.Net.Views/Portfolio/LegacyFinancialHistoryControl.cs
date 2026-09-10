@@ -1,9 +1,11 @@
 using TomasAI.IFM.UI.Net.Services.Fund;
+using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
 /// <summary>Original legacy values, scoped by the explicit historical Fund mapping. No mutation service is accepted.</summary>
-public sealed class LegacyFinancialHistoryControl : UserControl
+public sealed class LegacyFinancialHistoryControl : DarkTradingView
 {
     readonly DataGridView _history=PortfolioUiStyle.Grid("Read-only legacy financial history");
     readonly DateTimePicker _from=new Trade.IronCondor.DarkDateTimePicker { Format=DateTimePickerFormat.Short,Width=125,AccessibleName="Legacy history from" };
@@ -19,7 +21,8 @@ public sealed class LegacyFinancialHistoryControl : UserControl
     {
         _sourceFundId=sourceFundId;_queries=queries;
         Dock=DockStyle.Fill;BackColor=Color.Black;ForeColor=Color.White;
-        _from.Value=DateTime.Today.AddMonths(-1);_to.Value=DateTime.Today;
+        var today=EasternTime.GetNow(TimeProvider.System).Date;
+        _from.Value=today.AddMonths(-1);_to.Value=today;
         var toolbar=new FlowLayoutPanel { Dock=DockStyle.Top,Height=48,Padding=new(6),WrapContents=false };
         toolbar.Controls.AddRange([_from,_to,_load]);
         var note=new Label { Dock=DockStyle.Top,Height=55,Padding=new(6),
@@ -49,7 +52,7 @@ public sealed class LegacyFinancialHistoryControl : UserControl
                 if(_history.Columns.Contains(name)) _history.Columns[name]!.DefaultCellStyle.Format="0.############################";
             _status.Text=$"{rows.Length} original records. Historical values are excluded from available cash and capacity.";
         }
-        catch(OperationCanceledException) when(_lifetime.IsCancellationRequested) { }
+        catch(OperationCanceledException) when(_lifetime.IsCancellationRequested) { return; }
         catch(Exception error) { if(!IsDisposed && !Disposing) _status.Text="Legacy history unavailable: "+error.Message; }
         finally { _loading=false;if(!IsDisposed && !Disposing) _load.Enabled=true; }
     }

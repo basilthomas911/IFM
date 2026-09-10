@@ -11,20 +11,22 @@ public static class MarketAssessmentPresenter
 {
     public static string Render(IntrinsicTimeStrategyWorkflowView workflow,MarketConditionAssessmentCompletedEvent? projected,DateTime now)
     {
+        var marketCondition = workflow.MarketCondition;
         if(workflow.AssessmentBinding is null)
         {
-            if(workflow.MarketCondition.Result is not { ResultType:nameof(MarketConditionResult) } legacy) return "Legacy Market Condition — no result recorded.";
+            if(marketCondition is not { Result: { ResultType:nameof(MarketConditionResult) } legacy }) return "Legacy Market Condition — no result recorded.";
             if(!legacy.HasValidPayloadSha256()) throw new ArgumentException("Invalid legacy result hash.");
             var r=MessagePackSerializer.Deserialize<MarketConditionResult>(legacy.Payload);
             return $"Legacy Market Condition (schema {r.SchemaVersion})\r\nTimeframe: {r.TargetHorizon}\r\nTradeability: {r.Tradeability}\r\n{r.SummaryText}\r\nEvaluated: {r.EvaluatedAtUtc:O}\r\nValid until: {r.ValidUntilUtc:O}";
         }
-        var accepted=workflow.MarketCondition.Result is { ResultType:nameof(MarketConditionAssessmentResult) } e?e:null;
-        var envelope=accepted??projected?.Result;
+        var accepted=marketCondition is { Result: { ResultType:nameof(MarketConditionAssessmentResult) } e }?e:null;
+        var projectedEnvelope=projected is { Result: { } value }?value:null;
+        var envelope=accepted??projectedEnvelope;
         if(envelope is null) return $"Market assessment — {workflow.AssessmentBinding.Parameters.TargetHorizon}\r\nNo assessment recorded. Workflow: {workflow.Status}, stage: {workflow.CurrentStage}.";
         var result=MarketConditionAssessmentContracts.ReadResult(envelope);
         var a=result.Assessment;
         if(accepted is not null) MarketConditionAssessmentContracts.ValidateAcceptance(result,workflow,workflow.MarketCondition.InputWorkflowRevision);
-        var projectionMatches=projected?.Result.PayloadSha256==accepted?.PayloadSha256 && accepted is not null;
+        var projectionMatches=projectedEnvelope?.PayloadSha256==accepted?.PayloadSha256 && accepted is not null;
         var current=accepted is not null && a.Availability==AssessmentAvailability.Available && a.ValidUntilUtc>now;
         var lines=new List<string>
         {

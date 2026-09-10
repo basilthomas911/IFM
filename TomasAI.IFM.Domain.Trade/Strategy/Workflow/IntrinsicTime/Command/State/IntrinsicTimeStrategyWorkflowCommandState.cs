@@ -199,8 +199,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             e.State.WorkflowRevision != e.WorkflowRevision)
             return false;
 
-        _currentView = CloneView(e.State);
-        _latestWorkflow = ToLegacyWorkflow(e.State);
+        using (WorkflowTrace.Start("workflow.state.clone_view", e.State))
+            _currentView = CloneView(e.State);
+        using (WorkflowTrace.Start("workflow.state.legacy_view", e.State))
+            _latestWorkflow = ToLegacyWorkflow(e.State);
         _activeTriggerEvent = e.State.Status == WorkflowStrategyMachineStatus.Started
             ? CloneTrigger(e.State.TriggerEvent)
             : null;

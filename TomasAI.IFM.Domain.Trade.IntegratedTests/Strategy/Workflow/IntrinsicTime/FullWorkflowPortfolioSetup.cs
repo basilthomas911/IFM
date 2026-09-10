@@ -12,11 +12,14 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 
 public sealed partial class TradeSelectionRuntimeTests
 {
-    static async Task InitializeWorkflowPortfolioAsync(IServiceProvider services, TradeSelectionBinding binding)
+    static async Task InitializeWorkflowPortfolioAsync(IServiceProvider services, TradeSelectionBinding binding, bool initializeSchema = true)
     {
-        await services.GetRequiredService<TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb>().CreateAllAsync();
-        await services.GetRequiredService<PortfolioFinancialSchema>().InitializeAsync();
-        await services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb>().CreateAllAsync();
+        if (initializeSchema)
+        {
+            await services.GetRequiredService<TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb>().CreateAllAsync();
+            await services.GetRequiredService<PortfolioFinancialSchema>().InitializeAsync();
+            await services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb>().CreateAllAsync();
+        }
         var source = binding.PortfolioSnapshot;
         var id = source.Portfolio.PortfolioId;
         var authority = new FinancialAuthorityReference { DeploymentKey = binding.Candidates[0].DeploymentKey, AssignmentVersion = 1,

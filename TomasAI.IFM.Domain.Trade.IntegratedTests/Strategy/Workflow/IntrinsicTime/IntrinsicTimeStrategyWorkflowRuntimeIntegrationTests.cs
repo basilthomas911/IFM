@@ -41,6 +41,8 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.F
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
+using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.MarketCondition;
+using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -303,45 +305,81 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     }
 
     /// <summary>
-    /// Confirms an unexpired Started snapshot is Busy: a second trigger commits no state and dispatches no later work.
+    /// Confirms two back-to-back starts for one entity admit only the first workflow.
     /// </summary>
     [Fact]
-    public async Task Unexpired_started_workflow_ignores_a_second_trigger_without_a_state_commit()
+    public async Task Back_to_back_same_entity_starts_admit_only_the_first_workflow()
     {
-        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
+        await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .ConfigureServices(services =>
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = false })));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
         supervisor.IsReady.Should().BeTrue();
 
-        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
         var publisher = factory.Services.GetRequiredService<IActorProducer>();
         await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswBusyRejectionTestPublisher"));
         try
         {
-            var runId = Guid.NewGuid().ToString("N")[..8];
-            var entity = Entity($"ES-ITSW-{runId}-BUSY", TimeFrameType.Daily);
-            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
-            using var hold = pipelines.HoldAt(entity, StrategyWorkflowStage.TradeSelection);
-            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
-            var running = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
-            await WaitForRegimeDiscoveryAsync(running.WorkflowId, "Completed");
-            await WaitForStageAsync(factory.Services, entity, StrategyWorkflowStage.TradeSelection, 3);
-            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.TradeSelection, 1);
+            var at = DateTime.UtcNow;
+            var contractId = $"ES-ITSW-{Guid.NewGuid():N}-BUSY";
+            var first = CreateStart(await TradeSelectionFixture.Command(
+                "LongFuture", TimeFrameType.Daily, at, contractId: contractId), Guid.NewGuid());
+            var second = CreateStart(await TradeSelectionFixture.Command(
+                "LongFuture", TimeFrameType.Daily, at, contractId: contractId), Guid.NewGuid());
+            first.EntityId.Should().Be(second.EntityId);
+            first.ProposedWorkflowId.Should().NotBe(second.ProposedWorkflowId);
 
-            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
-            await Task.Delay(500);
+            var firstReply = await publisher.RequestAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
+                IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(first.Subject, first, first.EntityId);
+            firstReply.Success.Should().BeTrue(firstReply.ErrorMessage);
+            var secondReply = await publisher.RequestAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
+                IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(second.Subject, second, second.EntityId);
+            secondReply.Success.Should().BeTrue(secondReply.ErrorMessage);
 
-            var replayed = await LoadStateAsync(factory.Services, entity);
+            var replayed = await LoadStateAsync(factory.Services, first.EntityId);
             replayed.HasActiveWorkflow.Should().BeTrue();
-            replayed.ActiveWorkflow!.WorkflowId.Should().Be(running.WorkflowId);
-            replayed.CurrentView!.WorkflowRevision.Should().BeGreaterThanOrEqualTo(3);
-            pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(1);
+            replayed.ActiveWorkflow!.WorkflowId.Should().Be(first.ProposedWorkflowId);
+            replayed.ActiveWorkflow.WorkflowId.Should().NotBe(second.ProposedWorkflowId);
+            replayed.CurrentView!.WorkflowRevision.Should().Be(1);
+            replayed.PersistedStreamVersion.Should().Be(1);
+            replayed.AppliedEntityEventCount.Should().Be(1);
+            replayed.LastTriggerEventId.Should().Be(first.TriggerEventId);
+            replayed.LastRequestedWorkflowId.Should().Be(first.ProposedWorkflowId);
+            replayed.LastStartDecision.Should().Be(StrategyWorkflowStartDecision.Accepted);
         }
         finally
         {
             await publisher.StopAsync();
+        }
+
+        static ExecuteIntrinsicTimeStrategyWorkflowCommand CreateStart(
+            ExecuteTradeSelectionPipelineCommand fixture,
+            Guid triggerId)
+        {
+            var view = fixture.WorkflowView;
+            return new ExecuteIntrinsicTimeStrategyWorkflowCommand
+            {
+                CommandId = Guid.NewGuid(),
+                PostEvents = false,
+                Subject = new ActorSubject(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                    ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, view.EntityId.Format()),
+                EntityId = view.EntityId,
+                ProposedWorkflowId = view.WorkflowId,
+                TriggerEventId = triggerId,
+                TriggerEvent = fixture.TriggerEvent with { Id = triggerId },
+                CorrelationId = triggerId,
+                CausationId = triggerId,
+                RequestedAtUtc = fixture.SelectionBinding.FrozenAtUtc,
+                WorkflowDefinitionVersion = 1,
+                RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet!,
+                RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
+                FundId = fixture.SelectionBinding.PortfolioSnapshot.Fund.FundId,
+                AssessmentBinding = view.AssessmentBinding,
+                SelectionBinding = fixture.SelectionBinding
+            };
         }
     }
 

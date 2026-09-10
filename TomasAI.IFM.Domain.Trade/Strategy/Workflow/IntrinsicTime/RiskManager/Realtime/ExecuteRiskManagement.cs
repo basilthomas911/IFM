@@ -101,7 +101,9 @@ public static class ExecuteRiskManagement
         using var trace = WorkflowTrace.Start("risk.fund_composition", view);
         var result = view.OrderComposition.Result!.ReadCompositionResult();
         var candidate = result.Candidate!;
+        using var readTrace = WorkflowTrace.Start("risk.fund_composition.get_order", view);
         var read = await context.PortfolioQueries.GetOrderAsync(checked((int)candidate.OrderId)).ConfigureAwait(false);
+        readTrace?.Stop();
         var order = read.Value;
         RiskUnitModel.Require(read.Success && order is not null && order.WorkflowId == view.WorkflowId.Value
             && order.PortfolioId == candidate.PortfolioId && order.FundId == candidate.FundId,
@@ -109,6 +111,7 @@ public static class ExecuteRiskManagement
         var id = new Domain.Portfolio.Shared.Identities.PortfolioFundOrderId(candidate.PortfolioId, candidate.FundId, checked((int)candidate.OrderId));
         if (order!.Status == "TemplateSelected")
         {
+            using var composingTrace = WorkflowTrace.Start("risk.fund_composition.mark_composing", view);
             read = await context.PortfolioCommands.MarkComposingAsync(id, order.AggregateVersion,
                 view.CompositionExecution!.CommandId).ConfigureAwait(false);
             RiskUnitModel.Require(read.Success && read.Value is not null, "RM.HANDOFF.FUND_NOT_READY");
@@ -116,6 +119,7 @@ public static class ExecuteRiskManagement
         }
         if (order.Status == "Composing")
         {
+            using var composedTrace = WorkflowTrace.Start("risk.fund_composition.record_composed", view);
             read = await context.PortfolioCommands.RecordComposedAsync(id, order.AggregateVersion, new()
             {
                 ResultId = result.ResultId, ResultSha256 = view.OrderComposition.Result.PayloadSha256,

@@ -65,6 +65,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         nameof(IntrinsicTimeStrategyWorkflowContinuedEvent),
         nameof(IntrinsicTimeStrategyWorkflowStartedEvent),
         nameof(IntrinsicTimeStrategyWorkflowStoppedEvent),
+        nameof(IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent),
         nameof(StrategyWorkflowMarketConditionContinuationEvaluatedEvent),
         nameof(StrategyWorkflowMarketConditionFailedEvent),
         nameof(StrategyWorkflowMarketConditionResultRecordedEvent),
@@ -90,7 +91,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         nameof(WorkflowStrategyStateUpdatedEvent)
     ];
 
-    /// <summary>Confirms the gate contains exactly the specified 18 commands and 29 workflow-owned events.</summary>
+    /// <summary>Confirms the gate contains exactly the specified commands and workflow-owned events.</summary>
     [Fact]
     public void Contract_inventory_is_complete()
     {

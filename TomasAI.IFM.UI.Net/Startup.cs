@@ -267,6 +267,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IApplicationUIEventConsumer, ApplicationUIEventConsumer>();
             _container!.RegisterSingleton<IOptionTradeSpreadBarDataUIEventConsumer, OptionTradeSpreadBarDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesItiSignalUIEventConsumer, FuturesItiSignalUIEventConsumer>();
+            _container!.RegisterSingleton<IIntrinsicTimeStrategyWorkflowUIEventConsumer, IntrinsicTimeStrategyWorkflowUIEventConsumer>();
         }
 
         static void RegisterEventProducers()

@@ -7,6 +7,7 @@
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DatabentoNativeImplementation Condition="'$(DatabentoNativeImplementation)' == ''">Cpp</DatabentoNativeImplementation>
+    <DatabentoNativeConfiguration Condition="'$(DatabentoNativeConfiguration)' == ''">Release</DatabentoNativeConfiguration>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,9 +35,9 @@
       <DatabentoNativeBuildKind Condition="'$(DatabentoEnableLive)' == 'true'">live-build</DatabentoNativeBuildKind>
       <DatabentoNativeBuildKind Condition="'$(DatabentoNativeBuildKind)' == ''">build</DatabentoNativeBuildKind>
     </PropertyGroup>
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(DatabentoNativeRoot)\build-native.ps1&quot; -Configuration $(Configuration) $(DatabentoNativeLiveArgument)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(DatabentoNativeRoot)\build-native.ps1&quot; -Configuration $(DatabentoNativeConfiguration) $(DatabentoNativeLiveArgument)" />
     <ItemGroup>
-      <DatabentoNativeRuntimeDll Include="$(DatabentoNativeRoot)\out\$(DatabentoNativeBuildKind)\$(Configuration)\*.dll" />
+      <DatabentoNativeRuntimeDll Include="$(DatabentoNativeRoot)\out\$(DatabentoNativeBuildKind)\$(DatabentoNativeConfiguration)\*.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(DatabentoNativeRuntimeDll)" DestinationFolder="$(OutDir)runtimes\win-x64\native" />
   </Target>

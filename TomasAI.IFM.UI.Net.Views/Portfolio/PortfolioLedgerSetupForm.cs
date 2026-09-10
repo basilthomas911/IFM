@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Portfolio;
 using TomasAI.IFM.UI.Net.Views.App;
 
@@ -38,7 +39,8 @@ public sealed class PortfolioLedgerSetupForm:DarkTradingForm
         }
         Field("Execution account",_account,0);Field("Period start",_start,1);Field("Period end",_end,2);
         _reason.Multiline=true;_reason.MaxLength=1024;Field("Reason",_reason,3);
-        _start.Value=new(DateTime.Today.Year,1,1);_end.Value=new(DateTime.Today.Year,12,31);
+        var currentEasternDate=EasternTime.GetNow(TimeProvider.System).Date;
+        _start.Value=new(currentEasternDate.Year,1,1);_end.Value=new(currentEasternDate.Year,12,31);
         _review.Multiline=true;_review.ScrollBars=ScrollBars.Vertical;root.Controls.Add(_review,0,4);root.SetColumnSpan(_review,2);
         var buttons=new FlowLayoutPanel { Dock=DockStyle.Fill,WrapContents=false,FlowDirection=FlowDirection.RightToLeft };
         var close=PortfolioUiStyle.Button("Close","Close ledger setup");close.DialogResult=DialogResult.Cancel;CancelButton=close;

@@ -2,6 +2,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -88,6 +89,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         PortfolioEventMetadata? metadata = null,
         CancellationToken cancellationToken = default)
     {
+        using var trace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.append");
         ArgumentNullException.ThrowIfNull(domainEvent);
         ValidateAppend(domainEvent.Revision, expectedRevision);
         var entity = fundId.Format();
@@ -179,15 +181,23 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     public async Task<PortfolioFundAggregate> LoadFundAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default)
     {
+        using var trace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.load");
         var events = await LoadAsync(FundStream(fundId), cancellationToken).ConfigureAwait(false);
+        trace?.SetTag("portfolio.events.loaded", events.Count);
         var history = ConvertRequired<PortfolioFundDomainEvent>(events, FundStream(fundId)).OrderBy(x => x.Revision).ToArray();
         ValidateHistory(history.Select(x => x.Revision));
         var aggregate = new PortfolioFundAggregate();
+        using var snapshotTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.load_snapshot");
         var snapshot = (await LoadAsync(FundSnapshotStream(fundId), cancellationToken).ConfigureAwait(false))
             .Select(x => x.ToDomainEvent()).OfType<PortfolioFundSnapshotCaptured>()
             .Where(x => x.SourceRevision <= history.LastOrDefault()?.Revision)
             .OrderByDescending(x => x.SourceRevision).FirstOrDefault();
+        snapshotTrace?.Stop();
+        trace?.SetTag("portfolio.snapshot.used", snapshot is not null);
+        trace?.SetTag("portfolio.snapshot.source_revision", snapshot?.SourceRevision ?? 0);
+        using var replayTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.replay");
         if (snapshot is not null) aggregate.RestoreSnapshot(snapshot.State);
+        trace?.SetTag("portfolio.events.replayed", history.Count(x => x.Revision > aggregate.Revision));
         aggregate.Replay(history.Where(x => x.Revision > aggregate.Revision));
         return aggregate;
     }
@@ -231,6 +241,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     public async Task<PortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId fundId, Guid commandId, CancellationToken cancellationToken = default)
     {
+        using var trace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.find_committed_command");
         if (commandId == Guid.Empty) throw new ArgumentException("CommandId is required.", nameof(commandId));
         return ConvertRequired<PortfolioFundDomainEvent>(await LoadAsync(FundStream(fundId), cancellationToken).ConfigureAwait(false), FundStream(fundId))
             .SingleOrDefault(x => x.CommandId == commandId);
@@ -256,10 +267,16 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         string stream,
         CancellationToken cancellationToken)
     {
+        using var trace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.events.load");
         cancellationToken.ThrowIfCancellationRequested();
+        using var streamTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.events.resolve_stream");
         var streamId = await _eventSourceDb.GetEventStreamIdFromDbAsync(stream).ConfigureAwait(false);
+        streamTrace?.Stop();
         if (streamId is null) return [];
+        using var readTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.events.read");
         var events = await _eventSourceDb.LoadActorEventStreamAsync<PortfolioEventStoreState>(streamId.EventStreamId).ConfigureAwait(false);
+        readTrace?.Stop();
+        trace?.SetTag("portfolio.events.loaded", events.Count);
         cancellationToken.ThrowIfCancellationRequested();
         return events;
     }
@@ -289,6 +306,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
     static TEvent[] ConvertRequired<TEvent>(IEnumerable<TomasAI.IFM.Shared.EventSourcing.ViewModels.EventStreamReadModel> rows, string stream)
         where TEvent : class, IEvent
     {
+        using var trace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.events.deserialize");
         var converted = new List<TEvent>();
         foreach (var row in rows.OrderBy(x => x.StreamVersion))
         {
@@ -296,6 +314,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
                 throw new InvalidOperationException($"Event stream '{stream}' contains an unknown or incompatible event contract at stream version {row.StreamVersion}.");
             converted.Add(domainEvent);
         }
+        trace?.SetTag("portfolio.events.deserialized", converted.Count);
         return [.. converted];
     }
 

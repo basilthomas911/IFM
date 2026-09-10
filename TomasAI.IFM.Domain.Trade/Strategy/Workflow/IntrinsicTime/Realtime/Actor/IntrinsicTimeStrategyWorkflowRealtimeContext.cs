@@ -109,6 +109,12 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions
     /// <summary>Market profile shared across strategy families, resolved for the triggering timeframe.</summary>
     public string MarketConditionAssessmentProfileId { get; set; } = "ES.Standard";
 
+    /// <summary>
+    /// Gets or sets whether the Development host provisions the assessment profiles required by realtime workflows.
+    /// This setting is ignored outside the Development environment.
+    /// </summary>
+    public bool ProvisionDevelopmentMarketConditionAssessmentDefaults { get; set; }
+
     /// <summary>Gets or sets the fund used by the configured Intrinsic Time workflow.</summary>
     public int FundId { get; set; } = 1;
     public WorkflowActivationReference[] Activations {get;set;} = [];

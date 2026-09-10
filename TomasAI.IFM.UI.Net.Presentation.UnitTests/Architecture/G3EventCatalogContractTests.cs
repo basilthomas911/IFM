@@ -31,6 +31,8 @@ public sealed class G3EventCatalogContractTests
                 ["FuturesTdiSignalGeneratedCompleteEvent"],
             ["TomasAI.IFM.UI.EventConsumer/FuturesTradeSignalUIEventConsumer.cs"] =
                 ["FuturesTradeSignalUpdatedNotifyEvent"],
+            ["TomasAI.IFM.UI.EventConsumer/IntrinsicTimeStrategyWorkflowUIEventConsumer.cs"] =
+                ["IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent"],
             ["TomasAI.IFM.UI.EventConsumer/TradePlanUIEventConsumer.cs"] =
                 ["TradePlanUpdatedEvent"],
             ["TomasAI.IFM.UI.EventConsumer/TradePositionUIEventConsumer.cs"] =

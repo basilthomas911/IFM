@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
@@ -6,6 +7,7 @@ namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
 public static class FinancialTelemetry
 {
     public const string MeterName="TomasAI.IFM.PortfolioFinancial";
+    public static readonly ActivitySource ActivitySource = new(MeterName);
     static readonly Meter Meter=new(MeterName,"1.0");
     static readonly Histogram<double> Transactions=Meter.CreateHistogram<double>("financial.transaction.duration","ms");
     static readonly Histogram<double> Locks=Meter.CreateHistogram<double>("financial.authority.lock.duration","ms");

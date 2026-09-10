@@ -64,14 +64,19 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
             .CreateState<IntrinsicTimeStrategyWorkflowCommandState>();
         state.Id = command.Subject.ThreadId;
 
+        using var streamRead = WorkflowTrace.Start("workflow.state.stream_lookup", null);
         var stream = await _eventSource.GetEventStreamIdFromDbAsync(command.StreamId).ConfigureAwait(false);
+        streamRead?.Stop();
         if (stream is null)
             return state;
 
+        using var snapshotRead = WorkflowTrace.Start("workflow.state.snapshot_read", null);
         var events = await _eventSource
             .LoadActorEventStreamAsync<IntrinsicTimeStrategyWorkflowCommandState, WorkflowStrategyStateUpdatedEvent>(
                 stream.EventStreamId)
             .ConfigureAwait(false);
+        snapshotRead?.SetTag("ifm.workflow.snapshot_count", events.Count);
+        snapshotRead?.Stop();
         if (events.Count == 0)
             return state;
 

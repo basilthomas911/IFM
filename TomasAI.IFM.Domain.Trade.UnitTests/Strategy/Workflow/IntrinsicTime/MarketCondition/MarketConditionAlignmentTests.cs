@@ -137,10 +137,32 @@ public sealed class MarketConditionAlignmentTests
     }
 
     [Fact]
-    public void Typed_request_fingerprint_matches_the_historical_wire_normalization()
+    public void Typed_request_fingerprint_preserves_historical_normalization_across_binary_roundtrips()
     {
-        var c=AssessmentFixture.Command();
-        c.Fingerprint().Should().Be(MarketConditionAssessmentHash.Compute(MessagePackSerializer.Deserialize<ExecuteMarketConditionAssessmentCommand>(MessagePackSerializer.Serialize(c))));
+        var request = AssessmentFixture.Command();
+        var restored = MessagePackSerializer.Deserialize<ExecuteMarketConditionAssessmentCommand>(MessagePackSerializer.Serialize(request));
+        // The binary event-log cutover preserves nullable metadata on receipt. Fingerprint(),
+        // rather than the serializer constructor, continues the historical null-to-empty identity contract.
+        restored.TriggerEvent.AggregateId.Should().BeNull();
+        restored.TriggerEvent.EventSource.Should().BeNull();
+        restored.TriggerEvent.CreatedBy.Should().BeNull();
+        restored.WorkflowView.TriggerEvent.AggregateId.Should().BeNull();
+        restored.Fingerprint().Should().Be(request.Fingerprint());
+
+        var historicalTrigger = request.TriggerEvent with
+        {
+            AggregateId = "", EventSource = "", CreatedBy = "",
+            ReceivedOn = DateTime.SpecifyKind(default, DateTimeKind.Utc)
+        };
+        var historical = request with
+        {
+            TriggerEvent = historicalTrigger,
+            WorkflowView = request.WorkflowView with { TriggerEvent = historicalTrigger }
+        };
+        request.Fingerprint().Should().Be(MarketConditionAssessmentHash.Compute(historical));
+        (restored with { CausationId = Guid.NewGuid() }).Fingerprint().Should().NotBe(request.Fingerprint());
+        (restored with { TriggerEvent = restored.TriggerEvent with { CreatedBy = "changed" } })
+            .Fingerprint().Should().NotBe(request.Fingerprint());
     }
 
     [MessagePackObject]

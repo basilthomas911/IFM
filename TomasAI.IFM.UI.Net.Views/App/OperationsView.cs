@@ -21,8 +21,10 @@ public partial class OperationsView : DarkTradingView
     const int MinimumTimeColumnWidth = 185;
     OperationsViewModel? _viewModel;
     IReadOnlyList<FuturesItiSignalEventRow>? _renderedEvents;
+    IReadOnlyList<StrategyWorkflowRow>? _renderedWorkflows;
     bool _synchronizingSelection;
     bool _synchronizingTimeFrame;
+    bool _synchronizingWorkflowSelection;
 
     public OperationsView()
     {
@@ -32,7 +34,11 @@ public partial class OperationsView : DarkTradingView
         lblTimeFrame.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         lblTimeFrame.Height = ddlTimeFrame.Height;
         ConfigureChart();
-        lstItiEvents.SetDoubleBuffered(true);
+        lstStrategyWorkflows.SetDoubleBuffered(true);
+        lstStrategyWorkflows.OwnerDraw = true;
+        lstStrategyWorkflows.DrawColumnHeader += (_, e) => e.DrawDefault = true;
+        lstStrategyWorkflows.DrawItem += (_, e) => e.DrawDefault = false;
+        lstStrategyWorkflows.DrawSubItem += DrawWorkflowSubItem;
         ddlTimeFrame.Items.AddRange(
             [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly]);
         ddlTimeFrame.SelectedItem = TimeFrameType.Daily;
@@ -88,42 +94,65 @@ public partial class OperationsView : DarkTradingView
             RenderEvents(strategy.Events);
             _renderedEvents = strategy.Events;
         }
+        if (!ReferenceEquals(_renderedWorkflows, strategy.Workflows))
+        {
+            RenderWorkflows(strategy.Workflows);
+            _renderedWorkflows = strategy.Workflows;
+        }
+        if (!string.Equals(txtWorkflowDetails.Text, strategy.SelectedWorkflowDetails, StringComparison.Ordinal))
+            txtWorkflowDetails.Text = strategy.SelectedWorkflowDetails;
     }
 
     void RenderEvents(IReadOnlyList<FuturesItiSignalEventRow> events)
     {
-        var selectedIdentity = lstItiEvents.SelectedItems.Count == 0
-            ? null
-            : (lstItiEvents.SelectedItems[0].Tag as FuturesItiSignalEventRow)?.StableIdentity;
+        RenderChart(events);
+        if (lstStrategyWorkflows.SelectedItems.Count > 0
+            && lstStrategyWorkflows.SelectedItems[0].Tag is StrategyWorkflowRow selected)
+            HighlightChartPoint(selected.TriggerStableIdentity);
+    }
 
-        lstItiEvents.BeginUpdate();
+    void RenderWorkflows(IReadOnlyList<StrategyWorkflowRow> workflows)
+    {
+        var selectedId = lstStrategyWorkflows.SelectedItems.Count == 0
+            ? _viewModel?.Strategy.SelectedWorkflowId
+            : (lstStrategyWorkflows.SelectedItems[0].Tag as StrategyWorkflowRow)?.WorkflowId;
+
+        _synchronizingWorkflowSelection = true;
+        lstStrategyWorkflows.BeginUpdate();
         try
         {
-            lstItiEvents.Items.Clear();
-            foreach (var row in events)
+            lstStrategyWorkflows.Items.Clear();
+            foreach (var row in workflows)
             {
                 var item = new ListViewItem(FormatListTime(row.OccurredOn, row.TimePeriod))
                 {
-                    Tag = row
+                    Tag = row,
+                    Name = row.WorkflowId.ToString(),
+                    ToolTipText = row.PipelineActors.Count == 0
+                        ? "No pipeline actor has started."
+                        : string.Join(Environment.NewLine, row.PipelineActors.Select(actor => actor.AccessibleStatus))
                 };
-                item.SubItems.Add(row.Mode.ToStringFast());
+                item.SubItems.Add(row.SignalEvent.ToStringFast());
                 item.SubItems.Add(row.Trend.ToStringFast());
-                item.SubItems.Add(row.IntrinsicPrice.ToString("N2", CultureInfo.InvariantCulture));
-                lstItiEvents.Items.Add(item);
-                if (row.StableIdentity == selectedIdentity)
+                item.SubItems.Add(row.FuturesPrice.ToString("N2", CultureInfo.InvariantCulture));
+                item.SubItems.Add(string.Join(' ', row.PipelineActors.Select(actor =>
+                    $"{actor.ShortLabel}:{actor.DisplayState}")));
+                item.SubItems.Add(row.EndState);
+                lstStrategyWorkflows.Items.Add(item);
+                if (row.WorkflowId == selectedId)
                     item.Selected = true;
             }
         }
         finally
         {
-            lstItiEvents.EndUpdate();
+            lstStrategyWorkflows.EndUpdate();
+            _synchronizingWorkflowSelection = false;
         }
 
         ResizeTimeColumnToFit();
-        RenderChart(events);
-        if (lstItiEvents.SelectedItems.Count == 0 && lstItiEvents.Items.Count > 0)
-            lstItiEvents.Items[0].Selected = true;
-        RenderSelectedEvent();
+        if (lstStrategyWorkflows.SelectedItems.Count == 0 && lstStrategyWorkflows.Items.Count > 0)
+            lstStrategyWorkflows.Items[0].Selected = true;
+        RenderSelectedWorkflow();
     }
 
     void operationsTabs_SelectedIndexChanged(object? sender, EventArgs e)
@@ -138,8 +167,11 @@ public partial class OperationsView : DarkTradingView
         _viewModel.SelectView((OperationsViewType)operationsTabs.SelectedIndex);
     }
 
-    void lstItiEvents_SelectedIndexChanged(object? sender, EventArgs e)
-        => RenderSelectedEvent();
+    void lstStrategyWorkflows_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (!_synchronizingWorkflowSelection)
+            RenderSelectedWorkflow();
+    }
 
     void ddlTimeFrame_SelectedIndexChanged(object? sender, EventArgs e)
     {
@@ -191,18 +223,22 @@ public partial class OperationsView : DarkTradingView
             availableHeight - strategyContentSplitter.Panel2MinSize);
     }
 
-    void RenderSelectedEvent()
+    void RenderSelectedWorkflow()
     {
-        if (lstItiEvents.SelectedItems.Count == 0
-            || lstItiEvents.SelectedItems[0].Tag is not FuturesItiSignalEventRow row)
+        if (_viewModel is null)
+            return;
+        if (lstStrategyWorkflows.SelectedItems.Count == 0
+            || lstStrategyWorkflows.SelectedItems[0].Tag is not StrategyWorkflowRow row)
         {
-            itiPropertyGrid.SelectedObject = null;
+            _viewModel.Strategy.SelectWorkflow(null);
+            txtWorkflowDetails.Text = _viewModel.Strategy.SelectedWorkflowDetails;
             HighlightChartPoint(null);
             return;
         }
 
-        itiPropertyGrid.SelectedObject = new ItiSignalPropertyGridModel(row);
-        HighlightChartPoint(row.StableIdentity);
+        _viewModel.Strategy.SelectWorkflow(row.WorkflowId);
+        txtWorkflowDetails.Text = _viewModel.Strategy.SelectedWorkflowDetails;
+        HighlightChartPoint(row.TriggerStableIdentity);
     }
 
     void ConfigureChart()
@@ -368,10 +404,10 @@ public partial class OperationsView : DarkTradingView
         if (stableIdentity is null)
             return;
 
-        foreach (ListViewItem item in lstItiEvents.Items)
+        foreach (ListViewItem item in lstStrategyWorkflows.Items)
         {
-            if (item.Tag is not FuturesItiSignalEventRow row
-                || !string.Equals(row.StableIdentity, stableIdentity, StringComparison.Ordinal))
+            if (item.Tag is not StrategyWorkflowRow row
+                || !string.Equals(row.TriggerStableIdentity, stableIdentity, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -379,7 +415,7 @@ public partial class OperationsView : DarkTradingView
             item.Selected = true;
             item.Focused = true;
             item.EnsureVisible();
-            lstItiEvents.Focus();
+            lstStrategyWorkflows.Focus();
             break;
         }
     }
@@ -388,22 +424,80 @@ public partial class OperationsView : DarkTradingView
     {
         var requiredWidth = TextRenderer.MeasureText(
             colTime.Text,
-            lstItiEvents.Font,
+            lstStrategyWorkflows.Font,
             Size.Empty,
             TextFormatFlags.NoPadding).Width;
-        foreach (ListViewItem item in lstItiEvents.Items)
+        foreach (ListViewItem item in lstStrategyWorkflows.Items)
         {
             requiredWidth = Math.Max(
                 requiredWidth,
                 TextRenderer.MeasureText(
                     item.Text,
-                    lstItiEvents.Font,
+                    lstStrategyWorkflows.Font,
                     Size.Empty,
                     TextFormatFlags.NoPadding).Width);
         }
 
         colTime.Width = Math.Max(MinimumTimeColumnWidth, requiredWidth + 16);
     }
+
+    void DrawWorkflowSubItem(object? sender, DrawListViewSubItemEventArgs e)
+    {
+        var selected = e.Item.Selected;
+        using var background = new SolidBrush(selected ? SystemColors.Highlight : Color.Black);
+        e.Graphics.FillRectangle(background, e.Bounds);
+        if (e.ColumnIndex == 4 && e.Item.Tag is StrategyWorkflowRow workflow)
+        {
+            DrawPipelineActors(e.Graphics, e.Bounds, workflow.PipelineActors, selected);
+            return;
+        }
+
+        var color = selected ? SystemColors.HighlightText : Color.White;
+        TextRenderer.DrawText(
+            e.Graphics,
+            e.SubItem.Text,
+            lstStrategyWorkflows.Font,
+            Rectangle.Inflate(e.Bounds, -4, 0),
+            color,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
+            TextFormatFlags.NoPrefix);
+    }
+
+    void DrawPipelineActors(
+        Graphics graphics,
+        Rectangle bounds,
+        IReadOnlyList<PipelineActorIndicator> actors,
+        bool selected)
+    {
+        var x = bounds.Left + 5;
+        const int diameter = 12;
+        foreach (var actor in actors)
+        {
+            var circle = new Rectangle(x, bounds.Top + Math.Max(1, (bounds.Height - diameter) / 2), diameter, diameter);
+            using var brush = new SolidBrush(PipelineColor(actor.DisplayState));
+            graphics.FillEllipse(brush, circle);
+            using var outline = new Pen(selected ? Color.White : Color.DimGray);
+            graphics.DrawEllipse(outline, circle);
+            x += diameter + 3;
+            var labelWidth = TextRenderer.MeasureText(actor.ShortLabel, lstStrategyWorkflows.Font).Width;
+            TextRenderer.DrawText(
+                graphics,
+                actor.ShortLabel,
+                lstStrategyWorkflows.Font,
+                new Rectangle(x, bounds.Top, labelWidth, bounds.Height),
+                selected ? SystemColors.HighlightText : Color.LightGray,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            x += labelWidth + 7;
+        }
+    }
+
+    internal static Color PipelineColor(PipelineActorDisplayState state) => state switch
+    {
+        PipelineActorDisplayState.Processing => Color.Yellow,
+        PipelineActorDisplayState.Continued => Color.Lime,
+        PipelineActorDisplayState.Stopped => Color.Red,
+        _ => Color.Red
+    };
 
     static string FormatListTime(DateTime occurredOn, TimeFrameType timeFrame)
     {
@@ -413,130 +507,4 @@ public partial class OperationsView : DarkTradingView
         return EasternTime.FromUtc(occurredOn)
             .ToString(format, CultureInfo.InvariantCulture);
     }
-}
-
-sealed class ItiSignalPropertyGridModel
-{
-    public ItiSignalPropertyGridModel(FuturesItiSignalEventRow row)
-    {
-        Contract = row.ContractId;
-        ValueDate = row.ValueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        TimePeriod = row.TimePeriod.ToStringFast();
-        Sequence = row.SequenceId.ToString(CultureInfo.InvariantCulture);
-        Occurred = FormatTime(row.OccurredOn);
-        Received = FormatTime(row.ReceivedOn);
-        Mode = row.Mode.ToStringFast();
-        Trend = row.Trend.ToStringFast();
-        TradeState = row.TradeState.ToStringFast();
-        IntrinsicPrice = FormatPrice(row.IntrinsicPrice);
-        IntrinsicTimeGroup = row.IntrinsicTimeGroupId.ToString(CultureInfo.InvariantCulture);
-        IntrinsicTimeLength = row.IntrinsicTimeLength.ToString("N2", CultureInfo.InvariantCulture);
-        TrendPrice = FormatPrice(row.TrendPrice);
-        TrendExtreme = FormatPrice(row.TrendExtreme);
-        TrendReversal = FormatPrice(row.TrendReversal);
-        TrendDelta = FormatPrice(row.TrendDelta);
-        TargetDelta = FormatPrice(row.TargetDelta);
-        Threshold = row.Threshold.ToString("N4", CultureInfo.InvariantCulture);
-        UpTrendTrigger = FormatPrice(row.UpTrendTrigger);
-        DownTrendTrigger = FormatPrice(row.DownTrendTrigger);
-        BandLevel = row.BandLevel.ToString("N3", CultureInfo.InvariantCulture);
-        ReversalLevel = row.ReversalLevel.ToString("N3", CultureInfo.InvariantCulture);
-        TimeFrameStart = row.TimeFrameStartValueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        Source = row.IsHistorical ? "Historical query" : "Notification";
-        NotificationId = row.NotificationId.ToString();
-        SourceEventId = row.SourceEventId.ToString();
-        EventId = row.EventId.ToString(CultureInfo.InvariantCulture);
-        CommandId = row.CommandId.ToString();
-    }
-
-    [DisplayName("Contract")]
-    public string Contract { get; }
-
-    [DisplayName("Value Date")]
-    public string ValueDate { get; }
-
-    [DisplayName("Time Period")]
-    public string TimePeriod { get; }
-
-    [DisplayName("Sequence")]
-    public string Sequence { get; }
-
-    [DisplayName("Occurred (ET)")]
-    public string Occurred { get; }
-
-    [DisplayName("Received (ET)")]
-    public string Received { get; }
-
-    [DisplayName("Mode")]
-    public string Mode { get; }
-
-    [DisplayName("Trend")]
-    public string Trend { get; }
-
-    [DisplayName("Trade State")]
-    public string TradeState { get; }
-
-    [DisplayName("Intrinsic Price")]
-    public string IntrinsicPrice { get; }
-
-    [DisplayName("ITI Group")]
-    public string IntrinsicTimeGroup { get; }
-
-    [DisplayName("ITI Length")]
-    public string IntrinsicTimeLength { get; }
-
-    [DisplayName("Trend Price")]
-    public string TrendPrice { get; }
-
-    [DisplayName("Trend Extreme")]
-    public string TrendExtreme { get; }
-
-    [DisplayName("Trend Reversal")]
-    public string TrendReversal { get; }
-
-    [DisplayName("Trend Delta")]
-    public string TrendDelta { get; }
-
-    [DisplayName("Target Delta")]
-    public string TargetDelta { get; }
-
-    [DisplayName("Threshold")]
-    public string Threshold { get; }
-
-    [DisplayName("Up Trend Trigger")]
-    public string UpTrendTrigger { get; }
-
-    [DisplayName("Down Trend Trigger")]
-    public string DownTrendTrigger { get; }
-
-    [DisplayName("Band Level")]
-    public string BandLevel { get; }
-
-    [DisplayName("Reversal Level")]
-    public string ReversalLevel { get; }
-
-    [DisplayName("Time Frame Start")]
-    public string TimeFrameStart { get; }
-
-    [DisplayName("Source")]
-    public string Source { get; }
-
-    [DisplayName("Notification ID")]
-    public string NotificationId { get; }
-
-    [DisplayName("Source Event ID")]
-    public string SourceEventId { get; }
-
-    [DisplayName("Event ID")]
-    public string EventId { get; }
-
-    [DisplayName("Command ID")]
-    public string CommandId { get; }
-
-    static string FormatTime(DateTime value)
-        => EasternTime.FromUtc(value)
-            .ToString("yyyy-MM-dd hh:mm:ss.fff tt", CultureInfo.InvariantCulture);
-
-    static string FormatPrice(double value)
-        => value.ToString("N2", CultureInfo.InvariantCulture);
 }

@@ -80,9 +80,7 @@ internal static class CompositionFixture
             var dates = Enumerable.Range(0, 130).Select(begin.AddDays).ToImmutableArray();
             var calendar = new OptionPricingCalendar("fixture/v1", "America/New_York", begin, begin.AddDays(129), new(18, 0), dates);
             double rate = 2 * double.LogP1(.04 / 2);
-            var treasury = new TreasuryContinuousRate(days < 30 ? TreasuryTenor.OneMonth : days < 60 ? TreasuryTenor.TwoMonth : TreasuryTenor.ThreeMonth,
-                4m, rate, DateOnly.FromDateTime(at.UtcDateTime), at, new('b', 64),
-                new("USTreasury", "daily-cmt", TreasuryRateConvention.UsTreasuryCmtNominalSemiannual, "fixture/v1", "fixture"), "FlatSelectedCmtProxy/v1");
+            TreasuryContinuousRate? treasury = null;
             for (int k = 4930; k <= 5070; k += 5)
             foreach (bool call in new[] { false, true })
             {
@@ -93,6 +91,17 @@ internal static class CompositionFixture
                     ExpirationUtc = expiry, LastTradingUtc = expiry, DayCount = PricingDayCount.Actual365Fixed, CalendarVersion = calendar.Version,
                     Multiplier = 50, TickSize = .05m, TickRuleVersion = "fixture-fixed/v1", DefinitionDigest = new('c', 64), MappingVersion = "fixture/v1",
                     EvidenceId = "fixture", EffectiveFromUtc = at.AddDays(-1), EffectiveUntilUtc = expiry };
+                if (treasury is null)
+                {
+                    // Every option in this fixture shares this expiry/calendar. The exchange value-date
+                    // count can differ from UTC calendar DTE when expiry crosses a DST change.
+                    var tradingDays = TomasAI.IFM.Framework.MarketData.Pricing.OptionPricingQualification.CountTradingDays(
+                        CompositionSnapshotAdapter.To(calendar), CompositionSnapshotAdapter.To(contract), at);
+                    var tenor = TomasAI.IFM.Framework.MarketData.ReferenceData.TreasuryRateConversion.SelectTenor(tradingDays)
+                        ?? throw new InvalidOperationException("Fixture expiry has no qualified Treasury tenor.");
+                    treasury = new TreasuryContinuousRate((TreasuryTenor)tenor, 4m, rate, DateOnly.FromDateTime(at.UtcDateTime), at, new('b', 64),
+                        new("USTreasury", "daily-cmt", TreasuryRateConvention.UsTreasuryCmtNominalSemiannual, "fixture/v1", "fixture"), "FlatSelectedCmtProxy/v1");
+                }
                 // Fixed forward standard deviation across horizons provides comparable economic fixtures.
                 double vol = .0099 * Math.Sqrt(30d / days);
                 var mark = (decimal)OptionModel.Price(5002.5, k, rate, vol, days / 365d, call ? 1 : -1);

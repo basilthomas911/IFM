@@ -1,10 +1,12 @@
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System.Reflection;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Views.Portfolio;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 
@@ -47,11 +49,12 @@ public sealed class TradeStrategyTimeFrameUiTests
     [Fact]
     public void Saving_mandate_uses_selected_enum_name_and_rejects_no_selection()
     {
-        using var form = new FundMandateEditorForm(1, 2, catalog: [new StrategyDeploymentChoice(new(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1), "Weekly-ES", "Weekly ES", CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(71, "ES", "XCME", "USD")], ["FuturesOption"], [], [])]);
+        using var form = new FundMandateEditorForm(1, 2, catalog: [new StrategyDeploymentChoice(new(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1), "Weekly-ES", "Weekly ES", CatalogLifecycleStatus.Draft, TimeFrameType.Weekly, [new(71, "ES", "XCME", "USD")], ["FuturesOption"], [], [])], selections: Selections());
         ((CheckedListBox)Field(form, "_families")).SetItemChecked(0, true);
-        foreach (var (field, text) in new[] { ("_code", "weekly"), ("_name", "Weekly Fund"), ("_objective", "Test"),
-                     ("_underlyings", "ES"), ("_assets", "FuturesOptions"), ("_directions", "Bullish"), ("_conditions", "Directional") })
+        foreach (var (field, text) in new[] { ("_name", "Weekly Fund"), ("_objective", "Test") })
             ((TextBox)Field(form, field)).Text = text;
+        ((CheckedDropdown)Field(form, "_underlyings")).SetSelectedValues(["ES"]);
+        ((CheckedDropdown)Field(form, "_assets")).SetSelectedValues(["FuturesOption"]);
         var save = form.GetType().GetMethod("Save", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Horizon(form).SelectedIndex = -1;
         save.Invoke(form, null);
@@ -63,5 +66,10 @@ public sealed class TradeStrategyTimeFrameUiTests
     }
 
     static ComboBox Horizon(Form form) => (ComboBox)Field(form, "_horizon");
+    static FundSelectionCatalog Selections() => new(["ES"],
+        [Row(LookupDefinitionGroups.AssetTypes, "FuturesOption")],
+        [Row(LookupDefinitionGroups.Directions, "Bullish")],
+        [Row(LookupDefinitionGroups.MarketConditions, "RangeBound")]);
+    static LookupDefinitionReadModel Row(string group, string value) => new(1, group, value, value, "", 1, true, DateTime.UtcNow, DateTime.UtcNow);
     static object Field(object owner, string name) => owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner)!;
 }

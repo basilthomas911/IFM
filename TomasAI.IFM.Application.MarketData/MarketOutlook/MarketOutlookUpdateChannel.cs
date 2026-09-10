@@ -486,7 +486,9 @@ public sealed class MarketOutlookUpdateChannel : IMarketOutlookUpdateWriter, IMa
     {
         get
         {
-            var ticks = pendingReceivedTicks.IsEmpty ? 0 : pendingReceivedTicks.Values.Min();
+            // Values can become empty between a separate IsEmpty check and Min().
+            // Enumerate one concurrent snapshot and make the empty case explicit.
+            var ticks = pendingReceivedTicks.Values.DefaultIfEmpty().Min();
             return ticks == 0 ? null : new DateTime(ticks, DateTimeKind.Utc);
         }
     }

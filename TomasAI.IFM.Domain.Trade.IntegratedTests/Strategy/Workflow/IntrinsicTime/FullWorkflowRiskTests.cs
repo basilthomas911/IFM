@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,54 +70,47 @@ public sealed partial class TradeSelectionRuntimeTests
     static StrategyWorkflowStageState[] PipelineStages(IntrinsicTimeStrategyWorkflowView view)
         => [view.RegimeDiscovery, view.MarketCondition, view.TradeSelection, view.OrderComposition, view.RiskManagement];
 
-    async Task RunWorkflow(TimeFrameType horizon, string variant, int? stageCount = null, bool captureTrace = false)
+    async Task RunWorkflow(TimeFrameType horizon, string variant, int? stageCount = null, bool captureTrace = false,
+        WorkflowBenchmarkSettings? benchmark = null, WorkflowBenchmarkWriter? benchmarkWriter = null)
     {
         var spans = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
         using var listener = new System.Diagnostics.ActivityListener
         {
-            ShouldListenTo = source => captureTrace && (source.Name == TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.WorkflowTrace.SourceName || source.Name == ActorTrace.SourceName),
+            ShouldListenTo = source => captureTrace && (source.Name == TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.WorkflowTrace.SourceName
+                || source.Name == ActorTrace.SourceName || source.Name == "TomasAI.IFM.Domain.Portfolio" || source.Name == "TomasAI.IFM.PortfolioFinancial"),
             Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = span => spans.Enqueue(span)
         };
         System.Diagnostics.ActivitySource.AddActivityListener(listener);
-        var endpoint = new TaskCompletionSource<IntrinsicTimeStrategyWorkflowView>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var workflowTimer = new System.Diagnostics.Stopwatch();
         var broker = Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL")
             ?? throw new InvalidOperationException("An isolated test NATS broker is required.");
-        ExecuteIntrinsicTimeStrategyWorkflowCommand start = null!;
-
+        Action? releaseFixtureCalls = null;
+        var measurements = new System.Collections.Concurrent.ConcurrentDictionary<string, WorkflowMeasurement>(StringComparer.Ordinal);
+        var starts = new System.Collections.Concurrent.ConcurrentDictionary<Guid, ExecuteIntrinsicTimeStrategyWorkflowCommand>();
+        static string Key(IntrinsicTimeStrategyWorkflowView view) => $"{view.EntityId.Format()}|{view.WorkflowId}";
         await using var host = Host(services =>
         {
             var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
-            if (stageCount is < 5)
+            // Observe the post-commit enqueue boundary. Every full-workflow event still reaches
+            // the production projector, queue, Scylla writes, cache and realtime dispatcher.
+            var projector = Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>>();
+            TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector.IntrinsicTimeStrategyWorkflowEventProjector? production = null;
+            projector.StartAsync(Arg.Any<ICommandActorContext>(), Arg.Any<CancellationToken>()).Returns(call =>
             {
-                // Retain the real projector/dispatcher for every preceding commit. At the
-                // endpoint's authoritative commit, withhold projection/notification so the
-                // next actor cannot start. This is a test-only boundary, not a business stop.
-                var projector = Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>>();
-                TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector.IntrinsicTimeStrategyWorkflowEventProjector? production = null;
-                projector.StartAsync(Arg.Any<ICommandActorContext>(), Arg.Any<CancellationToken>()).Returns(call =>
-                {
-                    var context = (ICommandActorContext<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>)call.Arg<ICommandActorContext>();
-                    production = new(context);
-                    return production.StartAsync(context, call.Arg<CancellationToken>());
-                });
-                projector.StopAsync(Arg.Any<CancellationToken>()).Returns(call => production?.StopAsync(call.Arg<CancellationToken>()) ?? ValueTask.CompletedTask);
-                projector.DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>()).Returns((Func<NSubstitute.Core.CallInfo, ValueTask>)(async call =>
-                {
-                    var events = call.Arg<DomainEventCollection>();
-                    var reached = events.OfType<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent>()
-                        .FirstOrDefault(x => PipelineStages(x.State)[stageCount.Value - 1].ProcessingStatus == StrategyActorProcessingStatus.Completed);
-                    if (reached is not null)
-                    {
-                        workflowTimer.Stop();
-                        endpoint.TrySetResult(reached.State);
-                        return;
-                    }
-                    await production!.DomainEventsProjectionAsync(events);
-                }));
-                container.RegisterInstance(projector);
-            }
+                var context = (ICommandActorContext<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>)call.Arg<ICommandActorContext>();
+                production = new(context);
+                return production.StartAsync(context, call.Arg<CancellationToken>());
+            });
+            projector.StopAsync(Arg.Any<CancellationToken>()).Returns(call => production?.StopAsync(call.Arg<CancellationToken>()) ?? ValueTask.CompletedTask);
+            projector.DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>()).Returns((Func<NSubstitute.Core.CallInfo, ValueTask>)(async call =>
+            {
+                var events = call.Arg<DomainEventCollection>();
+                foreach (var state in events.OfType<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent>())
+                    if (measurements.TryGetValue(Key(state.State), out var measurement) && measurement.OnCommitted(state.State))
+                        return; // Only the four intentionally truncated successive-stage tests suppress dispatch.
+                await production!.DomainEventsProjectionAsync(events);
+            }));
+            container.RegisterInstance(projector);
             services.RemoveAll<IMarketConditionAssessmentSnapshotProvider>();
             var market = Substitute.For<IMarketConditionAssessmentSnapshotProvider>();
             market.CaptureAsync(Arg.Any<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentParameterSet>(),
@@ -126,18 +121,53 @@ public sealed partial class TradeSelectionRuntimeTests
                 return ValueTask.FromResult((snapshot with { Observations = snapshot.Observations.Select(x => x with { ObservedAtUtc = snapshot.EvaluatedAtUtc }).ToArray() }).Seal());
             });
             services.AddSingleton(market);
+            releaseFixtureCalls = () => { projector.ClearReceivedCalls(); market.ClearReceivedCalls(); };
             container.RegisterSingleton<ICompositionPreparationStore>(() => new WorkflowMarketFixture(
                 new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(container.GetInstance<IDbContextFactory>().MarketDataDb),
-                async () => (await container.GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>().LoadStateAsync(start)).CurrentView!));
-        }, broker, actualPortfolio: true);
+                async key => (await container.GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>().LoadStateAsync(starts[key.WorkflowId])).CurrentView!));
+        }, broker, actualPortfolio: true).WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((context, config) =>
+        {
+            if (benchmark is not null) WorkflowBenchmarkSettings.ValidateEnvironment(context.HostingEnvironment, config.Build(), broker);
+        }));
         _ = host.CreateClient();
         var supervisor = host.Services.GetRequiredService<IActorSupervisor>();
         var producer = host.Services.GetRequiredService<IActorProducer>();
         await producer.StartAsync(new(ActorType.Realtime, $"FullWorkflowRisk{Guid.NewGuid():N}"));
+        var firstFixture = true;
+        WorkflowBenchmarkIteration? currentIteration = null;
+        var completedIterations = 0;
         try
         {
             await host.Services.GetRequiredService<TradeSchemaDb>().CreateAllAsync();
             await host.Services.GetRequiredService<ConfigurationSchemaDb>().CreateAllAsync();
+            var iterations = benchmark?.Iterations()
+                ?? [new WorkflowBenchmarkIteration(new(horizon, variant), captureTrace ? "trace" : "single", 1)];
+            foreach (var iteration in iterations)
+            {
+                currentIteration = iteration;
+                horizon = iteration.Scenario.Horizon;
+                variant = iteration.Scenario.Variant;
+                await RunOne(iteration);
+                completedIterations++;
+            }
+            benchmarkWriter?.Write(new { RecordType = "run_completed", benchmarkWriter.RunId, CompletedIterations = completedIterations });
+        }
+        catch (Exception exception)
+        {
+            // Also preserves failures during schema/fixture/funding setup before a sample timer exists.
+            benchmarkWriter?.Write(new { RecordType = "run_failed", benchmarkWriter.RunId, CompletedIterations = completedIterations,
+                Scenario = currentIteration?.Scenario.ToString(), currentIteration?.Phase, currentIteration?.Iteration, Error = exception.ToString() });
+            throw;
+        }
+        finally
+        {
+            await supervisor.ShutdownAsync();
+            await producer.StopAsync();
+        }
+
+        async Task RunOne(WorkflowBenchmarkIteration iteration)
+        {
+            spans.Clear();
             // Warm numerical code before taking the fresh market cut.
             _ = await CompositionFixture.Command(variant, horizon);
             var policy = RiskParameterSet.Default(horizon) with { ParameterSetId = Guid.NewGuid() };
@@ -159,7 +189,8 @@ public sealed partial class TradeSelectionRuntimeTests
             var selection = await TradeSelectionFixture.Command(variant, horizon, DateTime.UtcNow,
                 scopeId: Random.Shared.Next(10000000, 900000000), compositionReady: true, compositionIntegrationTiming: true,
                 actualAssessmentCommand: assessment, riskPolicy: policy, compositionLifetimeMilliseconds: 30000);
-            await InitializeWorkflowPortfolioAsync(host.Services, selection.SelectionBinding);
+            await InitializeWorkflowPortfolioAsync(host.Services, selection.SelectionBinding, initializeSchema: firstFixture);
+            firstFixture = false;
             var parameters = assessment.WorkflowView.RegimeDiscoveryParameterSet!;
             var cache = host.Services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>();
             var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract(trigger.EntityId.ContractId), parameters);
@@ -170,133 +201,191 @@ public sealed partial class TradeSelectionRuntimeTests
                     Value = FinancialSignal(requirement.Metric, variant), MarketDataAsOfUtc = DateTime.UtcNow, CalculatedAtUtc = DateTime.UtcNow,
                     SourceSequence = ++sequence, SchemaVersion = 1, CalculationVersion = "1", IsWarm = true, IsValid = true,
                     Availability = RegimeDiscoverySignalAvailability.Available, SignalIdentity = $"FullWorkflowFixture/{Guid.NewGuid():N}" });
-            start = new() { CommandId = Guid.NewGuid(), EntityId = assessment.WorkflowEntityId,
+            ExecuteIntrinsicTimeStrategyWorkflowCommand start = new() { CommandId = Guid.NewGuid(), EntityId = assessment.WorkflowEntityId,
                 Subject = Subject(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, assessment.WorkflowEntityId),
                 ProposedWorkflowId = assessment.WorkflowId, TriggerEventId = trigger.Id, TriggerEvent = trigger,
                 CorrelationId = assessment.CorrelationId, CausationId = trigger.Id, RequestedAtUtc = selection.SelectionBinding.FrozenAtUtc, WorkflowDefinitionVersion = 1,
                 RegimeDiscoveryParameterSet = parameters, RegimeDiscoveryParameterPayloadSha256 = assessment.WorkflowView.RegimeDiscoveryParameterPayloadSha256,
                 FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId, SelectionBinding = selection.SelectionBinding,
                 AssessmentBinding = new() { Parameters = assessment.ParameterSet, PayloadSha256 = assessment.ParameterPayloadSha256 } };
-            using var traceRun = captureTrace ? TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.WorkflowTrace.Source.StartActivity("workflow.integration") : null;
-            workflowTimer.Start();
-            var reply = await producer.RequestAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand, IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(start.Subject, start, start.EntityId);
-            reply.Success.Should().BeTrue(reply.ErrorMessage);
-            var repository = host.Services.GetRequiredService<SimpleInjector.Container>().GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
-            if (stageCount is < 5)
-            {
-                var captured = await endpoint.Task.WaitAsync(TimeSpan.FromSeconds(30));
-                var committed = (await repository.LoadStateAsync(start)).CurrentView!;
-                committed.WorkflowRevision.Should().Be(captured.WorkflowRevision);
-                var stages = PipelineStages(committed);
-                foreach (var stage in stages.Take(stageCount.Value))
-                {
-                    stage.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
-                    stage.Result.Should().NotBeNull();
-                    stage.SourceEventId.Should().NotBeEmpty();
-                }
-                foreach (var stage in stages.Skip(stageCount.Value))
-                {
-                    stage.Result.Should().BeNull();
-                    stage.SourceEventId.Should().BeEmpty();
-                    stage.CompletedAtUtc.Should().BeNull();
-                }
-                committed.RiskExecution.Should().BeNull();
-                await AssertWorkflowReservationCountAsync(selection.SelectionBinding, 0);
-                output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new {
-                    StageCount = stageCount, Endpoint = new[] { "Regime Discovery", "Market Assessment", "Trade Selection", "Order Composer" }[stageCount.Value - 1],
-                    WorkflowMilliseconds = workflowTimer.Elapsed.TotalMilliseconds, Outcome = "Endpoint accepted",
-                    Stages = stages.Take(stageCount.Value).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }) }));
-                return;
-            }
-            var deadline = DateTime.UtcNow.AddSeconds(25);
-            // Observe the production projection cache without repeatedly deserializing large
-            // PostgreSQL snapshots on the same process that must meet Risk's freshness budget.
-            var observedActive = false;
-            var cacheView = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection.IntrinsicTimeStrategyWorkflowProjectionCache.Shared;
-            while (DateTime.UtcNow < deadline)
-            {
-                var active = cacheView.TryGet(start.EntityId.Format(), out _);
-                if (observedActive && !active) break;
-                observedActive |= active;
-                await Task.Delay(50);
-            }
-            var final = (await repository.LoadStateAsync(start)).CurrentView;
-            workflowTimer.Stop();
-            final.Should().NotBeNull();
-            if (final?.RiskExecution is { } measured)
-                output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { Scenario = $"{horizon}/{variant}",
-                    StageCount = stageCount ?? 5, Endpoint = "Risk Manager / Authorized intent", WorkflowMilliseconds = workflowTimer.Elapsed.TotalMilliseconds, Risk = RiskLatency.Measure(measured),
-                    WorkflowId = final.WorkflowId.ToString(), StartedAtUtc = final.StartedAtUtc, TerminalAtUtc = final.TerminalAtUtc, Stages = PipelineStages(final).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }), Outcome = final.Status.ToString(), Phase = final.FinancialHandoff?.Phase.ToString() }));
-            var candidateAge = final?.RiskExecution is { } invocation ? (invocation.EvaluatedAtUtc - invocation.CompositionResult.ReadCompositionResult().Candidate!.EvaluatedAtUtc).TotalMilliseconds : -1;
-            (final!.FinancialHandoff?.Phase).Should().Be(RiskFinancialHandoffPhase.Authorized,
-                $"candidate age {candidateAge} ms; workflow stopped at {final.CurrentStage}/{final.Status}: {final.StopReasonCode}; {final.RegimeDiscovery.Failure}; {final.MarketCondition.Failure}; {final.TradeSelection.Failure}; {final.OrderComposition.Failure}; {final.RiskManagement.Failure}");
-            final.Status.Should().Be(WorkflowStrategyMachineStatus.Completed);
-            final.WorkflowId.Should().Be(start.ProposedWorkflowId);
-            foreach (var stage in new[] { final.RegimeDiscovery, final.MarketCondition, final.TradeSelection, final.OrderComposition, final.RiskManagement })
-            {
-                stage.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
-                stage.Result.Should().NotBeNull(); stage.SourceEventId.Should().NotBeEmpty();
-            }
-            var risk = final.RiskManagement.Result!.RiskResult!;
-            risk.Outcome.Should().Be(RiskAssessmentOutcome.Approved); risk.StrategyUnits.Should().BePositive();
-            risk.TargetHorizon.Should().Be(horizon);
-            final.RiskExecution!.RegimeResult.PayloadSha256.Should().Be(final.RegimeDiscovery.Result!.PayloadSha256);
-            final.RiskExecution.MarketConditionResult.PayloadSha256.Should().Be(final.MarketCondition.Result!.PayloadSha256);
-            final.RiskExecution.SelectionResult.PayloadSha256.Should().Be(final.TradeSelection.Result!.PayloadSha256);
-            final.RiskExecution.CompositionResult.PayloadSha256.Should().Be(final.OrderComposition.Result!.PayloadSha256);
-            var order = await host.Services.GetRequiredService<IPortfolioQueryApi>().GetOrderAsync(final.FinancialHandoff!.Authorization!.OrderId);
-            order.Success.Should().BeTrue(order.ErrorMessage);
-            order.Value!.Status.Should().Be("RiskApproved");
-            order.Value.CompositionResultHash.Should().Be(risk.CompositionResultHash);
-            final.FinancialHandoff!.Authorization!.StrategyUnits.Should().Be(risk.StrategyUnits);
-            await AssertWorkflowReservationCountAsync(selection.SelectionBinding, 1);
-            var persistedFund = await host.Services.GetRequiredService<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore>()
-                .LoadFundAsync(new(risk.PortfolioId, risk.FundId));
-            persistedFund.Orders.Single(x => x.OrderId == order.Value.OrderId).RiskAuthorization.Should().Be(final.FinancialHandoff.Authorization);
-            var receipt = await host.Services.GetRequiredService<IPortfolioFinancialApi>().GetPostingReceiptAsync(
-                new() { PortfolioId = risk.PortfolioId, FundId = risk.FundId, Access = new("workflow-test", ["LedgerRead"], [risk.PortfolioId]) },
-                new(final.FinancialHandoff.ReservationRequest!.OperationId));
-            receipt.Success.Should().BeTrue(receipt.ErrorMessage);
-            receipt.Value!.Value!.Reservation!.Receipt.StrategyUnits.Should().Be(risk.StrategyUnits);
 
-        }
-        finally
-        {
-            await supervisor.ShutdownAsync(); await producer.StopAsync();
+            var measurement = new WorkflowMeasurement(stageCount ?? 5);
+            var identity = $"{start.EntityId.Format()}|{start.ProposedWorkflowId}";
+            starts[start.ProposedWorkflowId.Value] = start;
+            measurements[identity] = measurement;
+            using var traceRun = new System.Diagnostics.Activity("workflow.integration").SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C).Start();
             if (captureTrace)
             {
-                var recorded = spans.Where(x => (string?)x.GetTagItem("ifm.workflow.entity") == start.EntityId.Format()).ToArray();
-                recorded.Should().Contain(x => x.OperationName == "risk.calculate");
-                recorded.Should().Contain(x => x.OperationName == "workflow.state.load");
-                recorded.Should().Contain(x => x.OperationName == "risk.financial_handoff");
-                var traceIds = recorded.Select(x => x.TraceId).ToHashSet();
-                var workflowSpans = spans.Where(x => traceIds.Contains(x.TraceId)).ToArray();
-                foreach (var operation in new[] { "composer.preparation.read", "composer.accept.create_execution",
-                    "workflow.project.timeline_serialize", "workflow.project.timeline_write", "workflow.project.detail_write",
-                    "workflow.project.entity_write", "workflow.project.status_write", "workflow.project.active_write",
-                    "workflow.project.active_delete", "workflow.project.notify", "authorization.reserve_call",
-                    "authorization.fund_authorize_call", "authorization.verify.reservation_receipt",
-                    "authorization.verify.fund_receipt", "authorization.advance_send", "risk.prepare.build_request" })
-                    workflowSpans.Should().Contain(x => x.OperationName == operation, "the detailed timing boundary must be exercised");
-                workflowSpans.Where(x => x.OperationName is "workflow.project.timeline_serialize" or "workflow.project.state_serialize")
-                    .Should().OnlyContain(x => x.GetTagItem("ifm.payload.bytes") is int && (int)x.GetTagItem("ifm.payload.bytes")! > 0);
-                foreach (var span in spans.Where(x => traceIds.Contains(x.TraceId)).OrderBy(x => x.StartTimeUtc))
-                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { Operation = span.OperationName, TraceId = span.TraceId.ToString(),
-                        SpanId = span.SpanId.ToString(), ParentSpanId = span.ParentSpanId.ToString(), span.StartTimeUtc,
-                        Milliseconds = span.Duration.TotalMilliseconds, Tags = span.TagObjects.ToDictionary(x => x.Key, x => x.Value) }));
-                recorded.Select(x => x.TraceId).Distinct().Should().ContainSingle("the workflow must preserve W3C context across actors and projector queues");
+                traceRun.SetTag("ifm.workflow.entity", start.EntityId.Format());
+                traceRun.SetTag("ifm.workflow.id", start.ProposedWorkflowId.ToString());
+            }
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var verification = new System.Diagnostics.Stopwatch();
+            Exception? failure = null;
+            IntrinsicTimeStrategyWorkflowView? final = null;
+            Task<IntrinsicTimeStrategyWorkflowView>? completion = null;
+            try
+            {
+                measurement.Start();
+                completion = measurement.WaitAsync(start.EntityId.Format(), timeout.Token);
+                var reply = await producer.RequestAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand, IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(start.Subject, start, start.EntityId);
+                reply.Success.Should().BeTrue(reply.ErrorMessage);
+                var observed = await completion;
+                verification.Start();
+                var repository = host.Services.GetRequiredService<SimpleInjector.Container>().GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
+                if (stageCount is < 5)
+                {
+                    var captured = observed;
+                    var committed = (await repository.LoadStateAsync(start)).CurrentView!;
+                    committed.WorkflowRevision.Should().Be(captured.WorkflowRevision);
+                    var stages = PipelineStages(committed);
+                    foreach (var stage in stages.Take(stageCount.Value))
+                    {
+                        stage.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+                        stage.Result.Should().NotBeNull();
+                        stage.SourceEventId.Should().NotBeEmpty();
+                    }
+                    foreach (var stage in stages.Skip(stageCount.Value))
+                    {
+                        stage.Result.Should().BeNull();
+                        stage.SourceEventId.Should().BeEmpty();
+                        stage.CompletedAtUtc.Should().BeNull();
+                    }
+                    committed.RiskExecution.Should().BeNull();
+                    await AssertWorkflowReservationCountAsync(selection.SelectionBinding, 0);
+                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new {
+                        StageCount = stageCount, Endpoint = new[] { "Regime Discovery", "Market Assessment", "Trade Selection", "Order Composer" }[stageCount.Value - 1],
+                        WorkflowMilliseconds = measurement.EndpointMilliseconds, Outcome = "Endpoint accepted",
+                        Stages = stages.Take(stageCount.Value).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }) }));
+                    return;
+                }
+
+                final = (await repository.LoadStateAsync(start)).CurrentView;
+                final!.WorkflowRevision.Should().Be(observed.WorkflowRevision);
+                final.Should().NotBeNull();
+                if (final?.RiskExecution is { } measured)
+                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { Scenario = $"{horizon}/{variant}",
+                        StageCount = stageCount ?? 5, Endpoint = "Risk Manager / Authorized intent", WorkflowMilliseconds = measurement.AuthorizedMilliseconds, QueryVisibleMilliseconds = measurement.QueryVisibleMilliseconds, Risk = RiskLatency.Measure(measured),
+                        WorkflowId = final.WorkflowId.ToString(), StartedAtUtc = final.StartedAtUtc, TerminalAtUtc = final.TerminalAtUtc, Stages = PipelineStages(final).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }), Outcome = final.Status.ToString(), Phase = final.FinancialHandoff?.Phase.ToString() }));
+                var candidateAge = final?.RiskExecution is { } invocation ? (invocation.EvaluatedAtUtc - invocation.CompositionResult.ReadCompositionResult().Candidate!.EvaluatedAtUtc).TotalMilliseconds : -1;
+                (final!.FinancialHandoff?.Phase).Should().Be(RiskFinancialHandoffPhase.Authorized,
+                    $"candidate age {candidateAge} ms; workflow stopped at {final.CurrentStage}/{final.Status}: {final.StopReasonCode}; {final.RegimeDiscovery.Failure}; {final.MarketCondition.Failure}; {final.TradeSelection.Failure}; {final.OrderComposition.Failure}; {final.RiskManagement.Failure}");
+                final.Status.Should().Be(WorkflowStrategyMachineStatus.Completed);
+                final.WorkflowId.Should().Be(start.ProposedWorkflowId);
+                foreach (var stage in new[] { final.RegimeDiscovery, final.MarketCondition, final.TradeSelection, final.OrderComposition, final.RiskManagement })
+                {
+                    stage.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+                    stage.Result.Should().NotBeNull(); stage.SourceEventId.Should().NotBeEmpty();
+                }
+                var risk = final.RiskManagement.Result!.RiskResult!;
+                risk.Outcome.Should().Be(RiskAssessmentOutcome.Approved); risk.StrategyUnits.Should().BePositive();
+                risk.TargetHorizon.Should().Be(horizon);
+                final.RiskExecution!.RegimeResult.PayloadSha256.Should().Be(final.RegimeDiscovery.Result!.PayloadSha256);
+                final.RiskExecution.MarketConditionResult.PayloadSha256.Should().Be(final.MarketCondition.Result!.PayloadSha256);
+                final.RiskExecution.SelectionResult.PayloadSha256.Should().Be(final.TradeSelection.Result!.PayloadSha256);
+                final.RiskExecution.CompositionResult.PayloadSha256.Should().Be(final.OrderComposition.Result!.PayloadSha256);
+                var order = await host.Services.GetRequiredService<IPortfolioQueryApi>().GetOrderAsync(final.FinancialHandoff!.Authorization!.OrderId);
+                order.Success.Should().BeTrue(order.ErrorMessage);
+                order.Value!.Status.Should().Be("RiskApproved");
+                order.Value.CompositionResultHash.Should().Be(risk.CompositionResultHash);
+                final.FinancialHandoff!.Authorization!.StrategyUnits.Should().Be(risk.StrategyUnits);
+                await AssertWorkflowReservationCountAsync(selection.SelectionBinding, 1);
+                var persistedFund = await host.Services.GetRequiredService<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore>()
+                    .LoadFundAsync(new(risk.PortfolioId, risk.FundId));
+                persistedFund.Orders.Single(x => x.OrderId == order.Value.OrderId).RiskAuthorization.Should().Be(final.FinancialHandoff.Authorization);
+                var receipt = await host.Services.GetRequiredService<IPortfolioFinancialApi>().GetPostingReceiptAsync(
+                    new() { PortfolioId = risk.PortfolioId, FundId = risk.FundId, Access = new("workflow-test", ["LedgerRead"], [risk.PortfolioId]) },
+                    new(final.FinancialHandoff.ReservationRequest!.OperationId));
+                receipt.Success.Should().BeTrue(receipt.ErrorMessage);
+                receipt.Value!.Value!.Reservation!.Receipt.StrategyUnits.Should().Be(risk.StrategyUnits);
+                if (captureTrace)
+                {
+                    var recorded = spans.Where(x => (string?)x.GetTagItem("ifm.workflow.entity") == start.EntityId.Format()).ToArray();
+                    recorded.Should().Contain(x => x.OperationName == "risk.calculate");
+                    recorded.Should().Contain(x => x.OperationName == "workflow.state.load");
+                    recorded.Should().Contain(x => x.OperationName == "risk.financial_handoff");
+                    var traceIds = recorded.Select(x => x.TraceId).ToHashSet();
+                    traceIds.Add(traceRun.TraceId);
+                    var workflowSpans = spans.Where(x => traceIds.Contains(x.TraceId)).ToArray();
+                    foreach (var operation in new[] { "composer.preparation.read", "composer.accept.create_execution",
+                        "workflow.project.timeline_serialize", "workflow.project.timeline_write", "workflow.project.detail_write",
+                        "workflow.project.entity_write", "workflow.project.status_write", "workflow.project.active_write",
+                        "workflow.project.active_delete", "workflow.project.notify", "authorization.reserve_call",
+                        "authorization.fund_authorize_call", "authorization.verify.reservation_receipt",
+                        "authorization.verify.fund_receipt", "authorization.advance_send", "risk.prepare.build_request" })
+                        workflowSpans.Should().Contain(x => x.OperationName == operation, "the detailed timing boundary must be exercised");
+                    workflowSpans.Where(x => x.OperationName is "workflow.project.timeline_serialize" or "workflow.project.state_serialize")
+                        .Should().OnlyContain(x => x.GetTagItem("ifm.payload.bytes") is int && (int)x.GetTagItem("ifm.payload.bytes")! > 0);
+                    recorded.Select(x => x.TraceId).Distinct().Should().ContainSingle("the workflow must preserve W3C context across actors and projector queues");
+                    recorded.Should().OnlyContain(x => x.TraceId == traceRun.TraceId,
+                        "all workflow services must remain in the initiating trace");
+                }
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+                throw;
+            }
+            finally
+            {
+                verification.Stop();
+                timeout.Cancel();
+                if (completion is not null)
+                {
+                    try { await completion; }
+                    catch (Exception) when (failure is not null) { /* Original failure is preserved below. */ }
+                }
+                traceRun.Stop();
+                // A manually created Activity also supplies context in untraced benchmark
+                // runs, but ActivityListener does not export it. Include the root explicitly.
+                if (captureTrace) spans.Enqueue(traceRun);
+                if (benchmarkWriter is not null)
+                {
+                    var sample = new { RecordType = "sample", RunId = benchmarkWriter.RunId,
+                        benchmark!.Label, measurement.SampleId, Scenario = iteration.Scenario.ToString(), iteration.Phase, iteration.Iteration,
+                        StageCount = stageCount ?? 5, Endpoint = "Risk Manager / Authorized intent",
+                        Success = failure is null, Error = failure?.ToString(),
+                        measurement.StartedAtUtc, measurement.AuthorizedMilliseconds, WorkflowMilliseconds = measurement.EndpointMilliseconds,
+                        measurement.QueryVisibleMilliseconds, VerificationMilliseconds = verification.Elapsed.TotalMilliseconds,
+                        ElapsedMilliseconds = measurement.ElapsedMilliseconds,
+                        StageAcceptedMilliseconds = measurement.Stages, measurement.ObservedActive,
+                        measurement.ProcessMetrics, WorkflowId = start.ProposedWorkflowId.ToString(),
+                        WorkflowEntityId = start.EntityId.Format(), PortfolioId = selection.SelectionBinding.PortfolioSnapshot.Portfolio.PortfolioId,
+                        FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId, TraceId = traceRun.TraceId.ToString(),
+                        Outcome = final?.Status.ToString(), FinancialPhase = final?.FinancialHandoff?.Phase.ToString(),
+                        Risk = final?.RiskExecution is { } invocation ? RiskLatency.Measure(invocation) : null };
+                    benchmarkWriter.Write(sample);
+                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(sample));
+                }
+                measurements.TryRemove(identity, out _);
+                starts.TryRemove(start.ProposedWorkflowId.Value, out _);
+                if (captureTrace)
+                {
+                    var traceIds = spans.Where(x => (string?)x.GetTagItem("ifm.workflow.entity") == start.EntityId.Format())
+                        .Select(x => x.TraceId).Append(traceRun.TraceId).ToHashSet();
+                    foreach (var span in spans.Where(x => traceIds.Contains(x.TraceId)).OrderBy(x => x.StartTimeUtc))
+                    {
+                        var row = new { RecordType = "span", RunId = benchmarkWriter?.RunId, measurement.SampleId,
+                            Operation = span.OperationName, TraceId = span.TraceId.ToString(),
+                            SpanId = span.SpanId.ToString(), ParentSpanId = span.ParentSpanId.ToString(), span.StartTimeUtc,
+                            Milliseconds = span.Duration.TotalMilliseconds, Tags = span.TagObjects.ToDictionary(x => x.Key, x => x.Value) };
+                        if (benchmarkWriter is null) output.WriteLine(System.Text.Json.JsonSerializer.Serialize(row));
+                        else benchmarkWriter.Write(row);
+                    }
+                }
+                releaseFixtureCalls?.Invoke();
             }
         }
     }
 
-    sealed class WorkflowMarketFixture(ICompositionPreparationStore storage, Func<Task<IntrinsicTimeStrategyWorkflowView>> load) : ICompositionPreparationStore
+    sealed class WorkflowMarketFixture(ICompositionPreparationStore storage, Func<CompositionPreparationKey, Task<IntrinsicTimeStrategyWorkflowView>> load) : ICompositionPreparationStore
     {
         public Task<CompositionPreparation> CommitAsync(CompositionPreparation proposed, CancellationToken token) => storage.CommitAsync(proposed, token);
         public async Task<CompositionPreparation?> ReadAsync(CompositionPreparationKey key, CancellationToken token)
         {
             var saved = await storage.ReadAsync(key, token);
             if (saved is not null) return saved;
-            var view = await load();
+            var view = await load(key);
             var binding = CompositionBindingResolver.Resolve(view.TradeSelection.Result!.ReadSelectionResult(), view.SelectionBinding!, DateTime.UtcNow);
             var at = DateTimeOffset.UtcNow;
             var snapshot = CompositionSnapshotAdapter.To(CompositionFixture.Snapshot(binding, at));

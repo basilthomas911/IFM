@@ -17,6 +17,7 @@ public static class IfmMetricsServiceCollectionExtensions
     const string FmpImportMeterName = "TomasAI.IFM.Application.MarketData.FMP";
     const string MarketConditionInstrumentationName = "TomasAI.IFM.Domain.Trade.MarketCondition";
     const string PortfolioInstrumentationName = "TomasAI.IFM.Domain.Portfolio";
+    const string PortfolioFinancialInstrumentationName = "TomasAI.IFM.PortfolioFinancial";
 
     /// <summary>
     /// Adds IFM, .NET runtime, ASP.NET Core, Kestrel, and HTTP client metrics when
@@ -55,6 +56,7 @@ public static class IfmMetricsServiceCollectionExtensions
                     .AddMeter(FmpImportMeterName)
                     .AddMeter(MarketConditionInstrumentationName)
                     .AddMeter(PortfolioInstrumentationName)
+                    .AddMeter(PortfolioFinancialInstrumentationName)
                     .AddMeter("TomasAI.IFM.RiskManagement")
                     .AddMeter("System.Runtime")
                     .AddMeter("Microsoft.AspNetCore.Hosting")
@@ -86,6 +88,7 @@ public static class IfmMetricsServiceCollectionExtensions
             {
                 tracing.AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
                     .AddSource(PortfolioInstrumentationName)
+                    .AddSource(PortfolioFinancialInstrumentationName)
                     .AddOtlpExporter(options =>
                     {
                         if (!string.IsNullOrWhiteSpace(endpointText))

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Portfolio;
 using TomasAI.IFM.UI.Net.Views.App;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
@@ -12,10 +13,12 @@ public sealed partial class PortfolioAdministrationForm
     readonly TableLayoutPanel _metricStrip = new() { Name = "fundMetrics", Dock = DockStyle.Fill, ColumnCount = 10, RowCount = 2, Height = 64, Margin = Padding.Empty };
     readonly TextBox[] _metricValues = new TextBox[10];
     readonly Label _metricStatus = new() { AutoEllipsis = true, Dock = DockStyle.Fill, Height = 25, Text = "Select a Fund to view metrics.", AccessibleName = "Fund metrics status" };
-    readonly DarkDateTimePicker _metricsFrom = new() { Name = "metricsFrom", AccessibleName = "Fund metrics from date", Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Width = 125, Value = new DateTime(DateTime.Today.Year, 1, 1) };
-    readonly DarkDateTimePicker _metricsTo = new() { Name = "metricsTo", AccessibleName = "Fund metrics through date", Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Width = 125, Value = DateTime.Today };
+    readonly DarkDateTimePicker _metricsFrom = new() { Name = "metricsFrom", AccessibleName = "Fund metrics from date", Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Width = 125, Value = new DateTime(CurrentEasternDate.Year, 1, 1) };
+    readonly DarkDateTimePicker _metricsTo = new() { Name = "metricsTo", AccessibleName = "Fund metrics through date", Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd", Width = 125, Value = CurrentEasternDate };
     readonly ToolTip _metricTips = new();
     FundMetricsViewModel? _metrics;
+
+    static DateTime CurrentEasternDate => EasternTime.GetNow(TimeProvider.System).Date;
 
     void BuildAdministrationLayout()
     {
