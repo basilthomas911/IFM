@@ -14,6 +14,8 @@ public sealed class DatasetWorkerAdmissionRegistry
     readonly Dictionary<string, AdmissionState> admissions = new(StringComparer.Ordinal);
     long rejected;
 
+    public event Action? Changed;
+
     public long RejectedPublications => Interlocked.Read(ref rejected);
 
     public void Admit(DatasetWorkerAdmission admission)
@@ -22,6 +24,7 @@ public sealed class DatasetWorkerAdmissionRegistry
         if (admission.ValueDate == default || admission.WorkerInstanceId == Guid.Empty
             || admission.GenerationId == Guid.Empty || admission.ManifestRevision < 1)
             throw new ArgumentException("Dataset worker admission identity is invalid.", nameof(admission));
+        var changed = false;
         lock (gate)
         {
             if (admissions.TryGetValue(admission.Dataset, out var previous))
@@ -32,12 +35,15 @@ public sealed class DatasetWorkerAdmissionRegistry
                 Retire(previous);
             }
             admissions[admission.Dataset] = new AdmissionState(admission);
+            changed = true;
         }
+        if (changed) Changed?.Invoke();
     }
 
     public void Close(string dataset, Guid expectedGeneration, Action? onClosed = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);
+        var changed = false;
         lock (gate)
         {
             if (admissions.TryGetValue(dataset, out var current)
@@ -46,8 +52,10 @@ public sealed class DatasetWorkerAdmissionRegistry
                 admissions.Remove(dataset);
                 Retire(current);
                 onClosed?.Invoke();
+                changed = true;
             }
         }
+        if (changed) Changed?.Invoke();
     }
 
     public bool TryAccept(

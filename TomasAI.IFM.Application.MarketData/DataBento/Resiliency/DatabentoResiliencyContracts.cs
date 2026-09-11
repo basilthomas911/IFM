@@ -146,6 +146,7 @@ public sealed record DatabentoLifecycleSnapshot
 public sealed record DatabentoWatchdogOptions
 {
     public bool Enabled { get; init; } = true;
+    public bool PeriodicProbeEnabled { get; init; } = true;
     public string NativeBackend { get; init; } = "Cpp";
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(15);
     public TimeSpan ProbeTimeout { get; init; } = TimeSpan.FromSeconds(1);

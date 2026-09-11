@@ -14,6 +14,11 @@ public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings 
           event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
           projected_at_utc timestamptz NOT NULL DEFAULT now());
         ALTER TABLE business_subscription_projection_receipt ADD COLUMN IF NOT EXISTS handoff_completed boolean NOT NULL DEFAULT false;
+        CREATE TABLE IF NOT EXISTS business_subscription_projection_issue(
+          event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
+          reason_code text NOT NULL,
+          detail text NOT NULL,
+          rejected_at_utc timestamptz NOT NULL DEFAULT now());
         """;
     const string Columns = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
     const string Pending = Columns + "WHERE en.eventName=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventVersion) ORDER BY el.eventVersion LIMIT 32;";
@@ -57,6 +62,25 @@ public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings 
         return result;
     }
 
+    public async Task RejectAsync(long eventId,string reasonCode,string detail,CancellationToken cancellationToken)
+    {
+        if(eventId<=0 || string.IsNullOrWhiteSpace(reasonCode) || reasonCode.Length>128 || string.IsNullOrWhiteSpace(detail) || detail.Length>4096)
+            throw new ArgumentException("A bounded committed-event rejection is required.");
+        await using var db = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connection);
+        await db.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction=await db.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using(var issue=new NpgsqlCommand("INSERT INTO business_subscription_projection_issue(event_id,reason_code,detail) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;",db,transaction){CommandTimeout=10})
+        {
+            issue.Parameters.Add(new NpgsqlParameter {Value=eventId}); issue.Parameters.Add(new NpgsqlParameter {Value=reasonCode}); issue.Parameters.Add(new NpgsqlParameter {Value=detail});
+            await issue.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await using(var receipt=new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;",db,transaction){CommandTimeout=10})
+        {
+            receipt.Parameters.Add(new NpgsqlParameter {Value=eventId});
+            await receipt.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
     public async Task AcknowledgeAsync(long eventId, CancellationToken cancellationToken)
     {
         await using var db = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connection);

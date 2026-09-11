@@ -12,6 +12,7 @@ using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Extensions;
@@ -81,10 +82,14 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
             ToolTipText = "Read central pipeline and dataset-worker health independently of UI market updates."
         };
         operationsHealth.Click += (_, _) => _navigator.ShowModal<MarketDataOperationsHealthForm>();
-        var strategyObservation = new ToolStripButton("Strategy observation") { Name="strategyObservationButton",DisplayStyle=ToolStripItemDisplayStyle.Text };
-        strategyObservation.Click += (_, _) => _navigator.ShowModal<TomasAI.IFM.UI.Net.Views.Strategy.StrategyObservationForm>();
-        toolStrip1.Items.Add(strategyObservation);
         toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(marketDataFeedHealthIndicator) + 1, operationsHealth);
+        var actorHealthButton = new ToolStripButton("Actor Health")
+        {
+            Name = "actorHealthButton", DisplayStyle = ToolStripItemDisplayStyle.Text,
+            AccessibleName = "Open read-only actor health"
+        };
+        actorHealthButton.Click += (_, _) => _navigator.ShowModal<ActorHealthForm>();
+        toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(operationsHealth) + 1, actorHealthButton);
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
     }
@@ -356,15 +361,23 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     {
         try
         {
-            var history = await _viewModel.GetDatabentoWatchdogHistoryAsync();
-            var detail = history.Length == 0 ? "No persisted watchdog observations are available."
-                : string.Join(Environment.NewLine, history.Take(25).Select(item =>
-                    $"{item.ObservedOnUtc:u} {item.DisplayHealth} {item.OperationReason} attempt={item.RecoveryAttempt} {item.FailureDetail}"));
-            MessageBox.Show(this, detail, "Databento Watchdog History", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            var history = await _viewModel.GetLivePipelineHealthHistoryAsync();
+            var detail = history.Count == 0 ? "No one-minute pipeline audits are available yet."
+                : string.Join(Environment.NewLine + Environment.NewLine, history.Select(FormatAudit));
+            MessageBox.Show(this, detail, "Live Pipeline Health History", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception exception)
         {
-            this.ShowErrorMessage(exception.Message, "Databento Watchdog History");
+            this.ShowErrorMessage(exception.Message, "Live Pipeline Health History");
+        }
+
+        static string FormatAudit(LivePipelineHealthSnapshot audit)
+        {
+            var exceptions = audit.Checks.Where(check => check.Required && check.Status is not ("Healthy" or "Inactive")).ToArray();
+            var summary = $"{audit.ObservedUtc:u} {audit.Status} value-date={audit.ValueDate?.ToString("yyyy-MM-dd") ?? "none"}";
+            return exceptions.Length == 0 ? summary + Environment.NewLine + "All required pipeline checks passed."
+                : summary + Environment.NewLine + string.Join(Environment.NewLine, exceptions.Select(check =>
+                    $"{check.Status} {check.Component}/{check.Scope}: {check.Reason} recovery={check.RecoveryState} attempts={check.RecoveryAttempts}/3"));
         }
     }
 

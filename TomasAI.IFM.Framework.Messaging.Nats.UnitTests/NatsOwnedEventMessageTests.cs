@@ -103,6 +103,32 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+    public async Task OwnedBranches_FinalizeDurableDeliveryFromProcessingOutcomeExactlyOnce()
+    {
+        var acknowledgements = 0;
+        var negativeAcknowledgements = 0;
+        var delivery = new EventFanoutDelivery(
+            2,
+            () => { acknowledgements++; return ValueTask.CompletedTask; },
+            () => { negativeAcknowledgements++; return ValueTask.CompletedTask; });
+        using var payload = CreatePayload(CreateEvent());
+        var first = payload.CreateBranch(CreateEvent().Subject, delivery);
+        var second = payload.CreateBranch(CreateEvent().Subject, delivery);
+
+        await first.CompleteDeliveryAsync(true);
+        await first.CompleteDeliveryAsync(false);
+        acknowledgements.Should().Be(0);
+        negativeAcknowledgements.Should().Be(0);
+
+        await second.CompleteDeliveryAsync(false);
+        acknowledgements.Should().Be(0);
+        negativeAcknowledgements.Should().Be(1);
+        delivery.Failures.Should().Be(1);
+        first.Dispose();
+        second.Dispose();
+    }
+
+    [Fact]
     public void DeliveryCoordinator_RetainsConfiguredDelayedNak()
     {
         var delay = TimeSpan.FromMilliseconds(175);

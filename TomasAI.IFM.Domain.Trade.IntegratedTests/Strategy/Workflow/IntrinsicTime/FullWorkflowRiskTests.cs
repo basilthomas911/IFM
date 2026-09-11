@@ -98,7 +98,9 @@ public sealed partial class TradeSelectionRuntimeTests
             projector.StartAsync(Arg.Any<ICommandActorContext>(), Arg.Any<CancellationToken>()).Returns(call =>
             {
                 var context = (ICommandActorContext<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>)call.Arg<ICommandActorContext>();
-                production = new(context);
+                production = new(context,
+                    Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(),
+                    Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>());
                 return production.StartAsync(context, call.Arg<CancellationToken>());
             });
             projector.StopAsync(Arg.Any<CancellationToken>()).Returns(call => production?.StopAsync(call.Arg<CancellationToken>()) ?? ValueTask.CompletedTask);

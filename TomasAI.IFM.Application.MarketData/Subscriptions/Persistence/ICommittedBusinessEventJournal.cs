@@ -8,6 +8,7 @@ public interface ICommittedBusinessEventJournal
     Task<IReadOnlyList<EventLogReadModel>> ReadPendingAsync(IReadOnlyList<string> eventNames, CancellationToken cancellationToken);
     Task<EventLogReadModel?> ReadPriorAsync(long streamId, long throughEventId, IReadOnlyList<string> eventNames, CancellationToken cancellationToken);
     Task AcknowledgeAsync(long eventId, CancellationToken cancellationToken);
+    Task RejectAsync(long eventId, string reasonCode, string detail, CancellationToken cancellationToken);
     Task<IReadOnlyList<EventLogReadModel>> ReadPendingHandoffsAsync(CancellationToken cancellationToken);
     Task CompleteHandoffAsync(long eventId, CancellationToken cancellationToken);
 }

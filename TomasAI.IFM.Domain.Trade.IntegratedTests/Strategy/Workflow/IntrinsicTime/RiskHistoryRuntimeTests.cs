@@ -39,7 +39,7 @@ public sealed partial class TradeSelectionRuntimeTests
             var last=first with {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),WorkflowRevision=9,State=first.State with {WorkflowRevision=9,StopReasonCode="terminal"}};
             await db.UpsertRiskHistoryAsync(last);await db.UpsertRiskHistoryAsync(first);await db.UpsertRiskHistoryAsync(last);
             (await db.GetRiskInvocationAsync(input.WorkflowId.Value,input.CommandId))!.WorkflowRevision.Should().Be(9);
-            await FluentActions.Awaiting(()=>db.UpsertRiskHistoryAsync(last with {State=last.State with {StopReasonCode="conflicting"}})).Should().ThrowAsync<InvalidDataException>();
+            (await db.UpsertRiskHistoryAsync(last with {State=last.State with {StopReasonCode="conflicting"}})).Disposition.Should().Be(RiskHistoryProjectionDisposition.Conflict);
             var row=RiskHistoryIdentity.Row(last)!;var api=new RiskQueryApi(producer);
             var aggregate=new PortfolioFundAggregate();
             aggregate.Replay([new FundCompositionReserved(Guid.NewGuid(),Guid.NewGuid(),1,DateTime.UtcNow,"fixture",new(){Order=new(){PortfolioId=row.PortfolioId,FundId=row.FundId,OrderId=checked((int)row.OrderId),IdempotencyKey=Guid.NewGuid(),Status="RiskPending"},Trades=[new(){OrderId=checked((int)row.OrderId)}]})]);

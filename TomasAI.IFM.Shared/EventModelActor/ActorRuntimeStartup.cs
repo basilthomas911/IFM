@@ -92,7 +92,7 @@ public static class ActorRuntimeStartup
             foreach (var actor in actors)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await actor.StartAsync(supervisor, cancellationToken).ConfigureAwait(false);
+                await supervisor.StartAsync(actor.Id, cancellationToken).ConfigureAwait(false);
                 logger.LogInformationEvent(ServiceId, "Started {ActorType} actor.", actor.GetType().Name);
             }
 

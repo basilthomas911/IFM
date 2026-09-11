@@ -5,6 +5,7 @@ public interface IFunctionActorContext
 {
     ActorMailboxId ActorId { get; }
     IContainerInstance Container { get; }
+    SupervisorRuntimeContext SupervisorRuntime => null!;
 }
 
 /// <summary>Closed-generic Function actor context.</summary>

@@ -11,4 +11,5 @@ public class FunctionActorContext(IActorSupervisor supervisor, ActorMailboxId ac
 
     public ActorMailboxId ActorId => _actorId;
     public IContainerInstance Container => _supervisor.Container;
+    public SupervisorRuntimeContext SupervisorRuntime => _supervisor.RuntimeContext;
 }

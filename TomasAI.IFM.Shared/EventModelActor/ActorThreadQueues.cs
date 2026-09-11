@@ -10,7 +10,8 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public sealed class ActorThreadQueues(
     IActorSupervisor supervisor,
     int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
-    ActorAdmissionController? admissionController = null) : IActorThreadQueues
+    ActorAdmissionController? admissionController = null,
+    ActorMetricsStore? metrics = null) : IActorThreadQueues
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorAdmissionController _admissionController =
@@ -18,13 +19,18 @@ public sealed class ActorThreadQueues(
     readonly int _maxRetainedIdleQueues = maxRetainedIdleQueues >= 0
         ? maxRetainedIdleQueues
         : throw new ArgumentOutOfRangeException(nameof(maxRetainedIdleQueues));
+    readonly ActorMetricsStore? _metrics = metrics;
     readonly ConcurrentDictionary<ActorThreadId, IActorThreadQueue> _threadQueues = new();
+    readonly ConcurrentDictionary<ActorThreadId, byte> _paused = new();
+    readonly ConcurrentDictionary<ActorThreadId, long> _generations = new();
 
     // Count before publication so a concurrent release cannot miss a newly published queue.
     // Pending additions/removals can temporarily overestimate retention; Count remains exact for diagnostics.
     int _publishedOrPendingQueues;
+    int _accepting = 1;
 
     public int Count => _threadQueues.Count;
+    public bool IsAccepting => Volatile.Read(ref _accepting) != 0;
 
     public bool Write(IActorMessage message)
         => Write(message, message.Subject);
@@ -42,9 +48,17 @@ public sealed class ActorThreadQueues(
     {
         IsArgumentNull.Check(message);
         var threadId = subject.ThreadId;
+        if (!IsAdmissionOpen(threadId))
+        {
+            RecordRejected(threadId);
+            return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
+        }
         var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
         if (!admission.Accepted)
+        {
+            RecordRejected(threadId);
             return admission;
+        }
 
         var reservationOwned = true;
         try
@@ -62,7 +76,10 @@ public sealed class ActorThreadQueues(
                     throw CreateQueueConfigurationException(queue);
 
                 var result = scheduled.TryWriteReserved(message, charge, cancellationToken);
-                if (result.Reason == ActorAdmissionReason.MailboxRetired)
+                if (result.Reason == ActorAdmissionReason.MailboxRetired
+                    || result.Reason == ActorAdmissionReason.Stopping
+                    && (!_threadQueues.TryGetValue(threadId, out var current)
+                        || !ReferenceEquals(current, queue)))
                 {
                     RemoveRetired(threadId, queue);
                     continue;
@@ -71,6 +88,7 @@ public sealed class ActorThreadQueues(
                 if (result.Accepted)
                 {
                     reservationOwned = false;
+                    _metrics?.GetOrRegister(threadId, queue).RecordAccepted();
                     if (scheduled.TrySchedule())
                     {
                         if (scheduler is null)
@@ -83,6 +101,7 @@ public sealed class ActorThreadQueues(
 
                 _admissionController.Release(charge);
                 reservationOwned = false;
+                RecordRejected(threadId);
                 return result;
             }
         }
@@ -116,9 +135,17 @@ public sealed class ActorThreadQueues(
     {
         IsArgumentNull.Check(message);
         var threadId = subject.ThreadId;
+        if (!IsAdmissionOpen(threadId))
+        {
+            RecordRejected(threadId);
+            return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
+        }
         var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
         if (!admission.Accepted)
+        {
+            RecordRejected(threadId);
             return admission;
+        }
 
         var reservationOwned = true;
         try
@@ -138,7 +165,10 @@ public sealed class ActorThreadQueues(
                 var result = await scheduled
                     .TryWriteReservedAsync(message, charge, cancellationToken)
                     .ConfigureAwait(false);
-                if (result.Reason == ActorAdmissionReason.MailboxRetired)
+                if (result.Reason == ActorAdmissionReason.MailboxRetired
+                    || result.Reason == ActorAdmissionReason.Stopping
+                    && (!_threadQueues.TryGetValue(threadId, out var current)
+                        || !ReferenceEquals(current, queue)))
                 {
                     RemoveRetired(threadId, queue);
                     continue;
@@ -147,6 +177,7 @@ public sealed class ActorThreadQueues(
                 if (result.Accepted)
                 {
                     reservationOwned = false;
+                    _metrics?.GetOrRegister(threadId, queue).RecordAccepted();
                     if (scheduled.TrySchedule())
                     {
                         if (scheduler is null)
@@ -159,6 +190,7 @@ public sealed class ActorThreadQueues(
 
                 _admissionController.Release(charge);
                 reservationOwned = false;
+                RecordRejected(threadId);
                 return result;
             }
         }
@@ -188,7 +220,13 @@ public sealed class ActorThreadQueues(
             created.Start();
             Interlocked.Increment(ref _publishedOrPendingQueues);
             if (_threadQueues.TryAdd(threadId, created))
+            {
+                var generation = _generations.TryGetValue(threadId, out var restartedGeneration)
+                    ? restartedGeneration
+                    : 1;
+                _metrics?.RegisterMailbox(threadId, created, generation);
                 return created;
+            }
             Interlocked.Decrement(ref _publishedOrPendingQueues);
             created.Stop();
         }
@@ -196,6 +234,117 @@ public sealed class ActorThreadQueues(
 
     public bool TryGetThreadQueue(ActorThreadId threadId, out IActorThreadQueue? queue)
         => _threadQueues.TryGetValue(threadId, out queue);
+
+    public void PauseAdmission()
+    {
+        Volatile.Write(ref _accepting, 0);
+        if (_metrics is not null)
+            foreach (var pair in _threadQueues)
+                _metrics.GetOrRegister(pair.Key, pair.Value).SetAdmission(false);
+    }
+
+    public void ResumeAdmission()
+    {
+        Volatile.Write(ref _accepting, 1);
+        if (_metrics is not null)
+            foreach (var pair in _threadQueues)
+                _metrics.GetOrRegister(pair.Key, pair.Value)
+                    .SetAdmission(!_paused.ContainsKey(pair.Key));
+    }
+    public bool IsAdmissionOpen(ActorThreadId threadId)
+        => IsAccepting && !_paused.ContainsKey(threadId);
+
+    public void PauseAdmission(ActorThreadId threadId)
+    {
+        _paused[threadId] = 0;
+        if (_metrics is not null && _threadQueues.TryGetValue(threadId, out var queue))
+        {
+            var mailbox = _metrics.GetOrRegister(threadId, queue);
+            mailbox.SetAdmission(false);
+            mailbox.SetLifecycle(ActorMailboxLifecycleState.Draining);
+        }
+    }
+
+    public void ResumeAdmission(ActorThreadId threadId)
+    {
+        _paused.TryRemove(threadId, out _);
+        if (_metrics is not null && _threadQueues.TryGetValue(threadId, out var queue))
+        {
+            var mailbox = _metrics.GetOrRegister(threadId, queue);
+            mailbox.SetAdmission(true);
+            mailbox.SetLifecycle(ActorMailboxLifecycleState.Running);
+        }
+    }
+
+    public async ValueTask<bool> WaitForIdleAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        var deadline = timeout == Timeout.InfiniteTimeSpan ? DateTime.MaxValue : DateTime.UtcNow + timeout;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_threadQueues.Values.All(queue => queue.Count == 0)
+                && (_metrics?.CaptureSnapshot().Mailboxes.All(mailbox => !mailbox.IsProcessing) ?? true))
+                return true;
+            if (DateTime.UtcNow >= deadline)
+                return false;
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async ValueTask<bool> WaitForIdleAsync(
+        ActorThreadId threadId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        var deadline = timeout == Timeout.InfiniteTimeSpan ? DateTime.MaxValue : DateTime.UtcNow + timeout;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var queued = _threadQueues.TryGetValue(threadId, out var queue) ? queue.Count : 0;
+            var processing = _metrics?.TryGetMailboxSnapshot(threadId, out var snapshot) == true
+                && snapshot?.IsProcessing == true;
+            if (queued == 0 && !processing)
+            {
+                if (_metrics?.TryGetMailboxSnapshot(threadId, out _) == true
+                    && _threadQueues.TryGetValue(threadId, out var idleQueue))
+                    _metrics.GetOrRegister(threadId, idleQueue).SetLifecycle(ActorMailboxLifecycleState.Paused);
+                return true;
+            }
+            if (DateTime.UtcNow >= deadline)
+            {
+                if (_metrics is not null && _threadQueues.TryGetValue(threadId, out var stalledQueue))
+                    _metrics.GetOrRegister(threadId, stalledQueue).SetLifecycle(ActorMailboxLifecycleState.Quarantined);
+                return false;
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public bool Retire(ActorThreadId threadId)
+    {
+        if (!_threadQueues.TryGetValue(threadId, out var queue))
+            return true;
+        if (queue.Count != 0)
+            return false;
+        if (queue is IScheduledActorThreadQueue scheduled && !scheduled.TryRetire())
+            return false;
+        if (!((ICollection<KeyValuePair<ActorThreadId, IActorThreadQueue>>)_threadQueues)
+            .Remove(new(threadId, queue)))
+            return false;
+        Interlocked.Decrement(ref _publishedOrPendingQueues);
+        _generations.AddOrUpdate(threadId, 2, static (_, generation) => generation + 1);
+        if (_metrics is not null)
+            _metrics.GetOrRegister(threadId, queue).SetLifecycle(ActorMailboxLifecycleState.Retired);
+        _metrics?.RemoveMailbox(threadId, queue);
+        queue.Stop();
+        return true;
+    }
 
     public void ReleaseThreadQueue(ActorThreadId threadId)
     {
@@ -216,6 +365,7 @@ public sealed class ActorThreadQueues(
             .Remove(new KeyValuePair<ActorThreadId, IActorThreadQueue>(threadId, queue)))
         {
             Interlocked.Decrement(ref _publishedOrPendingQueues);
+            _metrics?.RemoveMailbox(threadId, queue);
             queue.Stop();
         }
     }
@@ -229,8 +379,16 @@ public sealed class ActorThreadQueues(
             .Remove(new KeyValuePair<ActorThreadId, IActorThreadQueue>(threadId, queue)))
         {
             Interlocked.Decrement(ref _publishedOrPendingQueues);
+            _metrics?.RemoveMailbox(threadId, queue);
             queue.Stop();
         }
+    }
+
+    void RecordRejected(ActorThreadId threadId)
+    {
+        if (_metrics is null || !_threadQueues.TryGetValue(threadId, out var queue))
+            return;
+        _metrics.GetOrRegister(threadId, queue).RecordRejected();
     }
 
     static InvalidOperationException CreateQueueConfigurationException(IActorThreadQueue queue)

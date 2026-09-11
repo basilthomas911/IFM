@@ -23,4 +23,15 @@ public interface IActorThreadQueues
     bool TryGetThreadQueue(ActorThreadId threadId, out IActorThreadQueue? queue);
     void ReleaseThreadQueue(ActorThreadId threadId);    
     int Count { get; }
+    bool IsAccepting => true;
+    void PauseAdmission() { }
+    void ResumeAdmission() { }
+    ValueTask<bool> WaitForIdleAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(true);
+    bool IsAdmissionOpen(ActorThreadId threadId) => true;
+    void PauseAdmission(ActorThreadId threadId) { }
+    void ResumeAdmission(ActorThreadId threadId) { }
+    ValueTask<bool> WaitForIdleAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(true);
+    bool Retire(ActorThreadId threadId) => false;
 }

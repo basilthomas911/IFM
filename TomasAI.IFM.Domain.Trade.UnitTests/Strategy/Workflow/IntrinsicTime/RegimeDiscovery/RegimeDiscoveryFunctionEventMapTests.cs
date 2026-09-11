@@ -56,7 +56,8 @@ public sealed class RegimeDiscoveryFunctionEventMapTests
             new(typeof(RegimeDiscoveryPipelineFailedEvent), command,
                 Exception: new InvalidOperationException("dependency unavailable"), Stage: stage), TimeProvider.System);
         terminal.IsFailed.Should().BeTrue();
-        terminal.Failed!.ErrorData.Should().Be($"{stage}:InvalidOperationException");
+        terminal.Failed!.ErrorData.Should().Be(
+            $"{stage}:Exception.Type=System.InvalidOperationException;Exception.Message=dependency unavailable;Exception.HResult=0x80131509");
         terminal.Failed.CommandId.Should().Be(command.CommandId);
         terminal.Failed.ErrorCode.Should().Be(command.ErrorCode);
     }

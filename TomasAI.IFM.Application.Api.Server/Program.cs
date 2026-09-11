@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 
 try
@@ -44,6 +45,11 @@ try
     app.MapApiQueries(logger);
     app.MapGet("/api/market-data/operations-health",
         (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)));
+    app.MapGet("/api/actor-health",
+        (IActorSupervisor supervisor, DateTime? fromUtc, DateTime? toUtc) =>
+            fromUtc > toUtc
+                ? Results.BadRequest(new { Error = "fromUtc must be before toUtc." })
+                : Results.Ok(supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc)));
     app.MapLivePipelineHealth();
     if (verifyStartupOnly)
     {

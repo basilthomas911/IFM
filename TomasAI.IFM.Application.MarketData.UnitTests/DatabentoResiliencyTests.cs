@@ -395,6 +395,22 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
+    public async Task Disabled_periodic_probe_ignores_timer_and_terminal_fault_wakeups()
+    {
+        var signal = new DatabentoTerminalFaultSignal();
+        var store = new InMemoryMarketDataServiceStore();
+        var service = Create(new TestRuntime { Snapshot = Up() }, store, signal: signal,
+            periodicProbeEnabled: false);
+
+        await service.StartAsync(CancellationToken.None);
+        signal.Notify("This must be handled by the live-pipeline monitor.");
+        await Task.Delay(100);
+
+        (await store.ListObservationsAsync()).Should().BeEmpty();
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Terminal_worker_signal_runs_an_out_of_cycle_probe()
     {
         var signal = new DatabentoTerminalFaultSignal();
@@ -573,7 +589,8 @@ public sealed class DatabentoResiliencyTests
         DatabentoTerminalFaultSignal? signal = null,
         DatabentoStage3Options? stage3 = null,
         IDatabentoDatasetProcessRecovery? processRecovery = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        bool periodicProbeEnabled = true)
     {
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
@@ -591,7 +608,8 @@ public sealed class DatabentoResiliencyTests
             new DatabentoWatchdogOptions
             {
                 PollInterval = TimeSpan.FromHours(1), AttemptTwoDelay = TimeSpan.Zero,
-                AttemptThreeDelay = TimeSpan.Zero, PersistenceRetryDelay = TimeSpan.Zero
+                AttemptThreeDelay = TimeSpan.Zero, PersistenceRetryDelay = TimeSpan.Zero,
+                PeriodicProbeEnabled = periodicProbeEnabled
             }, signal ?? new DatabentoTerminalFaultSignal(), clock,
             NullLogger<DatabentoMarketDataWatchdogService>.Instance,
             stage3, processRecovery, new MarketDataOperationsHealthService(admissions));

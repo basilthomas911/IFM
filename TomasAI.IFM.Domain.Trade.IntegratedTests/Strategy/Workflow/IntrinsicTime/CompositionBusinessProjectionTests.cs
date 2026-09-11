@@ -236,6 +236,7 @@ public sealed partial class CompositionBusinessProjectionTests
         public Task<EventLogReadModel?> ReadPriorAsync(long stream, long version, IReadOnlyList<string> names, CancellationToken ct) => inner.ReadPriorAsync(stream, version, names, ct);
         public Task AcknowledgeAsync(long id, CancellationToken ct)
         { if (!failed) { failed = true; throw new IOException("Injected crash after ownership commit before receipt."); } return inner.AcknowledgeAsync(id, ct); }
+        public Task RejectAsync(long id,string code,string detail,CancellationToken ct)=>inner.RejectAsync(id,code,detail,ct);
         public Task<IReadOnlyList<EventLogReadModel>> ReadPendingHandoffsAsync(CancellationToken ct) => inner.ReadPendingHandoffsAsync(ct);
         public Task CompleteHandoffAsync(long id, CancellationToken ct) => inner.CompleteHandoffAsync(id, ct);
     }

@@ -12,6 +12,23 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class DatasetPublicationGenerationFenceTests
 {
     [Fact]
+    public void Admission_changes_signal_once_but_duplicate_or_stale_operations_do_not()
+    {
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        var identity = Admission("GLBX.MDP3");
+        var signals = 0;
+        admissions.Changed += () => signals++;
+
+        admissions.Admit(identity);
+        admissions.Admit(identity);
+        admissions.Close(identity.Dataset, Guid.NewGuid());
+        Assert.Equal(1, signals);
+
+        admissions.Close(identity.Dataset, identity.GenerationId);
+        Assert.Equal(2, signals);
+    }
+
+    [Fact]
     public async Task Closing_generation_cancels_already_queued_output_but_not_the_other_dataset()
     {
         var admissions = new DatasetWorkerAdmissionRegistry();

@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// One mailbox branch over a reference-counted pooled event payload. Every routed
 /// destination receives a distinct branch and releases only its own reference.
 /// </summary>
-public sealed class NatsOwnedEventMessage : IActorMessage
+public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryCompletion
 {
     static readonly MessagePackSerializerOptions SerializerOptions =
         MessagePackSerializerOptions.Standard
@@ -20,14 +20,18 @@ public sealed class NatsOwnedEventMessage : IActorMessage
             .WithCompression(MessagePackCompression.Lz4BlockArray);
 
     readonly NatsSharedEventPayload _payload;
+    readonly EventFanoutDelivery? _delivery;
     int _released;
+    int _deliveryCompleted;
 
     internal NatsOwnedEventMessage(
         NatsSharedEventPayload payload,
-        ActorSubject subject)
+        ActorSubject subject,
+        EventFanoutDelivery? delivery = null)
     {
         _payload = payload;
         Subject = subject;
+        _delivery = delivery;
     }
 
     public ActorSubject Subject { get; }
@@ -74,6 +78,13 @@ public sealed class NatsOwnedEventMessage : IActorMessage
 
     public void Dispose() => ReleasePayload();
 
+    public ValueTask CompleteDeliveryAsync(bool succeeded)
+    {
+        if (_delivery is null || Interlocked.Exchange(ref _deliveryCompleted, 1) != 0)
+            return ValueTask.CompletedTask;
+        return _delivery.CompleteHandoffAsync(succeeded);
+    }
+
     public NatsMsg<byte[]> GetMessage()
         => throw new InvalidOperationException(
             "Owned event payloads cannot be exposed as byte arrays.");
@@ -108,13 +119,15 @@ internal sealed class NatsSharedEventPayload : IDisposable
 
     internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
-    internal NatsOwnedEventMessage CreateBranch(ActorSubject subject)
+    internal NatsOwnedEventMessage CreateBranch(
+        ActorSubject subject,
+        EventFanoutDelivery? delivery = null)
     {
         ObjectDisposedException.ThrowIf(
             Volatile.Read(ref _disposed) != 0,
             nameof(NatsSharedEventPayload));
         Interlocked.Increment(ref _referenceCount);
-        return new NatsOwnedEventMessage(this, subject);
+        return new NatsOwnedEventMessage(this, subject, delivery);
     }
 
     internal void ReleaseBranch()

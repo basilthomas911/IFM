@@ -33,7 +33,7 @@ public abstract class BaseEventProjector<TActor> (
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
     ILogger logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null): IEventProjector<TActor>, IEventProjectorReadiness
+    EventProjectorReliabilityOptions? reliabilityOptions = null): IEventProjector<TActor>, IEventProjectorReadiness, ISupervisorProjectorMetricsSource
     where TActor : ICommandActor<TActor>
 {
     readonly EventProjectorReliabilityOptions _reliabilityOptions =
@@ -58,6 +58,22 @@ public abstract class BaseEventProjector<TActor> (
     public abstract string ProjectorName { get; }
     public abstract string DurableProcessQueueName { get; }
     public abstract string DurableReplayQueueName { get; }
+    public string SupervisorProjectorKey => $"{ActorName}:{ProjectorName}";
+
+    public SupervisorProjectorSnapshot CaptureSupervisorSnapshot()
+    {
+        var readiness = Readiness;
+        return new(
+            ActorName,
+            ProjectorName,
+            DurableProcessQueueName,
+            DurableReplayQueueName,
+            readiness.IsReady,
+            readiness.RecoveryEventsDiscovered,
+            readiness.RecoveryEventsQueued,
+            readiness.UpdatedAtUtc.UtcDateTime,
+            readiness.FailureReason);
+    }
     public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
     public abstract IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; }
 
@@ -144,6 +160,7 @@ public abstract class BaseEventProjector<TActor> (
         CancellationToken cancellationToken = default)
     {
         _context = IsArgumentNull.Set(context);
+        context.SupervisorRuntime?.RegisterProjector(this);
         var descriptors = GetDescriptorMap().Values;
         var hasDurableDescriptors = descriptors.Any(static descriptor => descriptor.UseDurableReplay);
         var hasTransientDescriptors = descriptors.Any(static descriptor => !descriptor.UseDurableReplay);

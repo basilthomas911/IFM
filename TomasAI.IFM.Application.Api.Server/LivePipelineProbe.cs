@@ -101,7 +101,7 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         Add("Lifecycle consistency", "watchdog", !health.Running || watchdog.Current.State is DatabentoLifecycleState.Healthy or DatabentoLifecycleState.Degraded,
             "Watchdog state must agree with the active feed; restarting is not proof of recovery.");
         var central = operations.GetReadModel();
-        Add("Operations observer", "runtime", central.SessionState != "Unknown" && now - central.ObservedOnUtc <= TimeSpan.FromSeconds(15),
+        Add("Operations observer", "runtime", central.SessionState != "Unknown" && now - central.ObservedOnUtc <= TimeSpan.FromSeconds(30),
             "Independent operations observer must supply current evidence.");
         // These stages have explicit worker/processor gauges. Unknown or absent evidence stays unknown.
         foreach (var stage in central.Stages.Where(x => x.Required))

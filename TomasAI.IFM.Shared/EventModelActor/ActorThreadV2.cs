@@ -17,7 +17,8 @@ sealed class ActorThreadV2(
     IActorSupervisor supervisor,
     ILogger logger,
     ActorReadyQueue readyQueue,
-    ActorThreadPoolMetricsState metricsState) : IActorThread, IAsyncDisposable
+    ActorThreadPoolMetricsState metricsState,
+    int workerId) : IActorThread, IAsyncDisposable, ISupervisorWorkerMetricsSource
 {
     const int MaxBatchSize = 64;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
@@ -31,6 +32,8 @@ sealed class ActorThreadV2(
     int _startOnce;
     int _stopOnce;
     int _disposeOnce;
+
+    public int SupervisorWorkerId { get; } = workerId;
 
     public ActorThreadId Id { get; set; }
 
@@ -115,6 +118,20 @@ sealed class ActorThreadV2(
     public Exception? Exception => _exception;
     internal Task Completion => _processingTask ?? Task.CompletedTask;
 
+    public SupervisorWorkerSnapshot CaptureSupervisorSnapshot()
+    {
+        var exception = _exception;
+        return new(
+            SupervisorWorkerId,
+            _state,
+            IsStarted,
+            IsRunning,
+            IsFaulted,
+            _state == ActorThreadState.ProcessingMessage ? Id : null,
+            exception?.GetType().FullName ?? string.Empty,
+            exception?.Message ?? string.Empty);
+    }
+
     async Task ProcessReadyMailboxesAsync()
     {
         var cancellationToken = _cts.Token;
@@ -131,6 +148,9 @@ sealed class ActorThreadV2(
                 }
                 catch (Exception exception)
                 {
+                    _supervisor.RuntimeContext?.RecordFailure(
+                        threadId.MailboxId, threadId, string.Empty,
+                        ActorFailureStage.MailboxInfrastructure, exception);
                     _logger.LogErrorEvent(threadId.ToString(), exception,
                         "Actor worker recovered from a mailbox infrastructure failure.");
                     _state = ActorThreadState.WaitingForMessage;
@@ -178,26 +198,69 @@ sealed class ActorThreadV2(
                        && scheduled.TryRead(out var message))
                 {
                     var handlerStarted = ActorRuntimeMetrics.StartHandler();
+                    var deliverySucceeded = false;
+                    Guid? escapedFailureId = null;
+                    var mailboxMetrics = (actor.Mailbox.Metrics as ActorMetricsStore)
+                        ?.GetOrRegister(threadId, queue);
+                    mailboxMetrics?.RecordDequeued(message!.Subject.Verb);
                     try
                     {
                         _state = ActorThreadState.ProcessingMessage;
                         using var trace = ActorTrace.Start(message!);
                         await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
                         ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
+                        deliverySucceeded = mailboxMetrics?.RecordSucceeded() ?? true;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
                         ActorRuntimeMetrics.RecordCanceled(threadId.ActorType);
+                        mailboxMetrics?.RecordCancelled();
                     }
                     catch (Exception exception)
                     {
                         ActorRuntimeMetrics.RecordFailed(threadId.ActorType);
+                        mailboxMetrics?.RecordEscapedFailure(exception);
+                        if (SupervisorRuntimeContext.TryGetRecordedFailureId(exception, out var recordedFailureId))
+                            escapedFailureId = recordedFailureId;
+                        else
+                            escapedFailureId = _supervisor.RuntimeContext?.RecordFailure(
+                                threadId.MailboxId, threadId, message!.Subject.Verb,
+                                ActorFailureStage.Execution, exception);
                         _logger.LogErrorEvent(threadId.ToString(), exception,
                             "Error processing a message in the actor mailbox.");
                     }
                     finally
                     {
-                        message?.Dispose();
+                        if (message is IActorDeliveryCompletion delivery)
+                        {
+                            try
+                            {
+                                await delivery.CompleteDeliveryAsync(deliverySucceeded).ConfigureAwait(false);
+                            }
+                            catch (Exception acknowledgementFailure)
+                            {
+                                _supervisor.RuntimeContext?.RecordFailure(
+                                    threadId.MailboxId, threadId, message.Subject.Verb,
+                                    ActorFailureStage.Publication, acknowledgementFailure,
+                                    escapedFailureId, ActorMessageOutcomeType.HandledFailure,
+                                    ActorDeliveryOutcomeType.Failed);
+                                _logger.LogErrorEvent(threadId.ToString(), acknowledgementFailure,
+                                    "Actor durable delivery acknowledgement failed.");
+                            }
+                        }
+                        try
+                        {
+                            message?.Dispose();
+                        }
+                        catch (Exception disposalFailure)
+                        {
+                            _supervisor.RuntimeContext?.RecordFailure(
+                                threadId.MailboxId, threadId, message?.Subject.Verb ?? string.Empty,
+                                ActorFailureStage.Cleanup, disposalFailure, escapedFailureId,
+                                ActorMessageOutcomeType.HandledFailure);
+                            _logger.LogErrorEvent(threadId.ToString(), disposalFailure,
+                                "Actor message disposal failed after processing completed.");
+                        }
                         _metricsState.RecordMessageCompleted();
                         ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
                     }

@@ -265,6 +265,10 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
             return ActorType.Command;
         if (type == typeof(StrategyWorkflowId))
             return new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000012"));
+        if (type == typeof(ParameterApplicationProvenance))
+            return new ParameterApplicationProvenance(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000015"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000016"), 4);
         if (type == typeof(RegimeDiscoveryParameterSet))
             return RegimeDiscoveryParameterSet.CreateDefault(
                 Guid.Parse("0198E212-3C00-7000-8000-000000000016"),

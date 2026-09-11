@@ -611,7 +611,7 @@ public class NatsJetStreamActorConsumer(
         var transferred = false;
         try
         {
-            branch = payload.CreateBranch(destination);
+            branch = payload.CreateBranch(destination, delivery);
             var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
             await stripes[stripe].Writer.WriteAsync(
                 (branch, destination, delivery),
@@ -705,18 +705,21 @@ public class NatsJetStreamActorConsumer(
                     subject.ActorId);
             }
 
-            try
+            if (!accepted)
             {
-                await delivery.CompleteHandoffAsync(accepted).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                NatsMessagingMetrics.DispatchFailures.Add(1);
-                _logger.LogErrorEvent(
-                    _serviceId,
-                    ex,
-                    "JetStream ACK/NAK finalization failed for {ActorId}.",
-                    subject.ActorId);
+                try
+                {
+                    await delivery.CompleteHandoffAsync(false).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    NatsMessagingMetrics.DispatchFailures.Add(1);
+                    _logger.LogErrorEvent(
+                        _serviceId,
+                        ex,
+                        "JetStream NAK finalization failed for {ActorId}.",
+                        subject.ActorId);
+                }
             }
         }
     }

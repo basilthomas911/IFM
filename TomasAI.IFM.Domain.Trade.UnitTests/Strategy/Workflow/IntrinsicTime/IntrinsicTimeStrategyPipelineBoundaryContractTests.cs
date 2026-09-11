@@ -302,6 +302,10 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             return BoundedContextName.RegimeDiscoveryPipelineBoundedContext;
         if (type == typeof(StrategyWorkflowId))
             return new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000022"));
+        if (type == typeof(ParameterApplicationProvenance))
+            return new ParameterApplicationProvenance(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000025"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000026"), 4);
         if (type == typeof(StrategyWorkflowStage))
             return StrategyWorkflowStage.RegimeDiscovery;
         if (type == typeof(TimeFrameType))

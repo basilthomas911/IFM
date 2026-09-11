@@ -29,7 +29,7 @@ public sealed class RiskObservationTests(Xunit.Abstractions.ITestOutputHelper ou
     {
         var value=new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView();
         var bytes=MessagePackBinarySerializer.SerializeHistoricalContent(value);
-        var reader=new MessagePack.MessagePackReader(bytes);reader.ReadArrayHeader().Should().Be(37);
+        var reader=new MessagePack.MessagePackReader(bytes);reader.ReadArrayHeader().Should().Be(38);
         var buffer=new System.Buffers.ArrayBufferWriter<byte>();var writer=new MessagePack.MessagePackWriter(buffer);writer.WriteArrayHeader(35);
         for(var i=0;i<35;i++)writer.WriteRaw(reader.ReadRaw());writer.Flush();
         var legacy=MessagePackBinarySerializer.Shared.Deserialize<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView>(buffer.WrittenSpan.ToArray());

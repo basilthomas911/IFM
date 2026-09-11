@@ -21,5 +21,5 @@ public sealed class ParameterAssignmentEventProjector:ConventionalEventProjector
  public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors=>descriptors;
  public override IReadOnlyCollection<Type> ProjectedEventTypes=>descriptors.Select(x=>x.SourceEventType).ToArray();
  EventProjectionDescriptor Describe<T>() where T:class,IEvent<ParameterAssignmentEntityId> => new(typeof(T),EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-  async (fact,token)=>{await context.ConfigurationDb.ProjectParameterAssignmentAsync((ParameterAssignmentChangedEvent)fact);return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);},_=>null,(_,_)=>null,false,false,false);
+  async (fact,token)=>{await context.ConfigurationDb.ProjectParameterAssignmentAsync((ParameterAssignmentChangedEvent)fact);return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);},_=>null,(_,_)=>null,false,false,false,false);
 }

@@ -89,12 +89,26 @@ public abstract class BaseQueryActor<TActor>(
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
-        catch
+        catch (Exception startupFailure)
         {
+            var primaryFailureId = startupFailure is OperationCanceledException && cancellationToken.IsCancellationRequested
+                ? Guid.Empty
+                : _context.SupervisorRuntime?.RecordFailure(
+                    Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                    ActorFailureStage.Startup, startupFailure) ?? Guid.Empty;
+            SupervisorRuntimeContext.MarkRecorded(startupFailure, primaryFailureId);
             if (producer is not null)
             {
                 try { await producer.StopAsync().ConfigureAwait(false); }
-                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+                catch (Exception cleanupException)
+                {
+                    _context.SupervisorRuntime?.RecordFailure(
+                        Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                        ActorFailureStage.Cleanup, cleanupException,
+                        primaryFailureId == Guid.Empty ? null : primaryFailureId,
+                        ActorMessageOutcomeType.HandledFailure);
+                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                }
             }
             Volatile.Write(ref _lifecycle, 0);
             throw;
@@ -121,20 +135,20 @@ public abstract class BaseQueryActor<TActor>(
         try
         {
             var producer = _supervisor.GetProducer(_actorId);
-            // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
-            await producer.StopAsync().ConfigureAwait(false);
-            _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+            await ActorLifecycleGuard.StopAsync(
+                _context.SupervisorRuntime,
+                _actorId,
+                async () =>
+                {
+                    await producer.StopAsync().ConfigureAwait(false);
+                    _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+                },
+                () => OnShutdown(_context!),
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            try
-            {
-                await OnShutdown(_context!).ConfigureAwait(false);
-            }
-            finally
-            {
-                Volatile.Write(ref _lifecycle, 0);
-            }
+            Volatile.Write(ref _lifecycle, 0);
         }
     }
 
@@ -162,7 +176,8 @@ public abstract class BaseQueryActor<TActor>(
     {
         IQuery? query = null;
         var verb = message.Subject.Verb;
-        var activeStage = ActorRuntimeMetrics.ValidationStage;
+        var activeStage = ActorRuntimeMetrics.ParsingStage;
+        Guid? primaryFailureId = null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -217,16 +232,61 @@ public abstract class BaseQueryActor<TActor>(
         catch (Exception ex)
         {
             ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Query);
-            if (query is null)
-                await HandleQueryParseFailureAsync(message, ex).ConfigureAwait(false);
-            else
-                await OnExceptionAsync(_context!, threadId, query, verb, ex).ConfigureAwait(false);
+            primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
+                Mailbox, _context.SupervisorRuntime, threadId, verb,
+                ActorOperationalMetrics.MapStage(activeStage), ex);
+            try
+            {
+                if (query is null)
+                    await HandleQueryParseFailureAsync(message, ex).ConfigureAwait(false);
+                else
+                    await OnExceptionAsync(_context!, threadId, query, verb, ex).ConfigureAwait(false);
+            }
+            catch (Exception exceptionHandlerFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, verb, ActorFailureStage.ExceptionHandling,
+                    exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                _logger.LogError(exceptionHandlerFailure,
+                    "Query exception handler failed for {ActorId} {ThreadId} at {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
+                    Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+                if (message.CanReply)
+                {
+                    try
+                    {
+                        await message.ReplyAsync(new ServiceFailed<object>(
+                            query?.ErrorCode ?? 9998,
+                            $"{Id.Name} query failed during {activeStage}: {ex.Message}")).ConfigureAwait(false);
+                    }
+                    catch (Exception fallbackReplyFailure)
+                    {
+                        _context.SupervisorRuntime?.RecordFailure(
+                            Id, threadId, verb, ActorFailureStage.Reply, fallbackReplyFailure,
+                            primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                        _logger.LogError(fallbackReplyFailure,
+                            "Fallback query reply failed for {ActorId} {ThreadId} at {FailureStage}.",
+                            Id, threadId, activeStage);
+                    }
+                }
+            }
         }
         finally
         {
             // ReplyAsync normally removes this entry. This terminal cleanup also
             // covers handlers that throw, time out, or forget to reply.
-            _context!.RemoveMessageInfo(threadId, verb);
+            try
+            {
+                _context!.RemoveMessageInfo(threadId, verb);
+            }
+            catch (Exception cleanupFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, verb, ActorFailureStage.Cleanup, cleanupFailure,
+                    primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                _logger.LogError(cleanupFailure,
+                    "Query correlation cleanup failed for {ActorId} {ThreadId} {Verb}.",
+                    Id, threadId, verb);
+            }
         }
     }
 

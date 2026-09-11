@@ -13,6 +13,8 @@ public interface IMarketDataOperationsHealthQueryService
     Task<UiOperationResult<MarketDataOperationsHealthSnapshot>> GetAsync(CancellationToken cancellationToken = default);
     Task<LivePipelineHealthSnapshot?> ReportAndCheckAsync(LiveUiHealthReport report, CancellationToken token = default)
         => Task.FromResult<LivePipelineHealthSnapshot?>(null);
+    Task<IReadOnlyList<LivePipelineHealthSnapshot>> GetLivePipelineHistoryAsync(CancellationToken token = default)
+        => Task.FromResult<IReadOnlyList<LivePipelineHealthSnapshot>>([]);
 }
 
 /// <summary>Uses the configured central HTTP health endpoint; never invokes a recovery command.</summary>
@@ -75,7 +77,7 @@ public sealed class MarketDataOperationsHealthQueryService : IMarketDataOperatio
                     || !Bounded(dataset.Dataset, 64) || !Bounded(dataset.Reason, 4096)))
                 return Failed("Operations health response is incomplete or outside its bounds.");
             var observationAge = time.GetUtcNow().UtcDateTime - value.ObservedOnUtc.ToUniversalTime();
-            if (observationAge > TimeSpan.FromSeconds(15) || observationAge < TimeSpan.FromSeconds(-30))
+            if (observationAge > TimeSpan.FromSeconds(30) || observationAge < TimeSpan.FromSeconds(-30))
                 return Failed("Central operations observation is stale or its clock is invalid; current health is unknown.");
             return UiOperationResult<MarketDataOperationsHealthSnapshot>.Success(value);
         }
@@ -103,6 +105,20 @@ public sealed class MarketDataOperationsHealthQueryService : IMarketDataOperatio
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException)
         { return null; }
+    }
+
+    public async Task<IReadOnlyList<LivePipelineHealthSnapshot>> GetLivePipelineHistoryAsync(CancellationToken token = default)
+    {
+        if (endpoint is null) return [];
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            return await client.GetFromJsonAsync<LivePipelineHealthSnapshot[]>(
+                new Uri(endpoint, "live-health/history?limit=25"), deadline.Token).ConfigureAwait(false) ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException)
+        { return []; }
     }
 
     static UiOperationResult<MarketDataOperationsHealthSnapshot> Failed(string reason) =>

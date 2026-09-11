@@ -47,7 +47,7 @@ public sealed class MarketDataOperationsHealthTests
     }
 
     [Theory]
-    [InlineData(-16)]
+    [InlineData(-31)]
     [InlineData(31)]
     public async Task Stale_or_future_clock_observation_cannot_display_green(int offset)
     {

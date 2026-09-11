@@ -35,6 +35,8 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     public IContainerInstance Container 
         => _supervisor.Container;
 
+    public SupervisorRuntimeContext SupervisorRuntime => _supervisor.RuntimeContext;
+
 
     /// <summary>
     /// Sends the specified event to the actor using the configured producer.

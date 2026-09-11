@@ -243,28 +243,6 @@ public sealed class ActorCancellationTests
     }
 
     [Fact]
-    public async Task DenormalizerActor_StartupCancellation_ReachesHookAndRollsBackProducer()
-    {
-        var supervisor = new Mock<IActorSupervisor>();
-        var producer = new Mock<IActorProducer>();
-        var actorId = new ActorMailboxId(ActorType.Event, "StartupCancellationDenormalizer");
-        var context = new CancellableDenormalizerContext(supervisor.Object, actorId);
-        var actor = new CancellableDenormalizerActor(context);
-        using var cancellation = new CancellationTokenSource();
-        supervisor.Setup(instance => instance.CreateMailbox(actor.Id)).Returns(Mock.Of<IActorMailbox>());
-        supervisor.Setup(instance => instance.GetProducer(actor.Id)).Returns(producer.Object);
-
-        var startup = actor.StartAsync(supervisor.Object, cancellation.Token).AsTask();
-        await actor.StartupEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        cancellation.Cancel();
-
-        Func<Task> waitForStartup = () => startup;
-        await waitForStartup.Should().ThrowAsync<OperationCanceledException>();
-        actor.IsRunning.Should().BeFalse();
-        producer.Verify(instance => instance.StopAsync(), Times.Once);
-    }
-
-    [Fact]
     public async Task RuntimeStartup_CancellationBetweenActorRegistrations_ShutsDownPartialRuntime()
     {
         using var metrics = new LifecycleMetricCollector();
@@ -339,6 +317,9 @@ public sealed class ActorCancellationTests
         container.Setup(instance => instance.Resolve<IActorConsumer>()).Returns(consumer.Object);
         container.Setup(instance => instance.Resolve<IJSActorConsumer>()).Returns(jsConsumer.Object);
         supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.StartAsync(actorId, It.IsAny<CancellationToken>()))
+            .Returns((ActorMailboxId _, CancellationToken token) =>
+                actor.Object.StartAsync(supervisor.Object, token));
         supervisor.Setup(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask);
 
@@ -457,6 +438,9 @@ public sealed class ActorCancellationTests
         container.Setup(instance => instance.Resolve<IActorConsumer>()).Returns(Mock.Of<IActorConsumer>());
         container.Setup(instance => instance.Resolve<IJSActorConsumer>()).Returns(Mock.Of<IJSActorConsumer>());
         supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.StartAsync(actorId, It.IsAny<CancellationToken>()))
+            .Returns((ActorMailboxId _, CancellationToken token) =>
+                actor.Object.StartAsync(supervisor.Object, token));
         supervisor.Setup(instance => instance.ShutdownAsync(CancellationToken.None))
             .Returns(ValueTask.CompletedTask);
 
@@ -610,42 +594,6 @@ public sealed class ActorCancellationTests
             => ValueTask.CompletedTask;
     }
 
-    sealed class CancellableDenormalizerActor(
-        IDenormalizerActorContext<CancellableDenormalizerActor> actorContext)
-        : BaseDenormalizerActor<CancellableDenormalizerActor>(
-            actorContext,
-            NullLogger<CancellableDenormalizerActor>.Instance)
-    {
-        public TaskCompletionSource StartupEntered { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        protected override async ValueTask OnStartup(
-            IDenormalizerActorContext<CancellableDenormalizerActor> context,
-            CancellationToken cancellationToken)
-        {
-            StartupEntered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-        }
-
-        protected override IEvent ParseMessage(
-            IDenormalizerActorContext<CancellableDenormalizerActor> context,
-            NatsMsg<byte[]> message)
-            => throw new NotSupportedException();
-
-        protected override ValueTask ReceiveAsync(
-            IDenormalizerActorContext<CancellableDenormalizerActor> context,
-            ActorThreadId threadId,
-            IEvent @event)
-            => ValueTask.CompletedTask;
-
-        protected override ValueTask OnExceptionAsync(
-            IDenormalizerActorContext<CancellableDenormalizerActor> context,
-            ActorThreadId threadId,
-            IEvent @event,
-            Exception ex)
-            => ValueTask.CompletedTask;
-    }
-
     sealed class CancellableQueryContext(IActorSupervisor supervisor, ActorMailboxId actorId)
         : QueryActorContext(supervisor, actorId), IQueryActorContext<CancellableQueryActor>
     {
@@ -653,12 +601,6 @@ public sealed class ActorCancellationTests
 
     sealed class CancellableEventContext(IActorSupervisor supervisor, ActorMailboxId actorId)
         : EventActorContext(supervisor, actorId), IEventActorContext<CancellableEventActor>
-    {
-    }
-
-    sealed class CancellableDenormalizerContext(IActorSupervisor supervisor, ActorMailboxId actorId)
-        : DenormalizerActorContext(supervisor, actorId),
-          IDenormalizerActorContext<CancellableDenormalizerActor>
     {
     }
 

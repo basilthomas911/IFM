@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// Implementations of this interface are expected to ensure thread safety and efficient resource management.</remarks>
 public interface IActorSupervisor
 {
+    SupervisorRuntimeContext RuntimeContext { get; }
     /// <summary>
     /// Gets whether every actor dependency is initialized and external consumer intake is open.
     /// </summary>
@@ -40,6 +41,10 @@ public interface IActorSupervisor
     ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);
     ValueTask StopAsync(ActorMailboxId mailboxId);
     ValueTask StopAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);
+    ValueTask RestartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken = default);
+    ValueTask<bool> PauseAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
+    ValueTask ResumeAsync(ActorThreadId threadId, CancellationToken cancellationToken = default);
+    ValueTask<bool> RestartAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
 
     IActorThread GetThread(ActorThreadId threadId);
     ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct);

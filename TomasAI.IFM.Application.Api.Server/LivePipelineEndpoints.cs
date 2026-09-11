@@ -30,6 +30,10 @@ public static class LivePipelineEndpoints
     public static void MapLivePipelineHealth(this WebApplication app)
     {
         app.MapGet("/api/market-data/live-health", (LivePipelineMonitor health) => Results.Ok(health.Current));
+        app.MapGet("/api/market-data/live-health/history", (int? limit, LivePipelineEvidence evidence) =>
+            limit is < 1 or > 25
+                ? Results.BadRequest("The history limit must be between 1 and 25.")
+                : Results.Ok(evidence.GetAuditHistory(limit ?? 25)));
         app.MapPost("/api/market-data/live-health/ui", (LiveUiHealthReport report, LivePipelineEvidence evidence)
             => evidence.ReportUi(report) ? Results.Ok() : Results.BadRequest());
     }

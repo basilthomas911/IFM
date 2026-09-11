@@ -10,7 +10,9 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
@@ -20,8 +22,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Event
 
 /// <summary>Projects committed authoritative workflow snapshots to ScyllaDB and then publishes them.</summary>
 /// <remarks>
-/// Projection and notification are conventional post-commit work. A failure stops this notification chain and does
-/// not schedule replay, rebuild, resume, or redispatch.
+/// Projection and notification are conventional post-commit work. Durable execution recovers only incomplete
+/// projector work and does not poll the event store during normal operation.
 /// </remarks>
 public sealed class IntrinsicTimeStrategyWorkflowEventProjector
     : ConventionalEventProjector<IntrinsicTimeStrategyWorkflowCommandActor>
@@ -34,22 +36,37 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
     readonly IIntrinsicTimeStrategyWorkflowProjectionCache _cache;
     readonly ConcurrentDictionary<string, SemaphoreSlim> _entityLocks = new(StringComparer.Ordinal);
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors;
+    readonly IWorkflowRiskProjection _riskProjection;
+    readonly ICommittedCompositionSubscriptionProjector _subscriptionProjection;
 
     /// <summary>Initializes the conventional state-snapshot projector.</summary>
     public IntrinsicTimeStrategyWorkflowEventProjector(
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext,
+        IWorkflowRiskProjection riskProjection,
+        ICommittedCompositionSubscriptionProjector subscriptionProjection,
         EventProjectorReliabilityOptions? reliabilityOptions = null)
         : base(
             actorContext.DurableReplayQueue,
             actorContext.DbEventSource,
             actorContext.BlackboardService,
             actorContext.Logger,
-            reliabilityOptions)
+            PostCommitReliability(reliabilityOptions))
     {
         _actorContext = actorContext;
+        _riskProjection = riskProjection;
+        _subscriptionProjection = subscriptionProjection;
         _cache = IntrinsicTimeStrategyWorkflowProjectionCache.Shared;
         _descriptors = [Describe()];
     }
+
+    static EventProjectorReliabilityOptions? PostCommitReliability(EventProjectorReliabilityOptions? options)
+        => options is null ? null : options with
+        {
+            // This source-only projector publishes no completion messages. Its in-process queue is signaled by
+            // committed events, while bounded startup recovery handles interrupted executions.
+            TransactionalOutboxEnabled = false,
+            BacklogMetricsPollingEnabled = false
+        };
 
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
@@ -61,22 +78,23 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
         => new(
             typeof(WorkflowStrategyStateUpdatedEvent),
             EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-            async (domainEvent, _) =>
+            async (domainEvent, context) =>
             {
                 await ProjectAsync((WorkflowStrategyStateUpdatedEvent)domainEvent,
-                    CancellationToken.None).ConfigureAwait(false);
+                    context).ConfigureAwait(false);
                 return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
             },
             _ => null,
             (_, _) => null,
             publishProcessingEvent: false,
-            useDurableReplay: false,
+            useDurableReplay: true,
             publishTerminalEvent: false);
 
     async ValueTask ProjectAsync(
         WorkflowStrategyStateUpdatedEvent snapshot,
-        CancellationToken cancellationToken)
+        ProjectionExecutionContext context)
     {
+        var cancellationToken = context.CancellationToken;
         using var trace = WorkflowTrace.Start("workflow.project", snapshot.State);
         var entityKey = snapshot.EntityId.Format();
         var entityLock = _entityLocks.GetOrAdd(entityKey, static _ => new SemaphoreSlim(1, 1));
@@ -157,6 +175,11 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
                     snapshot.WorkflowId,
                     snapshot.WorkflowRevision);
             }
+
+            // These handlers receive the already committed event on the projector worker. They do not scan or
+            // deserialize event_log and therefore add no database polling to the workflow command path.
+            await _riskProjection.ProjectCommittedAsync(snapshot, cancellationToken).ConfigureAwait(false);
+            await _subscriptionProjection.ProjectCommittedAsync(snapshot, context).ConfigureAwait(false);
         }
         finally
         {

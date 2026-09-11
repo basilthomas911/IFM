@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.Schema;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -23,6 +24,8 @@ public sealed class EventSourceSchemaDb(IDbConnectionSettings connectionSettings
         new("event_projector_state", EventSourceSchemaSql.CreateEventProjectorState, "DROP TABLE IF EXISTS public.event_projector_state;"),
         new("business_subscription_projection_receipt", PostgresCommittedBusinessEventJournal.CreateTable,
             "DROP TABLE IF EXISTS business_subscription_projection_receipt;"),
+        new("risk_history_projection_progress", RiskHistoryJournal.CreateTables,
+            "DROP TABLE IF EXISTS risk_history_projection_issue; DROP TABLE IF EXISTS risk_history_projection_receipt; DROP TABLE IF EXISTS risk_history_projection_progress;"),
         new("event_projector_state_reliability_v2", EventSourceSchemaSql.CreateEventProjectorStateReliabilityV2, EventSourceSchemaSql.DropEventProjectorStateReliabilityV2),
         new("event_projector_outbox_v2", EventSourceSchemaSql.CreateEventProjectorOutboxV2, "DROP TABLE IF EXISTS public.event_projector_outbox;"),
         new("event_stream_version_projector_checkpoint_v3", EventSourceSchemaSql.CreateEventStreamVersionAndProjectorCheckpointV3, EventSourceSchemaSql.DropEventStreamVersionAndProjectorCheckpointV3),

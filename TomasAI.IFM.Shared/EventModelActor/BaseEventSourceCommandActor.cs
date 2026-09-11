@@ -84,12 +84,26 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
-        catch
+        catch (Exception startupFailure)
         {
+            var primaryFailureId = startupFailure is OperationCanceledException && cancellationToken.IsCancellationRequested
+                ? Guid.Empty
+                : _context.SupervisorRuntime?.RecordFailure(
+                    Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                    ActorFailureStage.Startup, startupFailure) ?? Guid.Empty;
+            SupervisorRuntimeContext.MarkRecorded(startupFailure, primaryFailureId);
             if (producer is not null)
             {
                 try { await producer.StopAsync().ConfigureAwait(false); }
-                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+                catch (Exception cleanupException)
+                {
+                    _context.SupervisorRuntime?.RecordFailure(
+                        Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                        ActorFailureStage.Cleanup, cleanupException,
+                        primaryFailureId == Guid.Empty ? null : primaryFailureId,
+                        ActorMessageOutcomeType.HandledFailure);
+                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                }
             }
             Volatile.Write(ref _lifecycle, 0);
             throw;
@@ -114,23 +128,21 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             return;
         try
         {
-            // stop any actor producers/consumers if set...
             var producer = _supervisor.GetProducer(_actorId);
-            // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
-            await producer.StopAsync().ConfigureAwait(false);
-            _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+            await ActorLifecycleGuard.StopAsync(
+                _context.SupervisorRuntime,
+                _actorId,
+                async () =>
+                {
+                    await producer.StopAsync().ConfigureAwait(false);
+                    _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+                },
+                () => OnShutdown(_context!),
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            try
-            {
-                // Always release actor-owned lifecycle resources, including durable projector workers.
-                await OnShutdown(_context!).ConfigureAwait(false);
-            }
-            finally
-            {
-                Volatile.Write(ref _lifecycle, 0);
-            }
+            Volatile.Write(ref _lifecycle, 0);
         }
     }
 
@@ -163,7 +175,8 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         ICommand command = default!;
         int errorCode = 9998;
         ServiceResult<GuidResult> result;
-        var activeStage = ActorRuntimeMetrics.ValidationStage;
+        var activeStage = ActorRuntimeMetrics.ParsingStage;
+        Guid? primaryFailureId = null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -299,11 +312,40 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         catch (Exception ex)
         {
             ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
-            result = await OnExceptionAsync(_context!, threadId, command, ex);
+            primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
+                Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
+                ActorOperationalMetrics.MapStage(activeStage), ex);
+            try
+            {
+                result = await OnExceptionAsync(_context!, threadId, command, ex).ConfigureAwait(false);
+            }
+            catch (Exception exceptionHandlerFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
+                    exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                _logger.LogError(exceptionHandlerFailure,
+                    "Command exception handler failed for {ActorId} {ThreadId} at {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
+                    Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+                result = new ServiceFailed<GuidResult>(
+                    errorCode,
+                    $"{Id.Name} command failed during {activeStage}: {ex.Message}");
+            }
         }
         finally
         {
-            await OnCommandFinishedAsync(_context!, command).ConfigureAwait(false);
+            try
+            {
+                await OnCommandFinishedAsync(_context!, command).ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, message.Subject.Verb, ActorFailureStage.Cleanup, cleanupFailure,
+                    primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                _logger.LogError(cleanupFailure,
+                    "Command cleanup failed for {ActorId} {ThreadId}.", Id, threadId);
+            }
         }
 
         /// reply with the result...
@@ -313,9 +355,14 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         {
             await message.ReplyAsync(result);
         }
-        catch
+        catch (Exception replyFailure)
         {
             ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
+            var replyFailureId = _context.SupervisorRuntime?.RecordFailure(
+                Id, threadId, message.Subject.Verb, ActorFailureStage.Reply, replyFailure,
+                primaryFailureId == Guid.Empty ? null : primaryFailureId);
+            if (replyFailureId.HasValue)
+                SupervisorRuntimeContext.MarkRecorded(replyFailure, replyFailureId.Value);
             throw;
         }
         finally

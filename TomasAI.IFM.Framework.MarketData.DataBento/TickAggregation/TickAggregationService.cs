@@ -550,6 +550,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         ManualResetEventSlim? startupReady = null)
     {
         startupReady?.Set();
+        string? terminalDetail = null;
         try
         {
             while (true)
@@ -577,10 +578,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         {
                             throw;
                         }
-                        catch
+                        catch (Exception exception)
                         {
                             // ProcessRecordAsync records and logs the complete failure context. A
                             // recoverable record failure must not terminate the dataset worker.
+                            // Once the shared output publisher has fenced itself, however, no
+                            // record can complete. End this generation so the pipeline monitor sees
+                            // a stopped aggregation worker and owns the bounded hard reset.
+                            if (!_publisher.IsRunning)
+                            {
+                                terminalDetail =
+                                    $"Aggregation output publisher became unavailable after " +
+                                    $"{exception.GetType().Name}: {exception.Message}";
+                                return;
+                            }
                         }
                     }
                 }
@@ -594,7 +605,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             if (Volatile.Read(ref _stopping) == 0)
             {
-                try { _terminalFaultHandler?.Invoke("Aggregation reader completed unexpectedly."); }
+                try
+                {
+                    _terminalFaultHandler?.Invoke(
+                        terminalDetail ?? "Aggregation reader completed unexpectedly.");
+                }
                 catch { /* Terminal notification must never fault the reader task. */ }
             }
         }
@@ -775,6 +790,15 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                             CreateLiveQuote(state, record.Quote), cancellationToken)
                         .ConfigureAwait(false);
                 }
+                if (state.QuoteCount == FuturesTickQuoteDataSegment.MaximumCount)
+                {
+                    SetProcessingStage(TickAggregationProcessingStage.QuoteFlush);
+                    await FlushAsync(
+                            state,
+                            QuoteEmissionReason.BufferFull,
+                            cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                }
                 AddQuote(state, record.Quote);
                 if (state.QuoteCount == FuturesTickQuoteDataSegment.MaximumCount)
                 {
@@ -891,6 +915,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
         catch (Exception exception)
         {
+            if (!_publisher.IsRunning)
+            {
+                Interlocked.Increment(ref _publicationFailures);
+                throw;
+            }
             TrackHandledPublicationException(
                 state,
                 exception,
@@ -1028,6 +1057,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
         catch (Exception exception)
         {
+            if (!_publisher.IsRunning)
+            {
+                Interlocked.Increment(ref _publicationFailures);
+                throw;
+            }
             // Core NATS delivery is intentionally non-durable. Preserve feed ingestion and expose
             // the missed notification through publication-failure metrics; the cache remains current.
             TrackHandledPublicationException(

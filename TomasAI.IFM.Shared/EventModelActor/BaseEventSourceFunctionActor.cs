@@ -54,17 +54,37 @@ public abstract class BaseEventSourceFunctionActor<
         cancellationToken.ThrowIfCancellationRequested();
         if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
+        IActorProducer? producer = null;
         try
         {
             _supervisor = supervisor;
             Mailbox = supervisor.CreateMailbox(Id);
-            var producer = supervisor.GetProducer(Id);
+            producer = supervisor.GetProducer(Id);
             await producer.StartAsync(Id, cancellationToken).ConfigureAwait(false);
             await OnStartupAsync(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
-        catch
+        catch (Exception startupFailure)
         {
+            var primaryFailureId = startupFailure is OperationCanceledException && cancellationToken.IsCancellationRequested
+                ? Guid.Empty
+                : _context.SupervisorRuntime?.RecordFailure(
+                    Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                    ActorFailureStage.Startup, startupFailure) ?? Guid.Empty;
+            SupervisorRuntimeContext.MarkRecorded(startupFailure, primaryFailureId);
+            if (producer is not null)
+            {
+                try { await producer.StopAsync().ConfigureAwait(false); }
+                catch (Exception cleanupException)
+                {
+                    _context.SupervisorRuntime?.RecordFailure(
+                        Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                        ActorFailureStage.Cleanup, cleanupException,
+                        primaryFailureId == Guid.Empty ? null : primaryFailureId,
+                        ActorMessageOutcomeType.HandledFailure);
+                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", Id);
+                }
+            }
             Volatile.Write(ref _lifecycle, 0);
             throw;
         }
@@ -79,9 +99,16 @@ public abstract class BaseEventSourceFunctionActor<
             return;
         try
         {
-            if (_supervisor is not null)
-                await _supervisor.GetProducer(Id).StopAsync(cancellationToken).ConfigureAwait(false);
-            await OnShutdownAsync(_context, cancellationToken).ConfigureAwait(false);
+            await ActorLifecycleGuard.StopAsync(
+                _context.SupervisorRuntime,
+                Id,
+                async () =>
+                {
+                    if (_supervisor is not null)
+                        await _supervisor.GetProducer(Id).StopAsync(cancellationToken).ConfigureAwait(false);
+                },
+                () => OnShutdownAsync(_context, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -104,6 +131,8 @@ public abstract class BaseEventSourceFunctionActor<
         TRequest? request = null;
         var stage = FunctionFailureStage.Parsing;
         FunctionResult<TCompletedEvent, TFailedEvent> terminal;
+        ServiceResult<FunctionResult<TCompletedEvent, TFailedEvent>>? fallbackReply = null;
+        Guid? primaryFailureId = null;
         try
         {
             try
@@ -216,18 +245,61 @@ public abstract class BaseEventSourceFunctionActor<
         {
             _logger.LogError(exception,
                 "Function actor {ActorId} failed during {FailureStage}", Id, stage);
-            terminal = HandleFunctionEvent(_context,
-                new(typeof(TFailedEvent), request, Exception: exception, Stage: stage));
+            primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
+                Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
+                MapFailureStage(stage), exception);
+            try
+            {
+                terminal = HandleFunctionEvent(_context,
+                    new(typeof(TFailedEvent), request, Exception: exception, Stage: stage));
+            }
+            catch (Exception exceptionHandlerFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
+                    exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                _logger.LogError(exceptionHandlerFailure,
+                    "Function exception handler failed for {ActorId} {ThreadId} during {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
+                    Id, threadId, stage, exception.GetType().FullName, exception.Message);
+                terminal = default!;
+                fallbackReply = new ServiceFailed<FunctionResult<TCompletedEvent, TFailedEvent>>(
+                    request?.ErrorCode ?? 9998,
+                    $"{Id.Name} function failed during {stage}: {exception.Message}");
+            }
         }
 
-        ServiceResult<FunctionResult<TCompletedEvent, TFailedEvent>> reply = terminal.IsCompleted
-            ? new ServiceOk<FunctionResult<TCompletedEvent, TFailedEvent>>(terminal)
-            : new ServiceFailed<FunctionResult<TCompletedEvent, TFailedEvent>>(
-                terminal.Failed!.ErrorCode,
-                terminal.Failed.ErrorMessage,
-                terminal);
-        await message.ReplyAsync(reply).ConfigureAwait(false);
+        ServiceResult<FunctionResult<TCompletedEvent, TFailedEvent>> reply = fallbackReply
+            ?? (terminal.IsCompleted
+                ? new ServiceOk<FunctionResult<TCompletedEvent, TFailedEvent>>(terminal)
+                : new ServiceFailed<FunctionResult<TCompletedEvent, TFailedEvent>>(
+                    terminal.Failed!.ErrorCode,
+                    terminal.Failed.ErrorMessage,
+                    terminal));
+        try
+        {
+            await message.ReplyAsync(reply).ConfigureAwait(false);
+        }
+        catch (Exception replyFailure)
+        {
+            _context.SupervisorRuntime?.RecordFailure(
+                Id, threadId, message.Subject.Verb, ActorFailureStage.Reply, replyFailure,
+                primaryFailureId == Guid.Empty ? null : primaryFailureId);
+            _logger.LogError(replyFailure,
+                "Function reply failed for {ActorId} {ThreadId} during {FailureStage}.",
+                Id, threadId, FunctionFailureStage.Unknown);
+        }
     }
+
+    static ActorFailureStage MapFailureStage(FunctionFailureStage stage) => stage switch
+    {
+        FunctionFailureStage.Parsing => ActorFailureStage.Parsing,
+        FunctionFailureStage.Validation => ActorFailureStage.Validation,
+        FunctionFailureStage.Loading => ActorFailureStage.StateReplay,
+        FunctionFailureStage.Execution => ActorFailureStage.Execution,
+        FunctionFailureStage.Projection => ActorFailureStage.Projection,
+        FunctionFailureStage.Persistence => ActorFailureStage.Persistence,
+        _ => ActorFailureStage.Unknown
+    };
 
     /// <summary>Resolves a stage policy through the derived actor's exact-command policy map.</summary>
     protected abstract FunctionExecutionPolicy ResolveExecutionPolicy(TRequest request, FunctionFailureStage stage);

@@ -23,6 +23,7 @@ public sealed class OptionTradeEventProjectorTests
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<IBlackboardService>(),
+            Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(),
             Substitute.For<ILogger<OptionTradeEventProjector>>());
 
         projector.ProjectionDescriptors.Should().HaveCount(16);
@@ -45,6 +46,7 @@ public sealed class OptionTradeEventProjectorTests
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<IBlackboardService>(),
+            Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(),
             Substitute.For<ILogger<OptionTradeEventProjector>>());
         var descriptor = projector.ProjectionDescriptors.Single(item =>
             item.SourceEventType == typeof(OptionTradeSpreadDataInsertedEvent));

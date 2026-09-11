@@ -12,21 +12,32 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// Instances of this class are intended to be unique per actor.</remarks>
 /// <param name="supervisor">The supervisor responsible for managing the lifecycle and supervision of the actor associated with this mailbox.</param>
 /// <param name="id">The unique identifier for the actor mailbox, used to distinguish it from other mailboxes.</param>
-public class ActorMailbox(
-    IActorSupervisor supervisor,
-    ActorMailboxId id,
-    int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
-    ActorAdmissionController? admissionController = null)
-    : IActorMailbox
+public class ActorMailbox : IActorMailbox
 {
-    readonly IActorThreadQueues _threadQueues = new ActorThreadQueues(
-        supervisor,
-        maxRetainedIdleQueues,
-        admissionController);
+    readonly ActorMailboxId _id;
+    readonly ActorMetricsStore _metrics;
+    readonly IActorThreadQueues _threadQueues;
+
+    public ActorMailbox(
+        IActorSupervisor supervisor,
+        ActorMailboxId id,
+        int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
+        ActorAdmissionController? admissionController = null)
+    {
+        _id = IsArgumentNull.Set(id);
+        _metrics = new ActorMetricsStore(_id);
+        _threadQueues = new ActorThreadQueues(
+            supervisor,
+            maxRetainedIdleQueues,
+            admissionController,
+            _metrics);
+    }
 
     public ActorMailboxId Id 
-        => IsArgumentNull.Set(id);
+        => _id;
 
     public IActorThreadQueues ThreadQueues 
         => _threadQueues;
+
+    public IActorMetricsStore Metrics => _metrics;
 }

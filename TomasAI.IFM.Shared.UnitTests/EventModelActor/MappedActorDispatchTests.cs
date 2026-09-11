@@ -170,6 +170,18 @@ public sealed class MappedActorDispatchTests
     }
 
     [Fact]
+    public async Task Event_exception_handler_failure_is_contained()
+    {
+        var actor = CreateEventActor(throwDuringReceive: true, throwDuringExceptionHandling: true);
+        var message = new TestActorMessage(new MappedEvent());
+
+        var action = () => actor.HandleMessageAsync(message, message.Subject.ThreadId).AsTask();
+
+        await action.Should().NotThrowAsync();
+        message.ReleaseCalls.Should().Be(1);
+    }
+
+    [Fact]
     public void Realtime_receive_resolution_uses_exact_concrete_type()
     {
         var actor = CreateRealtimeActor();
@@ -275,26 +287,49 @@ public sealed class MappedActorDispatchTests
         failure.ErrorMessage.Should().Be("failed");
     }
 
+    [Fact]
+    public async Task Query_exception_handler_failure_uses_direct_fallback_reply_and_releases_context()
+    {
+        var actor = CreateQueryActor(throwDuringReceive: true, throwDuringExceptionHandling: true);
+        var message = new TestQueryActorMessage(new MappedQuery());
+
+        await actor.HandleMessageAsync(message, message.Subject.ThreadId);
+
+        message.Reply.Should().BeOfType<ServiceFailed<object>>()
+            .Which.ErrorMessage.Should().Contain("query failed during execution");
+        actor.QueryContext.PendingMessageCount.Should().Be(0);
+    }
+
     static MappedCommandActor CreateCommandActor()
     {
         var actorId = new ActorMailboxId(ActorType.Command, MappedCommandActor.ActorName);
         return new MappedCommandActor(new MappedCommandContext(Mock.Of<IActorSupervisor>(), actorId));
     }
 
-    static MappedEventActor CreateEventActor(Func<IActorMessage, IEvent>? parser = null)
+    static MappedEventActor CreateEventActor(
+        Func<IActorMessage, IEvent>? parser = null,
+        bool throwDuringReceive = false,
+        bool throwDuringExceptionHandling = false)
     {
         var actorId = new ActorMailboxId(ActorType.Event, MappedEventActor.ActorName);
         return new MappedEventActor(
             new MappedEventContext(Mock.Of<IActorSupervisor>(), actorId),
-            parser ?? (message => message.AsEvent<MappedEvent>()!));
+            parser ?? (message => message.AsEvent<MappedEvent>()!),
+            throwDuringReceive,
+            throwDuringExceptionHandling);
     }
 
-    static MappedQueryActor CreateQueryActor(Func<IActorMessage, IQuery>? parser = null)
+    static MappedQueryActor CreateQueryActor(
+        Func<IActorMessage, IQuery>? parser = null,
+        bool throwDuringReceive = false,
+        bool throwDuringExceptionHandling = false)
     {
         var actorId = new ActorMailboxId(ActorType.Query, MappedQueryActor.ActorName);
         return new MappedQueryActor(
             new MappedQueryContext(Mock.Of<IActorSupervisor>(), actorId),
-            parser ?? (message => message.AsQuery<MappedQuery, MappedQueryResult>()!));
+            parser ?? (message => message.AsQuery<MappedQuery, MappedQueryResult>()!),
+            throwDuringReceive,
+            throwDuringExceptionHandling);
     }
 
     static MappedRealtimeActor CreateRealtimeActor(Func<IActorMessage, IEvent>? parser = null)
@@ -353,14 +388,21 @@ public sealed class MappedActorDispatchTests
 
         public MappedEventActor(
             IEventActorContext<MappedEventActor> context,
-            Func<IActorMessage, IEvent> parser)
+            Func<IActorMessage, IEvent> parser,
+            bool throwDuringReceive = false,
+            bool throwDuringExceptionHandling = false)
             : base(context, NullLogger<MappedEventActor>.Instance)
         {
+            ThrowDuringReceive = throwDuringReceive;
+            ThrowDuringExceptionHandling = throwDuringExceptionHandling;
             _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
             {
                 ["Run"] = parser
             };
         }
+
+        bool ThrowDuringReceive { get; }
+        bool ThrowDuringExceptionHandling { get; }
 
         public IEvent Parse(IActorMessage message) => ParseMappedEvent(Context, message, _parseMap);
 
@@ -374,13 +416,17 @@ public sealed class MappedActorDispatchTests
 
         protected override ValueTask ReceiveAsync(
             IEventActorContext<MappedEventActor> context,
-            IEvent @event) => ValueTask.CompletedTask;
+            IEvent @event) => ThrowDuringReceive
+                ? ValueTask.FromException(new InvalidOperationException("receive failed"))
+                : ValueTask.CompletedTask;
 
         protected override ValueTask OnExceptionAsync(
             IEventActorContext<MappedEventActor> context,
             ActorThreadId threadId,
             IEvent @event,
-            Exception ex) => ValueTask.CompletedTask;
+            Exception ex) => ThrowDuringExceptionHandling
+                ? ValueTask.FromException(new InvalidOperationException("exception handler failed"))
+                : ValueTask.CompletedTask;
     }
 
     sealed class MappedRealtimeActor : BaseEventActor<MappedRealtimeActor>
@@ -441,9 +487,13 @@ public sealed class MappedActorDispatchTests
 
         public MappedQueryActor(
             MappedQueryContext context,
-            Func<IActorMessage, IQuery> parser)
+            Func<IActorMessage, IQuery> parser,
+            bool throwDuringReceive = false,
+            bool throwDuringExceptionHandling = false)
             : base(context, NullLogger<MappedQueryActor>.Instance)
         {
+            ThrowDuringReceive = throwDuringReceive;
+            ThrowDuringExceptionHandling = throwDuringExceptionHandling;
             QueryContext = context;
             _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
             {
@@ -453,6 +503,8 @@ public sealed class MappedActorDispatchTests
 
         public MappedQueryContext QueryContext { get; }
         public int ExecutionExceptionCalls { get; private set; }
+        bool ThrowDuringReceive { get; }
+        bool ThrowDuringExceptionHandling { get; }
 
         public IQuery Parse(IActorMessage message) => ParseMappedQuery(Context, message, _parseMap);
 
@@ -475,7 +527,9 @@ public sealed class MappedActorDispatchTests
 
         protected override ValueTask ReceiveAsync(
             IQueryActorContext<MappedQueryActor> context,
-            IQuery query) => ValueTask.CompletedTask;
+            IQuery query) => ThrowDuringReceive
+                ? ValueTask.FromException(new InvalidOperationException("receive failed"))
+                : ValueTask.CompletedTask;
 
         protected override ValueTask OnExceptionAsync(
             IQueryActorContext<MappedQueryActor> context,
@@ -485,6 +539,8 @@ public sealed class MappedActorDispatchTests
             Exception ex)
         {
             ExecutionExceptionCalls++;
+            if (ThrowDuringExceptionHandling)
+                return ValueTask.FromException(new InvalidOperationException("exception handler failed"));
             return ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
         }
     }

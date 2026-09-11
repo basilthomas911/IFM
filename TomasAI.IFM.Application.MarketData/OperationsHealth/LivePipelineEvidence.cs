@@ -8,8 +8,24 @@ public sealed class LivePipelineEvidence(TimeProvider time)
     readonly object gate = new();
     readonly Dictionary<string, LivePipelineCheck> evidence = new(StringComparer.Ordinal);
     readonly Dictionary<Guid, (DateTime Seen, LiveUiHealthReport Report)> clients = new();
+    readonly LinkedList<LivePipelineHealthSnapshot> audits = new();
     LivePipelineHealthSnapshot? audit;
-    public void PublishAudit(LivePipelineHealthSnapshot snapshot) => Volatile.Write(ref audit, snapshot);
+    public void PublishAudit(LivePipelineHealthSnapshot snapshot)
+    {
+        Volatile.Write(ref audit, snapshot);
+        lock (gate)
+        {
+            if (audits.First?.Value.ObservedUtc == snapshot.ObservedUtc)
+                audits.RemoveFirst();
+            audits.AddFirst(snapshot);
+            while (audits.Count > 25) audits.RemoveLast();
+        }
+    }
+    public IReadOnlyList<LivePipelineHealthSnapshot> GetAuditHistory(int limit)
+    {
+        if (limit is < 1 or > 25) throw new ArgumentOutOfRangeException(nameof(limit));
+        lock (gate) return audits.Take(limit).ToArray();
+    }
     public bool AllowsNewDecisions => Volatile.Read(ref audit) is { } latest
         && time.GetUtcNow().UtcDateTime - latest.ObservedUtc <= TimeSpan.FromSeconds(90)
         && latest.AllowsNewDecisions;

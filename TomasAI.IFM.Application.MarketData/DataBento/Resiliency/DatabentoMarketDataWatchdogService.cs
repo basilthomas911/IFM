@@ -39,6 +39,11 @@ public sealed class DatabentoMarketDataWatchdogService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!options.PeriodicProbeEnabled)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, timeProvider, stoppingToken).ConfigureAwait(false);
+            return;
+        }
         while (!stoppingToken.IsCancellationRequested)
         {
             using var cycle = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);

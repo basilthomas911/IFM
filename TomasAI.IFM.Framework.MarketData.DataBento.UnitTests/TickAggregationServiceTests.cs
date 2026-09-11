@@ -811,6 +811,84 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
+    public async Task Full_quote_batch_is_retried_before_accepting_the_next_quote()
+    {
+        var instrument = new InstrumentKey(7, 42);
+        var records = Enumerable.Range(1, FuturesTickQuoteDataSegment.MaximumCount + 1)
+            .Select(sequence => Quote(
+                instrument,
+                (uint)sequence,
+                5_000_000_000 + sequence,
+                5_100_000_000 + sequence))
+            .ToArray();
+        using var feed = new FakeFeed(instrument, records);
+        var publisher = new RejectFirstQuotePublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = new DateOnly(2026, 8, 7)
+            });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().RecordsCompleted == records.Length - 1,
+            TimeSpan.FromSeconds(2)));
+        await service.StopAsync();
+
+        Assert.Equal(2, publisher.QuoteAttempts.Count);
+        Assert.Equal(publisher.QuoteAttempts[0], publisher.QuoteAttempts[1]);
+        Assert.Equal(1, service.GetMetrics().ProcessingFailures);
+        Assert.Equal(records.Length, service.GetMetrics().RecordsStarted);
+        Assert.DoesNotContain(
+            service.GetMetrics().LastFailure?.ExceptionType ?? string.Empty,
+            nameof(IndexOutOfRangeException));
+    }
+
+    [Fact]
+    public async Task Unavailable_output_publisher_ends_generation_and_reports_one_terminal_fault()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(
+            instrument,
+            Trade(instrument, 1, 5_000_000_000),
+            Trade(instrument, 2, 5_100_000_000));
+        var publisher = new UnavailablePublisher();
+        var terminalFaults = new List<string>();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            },
+            terminalFaultHandler: terminalFaults.Add);
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => terminalFaults.Count == 1,
+            TimeSpan.FromSeconds(2)));
+
+        Assert.Single(terminalFaults);
+        Assert.Contains("publisher became unavailable", terminalFaults[0]);
+        Assert.Equal(1, service.GetMetrics().RecordsStarted);
+        Assert.Equal(0, service.GetMetrics().RecordsCompleted);
+        Assert.Equal(1, service.GetMetrics().PublicationFailures);
+        Assert.Equal(1, service.GetMetrics().ProcessingFailures);
+        await service.StopAsync();
+    }
+
+    [Fact]
     public async Task In_flight_metrics_identify_an_incomplete_ProcessRecordAsync_await()
     {
         var instrument = new InstrumentKey(7, 42);
@@ -1259,6 +1337,33 @@ public sealed class TickAggregationServiceTests
         public ValueTask DisposeAsync() => StopAsync();
     }
 
+    private sealed class UnavailablePublisher : ITickAggregationEventPublisher
+    {
+        public bool IsRunning { get; private set; }
+        public ValueTask StartAsync()
+        {
+            IsRunning = true;
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e)
+        {
+            IsRunning = false;
+            return ValueTask.FromException(new IOException("Synthetic transport failure."));
+        }
+        public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e) =>
+            ValueTask.FromException(new IOException("Synthetic transport failure."));
+        public ValueTask PublishAsync(
+            FuturesTickQuoteDataChangedEvent e,
+            ITickQuoteBufferLease lease) =>
+            ValueTask.FromException(new IOException("Synthetic transport failure."));
+        public ValueTask StopAsync()
+        {
+            IsRunning = false;
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask DisposeAsync() => StopAsync();
+    }
+
     private sealed class BlockingMarketPricePublisher : ITickAggregationEventPublisher
     {
         private readonly TaskCompletionSource _release =
@@ -1331,9 +1436,12 @@ public sealed class TickAggregationServiceTests
         public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
             startConsumer(timeout);
-            var batch = _channel.RentBatch(static () => false);
-            foreach (var record in _records) batch.Add(record);
-            Assert.True(_channel.Publish(batch, static () => false));
+            foreach (var segment in _records.Chunk(FuturesTickQuoteDataSegment.MaximumCount))
+            {
+                var batch = _channel.RentBatch(static () => false);
+                foreach (var record in segment) batch.Add(record);
+                Assert.True(_channel.Publish(batch, static () => false));
+            }
             _channel.Complete();
         }
         public void Stop(TimeSpan timeout) => _channel.Complete();

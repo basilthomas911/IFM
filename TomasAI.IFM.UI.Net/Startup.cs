@@ -44,6 +44,7 @@ using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
 using TomasAI.IFM.UI.Net.Services.Trade;
+using TomasAI.IFM.UI.Net.Services.Operations;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
@@ -296,6 +297,14 @@ namespace TomasAI.IFM.UI.Net
                 return new MarketDataOperationsHealthQueryService(
                     new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }), endpoint, ownsHttpClient: true);
             });
+            _container.Register<IActorHealthQueryService>(() =>
+            {
+                var configured = _config!.GetValue<string>("MarketDataOperationsHealth:Endpoint");
+                var operationsEndpoint = Uri.TryCreate(configured, UriKind.Absolute, out var uri) ? uri : null;
+                var endpoint = operationsEndpoint is null ? null : new Uri(operationsEndpoint, "/api/actor-health");
+                return new ActorHealthQueryService(
+                    new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }), endpoint, ownsHttpClient: true);
+            }, Lifestyle.Transient);
             _container.RegisterSingleton<MarketDataEventService>();
             _container.RegisterSingleton<OptionTradeSpreadBarDataEventService>();
             _container.RegisterSingleton<MarketDataFeedCommandService>();

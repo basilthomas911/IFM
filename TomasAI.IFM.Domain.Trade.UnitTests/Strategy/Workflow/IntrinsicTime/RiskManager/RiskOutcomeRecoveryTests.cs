@@ -16,6 +16,13 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ris
 public sealed class RiskOutcomeRecoveryTests
 {
     [Fact]
+    public void Projection_cursor_never_resets_or_moves_backwards()
+    {
+        RiskObservationRecoveryService.Advance(100,[]).Should().Be(100);
+        RiskObservationRecoveryService.Advance(100,[90,95]).Should().Be(100);
+        RiskObservationRecoveryService.Advance(100,[101,102]).Should().Be(102);
+    }
+    [Fact]
     public async Task Lost_fund_reply_recovers_from_committed_state_without_resending_or_renewing_expiry()
     {
         var input=await RiskFixture.Command();

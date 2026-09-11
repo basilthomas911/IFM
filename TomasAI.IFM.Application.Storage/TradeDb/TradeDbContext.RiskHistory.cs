@@ -4,18 +4,22 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
+public enum RiskHistoryProjectionDisposition { NotApplicable, Projected, AlreadyProjected, Conflict }
+public sealed record RiskHistoryProjectionResult(RiskHistoryProjectionDisposition Disposition,
+    Guid WorkflowId=default,Guid InvocationId=default,long Revision=0,string? StoredHash=null,string? IncomingHash=null);
+
 public partial interface ITradeDbContext
 {
-    Task UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default);
+    Task<RiskHistoryProjectionResult> UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default);
     Task<WorkflowStrategyStateUpdatedEvent?> GetRiskInvocationAsync(Guid workflow, Guid invocation, CancellationToken token = default);
     Task<QueryPage<RiskHistoryRow>> GetRiskHistoryAsync(int portfolio, int fund, DateOnly date, int size, byte[]? cursor, CancellationToken token = default);
 }
 public partial class TradeDbContext
 {
-    public async Task UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default)
+    public async Task<RiskHistoryProjectionResult> UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default)
     {
         var row = RiskHistoryIdentity.Row(snapshot);
-        if (row is null) return;
+        if (row is null) return new(RiskHistoryProjectionDisposition.NotApplicable);
         token.ThrowIfCancellationRequested();
 
         // The exact invocation row and its scoped summary are one rebuildable projection unit.
@@ -35,14 +39,16 @@ public partial class TradeDbContext
         {
             var old = await _dbFactory.TradeDb.Use("RiskHistory.Verify", "SELECT content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? AND revision=?;")
                 .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision])).ExecuteSingleAsync(r=>r.GetString(0),projectionToken);
-            if (old != hash) throw new InvalidDataException("Conflicting Risk history source revision.");
+            if (old != hash) return new(RiskHistoryProjectionDisposition.Conflict,row.WorkflowId,row.InvocationId,row.Revision,old,hash);
         }
+        var disposition=inserted?RiskHistoryProjectionDisposition.Projected:RiskHistoryProjectionDisposition.AlreadyProjected;
         var summary = MessagePackBinarySerializer.Shared.Serialize(row);
         var added = await _dbFactory.TradeDb.Use("RiskHistory.SummaryInsert", "INSERT INTO risk_management_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload) VALUES (?,?,?,?,?,?,?) IF NOT EXISTS;")
             .SetParameters(new RiskValues([row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision,summary])).ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
         if (!added)
             await _dbFactory.TradeDb.Use("RiskHistory.SummaryAdvance", "UPDATE risk_management_history SET revision=?,payload=? WHERE portfolio_id=? AND fund_id=? AND value_date=? AND evaluated_at_utc=? AND invocation_id=? IF revision<?;")
                 .SetParameters(new RiskValues([row.Revision,summary,row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision])).ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
+        return new(disposition,row.WorkflowId,row.InvocationId,row.Revision,hash,hash);
     }
     public Task<WorkflowStrategyStateUpdatedEvent?> GetRiskInvocationAsync(Guid workflow, Guid invocation, CancellationToken token = default)
     {

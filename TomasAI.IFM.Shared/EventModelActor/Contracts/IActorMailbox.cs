@@ -11,4 +11,5 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IActorMailbox
 {
     IActorThreadQueues ThreadQueues { get; }
+    IActorMetricsStore Metrics { get; }
 }

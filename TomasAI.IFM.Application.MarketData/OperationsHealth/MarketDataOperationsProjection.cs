@@ -197,7 +197,7 @@ public sealed class MarketDataOperationsHealthObserver(
         {
             try { ObserveOnce(); }
             catch (Exception exception) { logger.LogWarning(exception, "Central market-data observation failed; last snapshot retained."); }
-            await Task.Delay(TimeSpan.FromSeconds(5), time, stoppingToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(15), time, stoppingToken).ConfigureAwait(false);
         }
     }
 }

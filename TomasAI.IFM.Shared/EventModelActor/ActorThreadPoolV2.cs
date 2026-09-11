@@ -33,7 +33,8 @@ public sealed class ActorThreadPoolV2(
         var workers = new ActorThreadV2[initialThreadCount];
         for (var index = 0; index < workers.Length; index++)
         {
-            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState);
+            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState, index + 1);
+            _supervisor.RuntimeContext?.RegisterWorker(worker);
             worker.Start();
             workers[index] = worker;
         }
@@ -150,6 +151,8 @@ public sealed class ActorThreadPoolV2(
             await worker.Completion.ConfigureAwait(false);
         foreach (var worker in workers)
             await worker.DisposeAsync().ConfigureAwait(false);
+        foreach (var worker in workers)
+            _supervisor.RuntimeContext?.RemoveWorker(worker);
 
         if (workers.Length != 0)
             ActorRuntimeMetrics.UnregisterWorkerPool(workers.Length);

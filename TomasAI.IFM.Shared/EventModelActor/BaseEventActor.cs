@@ -83,17 +83,39 @@ public abstract class BaseEventActor<TActor>(
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
-        catch
+        catch (Exception startupFailure)
         {
+            var primaryFailureId = startupFailure is OperationCanceledException && cancellationToken.IsCancellationRequested
+                ? Guid.Empty
+                : _context.SupervisorRuntime?.RecordFailure(
+                    Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                    ActorFailureStage.Startup, startupFailure) ?? Guid.Empty;
+            SupervisorRuntimeContext.MarkRecorded(startupFailure, primaryFailureId);
             if (coreProducer is not null)
             {
                 try { await coreProducer.StopAsync().ConfigureAwait(false); }
-                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+                catch (Exception cleanupException)
+                {
+                    _context.SupervisorRuntime?.RecordFailure(
+                        Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                        ActorFailureStage.Cleanup, cleanupException,
+                        primaryFailureId == Guid.Empty ? null : primaryFailureId,
+                        ActorMessageOutcomeType.HandledFailure);
+                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                }
             }
             if (jetStreamProducer is not null)
             {
                 try { await jetStreamProducer.StopAsync().ConfigureAwait(false); }
-                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+                catch (Exception cleanupException)
+                {
+                    _context.SupervisorRuntime?.RecordFailure(
+                        Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                        ActorFailureStage.Cleanup, cleanupException,
+                        primaryFailureId == Guid.Empty ? null : primaryFailureId,
+                        ActorMessageOutcomeType.HandledFailure);
+                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                }
             }
             Volatile.Write(ref _lifecycle, 0);
             throw;
@@ -113,37 +135,34 @@ public abstract class BaseEventActor<TActor>(
             return;
         try
         {
-            // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
-            switch (_actorId.ActorType.GetDeliveryType())
-            {
-                case ActorDeliveryType.NatsCore:
-                    await _supervisor.GetProducer(_actorId).StopAsync().ConfigureAwait(false);
-                    break;
-                case ActorDeliveryType.NatsJetStream:
-                    await _supervisor.GetJSProducer(_actorId).StopAsync().ConfigureAwait(false);
-                    // Event actors publish application-facing Notify events through their
-                    // registered Core producer. It is started lazily and must be stopped with
-                    // the actor even though the actor itself consumes through JetStream.
-                    var coreProducer = _supervisor.GetProducer(_actorId);
-                    if (coreProducer?.IsRunning == true)
-                        await coreProducer.StopAsync().ConfigureAwait(false);
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        $"Actor type '{_actorId.ActorType}' does not define a delivery transport.");
-            }
-            _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
+            await ActorLifecycleGuard.StopAsync(
+                _context.SupervisorRuntime,
+                _actorId,
+                async () =>
+                {
+                    switch (_actorId.ActorType.GetDeliveryType())
+                    {
+                        case ActorDeliveryType.NatsCore:
+                            await _supervisor.GetProducer(_actorId).StopAsync().ConfigureAwait(false);
+                            break;
+                        case ActorDeliveryType.NatsJetStream:
+                            await _supervisor.GetJSProducer(_actorId).StopAsync().ConfigureAwait(false);
+                            var coreProducer = _supervisor.GetProducer(_actorId);
+                            if (coreProducer?.IsRunning == true)
+                                await coreProducer.StopAsync().ConfigureAwait(false);
+                            break;
+                        default:
+                            throw new InvalidOperationException(
+                                $"Actor type '{_actorId.ActorType}' does not define a delivery transport.");
+                    }
+                    _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
+                },
+                () => OnShutdown(_context!),
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            try
-            {
-                await OnShutdown(_context!).ConfigureAwait(false);
-            }
-            finally
-            {
-                Volatile.Write(ref _lifecycle, 0);
-            }
+            Volatile.Write(ref _lifecycle, 0);
         }
     }
 
@@ -165,7 +184,7 @@ public abstract class BaseEventActor<TActor>(
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
         IEvent? @event = null;
-        var activeStage = ActorRuntimeMetrics.ValidationStage;
+        var activeStage = ActorRuntimeMetrics.ParsingStage;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -223,10 +242,25 @@ public abstract class BaseEventActor<TActor>(
         catch (Exception ex)
         {
             ActorRuntimeMetrics.RecordStageFailure(activeStage, _actorId.ActorType);
-            if (@event is null)
-                HandleEventParseFailure(message, ex);
-            else
-                await OnExceptionAsync(_context!, threadId, @event, ex).ConfigureAwait(false);
+            var primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
+                Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
+                ActorOperationalMetrics.MapStage(activeStage), ex);
+            try
+            {
+                if (@event is null)
+                    HandleEventParseFailure(message, ex);
+                else
+                    await OnExceptionAsync(_context!, threadId, @event, ex).ConfigureAwait(false);
+            }
+            catch (Exception exceptionHandlerFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
+                    exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                _logger.LogError(exceptionHandlerFailure,
+                    "Event exception handler failed for {ActorId} {ThreadId} at {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
+                    Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+            }
         }
     }
 

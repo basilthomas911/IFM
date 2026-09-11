@@ -37,6 +37,8 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     public IContainerInstance Container
         => _supervisor.Container;
 
+    public SupervisorRuntimeContext SupervisorRuntime => _supervisor.RuntimeContext;
+
     /// <inheritdoc />
     public bool IsReady => _supervisor.IsReady;
 

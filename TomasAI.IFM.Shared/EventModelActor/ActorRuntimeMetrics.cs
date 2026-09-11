@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 internal static class ActorRuntimeMetrics
 {
     internal const string MeterName = ActorLifecycleMetrics.MeterName;
+    internal const string ParsingStage = "parsing";
     internal const string ValidationStage = "validation";
     internal const string DeduplicationStage = "deduplication";
     internal const string ReplayStage = "replay";

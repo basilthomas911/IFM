@@ -1827,8 +1827,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             _ => MarketDataFeedHealthState.Inactive
         };
 
-    public Task<DatabentoWatchdogObservationReadModel[]> GetDatabentoWatchdogHistoryAsync(int pageSize = 25)
-        => _appRoot.Services.FeedQueries.GetDatabentoWatchdogHistoryAsync(pageSize);
+    public Task<IReadOnlyList<LivePipelineHealthSnapshot>> GetLivePipelineHealthHistoryAsync()
+        => _pipelineHealth?.GetLivePipelineHistoryAsync()
+            ?? Task.FromResult<IReadOnlyList<LivePipelineHealthSnapshot>>([]);
 
     async Task ApplyMarketDataFeedHealthAsync(MarketDataFeedHealthSnapshot snapshot)
     {

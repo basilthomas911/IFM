@@ -9,24 +9,37 @@ using TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Command.EventProjector;
 
 public sealed class OptionTradeEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource, IBlackboardService blackboardService,
+    ICommittedCompositionSubscriptionProjector subscriptionProjection,
     ILogger<OptionTradeEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<OptionTradeCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
-        DescribeNotification<OptionTradeOrderPlacedEvent, OptionTradeEntityId>(e => InsertOptionTradeAsync(dbFactory.TradeDb, e)),
-        DescribeNotification<OptionTradeToOpenEvent, OptionTradeEntityId>(e => ReplaceOptionTradeAsync(dbFactory.TradeDb, e.OptionTrade)),
-        DescribeNotification<OptionTradeToCloseEvent, OptionTradeEntityId>(e => ReplaceOptionTradeAsync(dbFactory.TradeDb, e.OptionTrade)),
-        DescribeNotification<OptionTradeSnapshotEvent, OptionTradeEntityId>(),
-        DescribeNotification<OptionTradePositionOpenedEvent, OptionTradeEntityId>(),
-        DescribeNotification<OptionTradePositionClosedEvent, OptionTradeEntityId>(),
+        DescribeNotification<OptionTradeOrderPlacedEvent, OptionTradeEntityId>((e, context) =>
+            ApplyAndProjectSubscriptionAsync(e, context, subscriptionProjection,
+                () => InsertOptionTradeAsync(dbFactory.TradeDb, e))),
+        DescribeNotification<OptionTradeToOpenEvent, OptionTradeEntityId>((e, context) =>
+            ApplyAndProjectSubscriptionAsync(e, context, subscriptionProjection,
+                () => ReplaceOptionTradeAsync(dbFactory.TradeDb, e.OptionTrade))),
+        DescribeNotification<OptionTradeToCloseEvent, OptionTradeEntityId>((e, context) =>
+            ApplyAndProjectSubscriptionAsync(e, context, subscriptionProjection,
+                () => ReplaceOptionTradeAsync(dbFactory.TradeDb, e.OptionTrade))),
+        DescribeNotification<OptionTradeSnapshotEvent, OptionTradeEntityId>((e, context) =>
+            subscriptionProjection.ProjectCommittedAsync(e, context)),
+        DescribeNotification<OptionTradePositionOpenedEvent, OptionTradeEntityId>((e, context) =>
+            subscriptionProjection.ProjectCommittedAsync(e, context)),
+        DescribeNotification<OptionTradePositionClosedEvent, OptionTradeEntityId>((e, context) =>
+            subscriptionProjection.ProjectCommittedAsync(e, context)),
         DescribeNotification<OptionTradeEndOfDayProcessedEvent, OptionTradeEntityId>(),
         DescribeNotification<OptionTradeSpreadDistributionStatisticsUpdatedEvent, OptionTradeEntityId>(),
         DescribeNotification<OptionTradeSpreadDataInsertedEvent, OptionTradeEntityId>(
@@ -44,7 +57,9 @@ public sealed class OptionTradeEventProjector(
         DescribeNotification<TradePositionStatusUpdatedEvent, OptionTradeEntityId>(e => dbFactory.TradeDb.UpdateTradePositionStatusAsync(
             e.OrderId, e.TradeId, e.TradeType, e.ValueDate, e.DaysToExpiry,
             e.OldTradeStatus, e.NewTradeStatus, e.UpdatedOn, e.UpdatedBy)),
-        DescribeNotification<OptionTradeDeletedEvent, OptionTradeEntityId>(e => dbFactory.TradeDb.DeleteOptionTradeAsync(e.OrderId, e.TradeId)),
+        DescribeNotification<OptionTradeDeletedEvent, OptionTradeEntityId>((e, context) =>
+            ApplyAndProjectSubscriptionAsync(e, context, subscriptionProjection,
+                () => dbFactory.TradeDb.DeleteOptionTradeAsync(e.OrderId, e.TradeId))),
         DescribeNotification<OptionTradeDailyProfitTargetUpdatedEvent, OptionTradeEntityId>(e => dbFactory.TradeDb.UpdateTradeLimitDailyProfitTarget(
             e.TradeId, e.TradeType, e.DailyProfitTarget, e.UpdatedOn, e.UpdatedBy))
     ];
@@ -79,6 +94,14 @@ public sealed class OptionTradeEventProjector(
             TradePositionChangeSourceType.SpreadDistributionStatistics => db.InsertTradePositionAsync([e.PutTradePosition!, e.CallTradePosition!]),
             _ => Task.CompletedTask
         };
+
+    static async Task ApplyAndProjectSubscriptionAsync<TEvent>(TEvent domainEvent,
+        ProjectionExecutionContext context, ICommittedCompositionSubscriptionProjector subscriptionProjection,
+        Func<Task> applyAsync) where TEvent : class, IEvent
+    {
+        await applyAsync().ConfigureAwait(false);
+        await subscriptionProjection.ProjectCommittedAsync(domainEvent, context).ConfigureAwait(false);
+    }
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();

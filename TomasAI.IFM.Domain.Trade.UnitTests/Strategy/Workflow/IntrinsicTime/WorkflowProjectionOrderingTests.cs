@@ -219,6 +219,21 @@ public sealed class WorkflowProjectionOrderingTests
         fixture.UiNotifications.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Committed_event_runs_risk_and_subscription_handlers_without_a_database_scan()
+    {
+        using var fixture = new Fixture();
+        var snapshot = Snapshot();
+
+        await fixture.ApplyAsync(snapshot);
+
+        fixture.Descriptor.UseDurableReplay.Should().BeTrue();
+        await fixture.RiskProjection.Received(1)
+            .ProjectCommittedAsync(snapshot, Arg.Any<CancellationToken>());
+        await fixture.SubscriptionProjection.Received(1)
+            .ProjectCommittedAsync(snapshot, Arg.Any<ProjectionExecutionContext>());
+    }
+
     static WorkflowStrategyStateUpdatedEvent Snapshot()
     {
         var source = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification();
@@ -252,6 +267,11 @@ public sealed class WorkflowProjectionOrderingTests
         readonly ConcurrentDictionary<string, long> entityRevisions = new();
         readonly IntrinsicTimeStrategyWorkflowEventProjector projector;
         readonly EventProjectionDescriptor descriptor;
+        public EventProjectionDescriptor Descriptor => descriptor;
+        public TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection RiskProjection { get; }
+            = Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>();
+        public TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector SubscriptionProjection { get; }
+            = Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>();
         public IIntrinsicTimeStrategyWorkflowProjectionCache Cache { get; } = IntrinsicTimeStrategyWorkflowProjectionCache.Shared;
         public ConcurrentQueue<(string Kind, long Revision)> Started { get; } = new();
         public ConcurrentQueue<(string Kind, long Revision)> Completed { get; } = new();
@@ -301,7 +321,8 @@ public sealed class WorkflowProjectionOrderingTests
                     UiNotifications.Enqueue(call.ArgAt<IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent>(0));
                     return ValueTask.CompletedTask;
                 });
-            projector = new IntrinsicTimeStrategyWorkflowEventProjector(context);
+            projector = new IntrinsicTimeStrategyWorkflowEventProjector(context,
+                RiskProjection, SubscriptionProjection);
             descriptor = projector.ProjectionDescriptors.Single();
         }
 

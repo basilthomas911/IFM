@@ -545,7 +545,8 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialWorkflowRecoveryJournal>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.RiskHistoryJournal>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
-            services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.CapacityExpiryDispatchStore>();
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
             services.AddSingleton<IPortfolioEventStore>(provider => new PortfolioEventStore(provider.GetRequiredService<IEventSourceActorDbContext>(),
@@ -611,7 +612,9 @@ public static class Startup
                 TomasAI.IFM.Application.Storage.EventSourceDb.PostgresCommittedBusinessEventJournal>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessSubscriptionSource,
                 TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CommittedCompositionSubscriptionSource>();
-            services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>());
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore,
                 TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresCompositionRoutePlanStore>();
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
@@ -735,6 +738,7 @@ public static class Startup
             services.AddSingleton(new DatabentoWatchdogOptions
             {
                 Enabled = config.GetValue("MarketDataRecovery:Enabled", true),
+                PeriodicProbeEnabled = config.GetValue("MarketDataRecovery:PeriodicProbeEnabled", true),
                 NativeBackend = config.GetValue("MarketDataRecovery:NativeBackend", "Cpp")!,
                 PollInterval = config.GetValue("MarketDataRecovery:PollInterval", TimeSpan.FromSeconds(15)),
                 ProbeTimeout = config.GetValue("MarketDataRecovery:ProbeTimeout", TimeSpan.FromSeconds(1)),

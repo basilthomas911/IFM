@@ -13,6 +13,7 @@ public interface IEventActorContext
 {
     ActorMailboxId ActorId { get; }
     IContainerInstance Container { get; }
+    SupervisorRuntimeContext SupervisorRuntime => null!;
     /// <summary>Gets whether the supervised actor runtime is still accepting normal work.</summary>
     bool IsReady => true;
 

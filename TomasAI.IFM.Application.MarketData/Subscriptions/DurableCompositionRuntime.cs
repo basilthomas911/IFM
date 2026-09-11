@@ -28,23 +28,48 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly SemaphoreSlim serial = new(1, 1);
     readonly Dictionary<string, Registration> active = new(StringComparer.Ordinal);
+    readonly SemaphoreSlim wake = new(0, 1);
+    int wakePending;
+    volatile bool hasActiveLeases;
     MarketDataSubscriptionCoordinator? coordinator;
     Guid generation;
     DateOnly valueDate;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), clock);
-        do
+        admissions.Changed += Signal;
+        Signal();
+        string? lastFailure = null;
+        try
         {
-            try { await ReconcileOnceAsync(stoppingToken).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception error)
+            while (!stoppingToken.IsCancellationRequested)
             {
-                // Do not expose connection strings or provider credentials from external exception messages.
-                logger.LogWarning("Durable composition reconciliation retained pending intent: {ErrorType}", error.GetType().Name);
+                var timeout = hasActiveLeases ? TimeSpan.FromSeconds(30) : Timeout.InfiniteTimeSpan;
+                await wake.WaitAsync(timeout, stoppingToken).ConfigureAwait(false);
+                Interlocked.Exchange(ref wakePending, 0);
+                try
+                {
+                    await ReconcileOnceAsync(stoppingToken).ConfigureAwait(false);
+                    lastFailure = null;
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception error)
+                {
+                    var failure = $"{error.GetType().Name}: {error.Message}";
+                    if (failure != lastFailure)
+                        logger.LogWarning("Durable composition reconciliation retained pending intent: {Failure}", failure);
+                    lastFailure = failure;
+                }
             }
-        } while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        finally { admissions.Changed -= Signal; }
+    }
+
+    void Signal()
+    {
+        if (Interlocked.Exchange(ref wakePending, 1) == 0)
+            wake.Release();
     }
 
     /// <summary>One bounded, serialized retry. Acknowledgement requires every route in the current committed union.</summary>
@@ -53,7 +78,11 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
         await serial.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!admissions.TryGet(Dataset, out var admitted)) return null;
+            if (!admissions.TryGet(Dataset, out var admitted))
+            {
+                hasActiveLeases = false;
+                return null;
+            }
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30), clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
             var token = linked.Token;
@@ -68,7 +97,7 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                 active.Clear(); // Native handles and reference contexts belong exclusively to the old generation.
                 generation = admitted.GenerationId;
             }
-            return await delivery.ReconcileAsync(coordinator, async (manifest, ct) =>
+            var result = await delivery.ReconcileAsync(coordinator, async (manifest, ct) =>
             {
                 var committed = await store.ReadAsync(Scope, Dataset, ct).ConfigureAwait(false);
                 var leases = committed.Authorities.SelectMany(x => x.Leases).ToArray();
@@ -137,6 +166,8 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                 return new(manifest.Revision, generation, latest.Revision == committed.Revision
                     && admissions.TryGet(Dataset, out var current) && current == admitted);
             }, token).ConfigureAwait(false);
+            hasActiveLeases = active.Count > 0;
+            return result;
         }
         finally { serial.Release(); }
     }

@@ -15,6 +15,7 @@ public interface ICommandActorContext
 {
     ActorMailboxId ActorId { get; }
     IContainerInstance Container { get; }
+    SupervisorRuntimeContext SupervisorRuntime => null!;
 
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>

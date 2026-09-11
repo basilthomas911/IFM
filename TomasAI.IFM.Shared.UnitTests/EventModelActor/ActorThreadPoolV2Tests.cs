@@ -397,6 +397,140 @@ public sealed class ActorThreadPoolV2Tests
         runtime.Actor.MaximumEntityConcurrency.Should().Be(1);
     }
 
+    [Fact]
+    public async Task ActorOwnedMetrics_ReportSuccessfulMailboxProcessing()
+    {
+        var runtime = CreateRuntime(1);
+        await using var pool = runtime.Pool;
+        var message = new TestActorMessage(17) { Owner = runtime.Actor };
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(message)).Should().BeTrue();
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5)))
+            .Should().BeTrue();
+
+        var snapshot = runtime.Mailbox.Metrics.CaptureSnapshot();
+        snapshot.ActorId.Should().Be(runtime.Actor.Id);
+        snapshot.Mailboxes.Should().ContainSingle();
+        var entity = snapshot.Mailboxes.Single();
+        entity.ThreadId.Should().Be(message.Subject.ThreadId);
+        entity.Accepted.Should().Be(1);
+        entity.Dequeued.Should().Be(1);
+        entity.Succeeded.Should().Be(1);
+        entity.HandledFailures.Should().Be(0);
+        entity.EscapedFailures.Should().Be(0);
+        entity.IsProcessing.Should().BeFalse();
+        entity.QueueDepth.Should().Be(0);
+        message.DeliveryOutcomes.Should().Equal(true);
+    }
+
+    [Fact]
+    public async Task EscapedMessageFailure_IsContained_AndNextMessageOnMailboxRuns()
+    {
+        var mailboxId = new ActorMailboxId(ActorType.Command, "SchedulerTest");
+        var container = new Mock<IContainerInstance>();
+        container.Setup(instance => instance.Resolve<IActorThreadQueue>())
+            .Returns(() => new ActorThreadQueueV2(64));
+        var supervisor = new Mock<IActorSupervisor>();
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        var pool = new ActorThreadPoolV2(supervisor.Object, NullLogger.Instance);
+        await using var poolLifetime = pool;
+        pool.Initialize(2);
+        supervisor.SetupGet(instance => instance.ThreadPool).Returns(pool);
+        var mailbox = new ActorMailbox(supervisor.Object, mailboxId);
+        var actor = new FailOnceActor(mailboxId, mailbox);
+        supervisor.SetupGet(instance => instance.Children)
+            .Returns(new Dictionary<ActorMailboxId, IActor> { [mailboxId] = actor });
+
+        var first = new TestActorMessage(1, "same");
+        var second = new TestActorMessage(2, "same");
+        (await mailbox.ThreadQueues.WriteAsync(first)).Should().BeTrue();
+        (await mailbox.ThreadQueues.WriteAsync(second)).Should().BeTrue();
+        await actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5)))
+            .Should().BeTrue();
+
+        var entity = mailbox.Metrics.CaptureSnapshot().Mailboxes.Single();
+        entity.Accepted.Should().Be(2);
+        entity.Dequeued.Should().Be(2);
+        entity.Succeeded.Should().Be(1);
+        entity.EscapedFailures.Should().Be(1);
+        entity.LastExceptionType.Should().Contain(nameof(InvalidOperationException));
+        entity.LastError.Should().Be("injected actor failure");
+        actor.Processed.Should().Equal(1, 2);
+        first.DeliveryOutcomes.Should().Equal(false);
+        second.DeliveryOutcomes.Should().Equal(true);
+    }
+
+    [Fact]
+    public async Task EntityMailbox_CanPauseDrainRetireAndResumeAtNextGeneration()
+    {
+        var mailboxId = new ActorMailboxId(ActorType.Command, "SchedulerTest");
+        var container = new Mock<IContainerInstance>();
+        container.Setup(instance => instance.Resolve<IActorThreadQueue>())
+            .Returns(() => new ActorThreadQueueV2(8));
+        var thread = new Mock<IActorThread>();
+        var supervisor = new Mock<IActorSupervisor>();
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.GetThread(It.IsAny<ActorThreadId>())).Returns(thread.Object);
+        var mailbox = new ActorMailbox(supervisor.Object, mailboxId);
+        var message = new TestActorMessage(1, "entity-restart");
+        var id = message.Subject.ThreadId;
+
+        mailbox.ThreadQueues.PauseAdmission(id);
+        mailbox.ThreadQueues.TryAdmit(message, message.Subject).Reason
+            .Should().Be(ActorAdmissionReason.Stopping);
+        mailbox.ThreadQueues.ResumeAdmission(id);
+        mailbox.ThreadQueues.TryAdmit(message, message.Subject).Accepted.Should().BeTrue();
+        mailbox.ThreadQueues.TryGetThreadQueue(id, out var queue).Should().BeTrue();
+        var scheduled = (IScheduledActorThreadQueue)queue!;
+        scheduled.TryRead(out var accepted).Should().BeTrue();
+        accepted!.Dispose();
+        scheduled.CompleteDrain().Should().BeFalse();
+
+        mailbox.ThreadQueues.PauseAdmission(id);
+        (await mailbox.ThreadQueues.WaitForIdleAsync(id, TimeSpan.FromSeconds(1))).Should().BeTrue();
+        mailbox.ThreadQueues.Retire(id).Should().BeTrue();
+        mailbox.ThreadQueues.ResumeAdmission(id);
+        mailbox.ThreadQueues.GetThreadQueue(id);
+
+        var snapshot = mailbox.Metrics.CaptureSnapshot().Mailboxes.Single();
+        snapshot.Generation.Should().Be(2);
+        snapshot.IsAdmissionOpen.Should().BeTrue();
+        snapshot.LifecycleState.Should().Be(ActorMailboxLifecycleState.Running);
+    }
+
+    [Fact]
+    public async Task EntityMailbox_DrainTimeoutLeavesAdmissionClosedAndQuarantinesMailbox()
+    {
+        var mailboxId = new ActorMailboxId(ActorType.Command, "SchedulerTest");
+        var container = new Mock<IContainerInstance>();
+        container.Setup(instance => instance.Resolve<IActorThreadQueue>())
+            .Returns(() => new ActorThreadQueueV2(8));
+        var supervisor = new Mock<IActorSupervisor>();
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.GetThread(It.IsAny<ActorThreadId>()))
+            .Returns(Mock.Of<IActorThread>());
+        var mailbox = new ActorMailbox(supervisor.Object, mailboxId);
+        var message = new TestActorMessage(1, "entity-timeout");
+        var id = message.Subject.ThreadId;
+        mailbox.ThreadQueues.TryAdmit(message, message.Subject).Accepted.Should().BeTrue();
+
+        mailbox.ThreadQueues.PauseAdmission(id);
+        (await mailbox.ThreadQueues.WaitForIdleAsync(id, TimeSpan.FromMilliseconds(10))).Should().BeFalse();
+
+        var snapshot = mailbox.Metrics.CaptureSnapshot().Mailboxes.Single();
+        snapshot.IsAdmissionOpen.Should().BeFalse();
+        snapshot.LifecycleState.Should().Be(ActorMailboxLifecycleState.Quarantined);
+        var rejected = new TestActorMessage(2, "entity-timeout");
+        mailbox.ThreadQueues.TryAdmit(rejected, rejected.Subject).Accepted.Should().BeFalse();
+        mailbox.ThreadQueues.TryGetThreadQueue(id, out var queue).Should().BeTrue();
+        ((IScheduledActorThreadQueue)queue!).TryRead(out var queued).Should().BeTrue();
+        queued!.Dispose();
+        ((IScheduledActorThreadQueue)queue).CompleteDrain();
+        rejected.Dispose();
+    }
+
     static TestRuntime CreateRuntime(
         int expectedMessages,
         TimeSpan handlerDelay = default,
@@ -450,6 +584,36 @@ public sealed class ActorThreadPoolV2Tests
         ActorThreadPoolV2 Pool,
         ActorMailbox Mailbox,
         RecordingActor Actor);
+
+    sealed class FailOnceActor(ActorMailboxId id, IActorMailbox mailbox) : IActor
+    {
+        readonly ConcurrentQueue<int> _processed = new();
+        readonly TaskCompletionSource _completed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ActorMailboxId Id { get; } = id;
+        public IActorMailbox Mailbox { get; } = mailbox;
+        public bool IsRunning => true;
+        public Task Completed => _completed.Task;
+        public IEnumerable<int> Processed => _processed;
+
+        public ValueTask StartAsync(IActorSupervisor supervisor) => ValueTask.CompletedTask;
+        public ValueTask StopAsync() => ValueTask.CompletedTask;
+
+        public ValueTask HandleMessageAsync(IActorMessage message)
+            => HandleMessageAsync(message, message.Subject.ThreadId);
+
+        public ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
+        {
+            var value = ((TestActorMessage)message).Sequence;
+            _processed.Enqueue(value);
+            if (value == 2)
+                _completed.TrySetResult();
+            if (value == 1)
+                throw new InvalidOperationException("injected actor failure");
+            return ValueTask.CompletedTask;
+        }
+    }
 
     sealed class RecordingActor(
         ActorMailboxId id,
@@ -527,10 +691,12 @@ public sealed class ActorThreadPoolV2Tests
         }
     }
 
-    sealed class TestActorMessage(int sequence, string entityId = "same") : IActorMessage
+    sealed class TestActorMessage(int sequence, string entityId = "same") : IActorMessage, IActorDeliveryCompletion
     {
+        readonly ConcurrentQueue<bool> _deliveryOutcomes = new();
         int _disposed;
         public int Sequence { get; } = sequence;
+        public IEnumerable<bool> DeliveryOutcomes => _deliveryOutcomes;
         public int AdmissionSizeBytes => 10;
         public int DisposeCount => Volatile.Read(ref _disposed);
         public RecordingActor? Owner { get; init; }
@@ -546,6 +712,12 @@ public sealed class ActorThreadPoolV2Tests
         {
             if (Interlocked.Increment(ref _disposed) == 1)
                 Owner?.RecordDispose(Sequence);
+        }
+
+        public ValueTask CompleteDeliveryAsync(bool succeeded)
+        {
+            _deliveryOutcomes.Enqueue(succeeded);
+            return ValueTask.CompletedTask;
         }
     }
 

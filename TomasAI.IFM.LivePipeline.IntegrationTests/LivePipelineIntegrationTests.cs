@@ -313,6 +313,25 @@ public sealed class LivePipelineIntegrationTests
     }
 
     [Fact]
+    public void Pipeline_audit_history_is_newest_first_bounded_and_replaces_same_observation()
+    {
+        var evidence = new LivePipelineEvidence(new ManualTime());
+        var start = new DateTime(2026, 9, 11, 12, 0, 0, DateTimeKind.Utc);
+        for (var minute = 0; minute < 26; minute++)
+            evidence.PublishAudit(new(start.AddMinutes(minute), Date, "Healthy", []));
+
+        var latest = new LivePipelineHealthSnapshot(start.AddMinutes(25), Date, "Degraded",
+            [new("ITI", "ES", "Degraded", "No progress.", start.AddMinutes(25))]);
+        evidence.PublishAudit(latest);
+
+        var history = evidence.GetAuditHistory(25);
+        Assert.Equal(25, history.Count);
+        Assert.Equal(latest, history[0]);
+        Assert.Equal(start.AddMinutes(1), history[^1].ObservedUtc);
+        Assert.Throws<ArgumentOutOfRangeException>(() => evidence.GetAuditHistory(26));
+    }
+
+    [Fact]
     public async Task Hosted_monitor_checks_every_minute_and_does_not_overlap()
     {
         var time = new ManualTime(); var probe = new Probe(time);

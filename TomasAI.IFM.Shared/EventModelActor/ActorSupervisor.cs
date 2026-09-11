@@ -40,6 +40,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     int _disposed;
     int _isReady;
 
+    public SupervisorRuntimeContext RuntimeContext { get; } = new();
+
     /// <inheritdoc />
     public bool IsReady => Volatile.Read(ref _isReady) != 0;
 
@@ -99,7 +101,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         {
             if (_externalJsProducers.ContainsKey(actor.Id))
                 throw new InvalidOperationException($"Actor identifier '{actor.Id}' is reserved by an external event producer.");
-            _children.TryAdd(actor.Id, actor);
+            if (_children.TryAdd(actor.Id, actor))
+                RuntimeContext.Register(actor);
         }
     }
 
@@ -110,7 +113,9 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     public void RemoveActor(IActor actor)
     {
         IsArgumentNull.Check(actor);
-        _children.TryRemove(actor.Id, out _);
+        if (((ICollection<KeyValuePair<ActorMailboxId, IActor>>)_children)
+            .Remove(new(actor.Id, actor)))
+            RuntimeContext.Remove(actor);
     }
 
     /// <summary>
@@ -309,7 +314,14 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
-        return actor.StartAsync(this, cancellationToken);
+        return RuntimeContext.StartAsync(
+            actor,
+            async () =>
+            {
+                await actor.StartAsync(this, cancellationToken).ConfigureAwait(false);
+                actor.Mailbox.ThreadQueues.ResumeAdmission();
+            },
+            cancellationToken);
     }
 
     /// <summary>
@@ -327,7 +339,106 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
-        return actor.StopAsync(cancellationToken);
+        return RuntimeContext.StopAsync(
+            actor,
+            async () =>
+            {
+                actor.Mailbox.ThreadQueues.PauseAdmission();
+                if (!await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
+                    .ConfigureAwait(false))
+                    throw new TimeoutException($"Actor '{actor.Id}' did not drain before shutdown.");
+                await actor.StopAsync(cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public ValueTask RestartAsync(
+        ActorMailboxId mailboxId,
+        CancellationToken cancellationToken = default)
+    {
+        IsArgumentNull.Check(mailboxId);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_children.TryGetValue(mailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
+        return RuntimeContext.RestartAsync(
+            actor,
+            async () =>
+            {
+                actor.Mailbox.ThreadQueues.PauseAdmission();
+                if (!await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
+                    .ConfigureAwait(false))
+                    throw new TimeoutException($"Actor '{actor.Id}' did not drain before restart.");
+                await actor.StopAsync(cancellationToken).ConfigureAwait(false);
+            },
+            async () =>
+            {
+                await actor.StartAsync(this, cancellationToken).ConfigureAwait(false);
+                actor.Mailbox.ThreadQueues.ResumeAdmission();
+            },
+            cancellationToken);
+    }
+
+    public ValueTask<bool> PauseAsync(
+        ActorThreadId threadId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                return await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(threadId, timeout, cancellationToken)
+                    .ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public async ValueTask ResumeAsync(
+        ActorThreadId threadId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        await RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            () =>
+            {
+                actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                return ValueTask.FromResult(true);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                if (!await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(threadId, timeout, cancellationToken)
+                    .ConfigureAwait(false))
+                    return false;
+                if (!actor.Mailbox.ThreadQueues.Retire(threadId))
+                    return false;
+                if (_threadState.TryGetValue(threadId, out var state))
+                    RemoveThreadState(state);
+                actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                return true;
+            },
+            cancellationToken);
     }
 
     /// <summary>
