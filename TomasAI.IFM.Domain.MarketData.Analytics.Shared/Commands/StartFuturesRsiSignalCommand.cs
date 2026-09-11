@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesRsiSignal;
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -26,6 +27,8 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
     [Key(3)] public FuturesRsiSignalEntityId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
+
+    [Key(6)] public FuturesRsiHistoricalSeed? HistoricalSeed {get;init;}
 
     // Ignored / derived members
     [IgnoreMember] public string CommandName => GetType().Name;
@@ -58,7 +61,8 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
         bool postEvents,                  // Key(2)
         FuturesRsiSignalEntityId entityId,// Key(3)
         int errorCode,                    // Key(4)
-        BoundedContextName routeTo)      // Key(6)
+        BoundedContextName routeTo,
+        FuturesRsiHistoricalSeed? historicalSeed = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -66,5 +70,6 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
         EntityId = entityId;
         ErrorCode = errorCode;
         RouteTo = routeTo;
+        HistoricalSeed = historicalSeed;
     }
 }

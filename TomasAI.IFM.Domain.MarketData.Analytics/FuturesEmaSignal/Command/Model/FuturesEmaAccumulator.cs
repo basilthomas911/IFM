@@ -58,7 +58,7 @@ public static class FuturesEmaAccumulator
             Ema200 = value200.Current,
             PreviousEma200 = value200.Previous,
             Ema200Slope = Slope(value200),
-            IsWarm = value200.Current is not null && value200.Previous is not null
+            IsWarm = value200.Current is not null
         };
         return new(next, signal, MarketObservationApplicationDisposition.Applied);
     }

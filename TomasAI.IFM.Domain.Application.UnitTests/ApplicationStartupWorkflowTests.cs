@@ -28,7 +28,7 @@ public sealed class ApplicationStartupWorkflowTests
             ApplicationStartupPlan.Activities.Select(value => value.Activity),
             activities.Executed);
         Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
-        Assert.Equal(7, context.StartupStatusStore.Current.Activities.Length);
+        Assert.Equal(ApplicationStartupPlan.Activities.Count, context.StartupStatusStore.Current.Activities.Length);
         Assert.Single(context.SentEvents, value => value is ApplicationStartupCompleteEvent);
     }
 
@@ -46,6 +46,7 @@ public sealed class ApplicationStartupWorkflowTests
         Assert.Equal(
             [
                 ApplicationStartupActivity.ResolveAuthority,
+                ApplicationStartupActivity.ApplyParameterSets,
                 ApplicationStartupActivity.ReconcileReferenceData,
                 ApplicationStartupActivity.ReconcileCurrentContracts
             ],
@@ -100,6 +101,17 @@ public sealed class ApplicationStartupWorkflowTests
         Assert.Equal(ApplicationLifecycleState.Failed, context.StartupStatusStore.Current.State);
     }
 
+    [Theory]
+    [InlineData(ApplicationStartupActivity.ApplyParameterSets)]
+    [InlineData(ApplicationStartupActivity.PrepareParameterSignals)]
+    public async Task Parameter_failure_is_visible_but_does_not_stop_the_feed(ApplicationStartupActivity failure)
+    {
+        var activities=new RecordingActivities{Failure=failure};var context=new TestContext(activities);
+        await Event().ExecuteAsync(context,CancellationToken.None);
+        Assert.Contains(ApplicationStartupActivity.StartMarketData,activities.Executed);
+        Assert.Equal(ApplicationLifecycleState.Degraded,context.StartupStatusStore.Current.State);
+        Assert.Single(activities.Executed,x=>x==failure);
+    }
     [Fact]
     public async Task Repeated_same_date_command_does_not_repeat_side_effects()
     {
@@ -109,7 +121,7 @@ public sealed class ApplicationStartupWorkflowTests
         await Event().ExecuteAsync(context, CancellationToken.None);
         await Event().ExecuteAsync(context, CancellationToken.None);
 
-        Assert.Equal(7, activities.Executed.Count);
+        Assert.Equal(ApplicationStartupPlan.Activities.Count, activities.Executed.Count);
         Assert.Equal(2, context.SentEvents.Count(value => value is ApplicationStartupCompleteEvent));
     }
 
@@ -146,6 +158,8 @@ public sealed class ApplicationStartupWorkflowTests
             return ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
         }
 
+        public ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)=>Execute(ApplicationStartupActivity.ApplyParameterSets,cancellationToken);
+        public ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)=>Execute(ApplicationStartupActivity.PrepareParameterSignals,cancellationToken);
         public ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ResolveAuthority, cancellationToken);
         public ValueTask<ApplicationStartupActivityOutcome> ReconcileReferenceDataAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ReconcileReferenceData, cancellationToken);
         public ValueTask<ApplicationStartupActivityOutcome> ReconcileCurrentContractsAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ReconcileCurrentContracts, cancellationToken);

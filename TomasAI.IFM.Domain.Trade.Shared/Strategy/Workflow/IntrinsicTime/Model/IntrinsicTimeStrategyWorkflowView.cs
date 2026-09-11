@@ -78,4 +78,6 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(34)] public Pipeline.RiskManagement.RiskFinancialHandoffState? FinancialHandoff { get; init; }
     [Key(35)] public Pipeline.RiskManagement.RiskResizeEvidence? RiskResize { get; init; }
     [Key(36)] public Pipeline.RiskManagement.RiskExplanation? RiskExplanation { get; init; }
+    [Key(37)] public ParameterApplicationProvenance? RegimeDiscoveryParameterApplication {get;init;}
+
 }

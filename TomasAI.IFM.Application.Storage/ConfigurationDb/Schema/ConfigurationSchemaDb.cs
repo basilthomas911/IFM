@@ -54,6 +54,10 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
         .Append(new SchemaObjectDefinition("lookup_definition", LookupDefinitionSchemaSql.Create, LookupDefinitionSchemaSql.Drop))
         .Append(new SchemaObjectDefinition("strategy_catalog",
             StrategyCatalogSchemaSql.Create, StrategyCatalogSchemaSql.Drop))
+        .Append(new SchemaObjectDefinition("parameter_registry",ParameterSets.ParameterRegistrySchemaSql.Create,
+            "DROP TABLE IF EXISTS reference_configuration.parameter_schema_version; DROP TABLE IF EXISTS reference_configuration.parameter_component; DROP TABLE IF EXISTS reference_configuration.parameter_area;"))
+        .Append(new SchemaObjectDefinition("parameter_sets", ParameterSets.ParameterSetSchemaSql.Create,
+            "DROP TABLE IF EXISTS reference_configuration.parameter_assignment_revision; DROP TABLE IF EXISTS reference_configuration.parameter_assignment; DROP TABLE IF EXISTS reference_configuration.parameter_operation; DROP TABLE IF EXISTS reference_configuration.parameter_set_version; DROP TABLE IF EXISTS reference_configuration.parameter_set;"))
         .ToArray();
 
     /// <inheritdoc />

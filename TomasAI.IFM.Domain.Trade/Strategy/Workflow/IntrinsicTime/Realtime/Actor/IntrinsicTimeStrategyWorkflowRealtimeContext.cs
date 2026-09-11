@@ -29,6 +29,7 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <summary>Gets the immutable strategy-configuration store.</summary>
     IConfigurationDbContext ConfigurationDb { get; }
+    TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot? ParameterRuntime=>null;
     IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
     Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => throw new InvalidOperationException("Financial API is not configured.");
     IPortfolioQueryApi PortfolioQueries {get;}
@@ -88,6 +89,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
     public RegimeDiscoveryExecutionOptions RegimeDiscoveryExecutionOptions { get; }
 
     /// <inheritdoc />
+    public TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot ParameterRuntime=>Container.Resolve<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>();
     public IConfigurationDbContext ConfigurationDb => _configurationDb.Value;
 
     /// <inheritdoc />

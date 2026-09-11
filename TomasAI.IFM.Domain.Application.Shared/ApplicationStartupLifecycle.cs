@@ -11,7 +11,9 @@ public enum ApplicationStartupActivity
     StartMarketData = 4,
     WarmHistoricalAnalytics = 5,
     StartRealtimeAnalytics = 6,
-    QualifyOperationalState = 7
+    QualifyOperationalState = 7,
+    ApplyParameterSets = 8,
+    PrepareParameterSignals = 9
 }
 
 /// <summary>Describes the terminal result of one startup activity.</summary>
@@ -82,6 +84,10 @@ public sealed record ApplicationStartupStatus
 /// </summary>
 public interface IApplicationStartupActivities
 {
+    ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
+        =>ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
+    ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
+        =>ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
     ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(
         ApplicationStartupContext context,
         CancellationToken cancellationToken);
@@ -124,10 +130,12 @@ public static class ApplicationStartupPlan
     public static IReadOnlyList<ApplicationStartupActivityDefinition> Activities { get; } =
     [
         new(ApplicationStartupActivity.ResolveAuthority, true, []),
+        new(ApplicationStartupActivity.ApplyParameterSets, false, [ApplicationStartupActivity.ResolveAuthority]),
         new(ApplicationStartupActivity.ReconcileReferenceData, false, [ApplicationStartupActivity.ResolveAuthority]),
         new(ApplicationStartupActivity.ReconcileCurrentContracts, true, [ApplicationStartupActivity.ResolveAuthority]),
         new(ApplicationStartupActivity.WarmHistoricalAnalytics, false, [ApplicationStartupActivity.ReconcileCurrentContracts]),
         new(ApplicationStartupActivity.StartRealtimeAnalytics, true, [ApplicationStartupActivity.ReconcileCurrentContracts]),
+        new(ApplicationStartupActivity.PrepareParameterSignals, false, [ApplicationStartupActivity.ApplyParameterSets,ApplicationStartupActivity.StartRealtimeAnalytics]),
         new(ApplicationStartupActivity.StartMarketData, true,
         [
             ApplicationStartupActivity.ReconcileCurrentContracts,

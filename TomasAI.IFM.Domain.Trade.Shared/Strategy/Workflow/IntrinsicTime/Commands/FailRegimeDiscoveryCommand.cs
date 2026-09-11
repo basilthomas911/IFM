@@ -44,6 +44,12 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline failure timestamp.</summary>
     [Key(12)] public DateTime FailedAtUtc { get; init; }
+    /// <summary>Gets the resolved parameter-set identity, when initialization reached parameter resolution.</summary>
+    [Key(13)] public Guid ParameterSetId { get; init; }
+    /// <summary>Gets the resolved immutable parameter-set version.</summary>
+    [Key(14)] public int ParameterSetVersion { get; init; }
+    /// <summary>Gets the resolved parameter payload hash.</summary>
+    [Key(15)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(FailRegimeDiscoveryCommand);
@@ -78,6 +84,9 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
     /// <param name="correlationId">Workflow correlation identity.</param>
     /// <param name="causationId">Causative pipeline event identity.</param>
     /// <param name="failedAtUtc">UTC pipeline failure timestamp.</param>
+    /// <param name="parameterSetId">Resolved parameter-set identity, if available.</param>
+    /// <param name="parameterSetVersion">Resolved parameter-set version.</param>
+    /// <param name="parameterPayloadSha256">Resolved parameter payload hash.</param>
     [SerializationConstructor]
     public FailRegimeDiscoveryCommand(
         Guid commandId,
@@ -92,7 +101,10 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
         StrategyPipelineFailure failure,
         Guid correlationId,
         Guid causationId,
-        DateTime failedAtUtc)
+        DateTime failedAtUtc,
+        Guid parameterSetId,
+        int parameterSetVersion,
+        string parameterPayloadSha256)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +119,8 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
         CorrelationId = correlationId;
         CausationId = causationId;
         FailedAtUtc = failedAtUtc;
+        ParameterSetId = parameterSetId;
+        ParameterSetVersion = parameterSetVersion;
+        ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
     }
 }

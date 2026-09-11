@@ -7,19 +7,24 @@ namespace TomasAI.IFM.UI.Net.Views.Reference;
 public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFormControl
 {
     readonly IAppRoot _appRoot;
+    readonly TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi? _parameterSets;
     readonly Dictionary<string, Func<IAppRoot, Control>> _controlMap;
     ReferenceViewModel? _viewModel;
     IControlCommand? _ctrlCommand;
     bool _closeComplete;
     bool _closeInProgress;
     int _selectionGeneration;
+    object? _activeReferenceSelection;
+    bool _restoringReferenceSelection;
     const string TradeStrategyFamiliesLabel = "trade strategy families";
 
     public ReferenceForm(
         IAppRoot appRoot,
-        IReferenceDataService referenceDataService)
+        IReferenceDataService referenceDataService,
+        TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi? parameterSets = null)
     {
         _appRoot = appRoot;
+        _parameterSets = parameterSets;
         _controlMap = new Dictionary<string, Func<IAppRoot, Control>>
         {
             { "LookupTypes", ar => new LookupTypeEditorView(
@@ -50,11 +55,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
     /// <param name="viewModel"></param>
     public void LoadViewModel(ReferenceViewModel viewModel)
     {
-        if (_viewModel is not null)
-            _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
-
         _viewModel = viewModel;
-        _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged += LoadOperation_PropertyChanged;
     }
 
     /// <summary>
@@ -67,10 +68,13 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
         if (_viewModel is null)
             return;
 
+        // These editors are owned by the UI and must remain available even when
+        // the remote lookup-type catalogue is slow or unavailable.
+        BindReferenceDataDefinitionTypes(selectDefault: false);
         try
         {
             await _viewModel.LoadReferenceDataDefinitionTypesOperation.ExecuteAsync();
-            BindReferenceDataDefinitionTypes();
+            BindReferenceDataDefinitionTypes(selectDefault: true);
         }
         catch (Exception exception)
         {
@@ -83,13 +87,13 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
         if (_closeComplete)
             return;
         e.Cancel = true;
+        if (pnlMarketData.Controls.OfType<ParameterSets.ParameterSetsReferenceView>().FirstOrDefault() is { } activeParameterEditor && !activeParameterEditor.CanLeave()) return;
         if (_closeInProgress)
             return;
         _closeInProgress = true;
         ++_selectionGeneration;
-        if (_viewModel is not null)
-            _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
         await CloseActiveControlAsync();
+
         ResetButtons(true);
         _closeComplete = true;
         // ShowDialog resets the close result when this event is canceled. Let the
@@ -100,6 +104,15 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
 
      async void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_restoringReferenceSelection) return;
+        if (pnlMarketData.Controls.OfType<ParameterSets.ParameterSetsReferenceView>().FirstOrDefault() is { } activeParameterEditor && !activeParameterEditor.CanLeave())
+        {
+            _restoringReferenceSelection = true;
+            ddlReferenceDataSelector.SelectedItem = _activeReferenceSelection;
+            _restoringReferenceSelection = false;
+            return;
+        }
+        _activeReferenceSelection = ddlReferenceDataSelector.SelectedItem;
         var generation = ++_selectionGeneration;
         UpdateSelectorAccessibility();
         await CloseActiveControlAsync();
@@ -113,6 +126,17 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
             pnlMarketData.Controls.Add(catalog);
             RefreshFamilyButtons(catalog);
             await catalog.LoadAsync();
+            return;
+        }
+        if (string.Equals(ddlReferenceDataSelector.SelectedItem?.ToString(), "parameter sets", StringComparison.Ordinal))
+        {
+            if (_parameterSets is null) { this.ShowErrorMessage("Parameter Sets service is unavailable.", "Reference Data"); return; }
+            var parameterEditor = new ParameterSets.ParameterSetsReferenceView(_parameterSets) { Dock = DockStyle.Fill };
+            _ctrlCommand = parameterEditor;
+            parameterEditor.StateChanged += (_, _) => { if (ReferenceEquals(_ctrlCommand, parameterEditor)) RefreshParameterButtons(parameterEditor); };
+            pnlMarketData.Controls.Add(parameterEditor);
+            ((IControlCommand)parameterEditor).Load(_appRoot, _ => this.Post(() => RefreshParameterButtons(parameterEditor)));
+            RefreshParameterButtons(parameterEditor);
             return;
         }
         var mktDataDefType = _viewModel?.GetReferenceDataDefinitionType(ddlReferenceDataSelector.SelectedIndex);
@@ -177,6 +201,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
     void RefreshAddButton(bool enabled)
     {
         if (_ctrlCommand is StrategyCatalogReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
+        if (_ctrlCommand is ParameterSets.ParameterSetsReferenceView parameters) { RefreshParameterButtons(parameters); return; }
         btnAdd.Text = !enabled ? "Save" : "Add";
         btnChange.Enabled = enabled;
         btnRemove.Enabled = enabled;
@@ -187,6 +212,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
     void RefreshChangeButton(bool enabled)
     {
         if (_ctrlCommand is StrategyCatalogReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
+        if (_ctrlCommand is ParameterSets.ParameterSetsReferenceView parameters) { RefreshParameterButtons(parameters); return; }
         btnChange.Text = !enabled ? "Save" : "Change";
         btnAdd.Enabled = enabled;
         btnRemove.Enabled = enabled;
@@ -197,6 +223,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
     void ResetButtons(bool enabled)
     {
         if (_ctrlCommand is StrategyCatalogReferenceView catalog) { RefreshFamilyButtons(catalog); return; }
+        if (_ctrlCommand is ParameterSets.ParameterSetsReferenceView parameters) { RefreshParameterButtons(parameters); return; }
         btnAdd.Text = @"&Add";
         btnAdd.Enabled = true;
         btnChange.Text = @"C&hange";
@@ -215,26 +242,31 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
         btnClose.Enabled = false;
     }
 
-    void LoadOperation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    void BindReferenceDataDefinitionTypes(bool selectDefault = true)
     {
-        if (e.PropertyName == nameof(IAsyncOperation.IsRunning) && _viewModel is not null)
-            this.Post(() => ddlReferenceDataSelector.Enabled = !_viewModel.LoadReferenceDataDefinitionTypesOperation.IsRunning);
-    }
-
-    void BindReferenceDataDefinitionTypes()
-    {
+        var selectedDescription = ddlReferenceDataSelector.SelectedItem?.ToString();
+        _restoringReferenceSelection = true;
         ddlReferenceDataSelector.Items.Clear();
         if (_viewModel is null)
+        {
+            _restoringReferenceSelection = false;
             return;
+        }
 
         foreach (var definitionType in _viewModel.ReferenceDataDefinitionTypes)
             ddlReferenceDataSelector.Items.Add(definitionType.Description);
         ddlReferenceDataSelector.Items.Add(TradeStrategyFamiliesLabel);
+        ddlReferenceDataSelector.Items.Add("parameter sets");
         ddlReferenceDataSelector.AccessibleDescription = string.Join(", ",
             ddlReferenceDataSelector.Items.Cast<object>().Select(item => item.ToString()));
 
-        if (ddlReferenceDataSelector.Items.Count > 0)
+        if (selectedDescription is not null)
+            ddlReferenceDataSelector.SelectedIndex = ddlReferenceDataSelector.FindStringExact(selectedDescription);
+        _restoringReferenceSelection = false;
+
+        if (ddlReferenceDataSelector.SelectedIndex < 0 && selectDefault && ddlReferenceDataSelector.Items.Count > 0)
             ddlReferenceDataSelector.SelectedIndex = 0;
+        ddlReferenceDataSelector.Enabled = true;
         UpdateSelectorAccessibility();
     }
 
@@ -256,6 +288,18 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
         ddlReferenceDataSelector.Enabled = !catalog.IsEditing && !catalog.IsSaving;
     }
 
+    void RefreshParameterButtons(ParameterSets.ParameterSetsReferenceView parameters)
+    {
+        btnAdd.Text = parameters.IsAdding ? "Save" : "&Add";
+        btnAdd.Enabled = parameters.IsAdding ? parameters.CanSave : !parameters.IsChanging && parameters.CanAdd;
+        btnChange.Text = parameters.IsChanging ? "Save" : "C&hange";
+        btnChange.Enabled = parameters.IsChanging ? parameters.CanSave : !parameters.IsAdding && parameters.CanChange;
+        btnRemove.Enabled = parameters.CanRemove;
+        btnImport.Enabled = false;
+        btnClose.Text = parameters.IsEditing ? "Cancel" : "Close";
+        btnClose.Enabled = !parameters.IsBusy;
+        ddlReferenceDataSelector.Enabled = !parameters.IsEditing && !parameters.IsBusy;
+    }
     public void Open()
     {
         throw new NotImplementedException();

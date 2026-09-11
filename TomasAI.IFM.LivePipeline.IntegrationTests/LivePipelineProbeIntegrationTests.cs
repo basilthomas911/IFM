@@ -11,6 +11,8 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -21,6 +23,8 @@ using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
+using System.Collections.Immutable;
 using Xunit;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -95,6 +99,7 @@ public sealed class LivePipelineProbeIntegrationTests
     {
         await using var fixture = await Fixture.Create();
         var result = await fixture.Probe.CheckAsync(default);
+        Assert.Contains(result.Checks, x => x.Component == "Deployment identity" && x.Status == "Healthy");
         Assert.Contains(result.Checks, x => x.Component == "Databento feed" && x.Status == "Healthy");
         Assert.Contains(result.Checks, x => x.Component == "Bar timer" && x.Status == "Degraded");
         Assert.Contains(result.Checks, x => x.Component == "Chart storage/query" && x.Status == "Degraded");
@@ -135,6 +140,75 @@ public sealed class LivePipelineProbeIntegrationTests
         Assert.Contains(result.Checks, x => x.Component == "ITI");
     }
 
+    [Fact]
+    public async Task Targeted_chart_recovery_starts_missing_timer_without_resetting_dataset()
+    {
+        await using var fixture = await Fixture.Create();
+        await fixture.Probe.RecoverDownstreamAsync(
+            new("Bar timer", fixture.Date.ToString("yyyy-MM-dd"), "Degraded", "missing", DateTime.UtcNow),
+            fixture.Date, default);
+        await fixture.FeedCommands.Received(1).StartFuturesBarDataStreamingAsync(
+            Arg.Is<FuturesContractV3ReadModel[]>(contracts => contracts.Length == 2), fixture.Date);
+        await fixture.FeedCommands.DidNotReceive().StopFuturesBarDataStreamingAsync(fixture.Date);
+    }
+
+    [Fact]
+    public async Task Targeted_stale_chart_recovery_restarts_only_chart_streaming()
+    {
+        await using var fixture = await Fixture.Create();
+        await fixture.Probe.RecoverDownstreamAsync(
+            new("Chart storage/query", "ES", "Degraded", "stale", DateTime.UtcNow),
+            fixture.Date, default);
+        await fixture.FeedCommands.Received(1).StopFuturesBarDataStreamingAsync(fixture.Date);
+        await fixture.FeedCommands.Received(1).StartFuturesBarDataStreamingAsync(
+            Arg.Any<FuturesContractV3ReadModel[]>(), fixture.Date);
+    }
+
+    [Fact]
+    public async Task Targeted_indicator_recovery_starts_only_requested_indicator_and_timeframe()
+    {
+        await using var fixture = await Fixture.Create();
+        await fixture.Probe.RecoverDownstreamAsync(
+            new("Analytics attachments", "RSI/FifteenSeconds", "Degraded", "missing", DateTime.UtcNow),
+            fixture.Date, default);
+        await fixture.AnalyticsCommands.Received(1).StartFuturesRsiSignalAsync(
+            Arg.Is<FuturesRsiSignalEntityId>(id => id.TimePeriod == TimeFrameType.FifteenSeconds));
+        await fixture.AnalyticsCommands.DidNotReceiveWithAnyArgs()
+            .StartFuturesAtrSignalAsync(default!);
+    }
+
+    [Fact]
+    public async Task Targeted_iti_recovery_restarts_only_iti_realtime_actor()
+    {
+        await using var fixture = await Fixture.Create();
+        var iti = new ActorMailboxId(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
+        fixture.Actors.ActorExists(iti).Returns(true);
+        await fixture.Probe.RecoverDownstreamAsync(
+            new("ITI route", "ES", "Degraded", "missing", DateTime.UtcNow),
+            fixture.Date, default);
+        await fixture.Actors.Received(1).StopAsync(iti, Arg.Any<CancellationToken>());
+        await fixture.Actors.Received(1).StartAsync(iti, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Minute_monitor_uses_real_probe_to_recover_chart_bars_when_ticks_are_healthy()
+    {
+        await using var fixture = await Fixture.Create();
+        var now = DateTime.UtcNow;
+        fixture.Evidence.Record("Tick storage", "ES20260918", "Healthy", "stored", now);
+        fixture.Evidence.Record("Tick storage", "VX20260918", "Healthy", "stored", now);
+        var time = new LivePipelineIntegrationTests.ManualTime();
+        using var monitor = new LivePipelineMonitor(
+            fixture.Probe, time, NullLogger<LivePipelineMonitor>.Instance);
+        await monitor.CheckOnceAsync(default);
+        await fixture.FeedCommands.DidNotReceiveWithAnyArgs()
+            .StartFuturesBarDataStreamingAsync(default!, default);
+        time.Advance(TimeSpan.FromMinutes(1));
+        await monitor.CheckOnceAsync(default);
+        await fixture.FeedCommands.Received(1).StartFuturesBarDataStreamingAsync(
+            Arg.Is<FuturesContractV3ReadModel[]>(contracts => contracts.Length == 2), fixture.Date);
+    }
+
     sealed class Fixture : IAsyncDisposable
     {
         public DateOnly Date = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -144,6 +218,9 @@ public sealed class LivePipelineProbeIntegrationTests
         public IDatabentoMarketDataEpoch Epoch = Substitute.For<IDatabentoMarketDataEpoch>();
         public IDbContextFactory Storage = Substitute.For<IDbContextFactory>();
         public LivePipelineEvidence Evidence = new(TimeProvider.System);
+        public IMarketDataFeedCommandApi FeedCommands = Substitute.For<IMarketDataFeedCommandApi>();
+        public IMarketDataAnalyticsCommandApi AnalyticsCommands = Substitute.For<IMarketDataAnalyticsCommandApi>();
+        public IActorSupervisor Actors = Substitute.For<IActorSupervisor>();
         DatabentoMarketDataApi market = null!;
         public DatabentoMarketDataApi Market => market;
         public IFuturesMarketSessionAuthority Sessions = null!;
@@ -173,15 +250,30 @@ public sealed class LivePipelineProbeIntegrationTests
                     true, true, true, true, now, now, now, now, now, now, 10)).ToArray()));
             var factory = Substitute.For<IDatabentoMarketDataEpochFactory>(); factory.Create(f.Date).Returns(f.Epoch);
             f.market = new(factory, new(), contractRegistry: registry); await f.market.StartAsync(f.Date);
-            var actors = Substitute.For<IActorSupervisor>(); actors.IsReady.Returns(true);
+            var actors = f.Actors; actors.IsReady.Returns(true);
+            actors.GetRealtimeRoutes(Arg.Any<ActorTypeId>()).Returns(ImmutableArray<RealtimeActorRoute>.Empty);
             var actorRegistry = Substitute.For<IActorRegistry>();
             var operations = new MarketDataOperationsHealthService(new DatasetWorkerAdmissionRegistry());
             var watchdog = new DatabentoMarketDataWatchdogService(Substitute.For<IDatabentoLifecycleRuntime>(),
                 Substitute.For<IMarketDataServiceStore>(), session, Substitute.For<IDatabentoWatchdogPublisher>(),
                 operations, new(), new(), TimeProvider.System, NullLogger<DatabentoMarketDataWatchdogService>.Instance);
+            f.FeedCommands.StartFuturesBarDataStreamingAsync(Arg.Any<FuturesContractV3ReadModel[]>(), f.Date)
+                .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            f.FeedCommands.StopFuturesBarDataStreamingAsync(f.Date)
+                .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            f.AnalyticsCommands.StartFuturesRsiSignalAsync(Arg.Any<FuturesRsiSignalEntityId>())
+                .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            f.AnalyticsCommands.StartFuturesAtrSignalAsync(Arg.Any<FuturesAtrSignalEntityId>())
+                .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            f.AnalyticsCommands.StartFuturesAdxSignalAsync(Arg.Any<FuturesAdxSignalEntityId>())
+                .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            f.AnalyticsCommands.StartFuturesMacdSignalAsync(Arg.Any<FuturesMacdSignalEntityId>())
+                .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
             f.Probe = new(new(f.market, session, Substitute.For<IFuturesContractRolloverStore>(), Substitute.For<IFuturesExchangeBusinessCalendar>(), TimeProvider.System),
-                new(actors, actorRegistry), f.market, session, f.Timer, Substitute.For<IMarketDataFeedCommandApi>(),
-                Substitute.For<IMarketDataAnalyticsCommandApi>(), f.Storage, operations, f.Evidence, watchdog, TimeProvider.System);
+                new(actors, actorRegistry), f.market, session, f.Timer, f.FeedCommands, f.AnalyticsCommands,
+                f.Storage, operations, f.Evidence,
+                new DeploymentIdentityMonitor(new(), AppContext.BaseDirectory, false), watchdog, TimeProvider.System,
+                actors, null);
             return f;
         }
         public async ValueTask DisposeAsync() { await Timer.StopAllAsync(); await market.DisposeAsync(); }

@@ -105,4 +105,6 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     /// <summary>Selected contracts retained in the compatibility projection.</summary>
     [Key(27)] public CompositionContractSelection? CompositionContracts { get; init; }
     [Key(28)] public ExecuteOrderCompositionPipelineCommand? CompositionExecution { get; init; }
+    [Key(29)] public ParameterApplicationProvenance? RegimeDiscoveryParameterApplication {get;init;}
+
 }

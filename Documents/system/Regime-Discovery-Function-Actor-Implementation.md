@@ -1,6 +1,6 @@
 # Regime Discovery Function Actor Implementation
 
-**Status:** Baseline implemented and verified; workflow-start correction planned
+**Status:** Workflow-start correction implemented and focused verification passed
 
 **Last updated:** 2026-09-10
 **Scope:** ITI-to-workflow admission, Regime Discovery initialization and execution, durable failure
@@ -37,9 +37,9 @@ After outcome 1, every Regime Discovery initialization or execution failure must
 workflow to `Failed`. No readiness check may log and return before the workflow or start-attempt
 record exists.
 
-## Confirmed current behavior and defect
+## Confirmed former behavior and defect
 
-The current realtime handler performs the following work before it sends
+Before this correction, the realtime handler performed the following work before it sent
 `ExecuteIntrinsicTimeStrategyWorkflowCommand`:
 
 1. Parse the ITI generated event and construct proposed workflow identities.
@@ -59,9 +59,10 @@ or failure to display. The later activation, portfolio, and selection checks wer
 Once the existing workflow command is received, it already validates the message, loads state,
 handles duplicate and busy cases, closes an expired workflow when necessary, persists the
 `Started / RegimeDiscovery / Processing` transition, projects it, and dispatches Regime Discovery.
-The Regime Discovery Function also captures and validates its input snapshot and already returns a
-typed detailed failure. The correction removes the earlier duplicate gate and makes the Function's
-initialization boundary explicit.
+The correction removes that earlier gate. The workflow realtime actor now invokes Regime
+Discovery's `StartPipelineAsync` after the workflow start is durable. The resulting immutable
+snapshot travels in `ExecuteRegimeDiscoveryPipelineCommand`; the Function never recaptures mutable
+cache state.
 
 ## Target sequence
 
@@ -109,7 +110,7 @@ sequenceDiagram
     end
 ```
 
-## Proposed contracts
+## Implemented contracts
 
 The ITI handoff contains only information needed to identify and admit the attempt:
 
@@ -135,17 +136,16 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand(
     Guid TriggerEventId,
     FuturesItiSignalGeneratedEvent TriggerEvent,
     DateTimeOffset RequestedAtUtc,
-    DateTimeOffset ExpiresAtUtc);
-```
-
-`StartPipelineAsync` returns the immutable inputs required by calculation or a structured error:
-
-```csharp
-public sealed record RegimeDiscoveryPipelineInitialization(
+    DateTimeOffset ExpiresAtUtc,
     RegimeDiscoveryParameterSet ParameterSet,
     string ParameterPayloadSha256,
-    RegimeDiscoveryInputSnapshot Snapshot);
+    RegimeDiscoveryMarketSignalSnapshot Snapshot);
+```
 
+`StartPipelineAsync` returns the initialized Execute command required by calculation or a
+structured error:
+
+```csharp
 public sealed record PipelineStartResult<T>(
     bool Success,
     T? Value,
@@ -176,9 +176,10 @@ the persisted error contains safe operational details.
 6. Return a successful immutable initialization value or one typed error containing all applicable
    reason codes and diagnostic facts.
 
-`ExecuteAsync` calls `StartPipelineAsync` first. On failure it returns
-`RegimeDiscoveryPipelineFailedEvent`; on success it passes only the returned initialization value
-to the calculation. It does not repeat initialization lookups later in the execution path.
+The workflow realtime actor calls `StartPipelineAsync` first. On failure it submits a durable
+`FailRegimeDiscoveryCommand`; on success it sends the returned initialized Execute command to the
+Function. The Function validates and calculates only from that frozen command and performs no
+mutable configuration or signal-cache lookup.
 
 Market Condition profiles, activation, portfolio/fund authority, and selection binding do not
 belong in Regime Discovery initialization. They move to the initialization function of the
@@ -430,3 +431,45 @@ authorization to continue the strategy.
 - PostgreSQL expected-stream-version integration tests pass.
 - Intrinsic Time Strategy Workflow runtime integration scenarios pass.
 - API server, actor integration host, Trade BDD host, and Trade integrated-test host build with zero errors.
+
+## Workflow-start correction delivered 2026-09-10
+
+- The ITI realtime route now sends the workflow admission command immediately. It performs no
+  Regime configuration, warm-signal, Market Condition, activation, portfolio, or selection check.
+- Workflow command validation is limited to the start envelope and routing identities. Revision 1
+  is persisted as `Started / RegimeDiscovery / Processing` before any pipeline initialization.
+- Regime Discovery owns `StartPipelineAsync`, resolves its effective configuration, and returns a
+  typed `PipelineStartResult<T>`. Initialization failures carry a stable code, type, reason codes,
+  and bounded diagnostic facts into `FailRegimeDiscoveryCommand` and the workflow projection.
+- Successful Regime initialization parameters and hash travel through the completed Function event
+  and completion command and are frozen into the durable workflow view.
+- Market Condition owns an equivalent `StartPipelineAsync` for its assessment profile. Trade
+  Selection owns activation, portfolio, fund, and selection-policy initialization. Failures after
+  workflow admission terminate the applicable visible stage with durable error evidence.
+- Order Composition and Risk Management retain their existing accepted-request preparation and
+  failure transitions; both already execute only after a workflow and their stage state are durable.
+- Trade unit tests pass 1,057/1,057 and Trade BDD tests pass 36/36. The complete broker-backed
+  Intrinsic Time workflow runtime group passes 12/12, including admission, busy handling, Regime
+  failure, Regime timeout, Market Condition acceptance, orphan detection, and durable
+  `TS.INIT.ACTIVATION_MISSING` failure without selector dispatch. The affected projects build
+  without warnings.
+
+## Regime input correction delivered 2026-09-10
+
+- `StartPipelineAsync` now resolves and validates the effective parameter set, verifies its canonical
+  hash, builds the exact signal request, captures a revision-stable snapshot, and returns the
+  snapshot in the Execute command. Missing or unqualified evidence returns
+  `RD.INIT.INPUTS_UNAVAILABLE` with bounded metric, timeframe, availability, and signal-identity
+  diagnostics.
+- The ITI event is authoritative for current price, ITI direction, band level, reversal level, and
+  the trigger's VX front value. These values are no longer dependent on the cache projector winning
+  a race against workflow dispatch. Current price is applied to each configured trend timeframe
+  when comparing the trigger price with its EMA evidence.
+- Producer-backed structure and volatility evidence uses the longest required configured evidence
+  timeframe: OneHour for Daily workflows, FourHours for Weekly workflows, and Daily for Monthly
+  workflows. VX term structure and VIX evidence remain Daily.
+- The Function calculates only from the initialized command snapshot. Calculation failures retain
+  structured reason area, timeframe, and signal identity in the persisted workflow failure.
+- Focused verification passes: 1,056 Trade unit tests; 13 Regime/evidence analytics tests; the
+  broker-backed successful Regime initialization, completion, snapshot projection, and workflow
+  advance scenario; and the broker-backed missing-input failure scenario.

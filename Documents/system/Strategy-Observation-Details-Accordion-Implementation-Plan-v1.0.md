@@ -1,6 +1,6 @@
 # Strategy Observation Details Accordion Implementation Plan v1.0
 
-Status: Proposed
+Status: Implemented and verified
 
 Date: 2026-09-10
 
@@ -256,8 +256,26 @@ The work is complete when:
 6. The UI displays exact workflow-owned trigger and result evidence and never joins a different ITI
    history row by time alone.
 7. Accepted-versus-projected Market Condition diagnostics are retained in the shared presentation.
-8. No API, persistence, event, actor, or workflow behavior changes are introduced.
+8. No persistence, event, actor, or workflow command behavior changes are introduced. Observation
+   queries report a durable projected Market Condition result as an orphan when the workflow did
+   not accept it, even when no assessment binding was committed.
 9. Focused and affected integration tests pass with no new build warnings.
+
+## 10. Delivery evidence (2026-09-10)
+
+- `StrategyWorkflowPresentation` now builds one immutable details model with the workflow header and
+  six stable ordered sections: ITI, RD, MC, TS, OC, and RM. The text formatter remains available.
+- The exact `TriggerEvent` embedded in the selected workflow supplies the first ITI section.
+- Operations and Strategy Observation both bind the reusable
+  `StrategyWorkflowDetailsAccordion`; the standalone form passes its accepted-versus-projected
+  Market Condition comparison into the same builder.
+- The accordion supports mouse and keyboard button activation, one expanded section at a time,
+  collapse-all, ITI-first initial expansion, accessible expanded/collapsed descriptions, semantic
+  status text and color, and expansion/scroll preservation across revisions of the same workflow.
+- Presentation tests pass 371/371 and the focused Operations system tests pass 16/16.
+- The MC-R08 broker-backed runtime qualification generated Daily, Weekly, and Monthly workflow and
+  assessment evidence. All three Strategy Observation cases pass against those exact payloads and
+  expand the reusable Market Condition accordion section before validating and capturing it.
 
 ## 10. Files expected to change
 

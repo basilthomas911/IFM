@@ -796,6 +796,22 @@ internal static class MarketDataDbCql
         LIMIT 1;
     """;
 
+    public const string GetFuturesTickAtOrBefore = """
+        SELECT 
+            contractId AS "ContractId", 
+            valueDate AS "ValueDate", 
+            tickId as "TickId",
+            tickTime AS "TickTime", 
+            price AS "Price", 
+            size AS "Size"
+        FROM futures_tick_data_by_time
+        WHERE contractId = :contractId 
+        AND valueDate = :valueDate
+        AND tickTime <= :tickTime
+        ORDER BY tickTime DESC, tickId DESC
+        LIMIT 1;
+    """;
+
     public const string GetFuturesHighPrice = """
         SELECT max(price) as "Value" 
         FROM futures_tick_data 

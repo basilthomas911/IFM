@@ -639,6 +639,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             StopReasonCode = source.StopReasonCode,
             RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
             RegimeDiscoveryParameterPayloadSha256 = source.RegimeDiscoveryParameterPayloadSha256,
+            RegimeDiscoveryParameterApplication = source.RegimeDiscoveryParameterApplication,
             FundId = source.FundId,
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
             MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256,

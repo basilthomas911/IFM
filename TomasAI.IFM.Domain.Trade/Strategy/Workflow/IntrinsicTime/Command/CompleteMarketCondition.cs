@@ -39,7 +39,8 @@ public static class CompleteMarketCondition
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        if (!TryReadContinuation(command, current, out var result, out var validationError))
+        var initialized = command.AssessmentBinding is null ? current : current with { AssessmentBinding = command.AssessmentBinding };
+        if (!TryReadContinuation(command, initialized, out var result, out var validationError))
         {
             var failure = new StrategyPipelineFailure
             {
@@ -104,6 +105,7 @@ public static class CompleteMarketCondition
                 UpdatedAtUtc = now,
                 TerminalAtUtc = now,
                 StopReasonCode = result.PrimaryReasonCode,
+                AssessmentBinding = command.AssessmentBinding ?? current.AssessmentBinding,
                 MarketCondition = current.MarketCondition with
                 {
                     ProcessingStatus = StrategyActorProcessingStatus.Completed,
@@ -115,7 +117,10 @@ public static class CompleteMarketCondition
                     SourceEventId = command.SourceEventId,
                     ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.Assessment.v2",
                     ContinuationRuleSetVersion = 2,
-                    ContinuationReasonCodes = result.Reasons
+                    ContinuationReasonCodes = result.Reasons,
+                    ParameterSetId = (command.AssessmentBinding ?? current.AssessmentBinding)?.Parameters.ParameterSetId ?? Guid.Empty,
+                    ParameterSetVersion = (command.AssessmentBinding ?? current.AssessmentBinding)?.Parameters.Version ?? 0,
+                    ParameterPayloadSha256 = (command.AssessmentBinding ?? current.AssessmentBinding)?.PayloadSha256 ?? string.Empty
                 }
             };
             AppendSnapshot(state, command, current.Status, noTrade, now);
@@ -124,21 +129,37 @@ public static class CompleteMarketCondition
 
         var updated = current with
         {
-            Outcome = StrategyWorkflowOutcome.None,
+            Status = command.TradeSelectionInitializationFailure is null ? WorkflowStrategyMachineStatus.Started : WorkflowStrategyMachineStatus.Failed,
+            Outcome = command.TradeSelectionInitializationFailure is null ? StrategyWorkflowOutcome.None : StrategyWorkflowOutcome.PipelineFailed,
             CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
             CurrentStage = StrategyWorkflowStage.TradeSelection,
+            TerminalAtUtc = command.TradeSelectionInitializationFailure is null ? null : now,
+            StopReasonCode = command.TradeSelectionInitializationFailure is null ? string.Empty : "TS.INIT.FAILED",
+            AssessmentBinding = command.AssessmentBinding ?? current.AssessmentBinding,
+            SelectionBinding = command.SelectionBinding ?? current.SelectionBinding,
+            FundId = command.FundId > 0 ? command.FundId : current.FundId,
             MarketCondition = current.MarketCondition with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
                 ContinuationDecision = StrategyWorkflowContinuationDecision.Proceed,
                 CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
                 SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.Assessment.v2",
-                ContinuationRuleSetVersion = 2, ContinuationReasonCodes = result.Reasons
+                ContinuationRuleSetVersion = 2, ContinuationReasonCodes = result.Reasons,
+                ParameterSetId = (command.AssessmentBinding ?? current.AssessmentBinding)?.Parameters.ParameterSetId ?? Guid.Empty,
+                ParameterSetVersion = (command.AssessmentBinding ?? current.AssessmentBinding)?.Parameters.Version ?? 0,
+                ParameterPayloadSha256 = (command.AssessmentBinding ?? current.AssessmentBinding)?.PayloadSha256 ?? string.Empty
             },
             TradeSelection = new StrategyWorkflowStageState
             {
-                ProcessingStatus = StrategyActorProcessingStatus.Processing, StartedAtUtc = now,
-                InputWorkflowRevision = revision, ExpiresAtUtc = current.ExpiresAtUtc
+                ProcessingStatus = command.TradeSelectionInitializationFailure is null
+                    ? StrategyActorProcessingStatus.Processing : StrategyActorProcessingStatus.Failed,
+                StartedAtUtc = now,
+                FailedAtUtc = command.TradeSelectionInitializationFailure is null ? null : now,
+                Failure = command.TradeSelectionInitializationFailure,
+                InputWorkflowRevision = revision, ExpiresAtUtc = current.ExpiresAtUtc,
+                ParameterSetId = (command.SelectionBinding ?? current.SelectionBinding)?.CommonPolicy.Id ?? Guid.Empty,
+                ParameterSetVersion = (command.SelectionBinding ?? current.SelectionBinding)?.CommonPolicy.Version ?? 0,
+                ParameterPayloadSha256 = (command.SelectionBinding ?? current.SelectionBinding)?.PayloadSha256 ?? string.Empty
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);

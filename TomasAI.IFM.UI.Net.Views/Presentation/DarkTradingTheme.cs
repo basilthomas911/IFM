@@ -1,9 +1,11 @@
 using System.Windows.Forms.DataVisualization.Charting;
+using System.Runtime.CompilerServices;
 
 namespace TomasAI.IFM.UI.Net.Views.Presentation;
 
 public static class DarkTradingTheme
 {
+    static readonly ConditionalWeakTable<ListView, SubItemRenderer> CustomSubItemRenderers = new();
     public const string FontFamily = "Microsoft Sans Serif";
     public const float FontSize = 10F;
     public const int FrameWidth = 3;
@@ -19,6 +21,18 @@ public static class DarkTradingTheme
     public static Color ButtonTextColor(bool enabled) => enabled ? Foreground : DisabledText;
     public static Font CreateFont(FontStyle style = FontStyle.Regular)
         => new(FontFamily, FontSize, style, GraphicsUnit.Point);
+
+    internal static void UseSubItemRenderer(
+        ListView list,
+        DrawListViewSubItemEventHandler renderer)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        ArgumentNullException.ThrowIfNull(renderer);
+        CustomSubItemRenderers.Remove(list);
+        CustomSubItemRenderers.Add(list, new(renderer));
+        list.DrawSubItem -= DrawListSubItem;
+        list.DrawSubItem += DrawListSubItem;
+    }
 
     public static void Apply(Control root)
     {
@@ -231,6 +245,11 @@ public static class DarkTradingTheme
     static void DrawListSubItem(object? sender, DrawListViewSubItemEventArgs e)
     {
         if (e.Item is null || e.SubItem is null || sender is not ListView list) return;
+        if (CustomSubItemRenderers.TryGetValue(list, out var custom))
+        {
+            custom.Renderer(sender, e);
+            return;
+        }
         using var background = new SolidBrush(e.Item.Selected ? Selection : e.SubItem.BackColor);
         e.Graphics.FillRectangle(background, e.Bounds);
         var alignment = e.Header?.TextAlign switch
@@ -244,6 +263,8 @@ public static class DarkTradingTheme
             alignment | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         if (e.Item.Focused && list.Focused) ControlPaint.DrawFocusRectangle(e.Graphics, e.Bounds);
     }
+
+    sealed record SubItemRenderer(DrawListViewSubItemEventHandler Renderer);
 
     static void StripItemAdded(object? sender, ToolStripItemEventArgs e) => ApplyItem(e.Item);
 

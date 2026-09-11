@@ -23,7 +23,8 @@ public enum DatabentoDatasetFailureReason
     AggregationRecordStalled = 8,
     SubscriptionIncomplete = 9,
     DatasetTeardownUnresponsive = 10,
-    DatasetQualificationFailed = 11
+    DatasetQualificationFailed = 11,
+    FullPipelineUnhealthy = 12
 }
 public enum DatabentoOperationReason
 {

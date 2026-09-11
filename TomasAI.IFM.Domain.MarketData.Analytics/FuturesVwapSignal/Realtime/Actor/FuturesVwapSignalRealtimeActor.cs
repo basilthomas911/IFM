@@ -48,8 +48,20 @@ public sealed class FuturesVwapSignalRealtimeActor(
         var configuration = FuturesVwapConfiguration.Standard;
         if (TypedContext.MarketDataApi.TryGetOnTheRunFuturesContract(
             configuration.RootSymbol, out _))
-            _ = await streamOwnership.EnsureAsync(
-                TypedContext.MarketDataApi, configuration.RootSymbol).ConfigureAwait(false);
+        {
+            try
+            {
+                _ = await streamOwnership.EnsureAsync(
+                    TypedContext.MarketDataApi, configuration.RootSymbol).ConfigureAwait(false);
+            }
+            catch (MarketDataApiNotRunningException)
+            {
+                // Actor registration precedes feed startup. Keep the price router attached;
+                // ReceiveAsync acquires the lease on the first update after the epoch starts.
+                TypedContext.Logger.LogInformation(
+                    "VWAP stream acquisition deferred until the market-data epoch starts.");
+            }
+        }
     }
 
     /// <inheritdoc />

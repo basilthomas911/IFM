@@ -268,6 +268,13 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                         _viewModel.ConfirmChartRendered(futuresBars);
                 }
                 break;
+            case nameof(IFMAppViewModel.FuturesBarSnapshots):
+                foreach (var chartSnapshot in _viewModel.FuturesBarSnapshots.Values)
+                {
+                    if (marketDataView1.RefreshView(chartSnapshot))
+                        _viewModel.ConfirmChartRendered(chartSnapshot);
+                }
+                break;
             case nameof(IFMAppViewModel.LastError):
                 RenderLatestError();
                 break;

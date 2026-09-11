@@ -36,6 +36,9 @@ try
     builder.ConfigureApiServer(out var logger);
     builder.Services.RegisterServices(builder.Configuration, logger);
     var app = builder.Build();
+    var deploymentIdentity = app.Services.GetRequiredService<DeploymentIdentityMonitor>()
+        .EnsureStartupValid();
+    Log.Information("Deployment identity verified: {BuildId}", deploymentIdentity.BuildId);
     app.ConfigureRequestPipeline(logger);
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);

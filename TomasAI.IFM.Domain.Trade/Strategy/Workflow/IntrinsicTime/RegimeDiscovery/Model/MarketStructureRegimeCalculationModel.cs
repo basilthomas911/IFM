@@ -14,16 +14,17 @@ public sealed class MarketStructureRegimeCalculationModel
         ArgumentNullException.ThrowIfNull(input);
         var config = input.ParameterSet.MarketStructure;
         var horizon = input.ParameterSet.TargetHorizon;
+        var evidenceFrame = RegimeDiscoverySnapshotRequestFactory.TargetEvidenceTimeFrame(input.ParameterSet);
         var price = Find(input, RegimeDiscoverySignalMetric.CurrentPrice, horizon);
-        var widthRatio = Find(input, RegimeDiscoverySignalMetric.BollingerWidthRatio, horizon);
-        var position = Find(input, RegimeDiscoverySignalMetric.BollingerPosition, horizon);
-        var emaInteraction = Find(input, RegimeDiscoverySignalMetric.Ema20Interaction, horizon);
-        var range = Find(input, RegimeDiscoverySignalMetric.AtrNormalizedRange, horizon);
-        var atrRatio = Find(input, RegimeDiscoverySignalMetric.AtrBaselineRatio, horizon);
-        var atr = Find(input, RegimeDiscoverySignalMetric.Atr14, horizon);
-        var rollingHigh = Find(input, RegimeDiscoverySignalMetric.RollingHigh20, horizon);
-        var rollingLow = Find(input, RegimeDiscoverySignalMetric.RollingLow20, horizon);
-        var breakoutDistance = Find(input, RegimeDiscoverySignalMetric.BreakoutDistanceAtr, horizon);
+        var widthRatio = Find(input, RegimeDiscoverySignalMetric.BollingerWidthRatio, evidenceFrame);
+        var position = Find(input, RegimeDiscoverySignalMetric.BollingerPosition, evidenceFrame);
+        var emaInteraction = Find(input, RegimeDiscoverySignalMetric.Ema20Interaction, evidenceFrame);
+        var range = Find(input, RegimeDiscoverySignalMetric.AtrNormalizedRange, evidenceFrame);
+        var atrRatio = Find(input, RegimeDiscoverySignalMetric.AtrBaselineRatio, evidenceFrame);
+        var atr = Find(input, RegimeDiscoverySignalMetric.Atr14, evidenceFrame);
+        var rollingHigh = Find(input, RegimeDiscoverySignalMetric.RollingHigh20, evidenceFrame);
+        var rollingLow = Find(input, RegimeDiscoverySignalMetric.RollingLow20, evidenceFrame);
+        var breakoutDistance = Find(input, RegimeDiscoverySignalMetric.BreakoutDistanceAtr, evidenceFrame);
         var itiDirection = Find(input, RegimeDiscoverySignalMetric.ItiDirection, horizon);
         var itiBand = Find(input, RegimeDiscoverySignalMetric.ItiBandLevel, horizon);
         var itiReversal = Find(input, RegimeDiscoverySignalMetric.ItiReversalLevel, horizon);
@@ -120,7 +121,7 @@ public sealed class MarketStructureRegimeCalculationModel
         {
             Confidence = RegimeDiscoveryMath.Clamp(rawConfidence.Confidence * (0.75m + 0.25m * breakoutAgreement))
         };
-        var rawWidth = Find(input, RegimeDiscoverySignalMetric.BollingerWidth, horizon);
+        var rawWidth = Find(input, RegimeDiscoverySignalMetric.BollingerWidth, evidenceFrame);
         var evidence = new[]
         {
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BOLLINGER_WIDTH_RAW",

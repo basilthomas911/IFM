@@ -3,6 +3,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
@@ -220,7 +222,29 @@ public sealed class RegimeDiscoveryFunctionValidationTests
             TriggerEvent = command.TriggerEvent with { EntityId = workflow.ItiSignalEntityId },
             CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(),
             ParameterSet = parameters, ParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(parameters),
-            TargetHorizon = horizon
+            TargetHorizon = horizon,
+            Snapshot = new RegimeDiscoveryMarketSignalSnapshot
+            {
+                SnapshotId = Guid.NewGuid(), CacheRevision = 1,
+                MarketSeriesIdentity = MarketSeriesIdentity.ForContract(workflow.ItiSignalEntityId.ContractId),
+                TargetHorizon = horizon, CapturedAtUtc = DateTime.UtcNow,
+                MarketDataAsOfUtc = DateTime.UtcNow,
+                Observations =
+                [
+                    new RegimeDiscoverySignalObservation
+                    {
+                        Metric = RegimeDiscoverySignalMetric.Atr14,
+                        SignalKey = new MarketAnalyticsSignalKey(
+                            MarketSeriesIdentity.ForContract(workflow.ItiSignalEntityId.ContractId),
+                            MarketAnalyticsSignalKind.Atr, TimeFrameType.OneHour, "Atr14.v1"),
+                        Value = 1m, MarketDataAsOfUtc = DateTime.UtcNow,
+                        CalculatedAtUtc = DateTime.UtcNow, SourceSequence = 1,
+                        SchemaVersion = 1, CalculationVersion = "1", IsWarm = true, IsValid = true,
+                        Availability = RegimeDiscoverySignalAvailability.Available, FreshnessFactor = 1m,
+                        SignalIdentity = "test"
+                    }
+                ]
+            }
         };
     }
 }

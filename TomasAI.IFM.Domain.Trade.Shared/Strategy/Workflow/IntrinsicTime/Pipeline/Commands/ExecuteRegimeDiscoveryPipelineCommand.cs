@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
@@ -33,6 +34,10 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
     [Key(13)] public RegimeDiscoveryParameterSet ParameterSet { get; init; } = new();
     [Key(14)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
     [Key(15)] public TimeFrameType TargetHorizon { get; init; }
+    /// <summary>Gets the immutable, initialization-qualified market evidence snapshot.</summary>
+    [Key(16)] public RegimeDiscoveryMarketSignalSnapshot Snapshot { get; init; } = new();
+
+    [Key(17)] public ParameterApplicationProvenance? ParameterApplication {get;init;}
 
     /// <summary>Gets the owning workflow entity without duplicating serialized identity.</summary>
     [IgnoreMember] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId => EntityId.WorkflowEntityId;
@@ -70,7 +75,9 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
         DateTime expiresAtUtc,
         RegimeDiscoveryParameterSet parameterSet,
         string parameterPayloadSha256,
-        TimeFrameType targetHorizon)
+        TimeFrameType targetHorizon,
+        RegimeDiscoveryMarketSignalSnapshot? snapshot = null,
+        ParameterApplicationProvenance? parameterApplication = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -88,5 +95,7 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
         ParameterSet = parameterSet ?? new RegimeDiscoveryParameterSet();
         ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
         TargetHorizon = targetHorizon;
+        Snapshot = snapshot ?? new RegimeDiscoveryMarketSignalSnapshot();
+        ParameterApplication = parameterApplication;
     }
 }

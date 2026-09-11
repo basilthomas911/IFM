@@ -264,6 +264,12 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
             AssessmentAvailability availability, int validForSeconds = 30)
         {
             var view = State.CurrentView!;
+            var assessmentBinding = new MarketConditionAssessmentBinding
+            {
+                Parameters = _marketConditionParameters,
+                PayloadSha256 = MarketConditionAssessmentHash.Parameters(_marketConditionParameters)
+            };
+            view = view with { AssessmentBinding = assessmentBinding };
             var source = NextGuid();
             var evaluatedAt = validForSeconds < 0
                 ? now.AddSeconds(validForSeconds - 1)
@@ -275,7 +281,7 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 InputWorkflowRevision = view.WorkflowRevision,
                 MarketProfileId = _marketConditionParameters.MarketProfileId, InstrumentRoot = "ES", TargetHorizon = _marketConditionParameters.TargetHorizon,
                 ParameterSetId = _marketConditionParameters.ParameterSetId, ParameterSetVersion = _marketConditionParameters.Version,
-                ParameterPayloadSha256 = view.AssessmentBinding!.PayloadSha256,
+                ParameterPayloadSha256 = assessmentBinding.PayloadSha256,
                 RegimeResultId = regimeEnvelope.ResultId, RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
                 SnapshotId = NextGuid(), SnapshotSha256 = new string('A', 64), EvaluatedAtUtc = evaluatedAt,
                 Assessment = new()
@@ -303,7 +309,8 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 Result = StrategyStageResultEnvelope.Create(source, nameof(MarketConditionAssessmentResult),
                     1, payload, evaluatedAt, evaluatedAt),
                 CausationId = source,
-                CompletedAtUtc = now
+                CompletedAtUtc = now,
+                AssessmentBinding = assessmentBinding
             };
             command.Execute(Context(now), State);
             return command;
@@ -347,7 +354,9 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 SourceEventId = source,
                 Result = RegimeEnvelope(source, workflowId, now),
                 CausationId = source,
-                CompletedAtUtc = now
+                CompletedAtUtc = now,
+                ParameterSet = _parameters,
+                ParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(_parameters)
             };
             command.Execute(Context(now), State);
         }

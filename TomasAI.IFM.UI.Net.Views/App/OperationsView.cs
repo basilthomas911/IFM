@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
@@ -22,6 +23,8 @@ public partial class OperationsView : DarkTradingView
     OperationsViewModel? _viewModel;
     IReadOnlyList<FuturesItiSignalEventRow>? _renderedEvents;
     IReadOnlyList<StrategyWorkflowRow>? _renderedWorkflows;
+    StrategyWorkflowId? _renderedWorkflowDetailsId;
+    long? _renderedWorkflowDetailsRevision;
     bool _synchronizingSelection;
     bool _synchronizingTimeFrame;
     bool _synchronizingWorkflowSelection;
@@ -38,7 +41,7 @@ public partial class OperationsView : DarkTradingView
         lstStrategyWorkflows.OwnerDraw = true;
         lstStrategyWorkflows.DrawColumnHeader += (_, e) => e.DrawDefault = true;
         lstStrategyWorkflows.DrawItem += (_, e) => e.DrawDefault = false;
-        lstStrategyWorkflows.DrawSubItem += DrawWorkflowSubItem;
+        DarkTradingTheme.UseSubItemRenderer(lstStrategyWorkflows, DrawWorkflowSubItem);
         ddlTimeFrame.Items.AddRange(
             [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly]);
         ddlTimeFrame.SelectedItem = TimeFrameType.Daily;
@@ -99,8 +102,7 @@ public partial class OperationsView : DarkTradingView
             RenderWorkflows(strategy.Workflows);
             _renderedWorkflows = strategy.Workflows;
         }
-        if (!string.Equals(txtWorkflowDetails.Text, strategy.SelectedWorkflowDetails, StringComparison.Ordinal))
-            txtWorkflowDetails.Text = strategy.SelectedWorkflowDetails;
+        RenderWorkflowDetails(strategy.SelectedWorkflowDetails);
     }
 
     void RenderEvents(IReadOnlyList<FuturesItiSignalEventRow> events)
@@ -135,8 +137,7 @@ public partial class OperationsView : DarkTradingView
                 item.SubItems.Add(row.SignalEvent.ToStringFast());
                 item.SubItems.Add(row.Trend.ToStringFast());
                 item.SubItems.Add(row.FuturesPrice.ToString("N2", CultureInfo.InvariantCulture));
-                item.SubItems.Add(string.Join(' ', row.PipelineActors.Select(actor =>
-                    $"{actor.ShortLabel}:{actor.DisplayState}")));
+                item.SubItems.Add(string.Empty);
                 item.SubItems.Add(row.EndState);
                 lstStrategyWorkflows.Items.Add(item);
                 if (row.WorkflowId == selectedId)
@@ -231,14 +232,29 @@ public partial class OperationsView : DarkTradingView
             || lstStrategyWorkflows.SelectedItems[0].Tag is not StrategyWorkflowRow row)
         {
             _viewModel.Strategy.SelectWorkflow(null);
-            txtWorkflowDetails.Text = _viewModel.Strategy.SelectedWorkflowDetails;
+            RenderWorkflowDetails(_viewModel.Strategy.SelectedWorkflowDetails);
             HighlightChartPoint(null);
             return;
         }
 
         _viewModel.Strategy.SelectWorkflow(row.WorkflowId);
-        txtWorkflowDetails.Text = _viewModel.Strategy.SelectedWorkflowDetails;
+        RenderWorkflowDetails(_viewModel.Strategy.SelectedWorkflowDetails);
         HighlightChartPoint(row.TriggerStableIdentity);
+    }
+
+    void RenderWorkflowDetails(StrategyWorkflowDetails? details)
+    {
+        var workflowId = details?.WorkflowId;
+        var revision = details?.WorkflowRevision;
+        if (_renderedWorkflowDetailsId == workflowId
+            && _renderedWorkflowDetailsRevision == revision)
+        {
+            return;
+        }
+
+        workflowDetails.Bind(details);
+        _renderedWorkflowDetailsId = workflowId;
+        _renderedWorkflowDetailsRevision = revision;
     }
 
     void ConfigureChart()
@@ -478,16 +494,7 @@ public partial class OperationsView : DarkTradingView
             graphics.FillEllipse(brush, circle);
             using var outline = new Pen(selected ? Color.White : Color.DimGray);
             graphics.DrawEllipse(outline, circle);
-            x += diameter + 3;
-            var labelWidth = TextRenderer.MeasureText(actor.ShortLabel, lstStrategyWorkflows.Font).Width;
-            TextRenderer.DrawText(
-                graphics,
-                actor.ShortLabel,
-                lstStrategyWorkflows.Font,
-                new Rectangle(x, bounds.Top, labelWidth, bounds.Height),
-                selected ? SystemColors.HighlightText : Color.LightGray,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
-            x += labelWidth + 7;
+            x += diameter + 6;
         }
     }
 

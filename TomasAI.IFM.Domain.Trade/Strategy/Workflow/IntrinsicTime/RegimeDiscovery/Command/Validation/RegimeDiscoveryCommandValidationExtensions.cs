@@ -1,5 +1,6 @@
 using FluentValidation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -87,6 +88,13 @@ public static class RegimeDiscoveryCommandValidationExtensions
         if (request.TriggerEvent?.EntityId is { } triggerId && request.WorkflowEntityId.ItiSignalEntityId is { } workflowTriggerId &&
             (request.TargetHorizon != triggerId.TimePeriod || workflowTriggerId != triggerId))
             errors.Add(new("TargetHorizon and workflow identity must match the trigger ITI timeframe and identity."));
+        var snapshotInvalid = request.Snapshot is not { SnapshotId: var snapshotId } || snapshotId == Guid.Empty ||
+            request.Snapshot.TargetHorizon != request.TargetHorizon || request.Snapshot.Observations.Length == 0;
+        if (!snapshotInvalid && request.TriggerEvent?.EntityId is { ContractId: { Length: > 0 } contractId } &&
+            request.Snapshot.MarketSeriesIdentity != MarketSeriesIdentity.ForContract(contractId))
+            snapshotInvalid = true;
+        if (snapshotInvalid)
+            errors.Add(new("Snapshot must be initialized and match the trigger market series and target horizon."));
         if (IsSha256(request.ParameterPayloadSha256) && request.ParameterSet is not null &&
             !string.Equals(request.ParameterPayloadSha256,
                 RegimeDiscoveryParameterPayload.ComputeSha256(request.ParameterSet), StringComparison.OrdinalIgnoreCase))

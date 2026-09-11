@@ -34,7 +34,7 @@ partial class OperationsView
         workflowTabs = new DarkTabControl();
         tabWorkflowDetails = new TabPage();
         tabWorkflowSummary = new TabPage();
-        txtWorkflowDetails = new RichTextBox();
+        workflowDetails = new Strategy.StrategyWorkflowDetailsAccordion();
         lblWorkflowSummaryUnavailable = new Label();
         tabLatency = new TabPage();
         tabTraffic = new TabPage();
@@ -243,22 +243,15 @@ partial class OperationsView
         // tabWorkflowDetails
         //
         tabWorkflowDetails.BackColor = Color.Black;
-        tabWorkflowDetails.Controls.Add(txtWorkflowDetails);
+        tabWorkflowDetails.Controls.Add(workflowDetails);
         tabWorkflowDetails.Name = "tabWorkflowDetails";
         tabWorkflowDetails.Text = "Details";
         tabWorkflowDetails.UseVisualStyleBackColor = false;
         //
-        // txtWorkflowDetails
+        // workflowDetails
         //
-        txtWorkflowDetails.BackColor = Color.Black;
-        txtWorkflowDetails.BorderStyle = BorderStyle.None;
-        txtWorkflowDetails.Dock = DockStyle.Fill;
-        txtWorkflowDetails.Font = new Font("Consolas", 10F);
-        txtWorkflowDetails.ForeColor = Color.White;
-        txtWorkflowDetails.Name = "txtWorkflowDetails";
-        txtWorkflowDetails.ReadOnly = true;
-        txtWorkflowDetails.Text = "Select a strategy workflow to inspect its pipeline results.";
-        txtWorkflowDetails.WordWrap = false;
+        workflowDetails.Dock = DockStyle.Fill;
+        workflowDetails.Name = "workflowDetails";
         //
         // tabWorkflowSummary
         //
@@ -349,6 +342,6 @@ partial class OperationsView
     TabControl workflowTabs = null!;
     TabPage tabWorkflowDetails = null!;
     TabPage tabWorkflowSummary = null!;
-    RichTextBox txtWorkflowDetails = null!;
+    Strategy.StrategyWorkflowDetailsAccordion workflowDetails = null!;
     Label lblWorkflowSummaryUnavailable = null!;
 }

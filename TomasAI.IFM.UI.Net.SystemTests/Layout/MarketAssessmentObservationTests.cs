@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.Views.Strategy;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
@@ -49,8 +50,18 @@ public sealed class MarketAssessmentObservationTests
                         Field<Button>(form,"_load").PerformClick();
                         await Wait(()=>Field<ListBox>(form,"_history").Items.Count==1);
                         Field<ListBox>(form,"_history").SelectedIndex=0;
-                        var details=Field<TextBox>(form,"_details");await Wait(()=>details.Text.Contains("Matches accepted result",StringComparison.Ordinal));
-                        details.Text.Should().Contain(horizon.ToString()).And.Contain("Evidence:").And.NotContain("Tradeability");
+                        var details=Field<StrategyWorkflowDetailsAccordion>(form,"_details");
+                        await Wait(()=>details.Tag is StrategyWorkflowDetails model &&
+                            StrategyWorkflowPresentation.FormatDetails(model).Contains("Matches accepted result",StringComparison.Ordinal));
+                        var model=(StrategyWorkflowDetails)details.Tag!;
+                        var rendered=StrategyWorkflowPresentation.FormatDetails(model);
+                        rendered.Should().Contain(horizon.ToString()).And.Contain("Evidence:").And.NotContain("Tradeability");
+                        var content=Field<FlowLayoutPanel>(details,"_content");
+                        var marketCondition=content.Controls.OfType<Button>()
+                            .Single(button=>string.Equals(button.Tag as string,"market-condition",StringComparison.Ordinal));
+                        marketCondition.PerformClick();
+                        await Wait(()=>content.Controls.OfType<TextBox>()
+                            .Any(text=>text.Text.Contains("Matches accepted result",StringComparison.Ordinal)));
                         details.Width.Should().BeGreaterThan(400);details.Height.Should().BeGreaterThan(300);
                         form.Refresh();await Task.Delay(100);
                         using var bitmap=new Bitmap(form.Width,form.Height);form.DrawToBitmap(bitmap,new Rectangle(Point.Empty,form.Size));

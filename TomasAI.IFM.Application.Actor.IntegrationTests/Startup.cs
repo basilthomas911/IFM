@@ -273,7 +273,7 @@ public static class Startup
             services.AddFinancialModelingPrepReferenceDataApi();
             services.AddSingleton(new ExternalMarketDataCompatibilityOptions());
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-            var redisUri = config.GetValue<string>("AppSettings:RedisUri")!;
+            var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
             services.AddSingleton<IRedisCache, RedisCache>();
             services.AddSingleton<IBlackboardService, BlackboardService>();
@@ -397,11 +397,11 @@ public static class Startup
             logger.LogInformationEvent("ApiServer", "register storage services...");
             services.AddSingleton(_ =>
             new DbConnectionSettings()
-                .Add("EventSourceActorDbConnection", config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("ConfigurationDbConnection", config.GetConnectionString("ConfigurationDbConnection")
-                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
-                .Add("SequenceIdDbConnection", config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
+                .Add("EventSourceActorDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                .Add("ConfigurationDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("ConfigurationDbConnection")
+                    ?? config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                .Add("LogDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
+                .Add("SequenceIdDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("FundDbConnection", config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
                 .Add("MarketDataDbConnection", config["IFM_TEST_MARKET_DATA_CONNECTION"]
                     ?? config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
@@ -566,8 +566,7 @@ public static class Startup
             services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
             services.AddSingleton(new HistoricalAnalyticsWarmupOptions
             {
-                Enabled = false,
-                IsDevelopmentEnvironment = true
+                Enabled = false
             });
             services.AddSingleton<HistoricalAnalyticsWarmupService>();
             services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>

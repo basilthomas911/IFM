@@ -82,9 +82,13 @@ public static class RegimeDiscoverySignalCacheAdapter
 
         Publish(emaSignal, emaCheckpoint);
         Publish(bbSignal, bbCheckpoint);
+        var aliasedEma = emaSignal with { Metadata = Alias(emaSignal.Metadata, activeContractId) };
+        var aliasedBb = bbSignal with { Metadata = Alias(bbSignal.Metadata, activeContractId) };
+        Publish(aliasedEma, emaCheckpoint);
+        Publish(aliasedBb, bbCheckpoint);
         var alias = (activeContractId, TimeFrameType.Daily);
-        LatestEmaSignals[alias] = emaSignal;
-        LatestBbSignals[alias] = bbSignal;
+        LatestEmaSignals[alias] = aliasedEma;
+        LatestBbSignals[alias] = aliasedBb;
         LatestEmaCheckpoints[alias] = emaCheckpoint;
         LatestBbCheckpoints[alias] = bbCheckpoint;
     }
@@ -166,7 +170,7 @@ public static class RegimeDiscoverySignalCacheAdapter
     /// <summary>Publishes RSI14 and its slope.</summary>
     public static void Publish(FuturesRsiSignalReadModel signal)
     {
-        if (signal is not { IsWarm: true, RSI: >= 0d }
+        if (signal is not { PeriodLength: 14, IsWarm: true, RSI: >= 0d }
             || signal.Metadata is { IsValid: false })
             return;
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
@@ -302,6 +306,17 @@ public static class RegimeDiscoverySignalCacheAdapter
         string configurationId) => metadata ?? Synthetic(contractId, timeFrame, valueDate,
             valueDate.ToDateTime(timestamp, DateTimeKind.Utc), DateTime.UtcNow, 1,
             MarketAnalyticsSignalKind.MarketStructure, configurationId);
+
+    static MarketAnalyticsSignalMetadata Alias(
+        MarketAnalyticsSignalMetadata metadata,
+        string contractId) => metadata with
+        {
+            ContractId = contractId,
+            SignalKey = metadata.SignalKey with
+            {
+                MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contractId)
+            }
+        };
 
     static MarketAnalyticsSignalMetadata Synthetic(string contractId, TimeFrameType timeFrame,
         DateOnly valueDate, DateTime marketDataAtUtc, DateTime calculatedAtUtc, long sequence,

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 
@@ -83,8 +84,9 @@ internal static class RegimeDiscoveryMath
         TimeFrameType timeFrame)
     {
         var observation = Find(input.Snapshot, metric, timeFrame);
-        if (timeFrame != input.ParameterSet.TargetHorizon ||
-            input.TriggerEvent?.FuturesItiSignal is not { } trigger)
+        if (input.TriggerEvent?.FuturesItiSignal is not { } trigger ||
+            (metric != RegimeDiscoverySignalMetric.CurrentPrice &&
+             timeFrame != input.ParameterSet.TargetHorizon))
             return observation;
 
         decimal? authoritativeValue = metric switch
@@ -104,14 +106,27 @@ internal static class RegimeDiscoveryMath
         };
         if (authoritativeValue is null)
             return observation;
-        if (observation is null)
-            return null;
 
         var marketDataAsOfUtc = DateTime.SpecifyKind(trigger.IntrinsicTime, DateTimeKind.Utc);
         var calculatedAtUtc = input.TriggerEvent.CreatedOn == default
             ? input.TriggerEvent.ReceivedOn
             : input.TriggerEvent.CreatedOn;
-        return observation with
+        var authoritative = observation ?? new RegimeDiscoverySignalObservation
+        {
+            Metric = metric,
+            SignalKey = new MarketAnalyticsSignalKey(
+                MarketSeriesIdentity.ForContract(trigger.ContractId),
+                metric == RegimeDiscoverySignalMetric.VxFrontLevel
+                    ? MarketAnalyticsSignalKind.VxTermStructure : MarketAnalyticsSignalKind.Iti,
+                timeFrame, $"{metric}.trigger-v1"),
+            SchemaVersion = 1,
+            CalculationVersion = "1",
+            IsWarm = true,
+            IsValid = true,
+            Availability = RegimeDiscoverySignalAvailability.Available,
+            FreshnessFactor = 1m
+        };
+        return authoritative with
         {
             Value = authoritativeValue.Value,
             MarketDataAsOfUtc = marketDataAsOfUtc,

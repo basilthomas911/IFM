@@ -58,6 +58,25 @@ public sealed record RegimeDiscoveryParameterSet
     /// <summary>Gets data-quality and compatibility parameters.</summary>
     [Key(12)] public RegimeDiscoveryDataQualityConfiguration DataQuality { get; init; } = new();
 
+    /// <summary>Explicit signal list for schemas 2+; null retains the unchanged legacy schema-1 payload.</summary>
+    [Key(13)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public RegimeDiscoverySignalConfiguration[]? SignalRequirements { get; init; }
+    /// <summary>Gets normalized timeframe-and-period signal selections for schemas 5+.</summary>
+    [Key(14)]
+    [ParameterSchemaSince(5)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public RegimeDiscoverySignalMetricConfiguration[]? SignalMetrics { get; init; }
+
+    /// <summary>Gets current market observation selections for schemas 5+.</summary>
+    [Key(15)]
+    [ParameterSchemaSince(5)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public RegimeDiscoveryObservationMetricConfiguration[]? ObservationMetrics { get; init; }
+
     /// <summary>Creates the approved V1 defaults for one target horizon.</summary>
     /// <param name="parameterSetId">Immutable Regime Discovery parameter identity.</param>
     /// <param name="strategyParameterSetId">Owning strategy parameter identity.</param>
@@ -100,9 +119,23 @@ public sealed class RegimeDiscoveryParameterSetValidationRules
         {
             RuleFor(x => x.ParameterSetId).NotEmpty();
             RuleFor(x => x.Version).GreaterThan(0);
-            RuleFor(x => x.SchemaVersion).Equal(RegimeDiscoveryParameterSet.CurrentSchemaVersion);
-            RuleFor(x => x.StrategyParameterSetId).NotEmpty();
-            RuleFor(x => x.StrategyParameterSetVersion).GreaterThan(0);
+            RuleFor(x => x.SchemaVersion).Must(version => version is 1 or 2 or 3 or 4 or 5);
+            RuleFor(x => x).Must(x => x.SchemaVersion == 1 ? x.SignalRequirements is null : x.SignalRequirements is { Length: > 0 and <= 512 })
+                .WithMessage("Schema 1 uses legacy requirements; schemas 2 through 4 require an explicit signal list.");
+            RuleFor(x => x).Must(x => x.SchemaVersion < 3 ||
+                (x.SignalRequirements is not null && x.SignalRequirements.All(row => row is not null && row.IsRequired)))
+                .WithMessage("Schemas 3 and 4 use membership only: every signal row must be required when included.");
+            RuleFor(x => x).Must(x => x.SchemaVersion < 3 ||
+                (x.Horizon?.TimeFrames is not null && x.Horizon.TimeFrames.All(frame => frame is not null && frame.IsRequired)))
+                .WithMessage("Schemas 3 through 5 require every interval in the horizon set.");
+            RuleFor(x => x).Must(x => x.SchemaVersion < 5 ||
+                (x.SignalMetrics is { Length: > 0 and <= 128 } && x.ObservationMetrics is { Length: > 0 and <= 32 }))
+                .WithMessage("Schema 5 requires normalized signal and observation metric lists.");
+            When(x=>x.SchemaVersion<3,()=>
+            {
+                RuleFor(x => x.StrategyParameterSetId).NotEmpty();
+                RuleFor(x => x.StrategyParameterSetVersion).GreaterThan(0);
+            });
             RuleFor(x => x.TargetHorizon).Must(IsTargetHorizon);
             RuleFor(x => x.Horizon).NotNull();
             When(x => x.Horizon is not null, () =>

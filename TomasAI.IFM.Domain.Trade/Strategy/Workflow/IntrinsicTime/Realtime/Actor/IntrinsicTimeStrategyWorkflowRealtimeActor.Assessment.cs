@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
@@ -65,12 +66,37 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         if (terminal.IsCompleted)
         {
             var completed = terminal.Completed!;
+            TradeSelectionPipelineInitialization? selection = null;
+            StrategyPipelineFailure? selectionFailure = null;
+            var assessment = MarketConditionAssessmentContracts.ReadResult(completed.Result).Assessment;
+            if (assessment.Availability != AssessmentAvailability.Unavailable &&
+                !assessment.InheritedRestrictions.Contains(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.RegimeRestriction.NoNewTrade))
+            {
+                var selectionStart = await StartTradeSelectionPipeline.StartPipelineAsync(
+                    execute.WorkflowView with { MarketCondition = execute.WorkflowView.MarketCondition with { Result = completed.Result } },
+                    RequireEventContext(context), completed.Id).ConfigureAwait(false);
+                if (selectionStart.Success) selection = selectionStart.Value;
+                else
+                {
+                    var error = selectionStart.Error!;
+                    selectionFailure = new StrategyPipelineFailure
+                    {
+                        ErrorCode = 23023, ErrorType = error.ErrorType, ErrorMessage = error.Message,
+                        ErrorData = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}"))),
+                        FailedAtUtc = clock.GetUtcNow().UtcDateTime
+                    };
+                }
+            }
             var complete = new CompleteMarketConditionCommand
             {
                 CommandId = DeterministicTerminalCommandId(completed.EntityId, completed.WorkflowId, completed.InputWorkflowRevision, completed.Id, CompleteMarketConditionCommand.Verb),
                 Subject = WorkflowSubject(CompleteMarketConditionCommand.Verb, completed.EntityId), EntityId = completed.EntityId, WorkflowId = completed.WorkflowId,
                 InputWorkflowRevision = completed.InputWorkflowRevision, SourceEventId = completed.Id, Result = completed.Result,
-                CorrelationId = completed.CorrelationId, CausationId = completed.Id, CompletedAtUtc = completed.CompletedAtUtc
+                CorrelationId = completed.CorrelationId, CausationId = completed.Id, CompletedAtUtc = completed.CompletedAtUtc,
+                AssessmentBinding = execute.WorkflowView.AssessmentBinding,
+                SelectionBinding = selection?.Binding,
+                FundId = selection?.FundId ?? 0,
+                TradeSelectionInitializationFailure = selectionFailure
             };
             await context.SendAsync<CompleteMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
         }

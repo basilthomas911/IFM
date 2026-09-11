@@ -17,6 +17,21 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 public sealed class CommandAuditLoggerTests
 {
     [Fact]
+    public async Task Completion_hook_runs_when_cancellation_occurs_after_state_load()
+    {
+        using var cancellation=new CancellationTokenSource();
+        var actorId=new ActorMailboxId(ActorType.Command,TestCommandActor.ActorName);
+        var supervisor=CreateSupervisor(actorId,new SequencedAuditLogger(true));
+        var actor=new TestCommandActor(new TestCommandContext(supervisor.Object,actorId)){AfterLoad=()=>cancellation.Cancel()};
+        var message=new TestCommandMessage(new TestCommand());
+        await actor.StartAsync(supervisor.Object);
+        Func<Task> run=async()=>await actor.HandleMessageAsync(message,message.Subject.ThreadId,cancellation.Token);
+        await run.Should().ThrowAsync<OperationCanceledException>();
+        actor.StateLoads.Should().Be(1);actor.Executions.Should().Be(0);actor.StateSaves.Should().Be(0);actor.Completions.Should().Be(1);
+        await actor.StopAsync();
+    }
+
+    [Fact]
     public async Task Duplicate_is_acknowledged_without_validation_execution_or_persistence()
     {
         var auditLogger = new SequencedAuditLogger(true, false);
@@ -38,6 +53,7 @@ public sealed class CommandAuditLoggerTests
         actor.StateLoads.Should().Be(1);
         actor.Executions.Should().Be(1);
         actor.StateSaves.Should().Be(1);
+        actor.Completions.Should().Be(2);
         acceptedMessage.Reply.Should().NotBeNull();
         duplicateMessage.Reply.Should().NotBeNull();
         duplicateMessage.Reply!.Success.Should().BeTrue();
@@ -197,6 +213,10 @@ public sealed class CommandAuditLoggerTests
         public int Executions { get; private set; }
         public int StateSaves { get; private set; }
         public int Exceptions { get; private set; }
+        public int Completions { get; private set; }
+        public Action? AfterLoad {get;init;}
+        protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<TestCommandActor> context,ICommand? command)
+        {Completions++;return ValueTask.CompletedTask;}
 
         protected override ICommand ParseMessage(
             ICommandActorContext<TestCommandActor> context,
@@ -223,6 +243,7 @@ public sealed class CommandAuditLoggerTests
             ICommand command)
         {
             StateLoads++;
+            AfterLoad?.Invoke();
             return ValueTask.FromResult<IActorState>(new TestState());
         }
 

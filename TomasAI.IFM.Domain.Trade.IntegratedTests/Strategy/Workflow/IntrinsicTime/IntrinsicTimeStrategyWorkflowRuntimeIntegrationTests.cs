@@ -220,10 +220,12 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     /// advances the workflow to the next pipeline.
     /// </summary>
     [Fact]
-    public async Task Projected_regime_completion_advances_each_workflow_to_market_condition_once()
+    public async Task Projected_regime_completion_advances_each_workflow_through_market_condition_once()
     {
-        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
+        await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .ConfigureServices(services =>
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
@@ -254,10 +256,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             };
             await PrepareRegimeDiscoveryAsync(factory.Services, successEntities);
 
-            var tradeSelectionHolds = successEntities
-                .Select(entity => pipelines.HoldAt(entity, StrategyWorkflowStage.TradeSelection))
-                .ToArray();
-
             await Task.WhenAll(successEntities.Select(entity =>
                 PublishTriggerAsync(publisher, entity.ItiSignalEntityId).AsTask()));
 
@@ -273,9 +271,18 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             {
                 var history = started.Single(model => model.WorkflowEntityId == entity.Format());
                 await WaitForRegimeDiscoveryAsync(history.WorkflowId, "Completed");
-                var advanced = await WaitForStageAsync(factory.Services, entity, StrategyWorkflowStage.TradeSelection, 3);
-                await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.TradeSelection, 1);
-                await AssertPersistedAdvancedSnapshotAsync(factory.Services, entity, advanced);
+                var terminal = await WaitForTerminalAsync(
+                    entity, StrategyWorkflowStatus.Completed, StrategyWorkflowOutcome.NoTrade);
+                var advanced = (await LoadStateAsync(factory.Services, entity)).CurrentView!;
+                advanced.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
+                terminal.WorkflowId.Value.Should().Be(advanced.WorkflowId.Value);
+                var persisted = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(terminal.WorkflowId);
+                persisted.Should().NotBeNull();
+                persisted!.WorkflowRevision.Should().Be(advanced.WorkflowRevision);
+                var projected = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(persisted.StatePayload);
+                projected.Status.Should().Be(WorkflowStrategyMachineStatus.Completed);
+                projected.Outcome.Should().Be(StrategyWorkflowOutcome.NoTrade);
+                projected.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
                 var regime = await database.TradeDb.GetRegimeDiscoveryAsync(history.WorkflowId);
                 regime.Should().NotBeNull();
                 regime!.Status.Should().Be("Completed");
@@ -293,10 +300,44 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
                 result.Decision.StructureClassification.Should().Be(result.MarketStructure.Classification);
                 result.Decision.Breakout.Should().Be(result.MarketStructure.Breakout);
                 result.SupportingEvidence.Should().Contain(value => value.EvidenceId == "TDI_CONFIRMATION");
-                pipelines.ProcessedStages(entity).Should().Contain(StrategyWorkflowStage.TradeSelection);
-                pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(1);
+                advanced.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+                pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(0);
             }
-            foreach (var hold in tradeSelectionHolds) hold.Release();
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    /// <summary>Confirms an ITI trigger is initialized from cached producer evidence and completes Regime Discovery.</summary>
+    [Fact]
+    public async Task Initialized_regime_snapshot_completes_and_advances_to_market_condition()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .ConfigureServices(services =>
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
+        _ = factory.CreateClient();
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswRegimeInitializationPublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-RD", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForFirstWorkflowAsync(entity);
+            await WaitForRegimeDiscoveryAsync(started.WorkflowId, "Completed");
+
+            var regime = await database.TradeDb.GetRegimeDiscoveryAsync(started.WorkflowId);
+            regime.Should().NotBeNull();
+            regime!.SignalSnapshotId.Should().NotBe(Guid.Empty);
+            await WaitForStageAsync(factory.Services, entity, StrategyWorkflowStage.MarketCondition, 2);
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+            state.CurrentView.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
         }
         finally
         {
@@ -387,8 +428,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     [Fact]
     public async Task Expected_regime_failure_closes_workflow_without_next_pipeline()
     {
-        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+        await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .ConfigureServices(services => services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
             {
                 Enabled = true,
                 RequireWarmRegimeDiscoverySignals = false
@@ -427,8 +470,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     [Fact]
     public async Task Forced_regime_timeout_closes_workflow_without_next_pipeline()
     {
-        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
+        await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
+            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .ConfigureServices(services =>
             {
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
                 {
@@ -557,6 +602,28 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             await Task.Delay(100);
         } while (DateTime.UtcNow < deadline);
 
+        var latestRows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+            entityId.Format(), DateTime.MaxValue, 1);
+        if (latestRows.Count > 0)
+        {
+            var detail = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(latestRows.First().WorkflowId);
+            if (detail is not null)
+            {
+                var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload);
+                var failure = view.CurrentStage switch
+                {
+                    StrategyWorkflowStage.RegimeDiscovery => view.RegimeDiscovery.Failure,
+                    StrategyWorkflowStage.MarketCondition => view.MarketCondition.Failure,
+                    StrategyWorkflowStage.TradeSelection => view.TradeSelection.Failure,
+                    StrategyWorkflowStage.OrderComposition => view.OrderComposition.Failure,
+                    StrategyWorkflowStage.RiskManagement => view.RiskManagement.Failure,
+                    _ => null
+                };
+                if (failure is not null)
+                    lastObserved += $"; {view.CurrentStage} failure: {failure.ErrorType}/{failure.ErrorData}: {failure.ErrorMessage}";
+            }
+        }
+
         throw new TimeoutException(
             $"Workflow {entityId.Format()} did not reach {status}/{outcome} within {ScenarioTimeout}; " +
             $"last observed: {lastObserved}.");
@@ -597,9 +664,15 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
                     if (detail is not null)
                     {
                         var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload);
+                        var regimeFailure = view.RegimeDiscovery.Failure;
+                        if (regimeFailure is not null)
+                            lastObserved += $"; Regime Discovery failure: {regimeFailure.ErrorType}/{regimeFailure.ErrorData}: {regimeFailure.ErrorMessage}";
                         var failure = view.MarketCondition.Failure;
                         if (failure is not null)
                             lastObserved += $"; Market Condition failure: {failure.ErrorType}/{failure.ErrorData}: {failure.ErrorMessage}";
+                        var selectionFailure = view.TradeSelection.Failure;
+                        if (selectionFailure is not null)
+                            lastObserved += $"; Trade Selection failure: {selectionFailure.ErrorType}/{selectionFailure.ErrorData}: {selectionFailure.ErrorMessage}";
                     }
                 }
             }
@@ -656,9 +729,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
                         var failure = view.MarketCondition.Failure;
                         if (failure is not null)
                             lastObserved += $"; Market Condition failure: {failure.ErrorType}/{failure.ErrorData}: {failure.ErrorMessage}";
-                        var resolved = await services.GetRequiredService<IConfigurationDbContext>()
-                            .GetMarketConditionAsync(view.MarketConditionParameterSet.ParameterSetId,
-                                view.MarketConditionParameterSet.Version);
+                        var resolved = view.MarketConditionParameterSet.ParameterSetId == Guid.Empty ? null :
+                            await services.GetRequiredService<IConfigurationDbContext>()
+                                .GetMarketConditionAsync(view.MarketConditionParameterSet.ParameterSetId,
+                                    view.MarketConditionParameterSet.Version);
                         if (resolved is not null && !string.Equals(resolved.PayloadSha256,
                                 MarketConditionParameterPayload.ComputeSha256(view.MarketConditionParameterSet),
                                 StringComparison.OrdinalIgnoreCase))

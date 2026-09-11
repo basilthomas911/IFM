@@ -56,9 +56,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         {
             ProcessingStatus = StrategyActorProcessingStatus.Processing,
             InputWorkflowRevision = 1L,
-            ParameterSetId = command.RegimeDiscoveryParameterSet.ParameterSetId,
-            ParameterSetVersion = command.RegimeDiscoveryParameterSet.Version,
-            ParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
+            ParameterSetId = Guid.Empty,
+            ParameterSetVersion = 0,
+            ParameterPayloadSha256 = string.Empty,
             ExpiresAtUtc = (DateTime?)Now.Add(MaximumDuration)
         });
         state.CurrentView.Should().BeEquivalentTo(snapshot.State);
@@ -158,8 +158,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             .Execute(Context(Now.AddSeconds(10)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
+        state.CurrentView.Outcome.Should().Be(StrategyWorkflowOutcome.PipelineFailed);
         state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Failed);
         state.CurrentView.RegimeDiscovery.SourceEventId.Should().Be(sourceId);
+        state.CurrentView.RegimeDiscovery.ParameterSetId.Should().Be(
+            Guid.Parse("0198E212-3C00-7000-8000-000000000299"));
+        state.CurrentView.RegimeDiscovery.ParameterSetVersion.Should().Be(7);
+        state.CurrentView.RegimeDiscovery.ParameterPayloadSha256.Should().Be(new string('B', 64));
     }
 
     /// <summary>A timeout-classified failure wins even when receipt appears before the persisted deadline.</summary>
@@ -173,6 +178,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             .Execute(Context(Now.AddSeconds(10)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
+        state.CurrentView.Outcome.Should().Be(StrategyWorkflowOutcome.TimedOut);
         state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.TimedOut);
     }
 
@@ -186,6 +192,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             .Execute(Context(Now.Add(MaximumDuration)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
+        state.CurrentView.Outcome.Should().Be(StrategyWorkflowOutcome.TimedOut);
     }
 
     /// <summary>Duplicate, stale-workflow, stale-revision, and wrong-stage inputs append nothing.</summary>
@@ -346,7 +353,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             },
             CorrelationId = Guid.NewGuid(),
             CausationId = sourceId,
-            FailedAtUtc = Now
+            FailedAtUtc = Now,
+            ParameterSetId = Guid.Parse("0198E212-3C00-7000-8000-000000000299"),
+            ParameterSetVersion = 7,
+            ParameterPayloadSha256 = new string('B', 64)
         };
 
     static StrategyStageResultEnvelope CreateResult(Guid sourceId) => new()

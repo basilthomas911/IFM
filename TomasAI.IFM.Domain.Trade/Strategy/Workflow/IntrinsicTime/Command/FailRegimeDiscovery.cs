@@ -34,6 +34,7 @@ public static class FailRegimeDiscovery
         var updated = current with
         {
             Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
+            Outcome = timedOut ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.PipelineFailed,
             WorkflowRevision = current.WorkflowRevision + 1, CausationId = command.CausationId,
             UpdatedAtUtc = now, TerminalAtUtc = now,
             StopReasonCode = timedOut ? "PipelineTimedOut" : command.Failure.ErrorCode.ToString(
@@ -41,7 +42,10 @@ public static class FailRegimeDiscovery
             RegimeDiscovery = current.RegimeDiscovery with
             {
                 ProcessingStatus = timedOut ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
-                FailedAtUtc = now, Failure = command.Failure, SourceEventId = command.SourceEventId
+                FailedAtUtc = now, Failure = command.Failure, SourceEventId = command.SourceEventId,
+                ParameterSetId = command.ParameterSetId,
+                ParameterSetVersion = command.ParameterSetVersion,
+                ParameterPayloadSha256 = command.ParameterPayloadSha256
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);

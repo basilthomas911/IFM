@@ -30,6 +30,18 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
         {
             if (_references != 0)
             {
+                if (!_inner.IsRunning)
+                {
+                    // A dataset replacement must revive a shared publisher whose worker
+                    // faulted while other dataset references were still registered.
+                    try { await _inner.StopAsync(cancellationToken).ConfigureAwait(false); }
+                    catch when (!_inner.IsRunning)
+                    {
+                        // Faulted workers report their original exception while completing
+                        // teardown. The stopped state confirms cleanup completed.
+                    }
+                    await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
+                }
                 _references++;
                 return;
             }
@@ -92,10 +104,16 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
             }
             catch
             {
-                // Retain the final reference so a later aggregation stop can retry
-                // an incomplete transport shutdown.
-                _references = 1;
-                throw;
+                if (_inner.IsRunning)
+                {
+                    // Retain the final reference so a later aggregation stop can retry
+                    // an incomplete transport shutdown.
+                    _references = 1;
+                    throw;
+                }
+                // A faulted publisher can surface its worker exception after it has fully
+                // cleared the stopped session. Release the reference so replacement starts it.
+                _references = 0;
             }
         }
         finally { _lifecycle.Release(); }

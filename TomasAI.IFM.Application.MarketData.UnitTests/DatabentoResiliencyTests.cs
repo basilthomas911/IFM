@@ -162,6 +162,26 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
+    public async Task Full_pipeline_recovery_resets_active_dataset_without_native_failure_gate()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() };
+        var store = new InMemoryMarketDataServiceStore();
+        var service = Create(runtime, store);
+
+        await service.ResetActiveDatasetsAsync(ValueDate, Guid.NewGuid());
+
+        runtime.ResetDatasets.Should().Equal("TEST");
+        runtime.LastResetRequest.Should().NotBeNull();
+        runtime.LastResetRequest!.Reason.Should().Be(DatabentoDatasetFailureReason.FullPipelineUnhealthy);
+        runtime.StartCount.Should().Be(0);
+        runtime.StopCount.Should().Be(0);
+        service.Current.State.Should().Be(DatabentoLifecycleState.Degraded,
+            "the next independent full pipeline probe must prove recovery");
+        (await store.ListObservationsAsync()).Should().Contain(observation =>
+            observation.OperationReason == DatabentoOperationReason.AutomaticRecovery);
+    }
+
+    [Fact]
     public async Task Manual_and_automatic_operations_share_one_serial_executor()
     {
         var runtime = new TestRuntime { Snapshot = Up(), MutationDelay = TimeSpan.FromMilliseconds(10) };
@@ -659,6 +679,7 @@ public sealed class DatabentoResiliencyTests
         public int StartCount { get; private set; }
         public int StopCount { get; private set; }
         public List<string> ResetDatasets { get; } = [];
+        public DatabentoDatasetResetRequest? LastResetRequest { get; private set; }
         public int MaximumConcurrentMutations { get; private set; }
         public void SetActive(DateOnly? valueDate) => ActiveValueDate = valueDate;
         public Task PrepareContractsAsync(DateOnly valueDate, CancellationToken cancellationToken) => Mutate();
@@ -674,6 +695,7 @@ public sealed class DatabentoResiliencyTests
             CancellationToken cancellationToken)
         {
             await Mutate();
+            LastResetRequest = request;
             ResetDatasets.Add(request.Dataset);
             if (FailDatasetResets)
                 return new(request.Dataset, request.ExpectedGenerationId, request.ExpectedGenerationId,

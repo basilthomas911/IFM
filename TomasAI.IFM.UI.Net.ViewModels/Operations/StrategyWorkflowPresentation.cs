@@ -41,7 +41,7 @@ public sealed record StrategyWorkflowRow(
     string EndState,
     IReadOnlyList<PipelineActorIndicator> PipelineActors);
 
-internal static class StrategyWorkflowPresentation
+public static class StrategyWorkflowPresentation
 {
     static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -91,10 +91,15 @@ internal static class StrategyWorkflowPresentation
     }
 
     public static string RenderDetails(IntrinsicTimeStrategyWorkflowView view)
+        => FormatDetails(CreateDetails(view));
+
+    public static StrategyWorkflowDetails CreateDetails(
+        IntrinsicTimeStrategyWorkflowView view,
+        string? marketConditionProjectionComparison = null)
     {
         ArgumentNullException.ThrowIfNull(view);
-        var text = new StringBuilder(16 * 1024);
-        Append(text, "WORKFLOW", new Dictionary<string, object?>
+        var header = new StringBuilder(2048);
+        Append(header, "WORKFLOW", new Dictionary<string, object?>
         {
             ["Workflow ID"] = view.WorkflowId.Value,
             ["Workflow entity"] = view.EntityId.Format(),
@@ -114,7 +119,9 @@ internal static class StrategyWorkflowPresentation
             ["Terminal UTC"] = view.TerminalAtUtc
         });
 
-        Append(text, "FUTURES ITI SIGNAL EVENT", new Dictionary<string, object?>
+        var sections = new List<StrategyWorkflowDetailSection>(6);
+        var iti = new StringBuilder(4096);
+        Append(iti, "FUTURES ITI SIGNAL EVENT", new Dictionary<string, object?>
         {
             ["Created UTC"] = view.TriggerEvent.CreatedOn,
             ["Event ID"] = view.TriggerEvent.Id,
@@ -126,16 +133,70 @@ internal static class StrategyWorkflowPresentation
         });
         if (view.TriggerEvent.FuturesItiSignal is { } signal)
         {
-            text.AppendLine("Signal:");
-            text.AppendLine(Serialize(signal));
-            text.AppendLine();
+            iti.AppendLine("Signal:");
+            iti.AppendLine(Serialize(signal));
+            iti.AppendLine();
         }
+        var triggerSignal = view.TriggerEvent.FuturesItiSignal;
+        sections.Add(new("iti", "ITI Signal",
+            triggerSignal is null ? "Signal details unavailable" :
+                $"{triggerSignal.TimePeriod} | {triggerSignal.IntrinsicTimeMode} | {triggerSignal.IntrinsicTimeTrend} | {triggerSignal.IntrinsicPrice.ToString("0.####", CultureInfo.InvariantCulture)}",
+            StrategyWorkflowDetailState.Completed, "ITI Signal; received; expanded details available", iti.ToString()));
 
         foreach (var stage in Stages)
-            AppendStage(text, stage.Name, stage.Stage, StageState(view, stage.Stage));
+        {
+            var state = StageState(view, stage.Stage);
+            var content = new StringBuilder(4096);
+            AppendStage(content, stage.Name, stage.Stage, state);
+            if (stage.Stage == StrategyWorkflowStage.MarketCondition && !string.IsNullOrWhiteSpace(marketConditionProjectionComparison))
+                content.AppendLine(marketConditionProjectionComparison);
+            sections.Add(new(StageKey(stage.Stage), stage.Name, StageSummary(state), DetailState(state),
+                $"{stage.Name}; {StageSummary(state)}", content.ToString()));
+        }
 
+        return new(view.WorkflowId, view.WorkflowRevision, header.ToString(), sections);
+    }
+
+    public static string FormatDetails(StrategyWorkflowDetails details)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        var text = new StringBuilder(details.Header);
+        foreach (var section in details.Sections)
+        {
+            text.Append("=== ").Append(section.Title.ToUpperInvariant()).AppendLine(" ===");
+            text.Append(section.Content);
+        }
         return text.ToString();
     }
+
+    static string StageKey(StrategyWorkflowStage stage) => stage switch
+    {
+        StrategyWorkflowStage.RegimeDiscovery => "regime-discovery",
+        StrategyWorkflowStage.MarketCondition => "market-condition",
+        StrategyWorkflowStage.TradeSelection => "trade-selection",
+        StrategyWorkflowStage.OrderComposition => "order-composition",
+        StrategyWorkflowStage.RiskManagement => "risk-management",
+        _ => throw new ArgumentOutOfRangeException(nameof(stage))
+    };
+
+    static string StageSummary(StrategyWorkflowStageState state)
+    {
+        if (state.ProcessingStatus == StrategyActorProcessingStatus.NotStarted) return "Not started";
+        var duration = state.StartedAtUtc is { } start && (state.CompletedAtUtc ?? state.FailedAtUtc) is { } end
+            ? $" | {(end - start).TotalMilliseconds:0} ms" : string.Empty;
+        var reason = state.Failure?.ErrorData ?? state.ContinuationReasonCodes.FirstOrDefault();
+        return $"{state.ProcessingStatus} | {state.ContinuationDecision}{duration}" +
+               (string.IsNullOrWhiteSpace(reason) ? string.Empty : $" | {reason}");
+    }
+
+    static StrategyWorkflowDetailState DetailState(StrategyWorkflowStageState state) => state.ProcessingStatus switch
+    {
+        StrategyActorProcessingStatus.NotStarted => StrategyWorkflowDetailState.NotStarted,
+        StrategyActorProcessingStatus.Processing => StrategyWorkflowDetailState.Processing,
+        StrategyActorProcessingStatus.Completed when state.ContinuationDecision == StrategyWorkflowContinuationDecision.Stop => StrategyWorkflowDetailState.Stopped,
+        StrategyActorProcessingStatus.Completed => StrategyWorkflowDetailState.Completed,
+        _ => StrategyWorkflowDetailState.Failed
+    };
 
     static PipelineActorIndicator? CreateIndicator(
         (StrategyWorkflowStage Stage, string ShortLabel, string Name) definition,
@@ -176,7 +237,16 @@ internal static class StrategyWorkflowPresentation
     {
         if (view.Status == WorkflowStrategyMachineStatus.Started)
             return "In Progress";
-        return view.Outcome switch
+        var outcome = view.Outcome != StrategyWorkflowOutcome.None
+            ? view.Outcome
+            : view.Status switch
+            {
+                WorkflowStrategyMachineStatus.Failed => StrategyWorkflowOutcome.PipelineFailed,
+                WorkflowStrategyMachineStatus.TimedOut => StrategyWorkflowOutcome.TimedOut,
+                WorkflowStrategyMachineStatus.Cancelled => StrategyWorkflowOutcome.Cancelled,
+                _ => StrategyWorkflowOutcome.None
+            };
+        return outcome switch
         {
             StrategyWorkflowOutcome.Completed => "Approved",
             StrategyWorkflowOutcome.NoTrade => "No Trade",

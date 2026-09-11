@@ -14,22 +14,22 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
 
     [Fact]
-    public async Task ProductionIgnoresRequestBeforeStorageOrProviderAccess()
+    public async Task ProductionReplaysQualifiedStoredHistoryWithoutProviderAccess()
     {
-        var fixture = new Fixture(isDevelopment: false, enabled: true, seedCoverage: false);
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
 
         var result = await fixture.Service.EnsureAsync(fixture.Request, CancellationToken.None);
 
-        Assert.Equal(HistoricalAnalyticsWarmupOutcome.IgnoredInProduction, result.Outcome);
-        Assert.Equal(0, fixture.ObservationStore.RangeReads);
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage, result.Outcome);
+        Assert.True(fixture.ObservationStore.RangeReads > 0);
         Assert.Equal(0, fixture.Api.AcquireCount);
-        Assert.Equal(0, fixture.DailyReplay.PublishCount);
+        Assert.Equal(1, fixture.DailyReplay.PublishCount);
     }
 
     [Fact]
     public async Task CompleteStoredYearReplaysOnceAndRepeatedStartupIsAlreadyCurrent()
     {
-        var fixture = new Fixture(isDevelopment: true, enabled: true, seedCoverage: true);
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
 
         var first = await fixture.Service.EnsureAsync(fixture.Request, CancellationToken.None);
         var second = await fixture.Service.EnsureAsync(
@@ -37,7 +37,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
 
         Assert.Equal(HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage, first.Outcome);
         Assert.Equal(HistoricalAnalyticsWarmupOutcome.AlreadyCurrent, second.Outcome);
-        Assert.True(first.ValidSessionCount >= 201);
+        Assert.True(first.ValidSessionCount >= 200);
         Assert.Equal(0, fixture.Api.AcquireCount);
         Assert.Equal(1, fixture.DailyReplay.PublishCount);
         Assert.Equal(first.ValidSessionCount, fixture.DailyReplay.LastObservations.Count);
@@ -47,7 +47,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
     [Fact]
     public async Task ConcurrentSameDayStartsReplayOnceWithoutProviderAcquisition()
     {
-        var fixture = new Fixture(isDevelopment: true, enabled: true, seedCoverage: true);
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
 
         var results = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
             fixture.Service.EnsureAsync(
@@ -63,7 +63,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
     [Fact]
     public async Task OneTrailingUnpublishedSessionReplaysQualifiedHistoryWithoutProviderAcquisition()
     {
-        var fixture = new Fixture(isDevelopment: true, enabled: true, seedCoverage: true);
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
         var trailingDate = fixture.ObservationStore.Raw.Max(static value => value.ValueDate);
         fixture.ObservationStore.Raw.RemoveAll(value => value.ValueDate == trailingDate);
 
@@ -71,13 +71,13 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
 
         Assert.Equal(HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage, result.Outcome);
         Assert.Equal(1, result.MissingSessionCount);
-        Assert.True(result.ValidSessionCount >= 201);
+        Assert.True(result.ValidSessionCount >= 200);
         Assert.Equal(0, fixture.Api.AcquireCount);
         Assert.Equal(1, fixture.DailyReplay.PublishCount);
     }
 
     [Fact]
-    public async Task SeparateMissingTradingDateGroupsAcquireOnlyThoseRanges()
+    public async Task MoreThanTwoHundredValidSessionsDoNotAcquireIndividualGaps()
     {
         var calendar = new CmeFuturesMarketSessionCalendar();
         var store = new MemoryObservationStore();
@@ -103,8 +103,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         var service = new HistoricalAnalyticsWarmupService(
             new HistoricalAnalyticsWarmupOptions
             {
-                Enabled = true,
-                IsDevelopmentEnvironment = true
+                Enabled = true
             },
             loader,
             store,
@@ -126,40 +125,91 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
 
         var result = await service.EnsureAsync(request, CancellationToken.None);
 
-        Assert.Equal(HistoricalAnalyticsWarmupOutcome.AcquiredAndReplayed, result.Outcome);
-        Assert.Equal(2, api.Requests.Count);
-        Assert.All(api.Requests, value => Assert.Equal(value.StartDate, value.EndDate));
-        Assert.Equal(missing.Order(), api.Requests.Select(value => value.StartDate).Order());
-        Assert.Equal(tradingDates.Length, result.ValidSessionCount);
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage, result.Outcome);
+        Assert.Empty(api.Requests);
+        Assert.Equal(tradingDates.Length - missing.Length, result.ValidSessionCount);
         Assert.Equal(1, replay.PublishCount);
     }
 
     [Fact]
-    public void OptionsRequireOneYearAndEma200WarmupDepth()
+    public async Task FewerThanTwoHundredValidSessionsAcquireFullOneYear()
+    {
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var store = new MemoryObservationStore();
+        var end = new DateOnly(2024, 12, 31);
+        var start = end.AddDays(-364);
+        var tradingDates = Enumerable.Range(0, 365)
+            .Select(offset => start.AddDays(offset))
+            .Where(calendar.IsTradingDate)
+            .ToArray();
+        long sequence = 1;
+        foreach (var date in tradingDates.Take(199))
+            store.Raw.Add(Session(calendar, date, sequence++));
+        var api = new FillingHistoricalApi(calendar);
+        var loader = new HistoricalDataLoader(
+            api,
+            new MemoryDataLoaderStore(),
+            store,
+            new NullHistoricalReplayPublisher(),
+            calendar,
+            TimeProvider.System);
+        var replay = new RecordingDailyReplayPublisher();
+        var service = new HistoricalAnalyticsWarmupService(
+            new HistoricalAnalyticsWarmupOptions
+            {
+                Enabled = true
+            },
+            loader,
+            store,
+            replay,
+            calendar,
+            TimeProvider.System);
+        var request = new MarketDataHistoricalRequest
+        {
+            DataLoadAttemptId = Guid.NewGuid(),
+            Series = [new() { SeriesIdentity = Es, Schema = HistoricalDataSchema.OhlcvDaily }],
+            StartDate = start,
+            EndDate = end,
+            MaximumCostUsd = 10,
+            MaximumBytes = 1_073_741_824,
+            NormalizationVersion = "historical-daily-v1",
+            RequestedBy = "test",
+            AnalyticsTargetContractId = "ES-ACTIVE"
+        };
+
+        var result = await service.EnsureAsync(request, CancellationToken.None);
+
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.AcquiredAndReplayed, result.Outcome);
+        var acquisition = Assert.Single(api.Requests);
+        Assert.Equal(start, acquisition.StartDate);
+        Assert.Equal(end, acquisition.EndDate);
+        Assert.True(result.ValidSessionCount >= 200);
+        Assert.Equal(1, replay.PublishCount);
+    }
+
+    [Fact]
+    public void OptionsRequireOneYearAndExactlyEma200WarmupDepth()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new HistoricalAnalyticsWarmupOptions
         {
             Enabled = true,
-            IsDevelopmentEnvironment = true,
             LookbackCalendarDays = 364
         }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new HistoricalAnalyticsWarmupOptions
         {
             Enabled = true,
-            IsDevelopmentEnvironment = true,
-            MinimumValidDailySessions = 200
+            MinimumValidDailySessions = 199
         }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() => new HistoricalAnalyticsWarmupOptions
+        Assert.Equal(200, new HistoricalAnalyticsWarmupOptions
         {
             Enabled = true,
-            IsDevelopmentEnvironment = true,
-            TrailingProviderAvailabilityGraceSessions = 6
-        }.Validate());
+            MinimumValidDailySessions = 200
+        }.Validate().MinimumValidDailySessions);
     }
 
     sealed class Fixture
     {
-        internal Fixture(bool isDevelopment, bool enabled, bool seedCoverage)
+        internal Fixture(bool enabled, bool seedCoverage)
         {
             Calendar = new CmeFuturesMarketSessionCalendar();
             ObservationStore = new MemoryObservationStore();
@@ -184,8 +234,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
             Service = new HistoricalAnalyticsWarmupService(
                 new HistoricalAnalyticsWarmupOptions
                 {
-                    Enabled = enabled,
-                    IsDevelopmentEnvironment = isDevelopment
+                    Enabled = enabled
                 },
                 loader,
                 ObservationStore,

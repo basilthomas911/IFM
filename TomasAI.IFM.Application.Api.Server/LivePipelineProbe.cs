@@ -1,11 +1,13 @@
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -23,8 +25,11 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
     ActorRuntimeHealthCheck actors, DatabentoMarketDataApi market,
     IFuturesMarketSessionAuthority sessions, IFuturesBarDataTimer bars,
-    IMarketDataFeedCommandApi commands, IMarketDataAnalyticsCommandApi analytics, IDbContextFactory db,
+    IMarketDataFeedCommandApi feedCommands,
+    IMarketDataAnalyticsCommandApi analyticsCommands,
+    IDbContextFactory db,
     MarketDataOperationsHealthService operations, LivePipelineEvidence evidence,
+    DeploymentIdentityMonitor deploymentIdentity,
     DatabentoMarketDataWatchdogService watchdog, TimeProvider time, IActorSupervisor? supervisor = null,
     NatsConnectionManager? messaging = null) : ILivePipelineProbe
 {
@@ -37,6 +42,12 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         var checks = new List<LivePipelineCheck>();
         void Add(string name, string scope, bool ok, string reason, DateTime? progress = null)
             => checks.Add(new(name, scope, ok ? "Healthy" : "Degraded", reason, now, progress));
+        var identity = deploymentIdentity.Validate();
+        checks.Add(new("Deployment identity", "process", identity.Valid ? "Healthy" : "Unhealthy",
+            identity.Valid
+                ? $"Running artifacts match deployment {identity.BuildId}."
+                : string.Join(" ", identity.Errors),
+            now, identity.Valid ? now : null));
         Add("Session authority", "session", session.IsValid && session.NextTransitionUtc > now,
             "Validated session, value date and next boundary.");
         if (!session.IsValid) return Result();
@@ -195,41 +206,157 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
 
     static readonly ActorTypeId PriceRoute = new(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
     static readonly ActorMailboxId ItiMailbox = new(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
-    public bool CanRecover(LivePipelineCheck failure) => failure.Component is "Databento feed" or "Native transport"
-        or "Native delivery" or "Aggregation" or "Lifecycle consistency" or "Analytics attachments" or "Bar timer" or "ITI route";
-
-    public async Task RecoverAsync(LivePipelineCheck failure, CancellationToken token)
+    public async Task HardResetAsync(LivePipelineHealthSnapshot unhealthySnapshot, CancellationToken token)
     {
-        if (sessions.Current.ActiveValueDate is not { } date) return;
-        if (failure.Component == "ITI route" && supervisor is not null)
+        if (unhealthySnapshot.ValueDate is not { } valueDate
+            || sessions.Current.ActiveValueDate != valueDate)
+            throw new InvalidOperationException("A current active value date is required for a live-pipeline hard reset.");
+
+        // This is deliberately unconditional once the monitor's five-minute boundary is reached.
+        // A full epoch stop releases every dataset reference, which also stops and recreates the
+        // shared tick publisher that a per-dataset replacement cannot repair.
+        await watchdog.HardResetAsync(valueDate,
+            Guid.CreateVersion7(time.GetUtcNow()), token).ConfigureAwait(false);
+
+        var failures = new List<Exception>();
+        async Task AttemptAsync(Func<Task> action)
         {
-            if (!supervisor.ActorExists(ItiMailbox)) await supervisor.StartAsync(ItiMailbox, token);
-            supervisor.AddRealtimeRouter(PriceRoute, ItiMailbox);
-            return;
+            try { await action().WaitAsync(token).ConfigureAwait(false); }
+            catch (Exception exception) when (!token.IsCancellationRequested) { failures.Add(exception); }
         }
-        if (failure.Component is "Databento feed" or "Native transport" or "Native delivery" or "Aggregation" or "Lifecycle consistency")
+
+        await AttemptAsync(() => EnsureChartBarsAsync(valueDate, restart: true, token)).ConfigureAwait(false);
+        if (market.TryGetOnTheRunFuturesContract("ES", out var es))
         {
-            await watchdog.ProbeAsync(token).ConfigureAwait(false);
-            return;
-        }
-        if (failure.Component == "Analytics attachments" && market.TryGetOnTheRunFuturesContract("ES", out var es))
-        {
-            foreach (var a in FuturesIntradaySignalActivationProfile.Create(es.ContractId, date))
+            foreach (var activation in FuturesIntradaySignalActivationProfile.Create(es.ContractId, valueDate))
             {
-                if (!FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot().Contains(a.Rsi)) await analytics.StartFuturesRsiSignalAsync(a.Rsi).WaitAsync(token);
-                if (!FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Snapshot().Contains(a.Atr)) await analytics.StartFuturesAtrSignalAsync(a.Atr).WaitAsync(token);
-                if (!FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot().Contains(a.Adx)) await analytics.StartFuturesAdxSignalAsync(a.Adx).WaitAsync(token);
-                if (!FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Snapshot().Contains(a.Macd)) await analytics.StartFuturesMacdSignalAsync(a.Macd).WaitAsync(token);
+                foreach (var indicator in new[] { "RSI", "ATR", "ADX", "MACD" })
+                    await AttemptAsync(() => EnsureIntradayAnalyticsAsync(
+                        indicator + "/" + activation.TimeFrame, valueDate, restart: true, token)).ConfigureAwait(false);
             }
         }
-        if (failure.Component == "Bar timer")
+        else failures.Add(new InvalidOperationException("The current ES contract is unavailable after the hard reset."));
+
+        await AttemptAsync(() => RestartRealtimeActorAsync(ItiMailbox, token)).ConfigureAwait(false);
+        await AttemptAsync(() => RestartRealtimeActorAsync(
+            new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName), token)).ConfigureAwait(false);
+
+        if (failures.Count != 0)
+            throw new AggregateException("The upstream runtime was hard-reset, but one or more downstream lifecycles did not restart.", failures);
+    }
+
+    public async Task RecoverDownstreamAsync(
+        LivePipelineCheck unhealthyCheck,
+        DateOnly valueDate,
+        CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (sessions.Current.ActiveValueDate != valueDate)
+            throw new InvalidOperationException(
+                $"Cannot recover {unhealthyCheck.Component}; active value date changed from {valueDate:yyyy-MM-dd}.");
+
+        switch (unhealthyCheck.Component)
         {
-            var contracts = new[] { "ES", "VX" }.Select(symbol => market.TryGetOnTheRunFuturesContract(symbol, out var contract)
-                ? contract : null).Where(x => x is not null).ToArray();
-            if (contracts.Length != 2) return;
-            var result = await commands.StartFuturesBarDataStreamingAsync(contracts!, date).WaitAsync(token).ConfigureAwait(false);
-            if (!result.Success) throw new InvalidOperationException(result.ErrorMessage);
+            case "Bar timer":
+                await EnsureChartBarsAsync(valueDate, restart: false, token).ConfigureAwait(false);
+                return;
+            case "Chart storage/query":
+                await EnsureChartBarsAsync(valueDate, restart: true, token).ConfigureAwait(false);
+                return;
+            case "Analytics attachments":
+                await EnsureIntradayAnalyticsAsync(unhealthyCheck.Scope, valueDate, restart: false, token)
+                    .ConfigureAwait(false);
+                return;
+            case "Analytics processing":
+                await EnsureIntradayAnalyticsAsync(unhealthyCheck.Scope, valueDate, restart: true, token)
+                    .ConfigureAwait(false);
+                return;
+            case "ITI route":
+            case "ITI":
+                await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
+                return;
+            case "Market Outlook inputs":
+            case "Market Outlook publication":
+            case "Market Outlook storage":
+                await RestartRealtimeActorAsync(
+                    new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName), token)
+                    .ConfigureAwait(false);
+                return;
+            default:
+                throw new InvalidOperationException(
+                    $"No targeted downstream recovery is registered for {unhealthyCheck.Component}/{unhealthyCheck.Scope}.");
         }
+    }
+
+    async Task EnsureChartBarsAsync(DateOnly valueDate, bool restart, CancellationToken token)
+    {
+        var contracts = new[] { "ES", "VX" }
+            .Select(symbol => market.TryGetOnTheRunFuturesContract(symbol, out var contract) ? contract : null)
+            .Where(contract => contract is not null)
+            .Cast<FuturesContractV3ReadModel>()
+            .ToArray();
+        if (contracts.Length != 2)
+            throw new InvalidOperationException("Current ES and VX contracts are required to recover chart bars.");
+        if (restart)
+            RequireAccepted(await feedCommands.StopFuturesBarDataStreamingAsync(valueDate).ConfigureAwait(false), "stop chart bars");
+        token.ThrowIfCancellationRequested();
+        RequireAccepted(
+            await feedCommands.StartFuturesBarDataStreamingAsync(contracts, valueDate).ConfigureAwait(false),
+            "start chart bars");
+    }
+
+    async Task EnsureIntradayAnalyticsAsync(
+        string scope,
+        DateOnly valueDate,
+        bool restart,
+        CancellationToken token)
+    {
+        if (!market.TryGetOnTheRunFuturesContract("ES", out var es))
+            throw new InvalidOperationException("The current ES contract is unavailable.");
+        var separator = scope.IndexOf('/');
+        if (separator <= 0 || !Enum.TryParse<TimeFrameType>(scope[(separator + 1)..], out var frame))
+            throw new InvalidOperationException($"Analytics recovery scope '{scope}' is invalid.");
+        var activation = FuturesIntradaySignalActivationProfile.Create(es.ContractId, valueDate)
+            .SingleOrDefault(candidate => candidate.TimeFrame == frame)
+            ?? throw new InvalidOperationException($"No analytics activation exists for {scope}.");
+        var indicator = scope[..separator];
+        token.ThrowIfCancellationRequested();
+        switch (indicator)
+        {
+            case "RSI":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesRsiSignalAsync(activation.Rsi).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesRsiSignalAsync(activation.Rsi).ConfigureAwait(false), "start " + scope);
+                break;
+            case "ATR":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesAtrSignalAsync(activation.Atr).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesAtrSignalAsync(activation.Atr).ConfigureAwait(false), "start " + scope);
+                break;
+            case "ADX":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesAdxSignalAsync(activation.Adx).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesAdxSignalAsync(activation.Adx).ConfigureAwait(false), "start " + scope);
+                break;
+            case "MACD":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesMacdSignalAsync(activation.Macd).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesMacdSignalAsync(activation.Macd).ConfigureAwait(false), "start " + scope);
+                break;
+            default:
+                throw new InvalidOperationException($"Analytics recovery indicator '{indicator}' is unsupported.");
+        }
+    }
+
+    async Task RestartRealtimeActorAsync(ActorMailboxId mailbox, CancellationToken token)
+    {
+        if (supervisor is null || !supervisor.ActorExists(mailbox))
+            throw new InvalidOperationException($"Realtime actor {mailbox} is unavailable for targeted recovery.");
+        await supervisor.StopAsync(mailbox, token).ConfigureAwait(false);
+        await supervisor.StartAsync(mailbox, token).ConfigureAwait(false);
+    }
+
+    static void RequireAccepted(ServiceResult<Guid> result, string activity)
+    {
+        if (!result.Success)
+            throw new InvalidOperationException(
+                $"Targeted recovery could not {activity} ({result.ErrorCode}): {result.ErrorMessage}");
     }
 }
 

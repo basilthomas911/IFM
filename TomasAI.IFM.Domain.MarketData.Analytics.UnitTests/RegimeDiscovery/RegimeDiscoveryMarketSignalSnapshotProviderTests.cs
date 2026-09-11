@@ -11,6 +11,20 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.RegimeDiscovery;
 public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
 {
     [Fact]
+    public async Task Rsi13_cannot_satisfy_an_rsi14_requirement()
+    {
+        var contract=$"ES-{Guid.NewGuid():N}";var now=DateTime.UtcNow.AddSeconds(-1);
+        var signal=new FuturesRsiSignalReadModel{ContractId=contract,ValueDate=DateOnly.FromDateTime(now),TimePeriod=TimeFrameType.OneHour,
+            Timestamp=TimeOnly.FromDateTime(now),PeriodLength=13,RSI=60,RSISlope=1,IsWarm=true};
+        var provider=new RegimeDiscoveryMarketSignalSnapshotProvider();
+        RegimeDiscoverySignalCacheAdapter.Publish(signal);
+        var missing=await provider.CaptureAsync(SingleMetricRequest(contract,RegimeDiscoverySignalMetric.Rsi14,TimeFrameType.OneHour));
+        missing.IsSuccess.Should().BeFalse();
+        RegimeDiscoverySignalCacheAdapter.Publish(signal with {PeriodLength=14});
+        var available=await provider.CaptureAsync(SingleMetricRequest(contract,RegimeDiscoverySignalMetric.Rsi14,TimeFrameType.OneHour));
+        available.IsSuccess.Should().BeTrue();
+    }
+    [Fact]
     public async Task Tdi_adapter_publishes_signed_strength_as_optional_regime_evidence()
     {
         var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
@@ -140,6 +154,42 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
         optional.IsSuccess.Should().BeTrue();
         optional.Snapshot.Should().NotBeNull();
         optional.Issues.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task External_vx_ratio_is_resolved_for_the_active_es_contract()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var esContract = $"ES-{Guid.NewGuid():N}";
+        var vxContract = $"VX-{Guid.NewGuid():N}";
+        var key = new MarketAnalyticsSignalKey(MarketSeriesIdentity.ForContract(vxContract),
+            MarketAnalyticsSignalKind.VxTermStructure, TimeFrameType.Daily,
+            "VxFrontSecondRatio.v1");
+        provider.Upsert(Observation(vxContract) with
+        {
+            Metric = RegimeDiscoverySignalMetric.VxFrontSecondRatio,
+            SignalKey = key,
+            Value = 0.95m
+        });
+
+        var result = await provider.CaptureAsync(SingleMetricRequest(
+            esContract, RegimeDiscoverySignalMetric.VxFrontSecondRatio, TimeFrameType.Daily));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Snapshot!.Observations.Should().ContainSingle().Which.Value.Should().Be(0.95m);
+    }
+
+    [Fact]
+    public async Task Missing_external_vx_ratio_returns_an_explicit_issue()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var result = await provider.CaptureAsync(SingleMetricRequest(
+            $"ES-{Guid.NewGuid():N}", RegimeDiscoverySignalMetric.VxFrontSecondRatio,
+            TimeFrameType.Monthly));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Issues.Should().ContainSingle().Which.Availability.Should()
+            .Be(RegimeDiscoverySignalAvailability.Missing);
     }
 
     static RegimeDiscoveryMarketSignalSnapshotRequest Request(string contract) => new()

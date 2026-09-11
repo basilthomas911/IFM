@@ -1,0 +1,16 @@
+# Adding another Reference Data parameter component
+
+Regime Discovery is the first implementation. Keep parameter assignments independent of application shutdown. Published versions are immutable; assignments persist until explicitly changed or disabled. Running consumers use their captured version.
+
+1. Define the component's stable area/component codes and immutable payload versions. Register the area, component and versioned schema/codec in ConfigurationDb. Treat stored schema hashes as immutable; changing a payload type requires a compatible schema/version decision, not overwriting a registered schema.
+2. Add shared MessagePack contracts with appended keys and explicit enums. Define the exact consumer scope and activation policy. Regime uses workflow definition plus Daily/Weekly/Monthly horizon and NextStartup.
+3. Put validation, calculations, canonicalization and dependency expansion in Model classes. Register the component descriptor instead of placing domain calculations in actor receive methods. Unknown fields and unsupported schemas must remain inspectable without lossy editing.
+4. Use the standard Command/Query actors and verb/validation/handler maps. Keep handlers in Extensions. Use authoritative event state for decisions, the shared writer lease for assignment/retirement races, and the existing projector for ConfigurationDb views. No new Function or Realtime actor is required for parameter management.
+5. Extend the registry-driven editor with a component-specific detail editor. Preserve dirty-copy guards, immutable version publication, optimistic revision conflicts, operations receipts, exact payload inspection, and assignment activation text. Do not silently publish or assign on save.
+6. If the component contributes startup work, expand exact producer identities and dependencies; union demands from other consumers. Record all preparation outcomes. Treat readiness/freshness separately from command acceptance. Monitor rows using their captured version and configured limits.
+7. For existing configuration, inventory original kind/set/version/schema/hash/codec. Provide read-only resolution and exact draft expansion with deterministic, kind-qualified lineage. Preserve historical resolvers and payloads. Rollback selects a compatible published version and restarts according to the activation policy; it never rewrites history.
+8. Add model/handler tests, real actor transport tests, PostgreSQL race/replay/immutability tests, UI behavior/rendering checks, and consumer integration tests. Include missing, stale, failed, timed-out and later-recovered evidence. Verify old MessagePack payload compatibility. Publish the requirement-to-test evidence and any unqualified runtime observations.
+
+Development access currently uses the explicitly approved single-user Development policy. Production authorization remains disabled pending its separate integration.
+
+Schema evolution rule: add a new registered schema version when generated structure or nullability changes. Keep old versions on their original generator/hash path. Upgrade through a reviewable working copy and append a parameter-set version; never replace an immutable registry row or saved payload.

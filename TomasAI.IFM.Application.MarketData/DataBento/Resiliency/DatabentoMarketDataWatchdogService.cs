@@ -282,6 +282,71 @@ public sealed class DatabentoMarketDataWatchdogService(
             DatabentoOperationReason.AutomaticRecovery, token).ConfigureAwait(false);
     }, cancellationToken);
 
+
+    /// <summary>
+    /// Unconditionally stops, disposes, recreates, starts, and qualifies the complete
+    /// Databento runtime. This bypasses native-health gates because the caller has
+    /// already observed a continuously unhealthy end-to-end pipeline.
+    /// </summary>
+    public Task HardResetAsync(DateOnly valueDate, Guid correlationId,
+        CancellationToken cancellationToken = default) => SerializedAsync(async token =>
+    {
+        if (runtime.ActiveValueDate != valueDate)
+            throw new InvalidOperationException(
+                $"Cannot hard reset {valueDate:yyyy-MM-dd}; the active runtime value date is {runtime.ActiveValueDate:yyyy-MM-dd}.");
+        await RecoverAsync(valueDate, correlationId,
+            DatabentoOperationReason.AutomaticRecovery, token).ConfigureAwait(false);
+    }, cancellationToken);
+    public Task ResetActiveDatasetsAsync(DateOnly valueDate, Guid correlationId,
+        CancellationToken cancellationToken = default) => SerializedAsync(async token =>
+    {
+        if (runtime.ActiveValueDate != valueDate)
+            throw new InvalidOperationException(
+                $"Cannot reset datasets for {valueDate:yyyy-MM-dd}; the active runtime value date is {runtime.ActiveValueDate:yyyy-MM-dd}.");
+
+        var native = await SafeProbeAsync(token).ConfigureAwait(false);
+        var datasets = native.Feeds
+            .Where(feed => feed.FeedKind == "Ticker")
+            .GroupBy(feed => feed.Dataset, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+        if (datasets.Length == 0)
+            throw new InvalidOperationException("The active runtime reported no ticker datasets to reset.");
+
+        Transition(DatabentoLifecycleState.Resetting, valueDate, correlationId, 1,
+            $"Full pipeline health remained unhealthy for five minutes; resetting {datasets.Length} active dataset(s).",
+            native.NativeGeneration, attemptStarted: UtcNow());
+        foreach (var dataset in datasets)
+        {
+            var reset = await runtime.ResetDatasetAsync(new DatabentoDatasetResetRequest(
+                dataset.Dataset,
+                dataset.GenerationId,
+                valueDate,
+                DatabentoDatasetFailureReason.FullPipelineUnhealthy,
+                options.DatasetTeardownTimeout,
+                options.DatasetQualificationTimeout,
+                correlationId), token).ConfigureAwait(false);
+            if (!reset.Succeeded)
+            {
+                Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 1,
+                    $"Dataset {dataset.Dataset} reset failed: {reset.Detail}",
+                    native.NativeGeneration, attemptCompleted: UtcNow());
+                throw new InvalidOperationException(Current.Reason);
+            }
+            _datasetEvaluator.Forget(dataset.Dataset);
+        }
+
+        var qualified = EvaluateDatasets(await SafeProbeAsync(token).ConfigureAwait(false));
+        var evaluation = Evaluate(qualified, sessionAuthority.Current.IsLiveTrading);
+        Transition(evaluation.CoreReady ? DatabentoLifecycleState.Degraded : DatabentoLifecycleState.Failed,
+            valueDate, correlationId, 0,
+            $"Dataset reset completed; the next full pipeline probe must confirm recovery. {evaluation.Reason}",
+            qualified.NativeGeneration, attemptCompleted: UtcNow());
+        await RecordAsync(DatabentoOperationReason.AutomaticRecovery,
+            evaluation.Major, evaluation.Health, evaluation.CoreReady, 1, qualified,
+            correlationId, token).ConfigureAwait(false);
+    }, cancellationToken);
+
     TimeSpan ScheduledDelay(TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel session)
     {
         var interval = _stage3.ScheduledInterval(session.State);

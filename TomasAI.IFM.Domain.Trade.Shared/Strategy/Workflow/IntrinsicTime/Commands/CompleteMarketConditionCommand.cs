@@ -2,6 +2,8 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -44,6 +46,11 @@ public sealed record CompleteMarketConditionCommand : ICommand<IntrinsicTimeStra
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(12)] public DateTime CompletedAtUtc { get; init; }
+    /// <summary>Gets the immutable assessment binding resolved by Market Condition initialization.</summary>
+    [Key(13)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
+    [Key(14)] public TradeSelectionBinding? SelectionBinding { get; init; }
+    [Key(15)] public int FundId { get; init; }
+    [Key(16)] public StrategyPipelineFailure? TradeSelectionInitializationFailure { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteMarketConditionCommand);
@@ -92,7 +99,11 @@ public sealed record CompleteMarketConditionCommand : ICommand<IntrinsicTimeStra
         StrategyStageResultEnvelope result,
         Guid correlationId,
         Guid causationId,
-        DateTime completedAtUtc)
+        DateTime completedAtUtc,
+        MarketConditionAssessmentBinding? assessmentBinding = null,
+        TradeSelectionBinding? selectionBinding = null,
+        int fundId = 0,
+        StrategyPipelineFailure? tradeSelectionInitializationFailure = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +118,9 @@ public sealed record CompleteMarketConditionCommand : ICommand<IntrinsicTimeStra
         CorrelationId = correlationId;
         CausationId = causationId;
         CompletedAtUtc = completedAtUtc;
+        AssessmentBinding = assessmentBinding;
+        SelectionBinding = selectionBinding;
+        FundId = fundId;
+        TradeSelectionInitializationFailure = tradeSelectionInitializationFailure;
     }
 }

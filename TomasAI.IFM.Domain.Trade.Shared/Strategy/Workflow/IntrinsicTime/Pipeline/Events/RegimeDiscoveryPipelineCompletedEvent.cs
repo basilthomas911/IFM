@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -58,6 +59,10 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
     [Key(16)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
     /// <summary>Gets the atomic market-signal snapshot used by the calculation.</summary>
     [Key(17)] public Guid SignalSnapshotId { get; init; }
+    /// <summary>Gets the immutable parameters resolved by pipeline initialization.</summary>
+    [Key(18)] public RegimeDiscoveryParameterSet ParameterSet { get; init; } = new();
+
+    [Key(19)] public ParameterApplicationProvenance? ParameterApplication {get;init;}
 
     /// <summary>Gets the local pipeline event-source user for diagnostics.</summary>
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -104,7 +109,9 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
         DateTime completedAtUtc,
         DateTime expiresAtUtc,
         string parameterPayloadSha256,
-        Guid signalSnapshotId)
+        Guid signalSnapshotId,
+        RegimeDiscoveryParameterSet? parameterSet = null,
+        ParameterApplicationProvenance? parameterApplication = null)
     {
         Subject = subject;
         Id = id;
@@ -124,5 +131,7 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
         ExpiresAtUtc = expiresAtUtc;
         ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
         SignalSnapshotId = signalSnapshotId;
+        ParameterSet = parameterSet ?? new RegimeDiscoveryParameterSet();
+        ParameterApplication = parameterApplication;
     }
 }

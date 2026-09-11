@@ -998,7 +998,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Loading Latest Futures Bar Data Error"));
                 await WriteStatusConsoleAsync("Loading Latest Futures Bar Data...");
-                foreach (var contract in _baseContracts ?? [])
+                foreach (var contract in (_baseContracts ?? []).Where(contract => contract.OnTheRun))
                 {
                     var (startDate, endDate) = GetFuturesBarChartWindow(
                         _timeProvider.GetUtcNow().UtcDateTime);
@@ -1207,6 +1207,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var displayedContract = GetDisplayedFuturesContract(e.FuturesBarData.Symbol);
+        if (displayedContract is null
+            || !string.Equals(
+                displayedContract.ContractId,
+                e.FuturesBarData.ContractId,
+                StringComparison.Ordinal))
+            return;
         await _appRoot.Services.FeedQueries.ExecuteAsync(async queryModel =>
         {
             queryModel.OnError((errorCode, errorMessage) =>
@@ -1774,7 +1781,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 streams = new[] { "ES", "VX" }.Select(symbol => new LiveUiStreamEvidence(symbol,
                     FuturesBarSnapshots.TryGetValue(symbol, out var bars) && bars.Bars.Length > 0 ? bars.Bars.Max(x => x.BarDate) : null,
                     _renderedBars.TryGetValue(symbol, out var rendered) ? rendered : null,
-                    FuturesBarSnapshots.TryGetValue(symbol, out var currentBars) ? currentBars.Bars.FirstOrDefault()?.ContractId ?? "" : ""))
+                    GetDisplayedFuturesContract(symbol)?.ContractId ?? ""))
                     .Append(new LiveUiStreamEvidence("Outlook", _outlookReceived, _outlookRendered, GetMarketOutlookContract()?.ContractId ?? "")).ToArray();
             LivePipelineHealth = await _pipelineHealth.ReportAndCheckAsync(new(_siteId, date, streams));
             OnPropertyChanged(nameof(LivePipelineHealth));
@@ -1847,6 +1854,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     FuturesContractV3ReadModel? GetMarketOutlookContract()
         => _baseContracts.FirstOrDefault(contract =>
             string.Equals(contract.Id.Symbol, MarketOutlookSymbol, StringComparison.Ordinal));
+
+    FuturesContractV3ReadModel? GetDisplayedFuturesContract(string symbol)
+        => _baseContracts.FirstOrDefault(contract =>
+               contract.OnTheRun
+               && string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
+           ?? _baseContracts.FirstOrDefault(contract =>
+               string.Equals(contract.Symbol, symbol, StringComparison.Ordinal));
 
     internal static bool IsMarketOutlookUpdate(
         string? expectedContractId,

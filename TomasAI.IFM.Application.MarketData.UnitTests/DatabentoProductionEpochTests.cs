@@ -91,6 +91,7 @@ public sealed class DatabentoProductionEpochTests
         var oldGeneration = datasetHealth.GenerationId;
         oldFeed.HealthState = FeedState.Faulted;
         oldFeed.TerminalStatus = DatabentoFeedStatus.InternalError;
+        publisher.FailWorker();
         var reset = await api.ResetDatasetAsync(new DatabentoDatasetResetRequest(
             "GLBX.MDP3",
             oldGeneration,
@@ -105,6 +106,8 @@ public sealed class DatabentoProductionEpochTests
         Assert.True(oldFeed.Disposed);
         Assert.Equal(1, oldFeed.StopCount);
         Assert.NotSame(oldFeed, provider.Feed);
+        Assert.True(publisher.IsRunning);
+        Assert.Equal(2, publisher.StartCount);
         Assert.True(api.IsDatabentoFeedUp());
         Assert.True(api.IsTickDataStreamActive("ES-202609"));
         Assert.True(api.IsTickDataStreamActive("ES20260918C6500"));
@@ -486,6 +489,7 @@ public sealed class DatabentoProductionEpochTests
 
     private sealed class NoOpPublisher : ITickAggregationEventPublisher
     {
+        private bool _faultOnStop;
         public bool IsRunning { get; private set; }
         internal int StartCount { get; private set; }
         internal int StopCount { get; private set; }
@@ -510,7 +514,17 @@ public sealed class DatabentoProductionEpochTests
         {
             StopCount++;
             IsRunning = false;
+            if (_faultOnStop)
+            {
+                _faultOnStop = false;
+                return ValueTask.FromException(new InvalidOperationException("Injected publisher worker failure."));
+            }
             return ValueTask.CompletedTask;
+        }
+        public void FailWorker()
+        {
+            IsRunning = false;
+            _faultOnStop = true;
         }
         public ValueTask DisposeAsync() => StopAsync();
     }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -39,9 +40,86 @@ public sealed class ApiApplicationStartupActivities(
     HistoricalAnalyticsWarmupOptions historicalWarmupOptions,
     ApplicationStartupOptions options,
     TimeProvider timeProvider,
-    ILogger<ApiApplicationStartupActivities> logger) : IApplicationStartupActivities
+    ILogger<ApiApplicationStartupActivities> logger,
+    IParameterSetsApi? parameterSetsApi=null,
+    IParameterRuntimeSnapshot? parameterRuntime=null,
+    TomasAI.IFM.Application.Api.Server.ParameterSets.IRsiHistoricalPilotStartup? rsiPilot=null) : IApplicationStartupActivities
 {
     readonly ConcurrentDictionary<DateOnly, FuturesContractV3ReadModel[]> contractsByValueDate = new();
+
+    public async ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
+    {
+        if(parameterRuntime is not {Enabled:true})return ApplicationStartupActivityOutcome.AlreadySatisfied;
+        if(parameterSetsApi is null)throw new InvalidOperationException("Parameter Sets API is unavailable.");
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(options.ParticipantTimeout);
+        var applied=await parameterSetsApi.ApplyStartupAsync(new(){CommandId=context.ProcessBootId,RunId=context.ProcessBootId},deadline.Token);
+        if(!applied.Success)throw new InvalidOperationException(applied.ErrorMessage);
+        var runs=await parameterSetsApi.StartupRunsAsync(deadline.Token);
+        if(!runs.Success)throw new InvalidOperationException(runs.ErrorMessage);
+        var run=runs.Value?.SingleOrDefault(x=>x.RunId==context.ProcessBootId)??throw new InvalidOperationException("Applied parameter generation is unavailable.");
+        parameterRuntime.Apply(run);
+        logger.LogInformation("Parameter generation applied. RunId={RunId}; Fingerprint={Fingerprint}; Assignments={Assignments}",run.RunId,run.Plan.Fingerprint,run.Scopes.Length);
+        return ApplicationStartupActivityOutcome.Started;
+    }
+
+    public async ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
+    {
+        if(parameterRuntime is not {Enabled:true,Plan:{} plan})return ApplicationStartupActivityOutcome.AlreadySatisfied;
+        if(parameterSetsApi is null)throw new InvalidOperationException("Parameter Sets API is unavailable.");
+        foreach(var issue in plan.Issues??[])logger.LogWarning("Parameter startup plan issue. RunId={RunId}; Issue={Issue}",plan.StartupRunId,issue);
+        var closed=marketSessionAuthority.Current.ActiveValueDate is null;
+        var outcomes=new List<ParameterSignalPreparationOutcome>();
+        var contractId=string.Empty;string? contractError=null;
+        if(!closed)
+        {
+            try{contractId=RequiredEsContract(context.ValueDate).ContractId;}
+            catch(Exception error){contractError=error.Message;}
+        }
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(options.ParticipantTimeout);
+        foreach(var step in plan.Steps)
+        {
+            var key=step.Key;
+            if(!step.Prepare){Record(ParameterSignalPreparationStatus.NotRequested,"Preparation was not requested.");continue;}
+            if(closed){Record(ParameterSignalPreparationStatus.MarketClosed,"No active trading session.");continue;}
+            if(cancellationToken.IsCancellationRequested){Record(ParameterSignalPreparationStatus.Cancelled,"Startup was cancelled before this producer completed.");continue;}
+            if(deadline.IsCancellationRequested){Record(ParameterSignalPreparationStatus.TimedOut,"Preparation deadline elapsed; no new command was submitted.");continue;}
+            if(contractError is not null){Record(ParameterSignalPreparationStatus.Failed,contractError);continue;}
+            if(step.Consumers.Any(x=>x.Consumer=="existing-intraday-activation")||key.Producer is ParameterSignalProducer.ClosedBars or ParameterSignalProducer.Ema or ParameterSignalProducer.Bollinger or ParameterSignalProducer.Structure or ParameterSignalProducer.Tdi or ParameterSignalProducer.VxTermStructure)
+            {Record(ParameterSignalPreparationStatus.ExistingRoute,"Owned by the existing startup/feed route; attachment and readiness are not confirmed by this report.");continue;}
+            try
+            {
+                var operation=key.Producer switch
+                {
+                    ParameterSignalProducer.Rsi=>rsiPilot is null?analyticsCommandApi.StartFuturesRsiSignalAsync(FuturesRsiSignalEntityId.Create(contractId,context.ValueDate,key.Interval,key.Period)):rsiPilot.StartAsync(FuturesRsiSignalEntityId.Create(contractId,context.ValueDate,key.Interval,key.Period),deadline.Token),
+                    ParameterSignalProducer.Atr=>analyticsCommandApi.StartFuturesAtrSignalAsync(FuturesAtrSignalEntityId.Create(contractId,context.ValueDate,key.Interval,key.Period)),
+                    ParameterSignalProducer.Adx=>analyticsCommandApi.StartFuturesAdxSignalAsync(FuturesAdxSignalEntityId.Create(contractId,context.ValueDate,key.Interval,key.Period)),
+                    ParameterSignalProducer.Macd=>analyticsCommandApi.StartFuturesMacdSignalAsync(FuturesMacdSignalEntityId.Create(contractId,context.ValueDate,key.Interval)),
+                    _=>throw new InvalidOperationException("Unsupported parameter producer: "+key)
+                };
+                await RequireAcceptedAsync(operation,key.ToString()).WaitAsync(deadline.Token);
+                Record(ParameterSignalPreparationStatus.Accepted,"Start command accepted; readiness must be checked independently.");
+            }
+            catch(Exception error)
+            {
+                var status=cancellationToken.IsCancellationRequested?ParameterSignalPreparationStatus.Cancelled:
+                    deadline.IsCancellationRequested?ParameterSignalPreparationStatus.TimedOut:ParameterSignalPreparationStatus.Failed;
+                Record(status,error.Message);
+                logger.LogWarning(error,"Parameter producer preparation degraded. RunId={RunId}; Producer={Producer}",plan.StartupRunId,key);
+            }
+            void Record(ParameterSignalPreparationStatus status,string detail)=>outcomes.Add(new(key,status,detail.Length<=2000?detail:detail[..2000]));
+        }
+        // Persist terminal evidence with its own bounded deadline, including when preparation was cancelled.
+        using var evidenceDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var report=new ParameterSignalStartupReport(plan.StartupRunId,plan.Fingerprint,context.ValueDate,contractId,timeProvider.GetUtcNow().UtcDateTime,outcomes.ToArray());
+        var saved=await parameterSetsApi.RecordStartupReportAsync(new(){CommandId=Guid.NewGuid(),RunId=plan.StartupRunId,Report=report},evidenceDeadline.Token);
+        if(!saved.Success)throw new InvalidOperationException("Parameter startup evidence could not be saved: "+saved.ErrorMessage);
+        cancellationToken.ThrowIfCancellationRequested();
+        if(closed)return ApplicationStartupActivityOutcome.ScheduledStopped;
+        return (plan.Issues?.Length>0)||outcomes.Any(x=>x.Status is ParameterSignalPreparationStatus.Failed or ParameterSignalPreparationStatus.TimedOut or ParameterSignalPreparationStatus.Cancelled)
+            ?ApplicationStartupActivityOutcome.Degraded:ApplicationStartupActivityOutcome.Started;
+    }
+
+
 
     public ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(
         ApplicationStartupContext context,
@@ -279,8 +357,7 @@ public sealed class ApiApplicationStartupActivities(
         return ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
     }
 
-    bool HistoricalWarmupRequired() =>
-        historicalWarmupOptions.Enabled && historicalWarmupOptions.IsDevelopmentEnvironment;
+    bool HistoricalWarmupRequired() => historicalWarmupOptions.Enabled;
 
     async Task RequireWarmDailyMarketOutlookAsync(
         string contractId,

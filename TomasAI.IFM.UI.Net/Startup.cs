@@ -167,6 +167,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IFundCommandApi, FundCommandApi>();
             _container!.RegisterSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             _container!.RegisterSingleton<IReferenceCommandApi, ReferenceCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi, ParameterSetsApi>();
         }
 
         /// <summary>Connects the shared command/query transport before the WinForms shell starts loading data.</summary>

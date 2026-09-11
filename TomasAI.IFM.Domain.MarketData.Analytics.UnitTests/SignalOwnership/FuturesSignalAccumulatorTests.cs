@@ -186,7 +186,7 @@ public sealed class FuturesSignalAccumulatorTests
         }
         Assert.Equal(100.5m, result!.Signal.Ema200);
         Assert.Null(result.Signal.PreviousEma200);
-        Assert.False(result.Signal.IsWarm);
+        Assert.True(result.Signal.IsWarm);
 
         result = FuturesEmaAccumulator.Apply(checkpoint, Observation(201, 201m));
         Assert.Equal(101.5m, result.Signal.Ema200);

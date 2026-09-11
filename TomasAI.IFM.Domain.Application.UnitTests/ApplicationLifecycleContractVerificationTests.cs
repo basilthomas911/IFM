@@ -39,7 +39,7 @@ public sealed class ApplicationLifecycleContractVerificationTests
         Assert.Equal(status.ValueDate, copy.ValueDate);
         Assert.Equal(status.CommandId, copy.CommandId);
         Assert.Equal(status.CorrelationId, copy.CorrelationId);
-        Assert.Equal(7, copy.Activities.Length);
+        Assert.Equal(ApplicationStartupPlan.Activities.Count, copy.Activities.Length);
         Assert.Equal(status.Activities.Select(value => value.Activity), copy.Activities.Select(value => value.Activity));
     }
 }

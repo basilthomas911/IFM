@@ -88,4 +88,48 @@
 	  <Folder Include="Logs\" />
 	</ItemGroup>
 
+	<Target Name="WriteIfmDeploymentIdentityManifest"
+			AfterTargets="Build"
+			Condition="'$(DesignTimeBuild)' != 'true' AND Exists('$(TargetPath)') AND Exists('$(TargetDir)TomasAI.IFM.Domain.Trade.dll')">
+		<GetFileHash Files="$(TargetPath)" Algorithm="SHA256">
+			<Output TaskParameter="Items" ItemName="_IfmApiArtifactHash" />
+		</GetFileHash>
+		<GetFileHash Files="$(TargetDir)TomasAI.IFM.Domain.Trade.dll" Algorithm="SHA256">
+			<Output TaskParameter="Items" ItemName="_IfmTradeArtifactHash" />
+		</GetFileHash>
+		<PropertyGroup>
+			<_IfmApiHash>@(_IfmApiArtifactHash->'%(FileHash)')</_IfmApiHash>
+			<_IfmTradeHash>@(_IfmTradeArtifactHash->'%(FileHash)')</_IfmTradeHash>
+			<_IfmBuildId>$(_IfmApiHash).$(_IfmTradeHash)</_IfmBuildId>
+			<_IfmGeneratedAtUtc>$([System.DateTime]::UtcNow.ToString('O'))</_IfmGeneratedAtUtc>
+			<_IfmManifestJson>{&quot;schemaVersion&quot;:1,&quot;buildId&quot;:&quot;$(_IfmBuildId)&quot;,&quot;generatedAtUtc&quot;:&quot;$(_IfmGeneratedAtUtc)&quot;,&quot;artifacts&quot;:{&quot;TomasAI.IFM.Application.Api.Server.dll&quot;:&quot;$(_IfmApiHash)&quot;,&quot;TomasAI.IFM.Domain.Trade.dll&quot;:&quot;$(_IfmTradeHash)&quot;}}</_IfmManifestJson>
+		</PropertyGroup>
+		<WriteLinesToFile File="$(TargetDir)ifm-deployment-manifest.json"
+					  Lines="$(_IfmManifestJson)"
+					  Overwrite="true"
+					  WriteOnlyWhenDifferent="true" />
+	</Target>
+
+	<Target Name="WritePublishedIfmDeploymentIdentityManifest"
+			AfterTargets="Publish"
+			Condition="'$(DesignTimeBuild)' != 'true' AND Exists('$(PublishDir)$(TargetFileName)') AND Exists('$(PublishDir)TomasAI.IFM.Domain.Trade.dll')">
+		<GetFileHash Files="$(PublishDir)$(TargetFileName)" Algorithm="SHA256">
+			<Output TaskParameter="Items" ItemName="_IfmPublishedApiArtifactHash" />
+		</GetFileHash>
+		<GetFileHash Files="$(PublishDir)TomasAI.IFM.Domain.Trade.dll" Algorithm="SHA256">
+			<Output TaskParameter="Items" ItemName="_IfmPublishedTradeArtifactHash" />
+		</GetFileHash>
+		<PropertyGroup>
+			<_IfmPublishedApiHash>@(_IfmPublishedApiArtifactHash->'%(FileHash)')</_IfmPublishedApiHash>
+			<_IfmPublishedTradeHash>@(_IfmPublishedTradeArtifactHash->'%(FileHash)')</_IfmPublishedTradeHash>
+			<_IfmPublishedBuildId>$(_IfmPublishedApiHash).$(_IfmPublishedTradeHash)</_IfmPublishedBuildId>
+			<_IfmPublishedGeneratedAtUtc>$([System.DateTime]::UtcNow.ToString('O'))</_IfmPublishedGeneratedAtUtc>
+			<_IfmPublishedManifestJson>{&quot;schemaVersion&quot;:1,&quot;buildId&quot;:&quot;$(_IfmPublishedBuildId)&quot;,&quot;generatedAtUtc&quot;:&quot;$(_IfmPublishedGeneratedAtUtc)&quot;,&quot;artifacts&quot;:{&quot;TomasAI.IFM.Application.Api.Server.dll&quot;:&quot;$(_IfmPublishedApiHash)&quot;,&quot;TomasAI.IFM.Domain.Trade.dll&quot;:&quot;$(_IfmPublishedTradeHash)&quot;}}</_IfmPublishedManifestJson>
+		</PropertyGroup>
+		<WriteLinesToFile File="$(PublishDir)ifm-deployment-manifest.json"
+					  Lines="$(_IfmPublishedManifestJson)"
+					  Overwrite="true"
+					  WriteOnlyWhenDifferent="true" />
+	</Target>
+
 </Project>

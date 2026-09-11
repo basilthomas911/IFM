@@ -301,6 +301,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
             result = await OnExceptionAsync(_context!, threadId, command, ex);
         }
+        finally
+        {
+            await OnCommandFinishedAsync(_context!, command).ConfigureAwait(false);
+        }
 
         /// reply with the result...
         activeStage = ActorRuntimeMetrics.ReplyStage;
@@ -415,6 +419,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// </summary>
     protected ICommand ParseMessage(ICommandActorContext<TActor> context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
+    /// <summary>Releases per-command resources on success, failure or cancellation. Existing actors require no action.</summary>
+    protected virtual ValueTask OnCommandFinishedAsync(ICommandActorContext<TActor> context, ICommand? command)
+        => ValueTask.CompletedTask;
+
     protected virtual ValueTask OnStartup(ICommandActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
         ICommandActorContext<TActor> context,

@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -44,6 +45,12 @@ public sealed record CompleteRegimeDiscoveryCommand : ICommand<IntrinsicTimeStra
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(12)] public DateTime CompletedAtUtc { get; init; }
+    /// <summary>Gets the immutable parameters resolved by Regime Discovery initialization.</summary>
+    [Key(13)] public RegimeDiscoveryParameterSet ParameterSet { get; init; } = new();
+    /// <summary>Gets the canonical parameter payload hash resolved by initialization.</summary>
+    [Key(14)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
+
+    [Key(15)] public ParameterApplicationProvenance? ParameterApplication {get;init;}
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteRegimeDiscoveryCommand);
@@ -92,7 +99,10 @@ public sealed record CompleteRegimeDiscoveryCommand : ICommand<IntrinsicTimeStra
         StrategyStageResultEnvelope result,
         Guid correlationId,
         Guid causationId,
-        DateTime completedAtUtc)
+        DateTime completedAtUtc,
+        RegimeDiscoveryParameterSet? parameterSet = null,
+        string parameterPayloadSha256 = "",
+        ParameterApplicationProvenance? parameterApplication = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +117,8 @@ public sealed record CompleteRegimeDiscoveryCommand : ICommand<IntrinsicTimeStra
         CorrelationId = correlationId;
         CausationId = causationId;
         CompletedAtUtc = completedAtUtc;
+        ParameterSet = parameterSet ?? new RegimeDiscoveryParameterSet();
+        ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
+        ParameterApplication = parameterApplication;
     }
 }

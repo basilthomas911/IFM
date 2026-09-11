@@ -14,15 +14,16 @@ public sealed class VolatilityRegimeCalculationModel
         ArgumentNullException.ThrowIfNull(input);
         var config = input.ParameterSet.Volatility;
         var horizon = input.ParameterSet.TargetHorizon;
+        var evidenceFrame = RegimeDiscoverySnapshotRequestFactory.TargetEvidenceTimeFrame(input.ParameterSet);
         var vixSpot = Find(input, RegimeDiscoverySignalMetric.VixLevel,
             TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
         var vxFront = Find(input, RegimeDiscoverySignalMetric.VxFrontLevel, horizon);
         var levelInput = RegimeDiscoveryMath.IsAvailable(vixSpot) ? vixSpot : vxFront;
-        var atrRatio = Find(input, RegimeDiscoverySignalMetric.AtrBaselineRatio, horizon);
+        var atrRatio = Find(input, RegimeDiscoverySignalMetric.AtrBaselineRatio, evidenceFrame);
         var vxRatio = Find(input, RegimeDiscoverySignalMetric.VxFrontSecondRatio,
             TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
-        var realized = Find(input, RegimeDiscoverySignalMetric.RealizedVolatilityPercentile, horizon);
-        var priorComposite = Find(input, RegimeDiscoverySignalMetric.PriorVolatilityComposite, horizon);
+        var realized = Find(input, RegimeDiscoverySignalMetric.RealizedVolatilityPercentile, evidenceFrame);
+        var priorComposite = Find(input, RegimeDiscoverySignalMetric.PriorVolatilityComposite, evidenceFrame);
         var required = new[] { levelInput, atrRatio, vxRatio };
         if (required.Any(observation => !RegimeDiscoveryMath.IsAvailable(observation)))
         {

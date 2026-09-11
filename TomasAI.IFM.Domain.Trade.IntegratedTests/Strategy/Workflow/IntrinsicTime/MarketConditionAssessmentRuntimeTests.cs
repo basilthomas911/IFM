@@ -112,10 +112,11 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             try
             {
                 await PrepareRegimeDiscoveryAsync(first.Services,[entity],profile);
-                using var hold=pipelines.HoldAt(entity,StrategyWorkflowStage.TradeSelection);
                 await PublishTriggerAsync(producer,entity.ItiSignalEntityId);
-                await WaitForStageAsync(first.Services,entity,StrategyWorkflowStage.TradeSelection,3);
-                await pipelines.WaitForStartCountAsync(entity,StrategyWorkflowStage.TradeSelection,1);
+                await WaitForTerminalAsync(entity,StrategyWorkflowStatus.Stopped,StrategyWorkflowOutcome.PipelineFailed);
+                var failed=(await LoadStateAsync(first.Services,entity)).CurrentView!;
+                failed.TradeSelection.Failure!.ErrorData.Should().Contain("TS.INIT.ACTIVATION_MISSING");
+                pipelines.StartCount(entity,StrategyWorkflowStage.TradeSelection).Should().Be(0);
                 command=recorder.Command!; command.Should().NotBeNull();
                 var original=await producer.RequestFunctionAsync<ExecuteMarketConditionAssessmentCommand,MarketConditionAssessmentExecutionId,
                     FunctionResult<MarketConditionAssessmentCompletedEvent,MarketConditionAssessmentFailedEvent>>(command.Subject,command,command.EntityId);
@@ -199,11 +200,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             {
                 var entity=Entity("ES-MCR08-"+Guid.NewGuid().ToString("N")[..8],horizon);
                 await PrepareRegimeDiscoveryAsync(factory.Services,[entity],profile);
-                var hold=pipelines.HoldAt(entity,StrategyWorkflowStage.TradeSelection);
                 await PublishTriggerAsync(publisher,entity.ItiSignalEntityId);
-                var advanced=await WaitForStageAsync(factory.Services,entity,StrategyWorkflowStage.TradeSelection,3);
-                await pipelines.WaitForStartCountAsync(entity,StrategyWorkflowStage.TradeSelection,1);
+                var advanced=await WaitForTerminalAsync(entity,StrategyWorkflowStatus.Stopped,StrategyWorkflowOutcome.PipelineFailed);
                 var state=(await LoadStateAsync(factory.Services,entity)).CurrentView!;
+                state.TradeSelection.Failure!.ErrorData.Should().Contain("TS.INIT.ACTIVATION_MISSING");
                 state.AssessmentBinding!.Parameters.TargetHorizon.Should().Be(horizon);
                 var observed=await new IntrinsicTimeStrategyWorkflowQueryApi(publisher).GetObservationAsync(entity);
                 observed.Success.Should().BeTrue(observed.ErrorMessage);
@@ -219,11 +219,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
                 latest.Value.Should().ContainSingle(x=>x.WorkflowId==advanced.WorkflowId);
                 var restored=MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(MessagePackSerializer.Serialize(state));
                 restored.AssessmentBinding.PayloadSha256.Should().Be(state.AssessmentBinding.PayloadSha256);
-                provider.Calls[horizon].Should().Be(1); pipelines.StartCount(entity,StrategyWorkflowStage.TradeSelection).Should().Be(1);
+                provider.Calls[horizon].Should().Be(1); pipelines.StartCount(entity,StrategyWorkflowStage.TradeSelection).Should().Be(0);
                 var evidence=Environment.GetEnvironmentVariable("IFM_MC_EVIDENCE_DIR")??Path.Combine(Directory.GetCurrentDirectory(),".codex-mc-evidence");Directory.CreateDirectory(evidence);
                 await File.WriteAllBytesAsync(Path.Combine(evidence,horizon+".workflow.msgpack"),MessagePackSerializer.Serialize(state));
                 await File.WriteAllBytesAsync(Path.Combine(evidence,horizon+".assessment.msgpack"),MessagePackSerializer.Serialize(exact.Value));
-                hold.Release();
             }
             var refSubject=new ActorSubject(ActorType.Query,GetMarketConditionAssessmentReferenceQuery.Actor,GetMarketConditionAssessmentReferenceQuery.Verb,"assessment-reference");
             var reference=await publisher.RequestAsync<MarketConditionAssessmentReferenceRow[],GetMarketConditionAssessmentReferenceQuery>(refSubject,new(){Subject=refSubject,EntityId=new ActorEntityId("assessment-reference")});

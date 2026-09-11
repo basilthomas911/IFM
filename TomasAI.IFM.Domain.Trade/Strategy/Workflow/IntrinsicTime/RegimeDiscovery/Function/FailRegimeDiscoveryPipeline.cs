@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Pipeline;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
@@ -59,7 +60,7 @@ public static class FailRegimeDiscoveryPipeline
                     : input.Stage == FunctionFailureStage.Persistence
                         ? "Regime Discovery completed state could not be persisted."
                         : "Regime Discovery Function execution failed.",
-                input.Stage.ToString(), exception.GetType().Name, now);
+                input.Stage.ToString(), PipelineExceptionDiagnostics.Format(exception), now);
         else
             throw new InvalidOperationException("Failure requires a failed outcome, conflict, or lifecycle exception.");
         return FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>.Fail(failed);

@@ -43,7 +43,7 @@ public static class ExecuteRegimeDiscoveryPipeline
         };
     }
 
-    /// <summary>Captures the configured signal snapshot and evaluates it with the Regime Discovery calculation model.</summary>
+    /// <summary>Evaluates the immutable signal snapshot qualified by pipeline initialization.</summary>
     /// <param name="command">The validated request supplying the trigger contract, parameters, and result identity.</param>
     /// <param name="context">The snapshot provider, calculation model, execution mode, and clock for this execution.</param>
     /// <param name="cancellationToken">Cancellation passed to both operations and checked after each completes.</param>
@@ -54,18 +54,19 @@ public static class ExecuteRegimeDiscoveryPipeline
         IRegimeDiscoveryFunctionContext context,
         CancellationToken cancellationToken)
     {
-        var request = RegimeDiscoverySnapshotRequestFactory.Create(
-            MarketSeriesIdentity.ForContract(command.TriggerEvent.EntityId.ContractId), command.ParameterSet);
-        var snapshotResult = await context.SnapshotProvider.CaptureAsync(request, cancellationToken)
-            .ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!snapshotResult.IsSuccess || snapshotResult.Snapshot is null)
+        var snapshot = command.Snapshot;
+        if (snapshot.SnapshotId == Guid.Empty || snapshot.Observations.Length == 0)
             return new RegimeDiscoveryExecutionFailed(
                 UtcNow(context.TimeProvider),
-                "Required Regime Discovery market signals are unavailable.",
-                "RegimeDiscoveryCalculation",
+                "Regime Discovery was invoked without an initialized market-signal snapshot.",
+                "RegimeDiscoveryInitialization",
                 23102,
-                snapshotResult.Issues.Select(ToReason).ToArray(),
+                [new RegimeDiscoveryReason
+                {
+                    Code = RegimeDiscoveryReasonCodes.RequiredDataMissing,
+                    Severity = RegimeReasonSeverity.Failure,
+                    Area = RegimeEvidenceArea.Data
+                }],
                 Guid.Empty);
 
         var calculated = await context.CalculationModel.CalculateAsync(
@@ -77,48 +78,31 @@ public static class ExecuteRegimeDiscoveryPipeline
                 TriggerEventId = command.TriggerEvent.Id,
                 TriggerEvent = command.TriggerEvent,
                 ParameterSet = command.ParameterSet,
-                Snapshot = snapshotResult.Snapshot,
+                Snapshot = snapshot,
                 ProducedAtUtc = UtcNow(context.TimeProvider)
             }, context.ExecutionMode, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return calculated.Decision.IsComplete
             ? new RegimeDiscoveryExecutionCompleted(
                 calculated,
-                snapshotResult.Snapshot.SnapshotId,
-                snapshotResult.Snapshot.CacheRevision)
+                snapshot.SnapshotId,
+                snapshot.CacheRevision)
             : new RegimeDiscoveryExecutionFailed(
                 calculated.ProducedAtUtc,
                 "Regime Discovery specialist or decision calculation did not complete.",
                 "RegimeDiscoveryCalculation",
                 23102,
                 calculated.Reasons,
-                snapshotResult.Snapshot.SnapshotId);
+                snapshot.SnapshotId,
+                FormatReasons(calculated.Reasons));
     }
+
+    static string FormatReasons(IEnumerable<RegimeDiscoveryReason> reasons) => string.Join(';', reasons
+        .Select(reason => $"Code={reason.Code},Area={reason.Area},TimeFrame={reason.TimeFrame},SignalIdentity={reason.SignalIdentity}"));
 
     /// <summary>Reads the domain clock when stamping captured evidence and calculated outcomes.</summary>
     static DateTime UtcNow(TimeProvider provider) => provider.GetUtcNow().UtcDateTime;
 
-    /// <summary>Maps a snapshot availability issue to a stable Regime Discovery data-failure reason.</summary>
-    /// <param name="observation">The signal observation containing availability, timeframe, and signal identity.</param>
-    /// <returns>A failure-severity data reason; unlisted availability values map to required data missing.</returns>
-    static RegimeDiscoveryReason ToReason(RegimeDiscoverySignalObservation observation) => new()
-    {
-        Code = observation.Availability switch
-        {
-            RegimeDiscoverySignalAvailability.Stale => RegimeDiscoveryReasonCodes.DataStale,
-            RegimeDiscoverySignalAvailability.NotWarm => RegimeDiscoveryReasonCodes.DataNotWarm,
-            RegimeDiscoverySignalAvailability.Invalid => RegimeDiscoveryReasonCodes.DataInvalid,
-            RegimeDiscoverySignalAvailability.FutureTimestamp => RegimeDiscoveryReasonCodes.FutureDataTimestamp,
-            RegimeDiscoverySignalAvailability.SchemaUnsupported => RegimeDiscoveryReasonCodes.DataSchemaUnsupported,
-            RegimeDiscoverySignalAvailability.CalculationVersionMismatch =>
-                RegimeDiscoveryReasonCodes.CalculationVersionMismatch,
-            _ => RegimeDiscoveryReasonCodes.RequiredDataMissing
-        },
-        Severity = RegimeReasonSeverity.Failure,
-        Area = RegimeEvidenceArea.Data,
-        TimeFrame = observation.SignalKey.TimeFrame,
-        SignalIdentity = observation.SignalIdentity
-    };
 }
 
 internal abstract record RegimeDiscoveryExecutionOutcome;

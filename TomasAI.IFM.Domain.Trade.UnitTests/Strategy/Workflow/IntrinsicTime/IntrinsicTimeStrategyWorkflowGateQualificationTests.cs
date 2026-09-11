@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
 using MessagePack;
+using NSubstitute;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -17,12 +18,31 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
 
 /// <summary>Qualifies ITSW-7 through ITSW-11 structural boundaries.</summary>
 public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
 {
+    [Fact]
+    public async Task Missing_trade_selection_activation_returns_typed_initialization_failure()
+    {
+        var view = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State with
+        {
+            SelectionBinding = null,
+            CurrentStage = StrategyWorkflowStage.TradeSelection
+        };
+        var context = Substitute.For<IIntrinsicTimeStrategyWorkflowRealtimeContext>();
+        context.Options.Returns(new IntrinsicTimeStrategyWorkflowOptions { Activations = [] });
+
+        var result = await StartTradeSelectionPipeline.StartPipelineAsync(view, context, Guid.NewGuid());
+
+        result.Success.Should().BeFalse();
+        result.Error!.ErrorCode.Should().Be("TS.INIT.ACTIVATION_MISSING");
+        result.Error.ReasonCodes.Should().ContainSingle("TS.INIT.ACTIVATION_MISSING");
+    }
+
     /// <summary>Confirms cache writes are monotonic by workflow revision.</summary>
     [Fact]
     public void Projection_cache_rejects_older_revision()

@@ -46,6 +46,13 @@ public static class FuturesRsiSignalStarted
         var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try
         {
+            logger.LogInformation("RSI startup {EntityId}: seed count {SeedCount}, disposition {SeedReason}",
+                e.EntityId, e.HistoricalSeedCount, e.HistoricalSeedReason);
+            if(e.RestoredSignal is {IsWarm:true,Metadata.IsValid:true} restored)
+            {
+                TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored);
+                context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(e.EntityId,restored);
+            }
             FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
             return true;
         }

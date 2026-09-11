@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,9 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Realtime;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Pipeline;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Realtime;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -156,39 +160,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         var entityId = IntrinsicTimeStrategyWorkflowEntityId.Create(trigger.EntityId);
         var triggerId = trigger.Id == Guid.Empty ? trigger.CommandId : trigger.Id;
         var requestedAtUtc = ActorContext.TimeProvider.GetUtcNow().UtcDateTime;
-        var resolved = await ActorContext.ConfigurationDb
-            .ResolveEffectiveRegimeDiscoveryAsync(requestedAtUtc, trigger.EntityId.TimePeriod).ConfigureAwait(false)
-            ?? throw new InvalidOperationException(
-                "No published Regime Discovery parameter set is effective for the workflow trigger.");
-        var assessment = await ActorContext.ConfigurationDb.ResolveEffectiveMarketConditionAssessmentAsync(requestedAtUtc,
-            ActorContext.Options.MarketConditionAssessmentProfileId, "ES", trigger.EntityId.TimePeriod).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("No published market assessment profile is effective for the triggering horizon.");
-        if (ActorContext.Options.RequireWarmRegimeDiscoverySignals)
-        {
-            var readiness = await ActorContext.RegimeDiscoverySnapshotProvider.CaptureAsync(
-                RegimeDiscoverySnapshotRequestFactory.Create(
-                    MarketSeriesIdentity.ForContract(trigger.EntityId.ContractId),
-                    resolved.ParameterSet)).ConfigureAwait(false);
-            if (!readiness.IsSuccess)
-            {
-                ActorContext.Logger.LogWarning(
-                    "Regime Discovery live trigger {TriggerId} was not started because {IssueCount} required signal " +
-                    "observations did not pass cache warm-up qualification",
-                    triggerId,
-                    readiness.Issues.Count(issue =>
-                        issue.Availability != RegimeDiscoverySignalAvailability.Available));
-                return;
-            }
-        }
-
-        var activationRef=ActorContext.Options.Activations.SingleOrDefault(x=>x.Horizon==trigger.EntityId.TimePeriod)
-            ??throw new InvalidOperationException("Pin an exact workflow activation for this horizon before starting selection workflows.");
-        var activation=await ActorContext.ConfigurationDb.ResolveTradeSelectionActivationAsync(activationRef.Id,activationRef.Version,activationRef.PayloadSha256,requestedAtUtc).ConfigureAwait(false);
-        var portfolio=await ActorContext.PortfolioQueries.ResolveForSelectionAsync(activation.PortfolioId,activation.FundId,trigger.CreatedOn.Year,
-            trigger.EntityId.TimePeriod.ToString(),activation.InstrumentRoot,requestedAtUtc,workflowId.Value,1,
-            trigger.CommandId==Guid.Empty?triggerId:trigger.CommandId).ConfigureAwait(false);
-        if(!portfolio.Success || portfolio.Value is null)throw new InvalidOperationException("Selection authority resolution failed: "+portfolio.ErrorMessage);
-        var selection=await new TradeSelection.TradeSelectionBindingResolver(ActorContext.ConfigurationDb).ResolveAsync(portfolio.Value,activation.SelectionPolicyReference,DateOnly.FromDateTime(trigger.CreatedOn)).ConfigureAwait(false);
         var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = triggerId == Guid.Empty
@@ -202,12 +173,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             CorrelationId = trigger.CommandId == Guid.Empty ? triggerId : trigger.CommandId,
             CausationId = triggerId,
             RequestedAtUtc = requestedAtUtc,
-            WorkflowDefinitionVersion = 1,
-            RegimeDiscoveryParameterSet = resolved.ParameterSet,
-            RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256,
-            FundId = portfolio.Value.Fund.FundId,
-            SelectionBinding = selection,
-            AssessmentBinding = new() { Parameters = assessment.ParameterSet, PayloadSha256 = assessment.PayloadSha256 }
+            WorkflowDefinitionVersion = 1
         };
         await context.SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
             IntrinsicTimeStrategyWorkflowEntityId>(command, entityId).ConfigureAwait(false);
@@ -253,6 +219,13 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
         try
         {
+            var start = await execute.StartPipelineAsync(RequireEventContext(context)).ConfigureAwait(false);
+            if (!start.Success)
+            {
+                await FailRegimeDiscoveryInitializationAsync(context, snapshot, start.Error!).ConfigureAwait(false);
+                return;
+            }
+            execute = start.Value!;
             using var deadline = new CancellationTokenSource();
             var remaining = execute.ExpiresAtUtc - timeProvider.GetUtcNow().UtcDateTime;
             // ExpiresAtUtc is the calculation deadline enforced inside the Function. The transport receives a
@@ -282,8 +255,15 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             terminal = RegimeDiscoveryFunctionActor.MapEvent(
                 new(typeof(RegimeDiscoveryPipelineFailedEvent), execute,
                     new RegimeDiscoveryExecutionFailed(timeProvider.GetUtcNow().UtcDateTime,
-                        "Regime Discovery Function request failed or exceeded its deadline.", "FunctionRequest",
-                        RegimeDiscoveryPipelineFailedEvent.ErrorId, [], Guid.Empty, exception.GetType().Name)), timeProvider);
+                        PipelineExceptionDiagnostics.Summary(
+                            "Regime Discovery Function request failed or exceeded its deadline", exception),
+                        "FunctionRequest", RegimeDiscoveryPipelineFailedEvent.ErrorId, [], Guid.Empty,
+                        PipelineExceptionDiagnostics.Format(exception, new Dictionary<string, string>
+                        {
+                            ["WorkflowId"] = execute.WorkflowId.ToString(),
+                            ["TargetHorizon"] = execute.TargetHorizon.ToString(),
+                            ["ExpiresAtUtc"] = execute.ExpiresAtUtc.ToString("O", CultureInfo.InvariantCulture)
+                        }))), timeProvider);
         }
 
         if (terminal.IsCompleted)
@@ -294,24 +274,49 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         }
         else
         {
-            var fail = CreateFailCommand(terminal.Failed!);
+            var fail = CreateFailCommand(terminal.Failed!, execute.ParameterSet.ParameterSetId,
+                execute.ParameterSet.Version, execute.ParameterPayloadSha256);
             await context.SendAsync<FailRegimeDiscoveryCommand,
                 IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
         }
+    }
+
+    static async ValueTask FailRegimeDiscoveryInitializationAsync(
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
+        WorkflowStrategyStateUpdatedEvent snapshot,
+        PipelineInitializationError error)
+    {
+        var view = snapshot.State;
+        var now = RequireEventContext(context).TimeProvider.GetUtcNow().UtcDateTime;
+        var diagnostic = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}")));
+        var fail = new FailRegimeDiscoveryCommand
+        {
+            CommandId = DeterministicTerminalCommandId(view.EntityId, view.WorkflowId, view.WorkflowRevision, snapshot.Id, FailRegimeDiscoveryCommand.Verb),
+            Subject = WorkflowSubject(FailRegimeDiscoveryCommand.Verb, view.EntityId),
+            EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision,
+            SourceEventId = snapshot.Id, CorrelationId = view.CorrelationId, CausationId = snapshot.Id, FailedAtUtc = now,
+            Failure = new StrategyPipelineFailure { ErrorCode = 23102, ErrorType = error.ErrorType,
+                ErrorMessage = error.Message, ErrorData = diagnostic, FailedAtUtc = now },
+            ParameterSetId = error.ParameterSetId,
+            ParameterSetVersion = error.ParameterSetVersion,
+            ParameterPayloadSha256 = error.ParameterPayloadSha256
+        };
+        await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
     }
 
     static async ValueTask ExecuteMarketConditionAsync(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        if (snapshot.State.AssessmentBinding is not null)
+        var start = await snapshot.StartPipelineAsync(RequireEventContext(context)).ConfigureAwait(false);
+        if (start.Success)
         {
-            await ExecuteAssessmentAsync(context, snapshot).ConfigureAwait(false);
+            await ExecuteAssessmentAsync(context, start.Value!).ConfigureAwait(false);
             return;
         }
-        // Historical unbound workflows cannot resume the removed evaluator.
         var view = snapshot.State;
         var now = RequireEventContext(context).TimeProvider.GetUtcNow().UtcDateTime;
+        var error = start.Error!;
         var fail = new FailMarketConditionCommand
         {
             CommandId = DeterministicTerminalCommandId(view.EntityId, view.WorkflowId, view.WorkflowRevision, snapshot.Id, FailMarketConditionCommand.Verb),
@@ -320,8 +325,9 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             CorrelationId = view.CorrelationId, CausationId = snapshot.Id, FailedAtUtc = now,
             FailureCategory = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model.MarketConditionFailureCategory.ContractInvalid,
             Failure = new() { ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId,
-                ErrorMessage = "Workflow has no assessment profile. Start a new assessment workflow.",
-                ErrorType = "ContractInvalid", ErrorData = "MC.ASSESSMENT.PROFILE_REQUIRED", FailedAtUtc = now }
+                ErrorMessage = error.Message,
+                ErrorType = error.ErrorType,
+                ErrorData = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}"))), FailedAtUtc = now }
         };
         await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
     }
@@ -435,6 +441,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         RiskManagement = view.RiskManagement,
         RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet,
         RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
+        RegimeDiscoveryParameterApplication = view.RegimeDiscoveryParameterApplication,
         FundId = view.FundId,
         MarketConditionParameterSet = view.MarketConditionParameterSet,
         MarketConditionParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
@@ -477,10 +484,14 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             Result = completed.Result,
             CorrelationId = completed.CorrelationId,
             CausationId = completed.Id,
-            CompletedAtUtc = completed.CompletedAtUtc
+            CompletedAtUtc = completed.CompletedAtUtc,
+            ParameterSet = completed.ParameterSet,
+            ParameterApplication = completed.ParameterApplication,
+            ParameterPayloadSha256 = completed.ParameterPayloadSha256
         };
 
-    internal static FailRegimeDiscoveryCommand CreateFailCommand(RegimeDiscoveryPipelineFailedEvent failed)
+    internal static FailRegimeDiscoveryCommand CreateFailCommand(RegimeDiscoveryPipelineFailedEvent failed,
+        Guid parameterSetId = default, int parameterSetVersion = 0, string parameterPayloadSha256 = "")
         => new()
         {
             CommandId = DeterministicTerminalCommandId(failed.EntityId, failed.WorkflowId,
@@ -500,7 +511,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             },
             CorrelationId = failed.CorrelationId,
             CausationId = failed.Id,
-            FailedAtUtc = failed.ErrorDate
+            FailedAtUtc = failed.ErrorDate,
+            ParameterSetId = parameterSetId,
+            ParameterSetVersion = parameterSetVersion,
+            ParameterPayloadSha256 = parameterPayloadSha256
         };
 
     static Guid DeterministicPipelineCommandId(

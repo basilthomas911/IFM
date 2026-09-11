@@ -7,7 +7,7 @@ using System.Text;
 namespace TomasAI.IFM.Application.MarketData.Historical;
 
 /// <summary>
-/// Ensures Development-only historical coverage and replays stored Daily observations in order.
+/// Ensures sufficient historical coverage and replays stored Daily observations in order.
 /// </summary>
 public sealed class HistoricalAnalyticsWarmupService
 {
@@ -41,8 +41,6 @@ public sealed class HistoricalAnalyticsWarmupService
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(template);
-        if (!options.IsDevelopmentEnvironment)
-            return new(HistoricalAnalyticsWarmupOutcome.IgnoredInProduction, default, default, 0, 0, null);
         if (!options.Enabled)
             return new(HistoricalAnalyticsWarmupOutcome.Disabled, default, default, 0, 0, null);
 
@@ -52,59 +50,55 @@ public sealed class HistoricalAnalyticsWarmupService
             var endDate = LastCompletedTradingDate(template.EndDate);
             var startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));
             var expected = TradingDates(startDate, endDate);
-            var trailingGraceDates = expected
-                .TakeLast(options.TrailingProviderAvailabilityGraceSessions)
-                .ToHashSet();
             var coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken)
                 .ConfigureAwait(false);
-            var missingBySeries = template.Series
+            var insufficientSeries = template.Series
                 .Select(series => new
                 {
                     Series = series,
-                    Missing = MissingTradingDates(
-                        coverage[series.SeriesIdentity],
-                        expected,
-                        trailingGraceDates,
-                        options.MinimumValidDailySessions)
+                    ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity])
                 })
-                .Where(value => value.Missing.Length > 0)
+                .Where(value => value.ValidSessionCount < options.MinimumValidDailySessions)
                 .ToArray();
 
             HistoricalDataLoaderState? loaded = null;
-            if (missingBySeries.Length > 0)
+            if (insufficientSeries.Length > 0)
             {
-                foreach (var missing in missingBySeries)
+                foreach (var insufficient in insufficientSeries)
                 {
-                    foreach (var range in ContiguousRanges(missing.Missing, expected))
+                    loaded = await loader.ExecuteAsync(template with
                     {
-                        loaded = await loader.ExecuteAsync(template with
-                        {
-                            DataLoadAttemptId = AttemptId(
-                                missing.Series.SeriesIdentity,
-                                range.StartDate,
-                                range.EndDate,
-                                options.NormalizationVersion),
-                            Series = [missing.Series],
-                            StartDate = range.StartDate,
-                            EndDate = range.EndDate,
-                            MaximumCostUsd = options.MaximumCostUsd,
-                            MaximumBytes = options.MaximumBytes,
-                            NormalizationVersion = options.NormalizationVersion
-                        }, cancellationToken).ConfigureAwait(false);
-                    }
+                        DataLoadAttemptId = AttemptId(
+                            insufficient.Series.SeriesIdentity,
+                            startDate,
+                            endDate,
+                            options.NormalizationVersion),
+                        Series = [insufficient.Series],
+                        StartDate = startDate,
+                        EndDate = endDate,
+                        MaximumCostUsd = options.MaximumCostUsd,
+                        MaximumBytes = options.MaximumBytes,
+                        NormalizationVersion = options.NormalizationVersion
+                    }, cancellationToken).ConfigureAwait(false);
                 }
                 coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken)
                     .ConfigureAwait(false);
             }
 
-            var remainingBlockingMissing = template.Series.Sum(series => MissingTradingDates(
-                coverage[series.SeriesIdentity],
-                expected,
-                trailingGraceDates,
-                options.MinimumValidDailySessions).Length);
-            if (remainingBlockingMissing > 0)
+            var remainingInsufficient = template.Series
+                .Select(series => new
+                {
+                    series.SeriesIdentity,
+                    ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity])
+                })
+                .Where(value => value.ValidSessionCount < options.MinimumValidDailySessions)
+                .ToArray();
+            if (remainingInsufficient.Length > 0)
                 throw new InvalidDataException(
-                    $"Historical coverage remains incomplete after acquisition: {remainingBlockingMissing} non-grace trading sessions are missing or invalid.");
+                    "Historical coverage remains insufficient after the one-year acquisition: "
+                    + string.Join(", ", remainingInsufficient.Select(value =>
+                        $"{value.SeriesIdentity.Format()} has {value.ValidSessionCount}/{options.MinimumValidDailySessions} valid Daily sessions"))
+                    + ".");
 
             var remainingMissing = template.Series.Sum(series => expected.Count(date =>
                 !coverage[series.SeriesIdentity].Any(value =>
@@ -143,7 +137,7 @@ public sealed class HistoricalAnalyticsWarmupService
             }
 
             return new(
-                missingBySeries.Length > 0
+                insufficientSeries.Length > 0
                     ? HistoricalAnalyticsWarmupOutcome.AcquiredAndReplayed
                     : replayed
                         ? HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage
@@ -160,50 +154,12 @@ public sealed class HistoricalAnalyticsWarmupService
         }
     }
 
-    readonly record struct AcquisitionRange(DateOnly StartDate, DateOnly EndDate);
-
-    static DateOnly[] MissingTradingDates(
-        IReadOnlyList<FuturesEodObservationReadModel> observations,
-        IReadOnlyList<DateOnly> expected,
-        IReadOnlySet<DateOnly> trailingGraceDates,
-        int minimumValidDailySessions)
-    {
-        var validDates = observations
+    static int ValidSessionCount(IReadOnlyList<FuturesEodObservationReadModel> observations) =>
+        observations
             .Where(static value => value.IsComplete && value.IsValid)
             .Select(static value => value.ValueDate)
-            .ToHashSet();
-        var gracePermitted = validDates.Count >= minimumValidDailySessions;
-        return expected
-            .Where(date => !validDates.Contains(date)
-                && !(gracePermitted && trailingGraceDates.Contains(date)))
-            .ToArray();
-    }
-
-    static AcquisitionRange[] ContiguousRanges(
-        IReadOnlyCollection<DateOnly> missing,
-        IReadOnlyList<DateOnly> expected)
-    {
-        if (missing.Count == 0)
-            return [];
-        var expectedIndex = expected.Select((date, index) => (date, index))
-            .ToDictionary(static value => value.date, static value => value.index);
-        var ordered = missing.OrderBy(static value => value).ToArray();
-        List<AcquisitionRange> ranges = [];
-        var start = ordered[0];
-        var end = start;
-        for (var index = 1; index < ordered.Length; index++)
-        {
-            if (expectedIndex[ordered[index]] == expectedIndex[end] + 1)
-            {
-                end = ordered[index];
-                continue;
-            }
-            ranges.Add(new(start, end));
-            start = end = ordered[index];
-        }
-        ranges.Add(new(start, end));
-        return [.. ranges];
-    }
+            .Distinct()
+            .Count();
 
     static Guid AttemptId(
         MarketSeriesIdentity series,

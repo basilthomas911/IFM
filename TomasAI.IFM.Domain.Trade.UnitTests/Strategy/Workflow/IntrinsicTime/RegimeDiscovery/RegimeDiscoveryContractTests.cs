@@ -53,19 +53,26 @@ public sealed class RegimeDiscoveryContractTests
             .Should().NotBeEmpty();
     }
 
-    /// <summary>Confirms semantic volatility inputs and optional confirmation inputs are requested explicitly.</summary>
+    /// <summary>Confirms trigger authority is separated from producer-backed market evidence.</summary>
     [Theory]
     [InlineData(TimeFrameType.Daily)]
     [InlineData(TimeFrameType.Weekly)]
     [InlineData(TimeFrameType.Monthly)]
     public void Snapshot_factory_separates_vix_spot_vx_front_and_term_structure(TimeFrameType horizon)
     {
+        var parameters = CreateParameterSet(horizon);
         var request = RegimeDiscoverySnapshotRequestFactory.Create(
-            MarketSeriesIdentity.ForContract("ES-202609"), CreateParameterSet(horizon));
+            MarketSeriesIdentity.ForContract("ES-202609"), parameters);
+        var evidenceFrame = RegimeDiscoverySnapshotRequestFactory.TargetEvidenceTimeFrame(parameters);
 
+        request.Requirements.Should().NotContain(requirement =>
+            requirement.Metric == RegimeDiscoverySignalMetric.VxFrontLevel ||
+            requirement.Metric == RegimeDiscoverySignalMetric.ItiDirection ||
+            requirement.Metric == RegimeDiscoverySignalMetric.ItiBandLevel ||
+            requirement.Metric == RegimeDiscoverySignalMetric.ItiReversalLevel);
         request.Requirements.Should().Contain(requirement =>
-            requirement.Metric == RegimeDiscoverySignalMetric.VxFrontLevel &&
-            requirement.TimeFrame == horizon && requirement.IsRequired);
+            requirement.Metric == RegimeDiscoverySignalMetric.BollingerWidthRatio &&
+            requirement.TimeFrame == evidenceFrame && requirement.IsRequired);
         request.Requirements.Should().Contain(requirement =>
             requirement.Metric == RegimeDiscoverySignalMetric.VxFrontSecondRatio &&
             requirement.TimeFrame == TimeFrameType.Daily && requirement.IsRequired);
@@ -76,7 +83,7 @@ public sealed class RegimeDiscoveryContractTests
             .Where(requirement => requirement.Metric == RegimeDiscoverySignalMetric.Tdi).ToArray();
         tdiRequirements.Should().OnlyContain(requirement => !requirement.IsRequired);
         tdiRequirements.Select(requirement => requirement.TimeFrame).Should().BeEquivalentTo(
-            CreateParameterSet(horizon).Horizon.TimeFrames.Select(frame => frame.TimeFrame));
+            parameters.Horizon.TimeFrames.Select(frame => frame.TimeFrame));
     }
 
     /// <summary>Confirms all RD-1 object contracts retain sequential MessagePack keys.</summary>

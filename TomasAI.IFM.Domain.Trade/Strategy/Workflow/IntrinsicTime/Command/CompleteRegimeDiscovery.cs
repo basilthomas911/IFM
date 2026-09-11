@@ -61,12 +61,19 @@ public static class CompleteRegimeDiscovery
         }
 
         var revision = current.WorkflowRevision + 1;
+        var parameterSet = command.ParameterSet.ParameterSetId == Guid.Empty
+            ? current.RegimeDiscoveryParameterSet : command.ParameterSet;
+        var parameterHash = string.IsNullOrWhiteSpace(command.ParameterPayloadSha256)
+            ? current.RegimeDiscoveryParameterPayloadSha256 : command.ParameterPayloadSha256;
         var updated = current with
         {
             CausationId = command.CausationId,
             WorkflowRevision = revision,
             UpdatedAtUtc = now,
             CurrentStage = StrategyWorkflowStage.MarketCondition,
+            RegimeDiscoveryParameterSet = parameterSet,
+            RegimeDiscoveryParameterPayloadSha256 = parameterHash,
+            RegimeDiscoveryParameterApplication = command.ParameterApplication??current.RegimeDiscoveryParameterApplication,
             RegimeDiscovery = current.RegimeDiscovery with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
@@ -78,7 +85,10 @@ public static class CompleteRegimeDiscovery
                 SourceEventId = command.SourceEventId,
                 ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
                 ContinuationRuleSetVersion = 1,
-                ContinuationReasonCodes = []
+                ContinuationReasonCodes = [],
+                ParameterSetId = parameterSet.ParameterSetId,
+                ParameterSetVersion = parameterSet.Version,
+                ParameterPayloadSha256 = parameterHash
             },
             MarketCondition = new StrategyWorkflowStageState
             {

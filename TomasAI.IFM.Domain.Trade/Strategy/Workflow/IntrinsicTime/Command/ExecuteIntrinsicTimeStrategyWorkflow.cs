@@ -52,7 +52,6 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         }
 
         var expiresAtUtc = now.Add(maximumExecutionDuration);
-        var parameterSet = command.RegimeDiscoveryParameterSet;
         var started = new IntrinsicTimeStrategyWorkflowView
         {
             EntityId = command.EntityId,
@@ -72,16 +71,8 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
                 ProcessingStatus = StrategyActorProcessingStatus.Processing,
                 StartedAtUtc = now,
                 InputWorkflowRevision = 1,
-                ParameterSetId = parameterSet.ParameterSetId,
-                ParameterSetVersion = parameterSet.Version,
-                ParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
                 ExpiresAtUtc = expiresAtUtc
             },
-            RegimeDiscoveryParameterSet = parameterSet,
-            RegimeDiscoveryParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
-            FundId = command.FundId,
-            AssessmentBinding = command.AssessmentBinding,
-            SelectionBinding = command.SelectionBinding,
             Outcome = StrategyWorkflowOutcome.None,
             TriggerEvent = command.TriggerEvent
         };

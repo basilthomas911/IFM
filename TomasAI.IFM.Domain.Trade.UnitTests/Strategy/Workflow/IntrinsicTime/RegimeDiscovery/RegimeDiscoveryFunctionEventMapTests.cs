@@ -91,13 +91,12 @@ public sealed class RegimeDiscoveryFunctionEventMapTests
     }
 
     [Theory]
-    [InlineData("complete", true, "load,capture,calculate,project,save", "")]
-    [InlineData("capture", false, "load,capture", "RegimeDiscoveryCalculation")]
-    [InlineData("incomplete", false, "load,capture,calculate", "RegimeDiscoveryCalculation")]
+    [InlineData("complete", true, "load,calculate,project,save", "")]
+    [InlineData("incomplete", false, "load,calculate", "RegimeDiscoveryCalculation")]
     [InlineData("Loading", false, "load", "Loading")]
-    [InlineData("Execution", false, "load,capture,calculate", "Execution")]
-    [InlineData("Projection", false, "load,capture,calculate,project", "Projection")]
-    [InlineData("Persistence", false, "load,capture,calculate,project,save", "Persistence")]
+    [InlineData("Execution", false, "load,calculate", "Execution")]
+    [InlineData("Projection", false, "load,calculate,project", "Projection")]
+    [InlineData("Persistence", false, "load,calculate,project,save", "Persistence")]
     [InlineData("conflict", false, "load", "FunctionConflict")]
     public async Task Real_actor_routes_terminal_events_and_preserves_lifecycle_order(
         string scenario, bool success, string expectedCalls, string failureStage)
@@ -118,16 +117,6 @@ public sealed class RegimeDiscoveryFunctionEventMapTests
             if (scenario == "Loading") throw new InvalidOperationException("load failed");
             return ValueTask.FromResult(state);
         });
-        context.SnapshotProvider.CaptureAsync(Arg.Any<RegimeDiscoveryMarketSignalSnapshotRequest>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                calls.Add("capture");
-                return ValueTask.FromResult(new RegimeDiscoveryMarketSignalSnapshotResult
-                {
-                    IsSuccess = scenario != "capture",
-                    Snapshot = new() { SnapshotId = Guid.NewGuid() }
-                });
-            });
         context.CalculationModel.CalculateAsync(Arg.Any<RegimeDiscoveryCalculationInput>(),
             Arg.Any<RegimeDiscoveryExecutionMode>(), Arg.Any<CancellationToken>()).Returns(_ =>
         {

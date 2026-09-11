@@ -99,8 +99,8 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
         var key = new MarketAnalyticsSignalKey(request.MarketSeriesIdentity, Kind(requirement.Metric),
             requirement.TimeFrame, requirement.CalculationConfigurationId);
         if (!Observations.TryGetValue(key, out var source) &&
-            !(requirement.Metric is RegimeDiscoverySignalMetric.VxFrontSecondRatio or
-                RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel &&
+            !((requirement.Metric is RegimeDiscoverySignalMetric.VxFrontSecondRatio or
+                RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel) &&
               TryGetExternal(requirement, out source)))
             return Missing(request, requirement, RegimeDiscoverySignalAvailability.Missing);
         var availability = source.Availability != RegimeDiscoverySignalAvailability.Available

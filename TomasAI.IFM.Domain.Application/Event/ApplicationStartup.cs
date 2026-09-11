@@ -46,7 +46,7 @@ public static class ApplicationStartup
             @event.CommandId,
             correlationId);
         var workflowStarted = context.TimeProvider.GetUtcNow().UtcDateTime;
-        var results = new List<ApplicationStartupActivityResult>(7);
+        var results = new List<ApplicationStartupActivityResult>(ApplicationStartupPlan.Activities.Count);
         context.StartupStatusStore.Set(new()
         {
             State = ApplicationLifecycleState.Starting,
@@ -185,6 +185,8 @@ public static class ApplicationStartup
     static Func<ApplicationStartupContext, CancellationToken, ValueTask<ApplicationStartupActivityOutcome>>
         ResolveActivity(IApplicationStartupActivities activities, ApplicationStartupActivity activity) => activity switch
         {
+            ApplicationStartupActivity.ApplyParameterSets => activities.ApplyParameterSetsAsync,
+            ApplicationStartupActivity.PrepareParameterSignals => activities.PrepareParameterSignalsAsync,
             ApplicationStartupActivity.ResolveAuthority => activities.ResolveAuthorityAsync,
             ApplicationStartupActivity.ReconcileReferenceData => activities.ReconcileReferenceDataAsync,
             ApplicationStartupActivity.ReconcileCurrentContracts => activities.ReconcileCurrentContractsAsync,

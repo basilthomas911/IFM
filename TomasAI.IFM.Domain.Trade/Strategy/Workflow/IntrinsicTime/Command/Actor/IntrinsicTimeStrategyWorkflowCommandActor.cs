@@ -367,28 +367,11 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
 
         if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute)
         {
-            var errors = new RegimeDiscoveryParameterSetValidationRules().Execute(execute.RegimeDiscoveryParameterSet);
-            if (errors.Length != 0)
-                throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
-                    nameof(command));
-            if (!string.Equals(
-                    RegimeDiscoveryParameterPayload.ComputeSha256(execute.RegimeDiscoveryParameterSet),
-                    execute.RegimeDiscoveryParameterPayloadSha256,
-                    StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("Workflow start parameter hash does not match its immutable payload.",
-                    nameof(command));
-            var binding = execute.AssessmentBinding
-                ?? throw new ArgumentException("Workflow start requires a frozen Market Condition assessment profile.", nameof(command));
-            binding.Validate();
-            var selection=execute.SelectionBinding??throw new ArgumentException("Workflow start requires frozen selection authority; reauthor activation and start a new workflow.");
-            var selectionPolicy=TradeSelectionContracts.ValidateBinding(selection);
-            if(selection.PortfolioSnapshot.WorkflowId!=execute.ProposedWorkflowId.Value || selection.PortfolioSnapshot.Fund.FundId!=execute.FundId
-                || selectionPolicy.TargetHorizon!=execute.TriggerEvent.EntityId.TimePeriod || selection.FrozenAtUtc!=execute.RequestedAtUtc)
-                throw new ArgumentException("Selection authority differs from workflow start identity or horizon.");
-            if (execute.FundId <= 0 || binding.Parameters.TargetHorizon != execute.TriggerEvent.EntityId.TimePeriod ||
-                binding.Parameters.HorizonProfile.RegimeProfileId != execute.RegimeDiscoveryParameterSet.ParameterSetId ||
-                binding.Parameters.HorizonProfile.RegimeProfileVersion != execute.RegimeDiscoveryParameterSet.Version)
-                throw new ArgumentException("Assessment workflow profile does not match the triggering horizon and frozen Regime Discovery configuration.");
+            if (execute.ProposedWorkflowId.Value == Guid.Empty || execute.TriggerEventId == Guid.Empty ||
+                execute.CorrelationId == Guid.Empty || execute.CausationId == Guid.Empty ||
+                execute.RequestedAtUtc.Kind != DateTimeKind.Utc || execute.WorkflowDefinitionVersion <= 0 ||
+                execute.TriggerEvent.EntityId != execute.EntityId.ItiSignalEntityId)
+                throw new ArgumentException("Workflow start requires valid workflow, trigger, trace, time, and routing identities.", nameof(command));
         }
 
         var completionResult = command switch

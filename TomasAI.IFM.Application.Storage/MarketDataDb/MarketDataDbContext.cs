@@ -2050,6 +2050,17 @@ public partial class MarketDataDbContext(
 	/// <param name="contractId"></param>
 	/// <param name="tickDate"></param>
 	/// <returns></returns>
+    public async Task<FuturesTickDataV2ReadModel?> GetFuturesTickAtOrBeforeAsync(string contractId,DateOnly valueDate,TimeOnly tickTime,CancellationToken token=default)
+    {
+        token.ThrowIfCancellationRequested();
+        var stamp=await GetProjectionScopeReadStampAsync(FuturesTickByTimeProjection,new[]{GetFuturesTickScopeKey(contractId,valueDate)}).WaitAsync(token);
+        // Partial/stale time indexes cannot establish a contiguous historical seed.
+        if(stamp is null)return null;
+        var result=await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickAtOrBefore)}",MarketDataDbCql.GetFuturesTickAtOrBefore)
+            .SetParameters(new GetLastFuturesTickDataByTickTime(contractId,valueDate,tickTime)).ExecuteSingleAsync(MapToFuturesTickData!).WaitAsync(token);
+        return await IsProjectionScopeReadStampValidAsync(stamp.Value).WaitAsync(token)?result:null;
+    }
+
 	public async Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataByTickDateAsync(string contractId, DateTime tickDate)
     {
         var db = _dbFactory.MarketDataDb;

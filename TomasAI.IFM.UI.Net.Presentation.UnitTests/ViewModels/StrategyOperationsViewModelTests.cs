@@ -156,6 +156,28 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
+    public async Task DuplicateSignal_DoesNotRepublishUnchangedEventSnapshot()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var signal = Signal(TimeFrameType.Daily, 3, IntrinsicTimeModeType.Trending);
+        var eventChanges = 0;
+        subject.ViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(StrategyOperationsViewModel.Events))
+                eventChanges++;
+        };
+
+        subject.EventSource.Publish(signal);
+        var published = subject.ViewModel.Events;
+        subject.EventSource.Publish(signal);
+
+        subject.ViewModel.Events.Should().BeSameAs(published);
+        eventChanges.Should().Be(1);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Reconciliation_RecoversEveryPointAfterNotificationGap()
     {
         var timeProvider = new ManualTimeProvider(
@@ -288,6 +310,39 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
+    public async Task DuplicateWorkflowRevision_DoesNotRepublishRowsOrSelectedDetails()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        var workflow = Workflow(1) with
+        {
+            RegimeDiscovery = Stage(StrategyActorProcessingStatus.Processing)
+        };
+        subject.WorkflowEventSource.Publish(workflow);
+        subject.ViewModel.SelectWorkflow(workflow.WorkflowId);
+        var rows = subject.ViewModel.Workflows;
+        var details = subject.ViewModel.SelectedWorkflowDetails;
+        var workflowChanges = 0;
+        var detailChanges = 0;
+        subject.ViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(StrategyOperationsViewModel.Workflows))
+                workflowChanges++;
+            if (args.PropertyName == nameof(StrategyOperationsViewModel.SelectedWorkflowDetails))
+                detailChanges++;
+        };
+
+        subject.WorkflowEventSource.Publish(workflow);
+        subject.ViewModel.SelectWorkflow(workflow.WorkflowId);
+
+        subject.ViewModel.Workflows.Should().BeSameAs(rows);
+        subject.ViewModel.SelectedWorkflowDetails.Should().BeSameAs(details);
+        workflowChanges.Should().Be(0);
+        detailChanges.Should().Be(0);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task WorkflowNotifications_StopAtAnyActorAndNeverRegressRevision()
     {
         var subject = CreateSubject();
@@ -334,7 +389,10 @@ public sealed class StrategyOperationsViewModelTests
 
         subject.ViewModel.SelectWorkflow(workflow.WorkflowId);
 
-        subject.ViewModel.SelectedWorkflowDetails.Should().Contain("=== REGIME DISCOVERY RESULT ===")
+        subject.ViewModel.SelectedWorkflowDetails!.Sections.Select(section => section.Key).Should().Equal(
+            "iti", "regime-discovery", "market-condition", "trade-selection", "order-composition", "risk-management");
+        subject.ViewModel.SelectedWorkflowDetails.Sections[0].Content.Should().Contain(workflow.TriggerEvent.Id.ToString());
+        StrategyWorkflowPresentation.FormatDetails(subject.ViewModel.SelectedWorkflowDetails!).Should().Contain("=== REGIME DISCOVERY RESULT ===")
             .And.Contain("=== MARKET CONDITION RESULT ===")
             .And.Contain("=== TRADE SELECTION RESULT ===")
             .And.Contain("=== ORDER COMPOSITION RESULT ===")
@@ -400,6 +458,27 @@ public sealed class StrategyOperationsViewModelTests
         row.PipelineActors.Should().HaveCount(4);
         row.PipelineActors[^1].DisplayState.Should().Be(PipelineActorDisplayState.Stopped);
         row.EndState.Should().Be(endState);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task LegacyRegimeDiscoveryFailure_UsesOneRedCircleAndInfersPipelineFailedEndState()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.WorkflowEventSource.Publish(AtStage(
+            Workflow(1),
+            StrategyWorkflowStage.RegimeDiscovery,
+            StrategyActorProcessingStatus.Failed) with
+        {
+            Status = WorkflowStrategyMachineStatus.Failed,
+            Outcome = StrategyWorkflowOutcome.None
+        });
+
+        var row = subject.ViewModel.Workflows.Single();
+        row.PipelineActors.Should().ContainSingle().Which.DisplayState.Should()
+            .Be(PipelineActorDisplayState.Stopped);
+        row.EndState.Should().Be("Pipeline Failed");
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -576,7 +655,7 @@ public sealed class StrategyOperationsViewModelTests
         var liveUpdateMilliseconds = timer.Elapsed.TotalMilliseconds;
 
         subject.ViewModel.Workflows.Single().WorkflowRevision.Should().Be(updated.WorkflowRevision);
-        subject.ViewModel.SelectedWorkflowDetails.Should().Contain($"Revision: {updated.WorkflowRevision}");
+        StrategyWorkflowPresentation.FormatDetails(subject.ViewModel.SelectedWorkflowDetails!).Should().Contain($"Revision: {updated.WorkflowRevision}");
         _output.WriteLine(
             "SWUI observational timing: one persisted workflow hydrate/startup={0:F3} ms; selected live revision reduce+details={1:F3} ms. No qualification limit applied.",
             hydrationMilliseconds,

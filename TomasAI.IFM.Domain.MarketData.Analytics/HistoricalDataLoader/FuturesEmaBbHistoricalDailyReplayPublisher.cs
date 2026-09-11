@@ -64,62 +64,68 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
                     }
                 }
 
-                var entityId = new FuturesTradeSessionBarEntityId(
-                    observation.MarketSeriesIdentity,
-                    TimeFrameType.Daily);
-                var command = new GenerateFuturesEmaSignalCommand
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new(
-                        ActorType.Command,
-                        GenerateFuturesEmaSignalCommand.Actor,
-                        GenerateFuturesEmaSignalCommand.Verb,
-                        entityId.Format()),
-                    EntityId = entityId,
-                    Observation = observation
-                };
-                var result = await actorService.RequestAsync<GenerateFuturesEmaSignalCommand,
-                    FuturesTradeSessionBarEntityId>(command).ConfigureAwait(false);
-                if (!result.Success)
-                    throw new InvalidOperationException(
-                        $"EMA historical replay was rejected for {source.ValueDate:O}: {result.ErrorMessage}");
             }
         }
 
-        if (latestEsEma is not { IsWarm: true }
-            || latestEsBb is not { IsWarm: true }
-            || latestEsEmaCheckpoint is null
-            || latestEsBbCheckpoint is null)
-            return;
-
-        var resolvedTargetContractId = string.IsNullOrWhiteSpace(targetContractId)
-            ? latestEsContractId
-            : targetContractId;
-        if (string.IsNullOrWhiteSpace(resolvedTargetContractId))
-            return;
-        var outlookEntityId = new MarketOutlookEntityId(resolvedTargetContractId, targetValueDate);
-        // The ordered local replay is authoritative for the process-local completed-session
-        // baseline even when the durable event-sourced accumulator is already current and emits no
-        // new projection event. Submit it locally so every subsequent ES trade can preview from it.
-        RegimeDiscoverySignalCacheAdapter.PublishDailyBaseline(
-            resolvedTargetContractId,
-            latestEsEma,
-            latestEsEmaCheckpoint,
-            latestEsBb,
-            latestEsBbCheckpoint);
-        updateWriter.Submit(new HistoricalWarmupMarketOutlookUpdate
+        if (latestEsEma is { IsWarm: true }
+            && latestEsBb is { IsWarm: true }
+            && latestEsEmaCheckpoint is not null
+            && latestEsBbCheckpoint is not null)
         {
-            UpdateId = latestEsEma.Metadata.ObservationId.Value,
-            EntityId = outlookEntityId,
-            ReceivedAtUtc = DateTime.UtcNow,
-            MarketDataAsOfUtc = latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime,
-            CommandId = latestEsEma.Metadata.ObservationId.Value,
-            AggregateId = outlookEntityId.Format(),
-            EventSource = nameof(FuturesEmaBbHistoricalDailyReplayPublisher),
-            SourceSequence = latestEsEma.Metadata.SourceSequence,
-            Ema = latestEsEma,
-            BollingerBand = latestEsBb
-        });
+            var resolvedTargetContractId = string.IsNullOrWhiteSpace(targetContractId)
+                ? latestEsContractId
+                : targetContractId;
+            if (!string.IsNullOrWhiteSpace(resolvedTargetContractId))
+            {
+                var outlookEntityId = new MarketOutlookEntityId(resolvedTargetContractId, targetValueDate);
+                // Publish the calculation before durable actor reconciliation. Stored EOD data is
+                // sufficient to make the process-local Daily baseline available immediately.
+                RegimeDiscoverySignalCacheAdapter.PublishDailyBaseline(
+                    resolvedTargetContractId,
+                    latestEsEma,
+                    latestEsEmaCheckpoint,
+                    latestEsBb,
+                    latestEsBbCheckpoint);
+                updateWriter.Submit(new HistoricalWarmupMarketOutlookUpdate
+                {
+                    UpdateId = latestEsEma.Metadata.ObservationId.Value,
+                    EntityId = outlookEntityId,
+                    ReceivedAtUtc = DateTime.UtcNow,
+                    MarketDataAsOfUtc = latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime,
+                    CommandId = latestEsEma.Metadata.ObservationId.Value,
+                    AggregateId = outlookEntityId.Format(),
+                    EventSource = nameof(FuturesEmaBbHistoricalDailyReplayPublisher),
+                    SourceSequence = latestEsEma.Metadata.SourceSequence,
+                    Ema = latestEsEma,
+                    BollingerBand = latestEsBb
+                });
+            }
+        }
+
+        foreach (var source in ordered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var observation = ToDailyBar(source);
+            var entityId = new FuturesTradeSessionBarEntityId(
+                observation.MarketSeriesIdentity,
+                TimeFrameType.Daily);
+            var command = new GenerateFuturesEmaSignalCommand
+            {
+                CommandId = Guid.NewGuid(),
+                Subject = new(
+                    ActorType.Command,
+                    GenerateFuturesEmaSignalCommand.Actor,
+                    GenerateFuturesEmaSignalCommand.Verb,
+                    entityId.Format()),
+                EntityId = entityId,
+                Observation = observation
+            };
+            var result = await actorService.RequestAsync<GenerateFuturesEmaSignalCommand,
+                FuturesTradeSessionBarEntityId>(command).ConfigureAwait(false);
+            if (!result.Success)
+                throw new InvalidOperationException(
+                    $"EMA historical replay was rejected for {source.ValueDate:O}: {result.ErrorMessage}");
+        }
     }
 
     static bool IsEsSeries(MarketSeriesIdentity series) =>

@@ -44,6 +44,9 @@ public sealed class LookupTypeDetailLayoutTests
                     {
                         // Finish the form's Shown/activation sequence before exercising it.
                         await Task.Yield();
+                        var selector = Field<ComboBox>(form, "ddlReferenceDataSelector");
+                        selector.Items.Cast<object>().Select(x => x.ToString()).Should().Contain("parameter sets");
+                        selector.Items.Cast<object>().Select(x => x.ToString()).Should().NotContain("Parameter Sets");
                         var host = Field<Panel>(form, "pnlMarketData");
                         for (var i = 0; i < 100 && host.Controls.Count == 0; i++) await Task.Delay(20);
                         var view = host.Controls.OfType<LookupTypeEditorView>().Single();

@@ -41,9 +41,13 @@ namespace TomasAI.IFM.UI.Net
 
         static IConfigurationRoot AppSetup()
         {
+            var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            if (!string.IsNullOrWhiteSpace(environment))
+                builder.AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: true);
             var configuration = builder.Build();
             ApplyEnvironmentOverride("IFM_UI_NATS_URL", "AppSettings:NatsServerUri");
             ApplyEnvironmentOverride(

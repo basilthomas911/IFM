@@ -3,6 +3,8 @@ using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -309,6 +311,39 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
                 Guid.Parse("0198E212-3C00-7000-8000-000000000026"),
                 Guid.Parse("0198E212-3C00-7000-8000-000000000027"),
                 TimeFrameType.Daily);
+        if (type == typeof(RegimeDiscoveryMarketSignalSnapshot))
+            return new RegimeDiscoveryMarketSignalSnapshot
+            {
+                SnapshotId = Guid.Parse("0198E212-3C00-7000-8000-000000000029"),
+                CacheRevision = 4,
+                MarketSeriesIdentity = MarketSeriesIdentity.ForContract("ES-202609"),
+                TargetHorizon = TimeFrameType.Daily,
+                CapturedAtUtc = new DateTime(2026, 8, 25, 16, 0, 0, DateTimeKind.Utc),
+                MarketDataAsOfUtc = new DateTime(2026, 8, 25, 15, 59, 0, DateTimeKind.Utc),
+                Observations =
+                [
+                    new RegimeDiscoverySignalObservation
+                    {
+                        Metric = RegimeDiscoverySignalMetric.Ema20,
+                        SignalKey = new MarketAnalyticsSignalKey(
+                            MarketSeriesIdentity.ForContract("ES-202609"),
+                            MarketAnalyticsSignalKind.Ema,
+                            TimeFrameType.OneHour,
+                            "Ema20.v1"),
+                        Value = 103m,
+                        MarketDataAsOfUtc = new DateTime(2026, 8, 25, 15, 59, 0, DateTimeKind.Utc),
+                        CalculatedAtUtc = new DateTime(2026, 8, 25, 15, 59, 30, DateTimeKind.Utc),
+                        SourceSequence = 4,
+                        SchemaVersion = 1,
+                        CalculationVersion = "1",
+                        IsWarm = true,
+                        IsValid = true,
+                        Availability = RegimeDiscoverySignalAvailability.Available,
+                        FreshnessFactor = 0.99m,
+                        SignalIdentity = "ES-202609.Ema20.OneHour"
+                    }
+                ]
+            };
         if (type == typeof(MarketConditionParameterSet))
             return MarketConditionParameterSet.CreateDefault(
                 Guid.Parse("0198E212-3C00-7000-8000-000000000028"),

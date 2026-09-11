@@ -54,7 +54,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlContentFrame.Location = new Point(0, 0);
             pnlContentFrame.Name = "pnlContentFrame";
             pnlContentFrame.Padding = new Padding(3);
-            pnlContentFrame.Size = new Size(1153, 450);
+            pnlContentFrame.Size = new Size(1450, 850);
             pnlContentFrame.TabIndex = 0;
             // 
             // pnlMarketDataSelector
@@ -66,7 +66,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlMarketDataSelector.Location = new Point(3, 3);
             pnlMarketDataSelector.Margin = new Padding(2);
             pnlMarketDataSelector.Name = "pnlMarketDataSelector";
-            pnlMarketDataSelector.Size = new Size(1147, 37);
+            pnlMarketDataSelector.Size = new Size(1444, 37);
             pnlMarketDataSelector.TabIndex = 0;
             // 
             // ddlReferenceDataSelector
@@ -77,7 +77,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             ddlReferenceDataSelector.Location = new Point(118, 8);
             ddlReferenceDataSelector.Margin = new Padding(2);
             ddlReferenceDataSelector.Name = "ddlReferenceDataSelector";
-            ddlReferenceDataSelector.Size = new Size(908, 24);
+            ddlReferenceDataSelector.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            ddlReferenceDataSelector.Size = new Size(1205, 24);
             ddlReferenceDataSelector.TabIndex = 1;
             ddlReferenceDataSelector.SelectedIndexChanged += ddlReferenceDataSelector_SelectedIndexChanged;
             // 
@@ -102,10 +103,10 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlCommands.Controls.Add(btnChange);
             pnlCommands.Controls.Add(btnAdd);
             pnlCommands.Dock = DockStyle.Right;
-            pnlCommands.Location = new Point(1035, 40);
+            pnlCommands.Location = new Point(1332, 40);
             pnlCommands.Margin = new Padding(2);
             pnlCommands.Name = "pnlCommands";
-            pnlCommands.Size = new Size(115, 407);
+            pnlCommands.Size = new Size(115, 807);
             pnlCommands.TabIndex = 1;
             // 
             // btnImport
@@ -184,7 +185,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlMarketData.Location = new Point(3, 40);
             pnlMarketData.Margin = new Padding(2);
             pnlMarketData.Name = "pnlMarketData";
-            pnlMarketData.Size = new Size(1032, 407);
+            pnlMarketData.Size = new Size(1329, 807);
             pnlMarketData.TabIndex = 2;
             // 
             // ReferenceForm
@@ -192,7 +193,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            ClientSize = new Size(1153, 450);
+            ClientSize = new Size(1450, 850);
             Controls.Add(pnlContentFrame);
             DoubleBuffered = true;
             Font = new Font("Microsoft Sans Serif", 7.8F, FontStyle.Regular, GraphicsUnit.Point, 0);

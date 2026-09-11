@@ -42,7 +42,9 @@ public static class CompleteRegimeDiscoveryPipeline
             CompletedAtUtc = outcome.Result.ProducedAtUtc,
             ExpiresAtUtc = command.ExpiresAtUtc,
             ParameterPayloadSha256 = command.ParameterPayloadSha256,
-            SignalSnapshotId = outcome.SnapshotId
+            SignalSnapshotId = outcome.SnapshotId,
+            ParameterApplication = command.ParameterApplication,
+            ParameterSet = command.ParameterSet
         };
         return FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>
             .Complete(completed);

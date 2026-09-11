@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -24,23 +25,31 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
         await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
         var actorService = Substitute.For<IActorService>();
         var emaCommands = new List<GenerateFuturesEmaSignalCommand>();
+        var allowDurableReconciliation =
+            new TaskCompletionSource<ServiceResult<Guid>>(TaskCreationOptions.RunContinuationsAsynchronously);
         MarketOutlookHotCache.Shared.Clear();
         actorService.RequestAsync<GenerateFuturesEmaSignalCommand, FuturesTradeSessionBarEntityId>(
                 Arg.Do<GenerateFuturesEmaSignalCommand>(emaCommands.Add))
-            .Returns(new ValueTask<ServiceResult<Guid>>(new ServiceOk<Guid>(Guid.NewGuid())));
+            .Returns(_ => new ValueTask<ServiceResult<Guid>>(allowDurableReconciliation.Task));
         var series = MarketSeriesIdentity.ForFuturesSeries(
             new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
         var firstDate = new DateOnly(2025, 1, 2);
-        var observations = Enumerable.Range(0, 201)
+        var observations = Enumerable.Range(0, 200)
             .Select(index => Observation(series, firstDate.AddDays(index), index + 1))
             .ToArray();
         var targetValueDate = observations[^1].ValueDate.AddDays(1);
         var publisher = new FuturesEmaBbHistoricalDailyReplayPublisher(actorService, runtime.Channel);
 
-        await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
+        var publication = publisher.PublishAsync(
+            observations, targetValueDate, "ES-ACTIVE", CancellationToken.None).AsTask();
+        RegimeDiscoverySignalCacheAdapter.TryGetLatestEsDailyBaseline(
+                "ES-ACTIVE", out _, out _, out _, out _)
+            .Should().BeTrue("stored EOD calculations must be available before durable actor reconciliation");
+        allowDurableReconciliation.SetResult(new ServiceOk<Guid>(Guid.NewGuid()));
+        await publication;
         await runtime.DrainAsync();
 
-        emaCommands.Should().HaveCount(201);
+        emaCommands.Should().HaveCount(200);
         var id = new MarketOutlookEntityId("ES-ACTIVE", targetValueDate);
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var reconcile).Should().BeTrue();
         reconcile.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.Warmup);
@@ -64,8 +73,30 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
             .Should().BeTrue();
         emaBaseline.Should().NotBeNull();
         bbBaseline.Should().NotBeNull();
-        committedEma.Should().BeEquivalentTo(reconcile.FuturesEmaSignal);
-        committedBb.Should().BeEquivalentTo(reconcile.FuturesBbSignal);
+        committedEma.Should().BeEquivalentTo(reconcile.FuturesEmaSignal,
+            options => options.Excluding(value => value.Metadata));
+        committedBb.Should().BeEquivalentTo(reconcile.FuturesBbSignal,
+            options => options.Excluding(value => value.Metadata));
+        committedEma!.Metadata.MarketSeriesIdentity.Should().Be(MarketSeriesIdentity.ForContract("ES-ACTIVE"));
+        committedBb!.Metadata.MarketSeriesIdentity.Should().Be(MarketSeriesIdentity.ForContract("ES-ACTIVE"));
+        var regimeSnapshot = await new RegimeDiscoveryMarketSignalSnapshotProvider().CaptureAsync(
+            new RegimeDiscoveryMarketSignalSnapshotRequest
+            {
+                MarketSeriesIdentity = MarketSeriesIdentity.ForContract("ES-ACTIVE"),
+                TargetHorizon = TimeFrameType.Daily,
+                Requirements =
+                [
+                    Requirement(RegimeDiscoverySignalMetric.Ema20),
+                    Requirement(RegimeDiscoverySignalMetric.BollingerWidthRatio)
+                ],
+                FutureClockSkewSeconds = 1,
+                SupportedSchemaVersions = [1],
+                ApprovedCalculationVersions = ["1"],
+                CaptureAttempts = 3
+            });
+        regimeSnapshot.IsSuccess.Should().BeTrue();
+        regimeSnapshot.Snapshot!.Observations.Should().OnlyContain(value =>
+            value.SignalKey.MarketSeriesIdentity == MarketSeriesIdentity.ForContract("ES-ACTIVE"));
 
         MarketOutlookHotCache.Shared.Clear();
         await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
@@ -108,4 +139,14 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
             IsValid = true
         };
     }
+
+    static RegimeDiscoverySignalRequirement Requirement(RegimeDiscoverySignalMetric metric) => new()
+    {
+        Metric = metric,
+        TimeFrame = TimeFrameType.Daily,
+        IsRequired = true,
+        CalculationConfigurationId = $"{metric}.v1",
+        MaximumAgeSeconds = int.MaxValue,
+        Weight = 1m
+    };
 }

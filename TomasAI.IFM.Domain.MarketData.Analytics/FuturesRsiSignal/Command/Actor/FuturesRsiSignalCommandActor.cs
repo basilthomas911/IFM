@@ -104,7 +104,7 @@ public class FuturesRsiSignalCommandActor(
         FuturesRsiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesRsiSignalCommandActor>,
         FuturesRsiSignalCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(StartFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StartFuturesRsiSignalCommand)!.Execute(state),
+        [typeof(StartFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StartFuturesRsiSignalCommand)!.Execute(state,((StartFuturesRsiSignalCommand)cmd).HistoricalSeed is null?null:context.Container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.Historical.IMarketSessionCalendar>()),
         [typeof(StopFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StopFuturesRsiSignalCommand)!.Execute(state),
         [typeof(GenerateFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiSignalCommand)!.Execute(state),
         [typeof(GenerateFuturesRsiDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiDailySignalCommand)!.Execute(state),

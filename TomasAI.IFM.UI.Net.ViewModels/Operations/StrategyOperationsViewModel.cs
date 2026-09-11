@@ -34,7 +34,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     IReadOnlyList<FuturesItiSignalEventRow> _events = [];
     IReadOnlyList<StrategyWorkflowRow> _workflows = [];
     StrategyWorkflowId? _selectedWorkflowId;
-    string _selectedWorkflowDetails = "Select a strategy workflow to inspect its pipeline results.";
+    StrategyWorkflowDetails? _selectedWorkflowDetails;
     TimeFrameType _selectedTimeFrame = TimeFrameType.Daily;
     bool _isListening;
     string _statusText = "Intrinsic Time Daily: Not started";
@@ -114,7 +114,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         private set => SetProperty(ref _selectedWorkflowId, value);
     }
 
-    public string SelectedWorkflowDetails
+    public StrategyWorkflowDetails? SelectedWorkflowDetails
     {
         get => _selectedWorkflowDetails;
         private set => SetProperty(ref _selectedWorkflowDetails, value);
@@ -143,7 +143,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         if (workflowId is not { } selected)
         {
             SelectedWorkflowId = null;
-            SelectedWorkflowDetails = "Select a strategy workflow to inspect its pipeline results.";
+            SelectedWorkflowDetails = null;
             return;
         }
 
@@ -154,7 +154,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             return;
 
         SelectedWorkflowId = selected;
-        SelectedWorkflowDetails = StrategyWorkflowPresentation.RenderDetails(view);
+        PublishSelectedWorkflowDetails(view);
     }
 
     public Task InitializeAsync(CancellationToken cancellationToken)
@@ -357,13 +357,19 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         if (accepted.Length == 0)
             return;
 
+        var changed = false;
         lock (_stateGate)
         {
             foreach (var row in accepted)
             {
                 if (_eventIdentities.Add(row.StableIdentity))
+                {
                     _eventBuffer.Add(row);
+                    changed = true;
+                }
             }
+            if (!changed)
+                return;
             _eventBuffer.Sort(static (left, right) =>
             {
                 var time = right.OccurredOn.CompareTo(left.OccurredOn);
@@ -386,6 +392,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
         StrategyWorkflowId? conflictingWorkflowId = null;
         long conflictingRevision = 0;
+        var changed = false;
         lock (_stateGate)
         {
             foreach (var view in accepted)
@@ -405,6 +412,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                     }
                 }
                 _workflowViews[view.WorkflowId] = view;
+                changed = true;
             }
 
             if (_workflowViews.Count > MaximumWorkflowRows)
@@ -413,9 +421,12 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                              .OrderByDescending(WorkflowTime)
                              .ThenByDescending(view => view.WorkflowId.Value)
                              .Skip(MaximumWorkflowRows)
-                             .Select(view => view.WorkflowId)
-                             .ToArray())
+                    .Select(view => view.WorkflowId)
+                    .ToArray())
+                {
                     _workflowViews.Remove(workflowId);
+                    changed = true;
+                }
             }
         }
 
@@ -425,8 +436,11 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                 $"Workflow {conflict} revision {conflictingRevision} arrived with conflicting state. The retained authoritative view was not replaced.",
                 "Strategy Workflow Revision Conflict");
 
-        PublishSelectedWorkflows();
-        PublishStatus();
+        if (changed)
+        {
+            PublishSelectedWorkflows();
+            PublishStatus();
+        }
     }
 
     void PublishSelectedEvents()
@@ -456,12 +470,24 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         Workflows = selected;
         if (selectedView is not null
             && selectedView.EntityId.ItiSignalEntityId.TimePeriod == SelectedTimeFrame)
-            SelectedWorkflowDetails = StrategyWorkflowPresentation.RenderDetails(selectedView);
+            PublishSelectedWorkflowDetails(selectedView);
         else if (SelectedWorkflowId is not null)
         {
             SelectedWorkflowId = null;
-            SelectedWorkflowDetails = "Select a strategy workflow to inspect its pipeline results.";
+            SelectedWorkflowDetails = null;
         }
+    }
+
+    void PublishSelectedWorkflowDetails(IntrinsicTimeStrategyWorkflowView view)
+    {
+        if (SelectedWorkflowDetails is { } current
+            && current.WorkflowId == view.WorkflowId
+            && current.WorkflowRevision == view.WorkflowRevision)
+        {
+            return;
+        }
+
+        SelectedWorkflowDetails = StrategyWorkflowPresentation.CreateDetails(view);
     }
 
     bool IsRelevantSignal(FuturesItiSignalEventRow row)

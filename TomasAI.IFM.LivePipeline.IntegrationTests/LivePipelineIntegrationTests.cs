@@ -26,17 +26,10 @@ public sealed class LivePipelineIntegrationTests
     [InlineData("Native transport")]
     [InlineData("Native delivery")]
     [InlineData("Aggregation")]
-    [InlineData("Messaging transport")]
     [InlineData("Price cache")]
     [InlineData("Price publication")]
     [InlineData("Tick storage")]
-    [InlineData("Bar timer")]
-    [InlineData("Chart storage/query")]
-    [InlineData("ITI")]
-    [InlineData("Analytics attachments")]
-    [InlineData("UI delivery")]
-    [InlineData("UI rendering")]
-    public async Task Failed_stage_reaches_http_and_recovery_does_not_claim_success(string component)
+    public async Task Dataset_owned_upstream_stage_resets_only_after_five_continuous_minutes(string component)
     {
         await using var host = await Harness.StartAsync();
         host.Probe.Failure = component;
@@ -44,22 +37,111 @@ public sealed class LivePipelineIntegrationTests
         var result = await host.Client.GetFromJsonAsync<LivePipelineHealthSnapshot>("api/market-data/live-health");
         Assert.Equal("Degraded", result!.Status);
         Assert.Contains(result.Checks, x => x.Component == component && x.Status == "Degraded");
-        Assert.Equal(1, host.Probe.Recoveries);
-        Assert.False(result.AllowsNewDecisions && !component.StartsWith("UI"));
+        Assert.Equal(0, host.Probe.Resets);
+        for (var minute = 1; minute < 5; minute++)
+        {
+            host.Time.Advance(TimeSpan.FromMinutes(1));
+            await host.Monitor.CheckOnceAsync(default);
+        }
+        Assert.Equal(0, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Empty(host.Probe.DownstreamRecoveries);
+        Assert.False(result.AllowsNewDecisions);
+    }
+
+    [Theory]
+    [InlineData("Bar timer", "2026-09-10")]
+    [InlineData("Chart storage/query", "ES")]
+    [InlineData("Analytics attachments", "RSI/FifteenSeconds")]
+    [InlineData("Analytics processing", "MACD/OneMinute")]
+    [InlineData("ITI", "ES")]
+    [InlineData("Market Outlook publication", "ES")]
+    public async Task Downstream_stage_gets_targeted_recovery_after_one_minute_and_full_reset_after_five(
+        string component, string scope)
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = component;
+        host.Probe.FailureScope = scope;
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Empty(host.Probe.DownstreamRecoveries);
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Contains(host.Probe.DownstreamRecoveries, check => check.Component == component && check.Scope == scope);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Single(host.Probe.DownstreamRecoveries,
+            check => check.Component == component && check.Scope == scope);
     }
 
     [Fact]
-    public async Task Recovery_is_bounded_backed_off_and_verified_on_later_observation()
+    public async Task Downstream_recovery_failure_is_retained_in_component_health_details()
     {
         await using var host = await Harness.StartAsync();
         host.Probe.Failure = "Bar timer";
+        host.Probe.FailureScope = Date.ToString("yyyy-MM-dd");
+        host.Probe.RecoveryFailure = new InvalidOperationException("Injected chart restart rejection");
         await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(1));
         await host.Monitor.CheckOnceAsync(default);
-        Assert.Equal(1, host.Probe.Recoveries);
+        var check = Assert.Single(host.Monitor.Current.Checks, item => item.Component == "Bar timer");
+        Assert.Equal(1, check.RecoveryAttempts);
+        Assert.Contains("Failed: Injected chart restart rejection", check.RecoveryState);
+        Assert.Equal(0, host.Probe.Resets);
+    }
+
+    [Theory]
+    [InlineData("Messaging transport")]
+    [InlineData("Actor routing")]
+    [InlineData("UI delivery")]
+    public async Task Required_infrastructure_failures_hard_reset_but_optional_ui_does_not(string component)
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = component;
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(6));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(component == "UI delivery" ? 0 : 1, host.Probe.Resets);
+        Assert.Empty(host.Probe.DownstreamRecoveries);
+    }
+
+    [Fact]
+    public async Task Downstream_recovery_runs_during_the_hard_reset_confirmation_window()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Native delivery";
+        host.Probe.AdditionalFailure = ("Bar timer", Date.ToString("yyyy-MM-dd"));
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Contains(host.Probe.DownstreamRecoveries, check => check.Component == "Bar timer");
+        host.Probe.Failure = null;
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Contains(host.Probe.DownstreamRecoveries, check => check.Component == "Bar timer");
+        Assert.Equal(0, host.Probe.Resets);
+    }
+
+    [Fact]
+    public async Task Healthy_observation_clears_window_and_each_reset_starts_a_new_window()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Native delivery";
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(4)); await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(0, host.Probe.Resets);
+        host.Probe.Failure = null;
+        await host.Monitor.CheckOnceAsync(default);
+        host.Probe.Failure = "Native delivery";
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5)); await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(4)); await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
         host.Time.Advance(TimeSpan.FromMinutes(1)); await host.Monitor.CheckOnceAsync(default);
-        host.Time.Advance(TimeSpan.FromMinutes(2)); await host.Monitor.CheckOnceAsync(default);
-        host.Time.Advance(TimeSpan.FromMinutes(8)); await host.Monitor.CheckOnceAsync(default);
-        Assert.Equal(3, host.Probe.Recoveries);
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Contains(host.Monitor.Current.Checks, check => check.RecoveryState.StartsWith("HardResetRecoveryFailed", StringComparison.Ordinal));
         Assert.Equal("Degraded", host.Monitor.Current.Status);
         host.Probe.Failure = null;
         await host.Monitor.CheckOnceAsync(default);
@@ -67,6 +149,95 @@ public sealed class LivePipelineIntegrationTests
         host.Time.Advance(TimeSpan.FromSeconds(91));
         Assert.Equal("Unknown", host.Monitor.Current.Status);
         Assert.False(host.Monitor.Current.AllowsNewDecisions);
+    }
+
+    [Fact]
+    public async Task Each_upstream_component_has_its_own_five_minute_window()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Native delivery";
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(4));
+        await host.Monitor.CheckOnceAsync(default);
+        host.Probe.Failure = "Aggregation";
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(0, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+    }
+
+    [Fact]
+    public async Task Hard_reset_failure_is_retained_on_the_failed_component()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Aggregation";
+        host.Probe.ResetFailure = new IOException("Injected hard reset failure");
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        var check = Assert.Single(host.Monitor.Current.Checks, item => item.Component == "Aggregation");
+        Assert.Equal(1, check.RecoveryAttempts);
+        Assert.Contains("HardResetFailed: Injected hard reset failure", check.RecoveryState);
+        Assert.Equal("Degraded", host.Monitor.Current.Status);
+    }
+
+    [Fact]
+    public async Task Configured_startup_boundary_forces_one_hard_reset_at_exactly_five_minutes()
+    {
+        await using var host = await Harness.StartAsync(new LivePipelineMonitorOptions
+        {
+            HardResetDelay = TimeSpan.FromMinutes(5),
+            RecoveryObservationWindow = TimeSpan.FromMinutes(5),
+            ForceOneHardResetAfterStartup = true
+        });
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(0, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromSeconds(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+    }
+    [Fact]
+    public async Task Failure_observed_after_forced_reset_uses_the_same_recovery_window_without_a_second_reset()
+    {
+        await using var host = await Harness.StartAsync(new LivePipelineMonitorOptions
+        {
+            HardResetDelay = TimeSpan.FromMinutes(5),
+            RecoveryObservationWindow = TimeSpan.FromMinutes(5),
+            ForceOneHardResetAfterStartup = true
+        });
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+
+        host.Probe.Failure = "Aggregation";
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Contains(host.Monitor.Current.Checks,
+            check => check.Component == "Aggregation"
+                && check.RecoveryState.StartsWith("HardResetRecoveryFailed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Planned_closure_never_resets_datasets()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Session";
+        host.Probe.Active = false;
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromHours(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(0, host.Probe.Resets);
     }
 
     [Fact]
@@ -180,7 +351,7 @@ public sealed class LivePipelineIntegrationTests
         while (!predicate()) await Task.Delay(5, deadline.Token);
     }
 
-    sealed class ManualTime : TimeProvider
+    public sealed class ManualTime : TimeProvider
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
         readonly List<TestTimer> timers = [];
@@ -217,20 +388,49 @@ public sealed class LivePipelineIntegrationTests
     }
     sealed class Probe(ManualTime time) : ILivePipelineProbe
     {
-        public bool CanRecover(LivePipelineCheck failure) => true;
         public string? Failure;
-        public int Recoveries;
+        public string FailureScope = "ES";
+        public (string Component, string Scope)? AdditionalFailure;
+        public bool Active = true;
+        public int Resets;
         public int Checks;
+        public List<LivePipelineCheck> DownstreamRecoveries { get; } = [];
+        public Exception? RecoveryFailure;
+        public Exception? ResetFailure;
         public TaskCompletionSource? CheckGate;
         public async Task<LivePipelineHealthSnapshot> CheckAsync(CancellationToken token)
         {
             Interlocked.Increment(ref Checks);
             if (CheckGate is { } pending) await pending.Task.WaitAsync(token);
+            var now = time.GetUtcNow().UtcDateTime;
+            var upstream = new[]
+            {
+                ("Databento feed", "datasets"), ("Native transport", "GLBX.MDP3"),
+                ("Native delivery", "GLBX.MDP3"), ("Aggregation", "GLBX.MDP3"),
+                ("Price cache", "ES"), ("Price publication", "ES"), ("Tick storage", "ES")
+            };
+            var checks = upstream.Select(item => new LivePipelineCheck(
+                item.Item1, item.Item2,
+                Failure == item.Item1 ? "Degraded" : "Healthy",
+                "Injected stage observation", now)).ToList();
+            if (Failure is not null && upstream.All(item => item.Item1 != Failure))
+                checks.Add(new(Failure, FailureScope, "Degraded", "Injected stage observation", now));
+            if (AdditionalFailure is { } additional)
+                checks.Add(new(additional.Component, additional.Scope, "Degraded", "Injected additional stage observation", now));
             return new LivePipelineHealthSnapshot(
-            time.GetUtcNow().UtcDateTime, Date, Failure is null ? "Healthy" : "Degraded",
-            [new(Failure ?? "Feed", "ES", Failure is null ? "Healthy" : "Degraded", "Injected stage observation", time.GetUtcNow().UtcDateTime)]);
+                now, Active ? Date : null,
+                Failure is null && AdditionalFailure is null ? "Healthy" : "Degraded", checks);
         }
-        public Task RecoverAsync(LivePipelineCheck failure, CancellationToken token) { Recoveries++; return Task.CompletedTask; }
+        public Task HardResetAsync(LivePipelineHealthSnapshot unhealthySnapshot, CancellationToken token)
+        {
+            Resets++;
+            return ResetFailure is null ? Task.CompletedTask : Task.FromException(ResetFailure);
+        }
+        public Task RecoverDownstreamAsync(LivePipelineCheck unhealthyCheck, DateOnly valueDate, CancellationToken token)
+        {
+            DownstreamRecoveries.Add(unhealthyCheck);
+            return RecoveryFailure is null ? Task.CompletedTask : Task.FromException(RecoveryFailure);
+        }
     }
     sealed class Harness(WebApplication app, HttpClient client, ManualTime time, Probe probe,
         LivePipelineMonitor monitor, LivePipelineEvidence evidence) : IAsyncDisposable
@@ -240,7 +440,7 @@ public sealed class LivePipelineIntegrationTests
         public Probe Probe => probe;
         public LivePipelineMonitor Monitor => monitor;
         public LivePipelineEvidence Evidence => evidence;
-        public static async Task<Harness> StartAsync()
+        public static async Task<Harness> StartAsync(LivePipelineMonitorOptions? options = null)
         {
             var builder = WebApplication.CreateBuilder();
             builder.Configuration.Sources.Clear();
@@ -249,7 +449,7 @@ public sealed class LivePipelineIntegrationTests
             builder.WebHost.UseUrls("http://127.0.0.1:0");
             var time = new ManualTime(); var probe = new Probe(time);
             var evidence = new LivePipelineEvidence(time);
-            var monitor = new LivePipelineMonitor(probe, time, NullLogger<LivePipelineMonitor>.Instance);
+            var monitor = new LivePipelineMonitor(probe, time, NullLogger<LivePipelineMonitor>.Instance, configuredOptions: options);
             builder.Services.AddSingleton(evidence); builder.Services.AddSingleton(monitor);
             var app = builder.Build(); app.MapLivePipelineHealth(); await app.StartAsync();
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();

@@ -24,7 +24,7 @@ public sealed class MarketConditionAssessmentOnlyTests
     [InlineData(TimeFrameType.Daily)]
     [InlineData(TimeFrameType.Weekly)]
     [InlineData(TimeFrameType.Monthly)]
-    public async Task Workflow_start_requires_matching_market_profile_and_frozen_selection_authority(TimeFrameType horizon)
+    public async Task Workflow_start_admits_without_pipeline_configuration(TimeFrameType horizon)
     {
         var selection = await TradeSelection.TradeSelectionFixture.Command(horizon:horizon);
         var assessment = AssessmentFixture.Command(horizon);
@@ -37,7 +37,9 @@ public sealed class MarketConditionAssessmentOnlyTests
             CommandId = Guid.NewGuid(), EntityId = view.EntityId,
             Subject = new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
                 ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, view.EntityId.Format()),
-            FundId = 1, TriggerEvent = assessment.TriggerEvent,ProposedWorkflowId=assessment.WorkflowId,RequestedAtUtc=binding.FrozenAtUtc,SelectionBinding=binding,
+            FundId = 1, TriggerEvent = assessment.TriggerEvent,TriggerEventId=assessment.TriggerEvent.Id,
+            ProposedWorkflowId=assessment.WorkflowId,RequestedAtUtc=binding.FrozenAtUtc,SelectionBinding=binding,
+            CorrelationId=assessment.CorrelationId,CausationId=assessment.CausationId,WorkflowDefinitionVersion=1,
             RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet,
             RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
             AssessmentBinding = view.AssessmentBinding
@@ -45,12 +47,12 @@ public sealed class MarketConditionAssessmentOnlyTests
         void Validate(ExecuteIntrinsicTimeStrategyWorkflowCommand command) => typeof(IntrinsicTimeStrategyWorkflowCommandActor)
             .GetMethod("ValidateCommand", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [command]);
         Action valid = () => Validate(start);
-        valid.Should().NotThrow("no legacy fund/option/broker parameter set is required");
+        valid.Should().NotThrow("pipeline readiness is checked only after workflow admission");
         Action missing = () => Validate(start with { AssessmentBinding = null });
-        missing.Should().Throw<TargetInvocationException>().WithInnerException<ArgumentException>();
+        missing.Should().NotThrow();
         var wrong = assessment.ParameterSet with { HorizonProfile = assessment.ParameterSet.HorizonProfile with { RegimeProfileId = Guid.NewGuid() } };
         Action mismatch = () => Validate(start with { AssessmentBinding = new() { Parameters = wrong, PayloadSha256 = MarketConditionAssessmentHash.Parameters(wrong) } });
-        mismatch.Should().Throw<TargetInvocationException>().WithInnerException<ArgumentException>();
+        mismatch.Should().NotThrow();
     }
 
     [Theory]

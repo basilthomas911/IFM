@@ -11,11 +11,38 @@ using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.Views.App;
+using TomasAI.IFM.UI.Net.Views.Presentation;
+using TomasAI.IFM.UI.Net.Views.Strategy;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 
 public sealed class OperationsViewRenderingTests
 {
+    [Fact]
+    public void WorkflowDetailsAccordion_RetainsControlsForSameRevisionAndRebuildsForNewRevision()
+    {
+        using var accordion = new StrategyWorkflowDetailsAccordion();
+        var workflowId = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.StrategyWorkflowId(Guid.NewGuid());
+        var details = new StrategyWorkflowDetails(
+            workflowId,
+            4,
+            "Workflow revision 4",
+            [new("iti", "ITI Signal", "Received", StrategyWorkflowDetailState.Completed, "received", "signal")]);
+
+        accordion.Bind(details);
+        var content = accordion.Controls.OfType<FlowLayoutPanel>().Single();
+        var originalControls = content.Controls.Cast<Control>().ToArray();
+
+        accordion.Bind(details with { Header = "Equivalent revision" });
+
+        content.Controls.Cast<Control>().Should().Equal(originalControls);
+
+        accordion.Bind(details with { WorkflowRevision = 5, Header = "Workflow revision 5" });
+
+        content.Controls.Cast<Control>().Should().NotEqual(originalControls);
+        content.Controls.OfType<Label>().Single().Text.Should().Be("Workflow revision 5");
+    }
+
     [Fact]
     public void StrategyProvidesDailyDefaultTimeFrameSelectorAndFullTimestampColumn()
     {
@@ -150,6 +177,65 @@ public sealed class OperationsViewRenderingTests
         pixels.Count(value => value == Color.Lime.ToArgb()).Should().BeGreaterThan(20);
         pixels.Count(value => value == Color.Yellow.ToArgb()).Should().BeGreaterThan(20);
         pixels.Count(value => value == Color.Red.ToArgb()).Should().BeGreaterThan(20);
+    }
+
+    [Fact]
+    public void FailedRegimeDiscoveryRendersOneBrightRedCircleWithoutCellText()
+    {
+        using var operations = new OperationsView();
+        var actor = new PipelineActorIndicator(
+            StrategyWorkflowStage.RegimeDiscovery,
+            "RD",
+            "Regime Discovery",
+            PipelineActorDisplayState.Stopped,
+            "Regime Discovery failed");
+        var row = new StrategyWorkflowRow(
+            default,
+            default!,
+            1,
+            DateTime.UtcNow,
+            TimeFrameType.Daily,
+            default,
+            default,
+            0,
+            "failed-regime-discovery",
+            default,
+            default,
+            "Pipeline Failed",
+            [actor]);
+
+        typeof(OperationsView)
+            .GetMethod("RenderWorkflows", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(operations, new object[] { new[] { row } });
+
+        var list = operations.Controls.Find("lstStrategyWorkflows", true).OfType<ListView>().Single();
+        list.Items.Count.Should().Be(1);
+        list.Items[0].SubItems[4].Text.Should().BeEmpty();
+        list.Items[0].ToolTipText.Should().Contain("Regime Discovery failed");
+
+        DarkTradingTheme.Apply(operations);
+        using var bitmap = new Bitmap(80, 40);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Black);
+        var paint = new DrawListViewSubItemEventArgs(
+            graphics,
+            new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+            list.Items[0],
+            list.Items[0].SubItems[4],
+            0,
+            4,
+            list.Columns[4],
+            ListViewItemStates.Default);
+        typeof(DarkTradingTheme)
+            .GetMethod("DrawListSubItem", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [list, paint]);
+
+        var redPixels = Enumerable.Range(0, bitmap.Width)
+            .SelectMany(x => Enumerable.Range(0, bitmap.Height).Select(y => (X: x, Y: y, Color: bitmap.GetPixel(x, y))))
+            .Where(pixel => pixel.Color.ToArgb() == Color.Red.ToArgb())
+            .ToArray();
+        redPixels.Should().HaveCountGreaterThan(20);
+        (redPixels.Max(pixel => pixel.X) - redPixels.Min(pixel => pixel.X)).Should().BeLessThanOrEqualTo(12);
     }
 
     [Fact]
