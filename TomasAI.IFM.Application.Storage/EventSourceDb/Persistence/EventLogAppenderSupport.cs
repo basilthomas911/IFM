@@ -2,6 +2,7 @@ using Npgsql;
 using NpgsqlTypes;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 
@@ -18,7 +19,8 @@ internal sealed record PreparedEventLogRequest(
     IReadOnlyList<PreparedEventLogEntry> Events,
     long? ExpectedStreamVersion,
     DateTime EventTimestampUtc,
-    int PayloadBytes);
+    int PayloadBytes,
+    CommandAuditEnvelope? CommandAudit);
 
 internal static class EventLogAppenderSupport
 {
@@ -60,7 +62,8 @@ internal static class EventLogAppenderSupport
             prepared[index] = new PreparedEventLogEntry(item.EventNameId, item.DomainEvent, payload, projection);
         }
         return new PreparedEventLogRequest(request.EventStream, request.EventStreamId, request.CommandId, prepared,
-            request.ExpectedStreamVersion, DateTime.SpecifyKind(request.EventTimestampUtc, DateTimeKind.Utc), totalBytes);
+            request.ExpectedStreamVersion, DateTime.SpecifyKind(request.EventTimestampUtc, DateTimeKind.Utc), totalBytes,
+            request.CommandAudit);
     }
 
     internal static NpgsqlCommand Command(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql)

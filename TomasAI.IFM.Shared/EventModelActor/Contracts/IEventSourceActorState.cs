@@ -11,6 +11,11 @@ public interface IEventSourceActorState<TState> : IActorState<TState>
     where TState :  IActorState
 {
     DomainEventCollection Events { get; }
+    long CommittedStreamVersion { get; }
+    /// <summary>Marks the current pending events as durably accepted without replaying them.</summary>
+    void AcceptChanges();
+    /// <summary>Transfers pending events to a durability window while keeping their effects in working state.</summary>
+    DomainEventCollection DetachChanges();
     bool Apply<TEvent>(TEvent domainEvent, bool addEvent = true) where TEvent : IEvent;
     void ReplayEvents(DomainEventCollection domainEvents);
     void ReplayEvents(ICollection<EventStreamReadModel> domainEvents);

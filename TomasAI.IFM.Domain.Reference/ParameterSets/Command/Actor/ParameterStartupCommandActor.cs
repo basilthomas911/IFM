@@ -39,9 +39,19 @@ public sealed class ParameterStartupCommandActor(ICommandActorContext<ParameterS
  }
  protected override async ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterStartupCommandActor> ctx,ICommand cmd,CancellationToken token)
  {
-  var previous=await Services.DbEventSource.GetCommandLogAsync(cmd.CommandId).WaitAsync(token)
+ var previous=await Services.DbEventSource.GetCommandLogAsync(cmd.CommandId).WaitAsync(token)
    ??throw new InvalidOperationException("PARAM.OPERATION_RESERVATION_NOT_READY");
-  TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterStartupOperationModel.ValidateDuplicate((IParameterStartupMutation)cmd,previous.CommandName,previous.StreamId,previous.CommandData);
+  if(previous.CommandPayloadSha256 is { Length: > 0 })
+  {
+   var codec=new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditMessagePackCodec();
+   if(previous.CommandName!=cmd.CommandName||previous.StreamId!=cmd.StreamId||
+      previous.CommandPayloadFormat!=(short)TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPayloadFormat.MessagePack||
+      previous.CommandPayloadVersion!=TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditMessagePackCodec.CurrentVersion||
+      !codec.Matches(cmd,previous.CommandPayloadSha256))
+    throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+  }
+  else
+   TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterStartupOperationModel.ValidateDuplicate((IParameterStartupMutation)cmd,previous.CommandName,previous.StreamId,previous.CommandData);
   // A committed Apply can never reactivate a released run. An audited but uncommitted attempt can be retried explicitly.
   return !await Services.DbEventSource.HasEventForCommandAsync(cmd.CommandId).WaitAsync(token);
  }

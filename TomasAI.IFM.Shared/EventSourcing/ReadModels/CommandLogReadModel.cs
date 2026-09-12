@@ -6,7 +6,11 @@ namespace TomasAI.IFM.Shared.EventSourcing.ViewModels
         BoundedContextName AggregateName,
         string CommandName,
         DateTime CommandTimestamp,
-        string CommandData)
+        string CommandData,
+        byte[]? CommandPayload = null,
+        short? CommandPayloadFormat = null,
+        int? CommandPayloadVersion = null,
+        byte[]? CommandPayloadSha256 = null)
     {
     }
 }

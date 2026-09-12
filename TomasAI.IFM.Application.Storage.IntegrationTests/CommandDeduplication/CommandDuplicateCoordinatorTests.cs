@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.CommandDeduplication;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.CommandDeduplication;
@@ -148,5 +149,41 @@ public sealed class CommandDuplicateCoordinatorTests
         (await owner).Should().BeTrue();
         (await coordinator.TryAcceptAsync(commandId, Reserve)).Should().BeFalse();
         calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Completed_payload_identity_rejects_command_id_reuse()
+    {
+        var coordinator = new CommandDuplicateCoordinator(8);
+        var commandId = Guid.NewGuid();
+
+        (await coordinator.TryAcceptAsync(commandId, new byte[] { 1, 2, 3 }, _ => Task.FromResult(true)))
+            .Should().BeTrue();
+
+        var conflicting = () => coordinator.TryAcceptAsync(
+            commandId, new byte[] { 1, 2, 4 }, _ => Task.FromResult(true)).AsTask();
+        await conflicting.Should().ThrowAsync<CommandAuditPayloadConflictException>();
+    }
+
+    [Fact]
+    public async Task In_flight_payload_identity_rejects_command_id_reuse()
+    {
+        var coordinator = new CommandDuplicateCoordinator(8);
+        var commandId = Guid.NewGuid();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<bool> Reserve(CancellationToken _)
+        {
+            entered.TrySetResult();
+            await release.Task;
+            return true;
+        }
+
+        var owner = coordinator.TryAcceptAsync(commandId, new byte[] { 7 }, Reserve);
+        await entered.Task;
+        var conflicting = () => coordinator.TryAcceptAsync(commandId, new byte[] { 8 }, Reserve).AsTask();
+        await conflicting.Should().ThrowAsync<CommandAuditPayloadConflictException>();
+        release.TrySetResult();
+        (await owner).Should().BeTrue();
     }
 }

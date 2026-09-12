@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 
@@ -45,7 +46,8 @@ public sealed record EventLogAppendRequest(
     Guid CommandId,
     IReadOnlyList<EventLogAppendEntry> Events,
     long? ExpectedStreamVersion,
-    DateTime EventTimestampUtc);
+    DateTime EventTimestampUtc,
+    CommandAuditEnvelope? CommandAudit = null);
 
 public readonly record struct EventLogAssignment(long EventVersion, long StreamVersion);
 

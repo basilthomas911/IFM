@@ -10,6 +10,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -32,13 +33,21 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 public sealed class EventSourceActorSnapshotRangeFixture
 {
     readonly IDbConnectionSettings _connectionSettings;
+    readonly string _rawConnectionString;
     readonly IBlackboardService _blackboard;
     readonly ILogger<DbProvider> _logger;
 
     public EventSourceActorSnapshotRangeFixture()
     {
+        _rawConnectionString = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+            ?? "Host=localhost;Port=5432;Database=event-source-test-db";
+        var baseConnection = new Npgsql.NpgsqlConnectionStringBuilder(_rawConnectionString)
+        {
+            Username = string.Empty,
+            Password = string.Empty
+        }.ConnectionString;
         _connectionSettings = new DbConnectionSettings()
-            .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+            .Add("EventSourceActorDbConnection", baseConnection, "System.Data.Postgres");
         var repositories = new Dictionary<Type, object>();
         var resolver = new DbContextResolver(type => repositories[type]);
         DbFactory = new DbContextFactory(resolver);
@@ -63,6 +72,7 @@ public sealed class EventSourceActorSnapshotRangeFixture
 
     public DbContextFactory DbFactory { get; }
     public EventSourceActorDbContext ActorEventDb { get; }
+    public string ConnectionString => _rawConnectionString;
 
     public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null)
         => new(_connectionSettings, DbFactory, _blackboard, _logger, options);
@@ -229,12 +239,169 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
             .WithParameterName(nameof(EventLogPersistenceOptions.MaximumEventsPerBatch));
     }
 
+    [Fact]
+    public async Task Atomic_command_event_window_commits_audits_and_contiguous_events_together()
+    {
+        await using var context = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.Sequential,
+            UseLz4Compression = true,
+            MaximumEventsPerBatch = 16,
+            MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(2)
+        });
+        var entity = Guid.NewGuid().ToString("N");
+        var first = AtomicTestCommand.Create(entity, 1);
+        var second = AtomicTestCommand.Create(entity, 2);
+        var streamId = 0L;
+        try
+        {
+            var writes = new[]
+            {
+                context.SaveCommandEventsAtomicallyAsync(first, new DomainEventCollection([NewSignal()]), 0),
+                context.SaveCommandEventsAtomicallyAsync(second, new DomainEventCollection([NewSignal()]), 1)
+            };
+            var saved = await Task.WhenAll(writes);
+            saved.SelectMany(static value => value).Select(static value => value.EventId)
+                .Should().OnlyHaveUniqueItems();
+
+            streamId = await context.GetEventStreamIdAsync(first.StreamId);
+            var rows = await context.LoadActorEventStreamAsync<DualAppenderState>(streamId);
+            rows.Select(static row => row.StreamVersion).Should().Equal(1, 2);
+            (await context.GetCommandLogAsync(first.CommandId))!.CommandPayload.Should().NotBeEmpty();
+            (await context.GetCommandLogAsync(second.CommandId))!.CommandPayload.Should().NotBeEmpty();
+
+            var duplicate = async () => await context.SaveCommandEventsAtomicallyAsync(
+                first, new DomainEventCollection([NewSignal()]), 2);
+            await duplicate.Should().ThrowAsync<CommandAuditDuplicateException>();
+            (await context.LoadActorEventStreamAsync<DualAppenderState>(streamId)).Should().HaveCount(2);
+        }
+        finally
+        {
+            if (streamId > 0)
+            {
+                await context.DeleteEventLogByStreamIdAsync(streamId);
+                await context.DeleteEventStreamByIdAsync(streamId);
+            }
+            await using var connection = new Npgsql.NpgsqlConnection(fixture.ConnectionString);
+            await connection.OpenAsync();
+            await using var cleanup = new Npgsql.NpgsqlCommand(
+                "DELETE FROM command_log WHERE commandid = ANY($1)", connection);
+            cleanup.Parameters.AddWithValue(new[] { first.CommandId, second.CommandId });
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Atomic_writer_preserves_sixty_four_same_stream_commands_across_physical_batches()
+    {
+        await using var context = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.Sequential,
+            UseLz4Compression = true,
+            MaximumEventsPerBatch = 16,
+            MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(2)
+        });
+        var entity = Guid.NewGuid().ToString("N");
+        var commands = Enumerable.Range(0, 64)
+            .Select(index => AtomicTestCommand.Create(entity, index))
+            .ToArray();
+        var streamId = 0L;
+        try
+        {
+            var writes = commands.Select((command, index) =>
+                context.SaveCommandEventsAtomicallyAsync(
+                    command, new DomainEventCollection([NewSignal()]), index)).ToArray();
+            await Task.WhenAll(writes);
+
+            streamId = await context.GetEventStreamIdAsync(commands[0].StreamId);
+            var rows = await context.LoadActorEventStreamAsync<DualAppenderState>(streamId);
+            rows.Select(static row => row.StreamVersion).Should().Equal(Enumerable.Range(1, 64).Select(static value => (long)value));
+            foreach (var command in commands)
+                (await context.GetCommandLogAsync(command.CommandId)).Should().NotBeNull();
+        }
+        finally
+        {
+            if (streamId > 0)
+            {
+                await context.DeleteEventLogByStreamIdAsync(streamId);
+                await context.DeleteEventStreamByIdAsync(streamId);
+            }
+            await using var connection = new Npgsql.NpgsqlConnection(fixture.ConnectionString);
+            await connection.OpenAsync();
+            await using var cleanup = new Npgsql.NpgsqlCommand(
+                "DELETE FROM command_log WHERE commandid = ANY($1)", connection);
+            cleanup.Parameters.AddWithValue(commands.Select(static command => command.CommandId).ToArray());
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Atomic_writer_coalesces_an_in_flight_duplicate_before_the_physical_batch()
+    {
+        await using var context = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.Sequential,
+            UseLz4Compression = true,
+            MaximumEventsPerBatch = 16,
+            MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(10)
+        });
+        var command = AtomicTestCommand.Create(Guid.NewGuid().ToString("N"), 1);
+        var streamId = 0L;
+        try
+        {
+            var first = context.SaveCommandEventsAtomicallyAsync(
+                command, new DomainEventCollection([NewSignal()]), 0);
+            var duplicate = context.SaveCommandEventsAtomicallyAsync(
+                command, new DomainEventCollection([NewSignal()]), 0);
+
+            (await first).Should().ContainSingle();
+            var duplicateAction = async () => await duplicate;
+            await duplicateAction.Should().ThrowAsync<CommandAuditDuplicateException>();
+
+            streamId = await context.GetEventStreamIdAsync(command.StreamId);
+            (await context.LoadActorEventStreamAsync<DualAppenderState>(streamId)).Should().ContainSingle();
+            (await context.GetCommandLogAsync(command.CommandId)).Should().NotBeNull();
+        }
+        finally
+        {
+            if (streamId > 0)
+            {
+                await context.DeleteEventLogByStreamIdAsync(streamId);
+                await context.DeleteEventStreamByIdAsync(streamId);
+            }
+            await using var connection = new Npgsql.NpgsqlConnection(fixture.ConnectionString);
+            await connection.OpenAsync();
+            await using var cleanup = new Npgsql.NpgsqlCommand(
+                "DELETE FROM command_log WHERE commandid = $1", connection);
+            cleanup.Parameters.AddWithValue(command.CommandId);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
     static FuturesRsiSignalGeneratedEvent NewSignal() => new()
     {
         EntityId = new FuturesRsiSignalEntityId("ESU6", new DateOnly(2026, 9, 11), TimeFrameType.Daily, 14),
         CreatedOn = DateTime.UtcNow,
         CreatedBy = "dual-appender-integration-test"
     };
+
+    public sealed record AtomicTestCommand : ICommand
+    {
+        public required ActorSubject Subject { get; init; }
+        public string CommandName => nameof(AtomicTestCommand);
+        public BoundedContextName RouteTo => BoundedContextName.OptionTradeBoundedContext;
+        public Guid CommandId { get; init; }
+        public string StreamId => Subject.StreamId;
+        public string EventSource => "AtomicWindowIntegration";
+        public int ErrorCode => 1;
+        public int Value { get; init; }
+        public static AtomicTestCommand Create(string entity, int value) => new()
+        {
+            Subject = new ActorSubject(ActorType.Command, "AtomicWindowTest", "Change", entity),
+            CommandId = Guid.NewGuid(),
+            Value = value
+        };
+    }
 
     sealed class DualAppenderState : IActorState<DualAppenderState>
     {

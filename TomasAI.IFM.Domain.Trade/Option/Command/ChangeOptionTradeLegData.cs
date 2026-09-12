@@ -51,7 +51,7 @@ public static class ChangeOptionTradeLegData
             if (!state.TradePositionExists(tradePositionId))
             {
                 state.Update(state.TradePositions
-                            .GetTradePositionAddedEvent(tradePositionId, state.TradeType, e.AssetPrice, e.RiskFreeRate, e.OriginatedOn, e.OriginatedBy), e);
+                            .GetTradePositionAddedEvent(tradePositionId, e.TradeType, e.AssetPrice, e.RiskFreeRate, e.OriginatedOn, e.OriginatedBy), e);
             }
 
             if (state.HasOptionLegDataChanged(e))

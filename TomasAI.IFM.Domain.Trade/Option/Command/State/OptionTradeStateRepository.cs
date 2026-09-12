@@ -33,7 +33,7 @@ public class OptionTradeStateRepository(
     IDbContextFactory dbFactory,
     IEventProjector<OptionTradeCommandActor> eventProjector,
     ILogger<OptionTradeStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<OptionTradeCommandState>
+    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IResidentEventSourceActorStateRepository<OptionTradeCommandState>
 {
     /// <summary>
     /// Loads the current option trade command state by replaying events from the most recent snapshot.
@@ -95,6 +95,18 @@ public class OptionTradeStateRepository(
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, OptionTradeCommandState state, ICommand command, CancellationToken cancellationToken)
        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask SaveResidentEventsAsync(
+        ICommandActorContext context,
+        DomainEventCollection events,
+        ICommand command,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken)
+    {
+        var committed = await EventSourceDb.SaveCommandEventsAtomicallyAsync(
+            command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
+        await DenormalizeEventsAsync(context, committed).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the option trade query state

@@ -20,6 +20,7 @@ public abstract class BaseEventSourceActorRepository
 {
     readonly IEventSourceActorStateFactory _stateFactory;
     readonly IEventSourceActorDbContext _dbEventSource;
+    protected IEventSourceActorDbContext EventSourceDb => _dbEventSource;
     readonly IActorService _actorService;
     readonly ILogger _logger;
     string _serviceId;

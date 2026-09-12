@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Option;
 
@@ -470,6 +471,54 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task ChangeOptionTradeLegData_uses_resident_state_for_consecutive_durable_updates()
+    {
+        const int orderId = 110;
+        const int tradeId = 11;
+        var valueDate = new DateOnly(2025, 1, 15);
+        var now = DateTime.UtcNow;
+        var legDefinition = new OptionTradeLegReadModel(
+            orderId, tradeId, "ES202503P4700", 1, 4700m, OptionType.Put,
+            OptionLegAction.Short, now, "IntegrationTest", now, "IntegrationTest");
+        var openingPosition = new TradePositionReadModel(
+            orderId, tradeId, valueDate, TradeType.PutCreditSpread, TradeStatus.Open, 65,
+            0m, 0, 5m, 250m, 0m, 4875m, 0.7, 4876m, 0.2, 0.3, 0.04,
+            now, "IntegrationTest", now, "IntegrationTest");
+        var optionTrade = SampleData.CreateOptionTrade(orderId, tradeId)
+            .AddOptionLegs([legDefinition])
+            .AddTradePosition([openingPosition]);
+        var subject = new ActorSubject(
+            ActorType.Command,
+            ChangeOptionTradeLegDataCommand.Actor,
+            ChangeOptionTradeLegDataCommand.Verb,
+            new OptionTradeEntityId(orderId, tradeId).Format());
+        await ClearEventStreamAsync(subject);
+        await dbFixture.TradeDb.DeleteOptionTradeAsync(orderId, tradeId);
+        await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
+
+        var api = new OptionTradeCommandApi(_actorProducer);
+        var snapshot = await api.SnapshotAsync(orderId, tradeId);
+        snapshot.Success.Should().BeTrue(snapshot.ErrorMessage);
+
+        var firstLeg = CreateLeg(25.50m);
+        var first = await api.ChangeOptionLegDataAsync(
+            orderId, tradeId, TradeType.PutCreditSpread, valueDate,
+            TradeStatus.IntraDay, 4875m, 0.04, firstLeg);
+        first.Success.Should().BeTrue(first.ErrorMessage);
+
+        var second = await api.ChangeOptionLegDataAsync(
+            orderId, tradeId, TradeType.PutCreditSpread, valueDate,
+            TradeStatus.IntraDay, 4876m, 0.04, CreateLeg(25.75m));
+        second.Success.Should().BeTrue(second.ErrorMessage);
+
+        OptionTradeLegDataReadModel CreateLeg(decimal bid) => new OptionTradeLegDataReadModel(
+            orderId, tradeId, valueDate, "ES202503P4700", TradeType.PutCreditSpread,
+            65, TradeStatus.IntraDay, bid, bid + 0.25m, 0.22, -0.28, 0.015,
+            -0.14, 0.32, 0.11, DateTime.UtcNow, "IntegrationTest", DateTime.UtcNow, "IntegrationTest")
+            .SetOptionLeg(legDefinition);
     }
 
     async Task ClearEventStreamAsync(ActorSubject subject)

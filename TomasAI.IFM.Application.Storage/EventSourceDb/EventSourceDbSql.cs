@@ -67,7 +67,11 @@ DELETE FROM event_stream_id WHERE EventStream = $1;
       ) as "AggregateName",
       cl.CommandName as "CommandName",
       cl.CommandTimestamp::timestamp as "CommandTimestamp",
-      cl.CommandData as "CommandData"
+      cl.CommandData as "CommandData",
+      cl.CommandPayload as "CommandPayload",
+      cl.CommandPayloadFormat as "CommandPayloadFormat",
+      cl.CommandPayloadVersion as "CommandPayloadVersion",
+      cl.CommandPayloadSha256 as "CommandPayloadSha256"
     from command_log cl
     where cl.CommandId = $1
     """;
@@ -898,6 +902,41 @@ ORDER BY el.eventVersion ASC;
             RETURNING CommandId
         )
         SELECT EXISTS (SELECT 1 FROM inserted);
+    """;
+
+    public const string InsertCommandLogMessagePackWindow = """
+        WITH input_raw AS (
+            SELECT *
+            FROM unnest(
+                $1::uuid[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
+                $8::bytea[], $9::smallint[], $10::integer[], $11::bytea[])
+            WITH ORDINALITY AS i(
+                CommandId, StreamId, ActorName, CommandName, CommandTimestamp, CommandStatus, CommandData,
+                CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256, Ordinal)
+        ),
+        input AS (
+            SELECT *, row_number() OVER (PARTITION BY CommandId ORDER BY Ordinal) AS CommandOccurrence
+            FROM input_raw
+        ),
+        inserted AS (
+            INSERT INTO command_log (
+                CommandId, StreamId, ActorName, CommandName, CommandTimestamp, CommandStatus, CommandData,
+                CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256)
+            SELECT CommandId, StreamId, ActorName, CommandName, CommandTimestamp, CommandStatus, CommandData,
+                   CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256
+            FROM input
+            WHERE CommandOccurrence = 1
+            ORDER BY Ordinal
+            ON CONFLICT (CommandId) DO NOTHING
+            RETURNING CommandId, CommandPayloadSha256
+        )
+        SELECT i.Ordinal, i.CommandId,
+               (n.CommandId IS NOT NULL AND i.CommandOccurrence = 1) AS Accepted,
+               COALESCE(n.CommandPayloadSha256, c.CommandPayloadSha256) AS StoredPayloadSha256
+        FROM input i
+        LEFT JOIN inserted n ON n.CommandId = i.CommandId
+        LEFT JOIN command_log c ON c.CommandId = i.CommandId
+        ORDER BY i.Ordinal;
     """;
 
     /// <summary>

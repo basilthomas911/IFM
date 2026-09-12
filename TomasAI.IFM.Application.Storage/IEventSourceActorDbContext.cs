@@ -163,6 +163,12 @@ public interface IEventSourceActorDbContext
         DomainEventCollection domainEvents,
         long expectedStreamVersion,
         CancellationToken cancellationToken);
+    /// <summary>Atomically reserves the uncompressed MessagePack command audit and appends its events.</summary>
+    Task<DomainEventCollection> SaveCommandEventsAtomicallyAsync(
+        ICommand command,
+        DomainEventCollection domainEvents,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken = default);
 
     ValueTask MapReduceActorEventStreamAsync<TState>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
     where TState : IActorState<TState>;

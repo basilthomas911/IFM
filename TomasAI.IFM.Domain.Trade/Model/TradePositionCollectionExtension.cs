@@ -26,7 +26,9 @@ public static class TradePositionCollectionExtension
     /// <exception cref="NotImplementedException"></exception>
     public static TradePositionAddedEvent GetTradePositionAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
         => tradeType switch {
-            TradeType.ShortIronCondor or TradeType.LongIronCondor => CreateIronCondorTradePositionAddedEvent( tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
+            TradeType.PutCreditSpread or TradeType.CallCreditSpread or
+            TradeType.PutDebitSpread or TradeType.CallDebitSpread
+                => CreateIronCondorTradePositionAddedEvent(tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
             _ => throw new NotImplementedException()
         };
 

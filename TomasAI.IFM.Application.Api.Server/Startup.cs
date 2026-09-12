@@ -254,6 +254,15 @@ public static class Startup
                 .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
                 ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
             services.AddSingleton(eventLogPersistence.Validate());
+            var commandAuditPersistence = config
+                .GetSection(TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions.SectionName)
+                .Get<TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions>()
+                ?? new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions();
+            services.AddSingleton(commandAuditPersistence.Validate());
+            var inMemoryEventSourceActor = config
+                .GetSection(InMemoryEventSourceActorOptions.SectionName)
+                .Get<InMemoryEventSourceActorOptions>() ?? new InMemoryEventSourceActorOptions();
+            services.AddSingleton(inMemoryEventSourceActor.Validate());
             services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
             services.AddSingleton<IApplicationStartupHandoffStatusStore, ApplicationStartupHandoffStatusStore>();
             services.AddSingleton<IApplicationStartupActivities, ApiApplicationStartupActivities>();
@@ -931,6 +940,15 @@ public static class Startup
             .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
             ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
         _siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
+        var commandAuditPersistenceOptions = config
+            .GetSection(TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions();
+        _siContainer.RegisterInstance(commandAuditPersistenceOptions.Validate());
+        var inMemoryEventSourceActorOptions = config
+            .GetSection(InMemoryEventSourceActorOptions.SectionName)
+            .Get<InMemoryEventSourceActorOptions>() ?? new InMemoryEventSourceActorOptions();
+        _siContainer.RegisterInstance(inMemoryEventSourceActorOptions.Validate());
 
         var domainAssemblies = new List<Assembly>
         {
@@ -950,9 +968,11 @@ public static class Startup
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
         assemblies.AddRange(domainAssemblies);
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
-            .Where(static type => type != typeof(SystemAdminDbContext))
+            .Where(static type => type != typeof(SystemAdminDbContext) && type != typeof(EventSourceActorDbContext))
             .ToArray();
         _siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
+        var eventSourceRegistration = Lifestyle.Singleton.CreateRegistration<EventSourceActorDbContext>(_siContainer);
+        _siContainer.AddRegistration<IObjectRepository<EventSourceActorDbContext>>(eventSourceRegistration);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(_siContainer);
         _siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
         _siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
@@ -986,6 +1006,7 @@ public static class Startup
         _siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
+        _siContainer.Register(typeof(IResidentEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventSourceFunctionStateRepository<,>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IFunctionProjector<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);

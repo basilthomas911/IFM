@@ -398,6 +398,9 @@ public static class Startup
             services.AddSingleton(_ =>
             new DbConnectionSettings()
                 .Add("EventSourceActorDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                .Add("MarketDataServiceDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"]
+                    ?? config.GetConnectionString("MarketDataServiceDbConnection")
+                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("ConfigurationDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("ConfigurationDbConnection")
                     ?? config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("LogDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
@@ -458,6 +461,10 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
             services.AddSingleton<ICommandAuditLogger>(provider =>
                 (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
+            services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.RiskHistoryJournal>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             //services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(FundDbContext))!)?.Resolve<FundDbContext>() as IFundDbContext)!);
@@ -475,6 +482,17 @@ public static class Startup
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore,
+                TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresDurableSubscriptionIntentStore>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessEventJournal,
+                TomasAI.IFM.Application.Storage.EventSourceDb.PostgresCommittedBusinessEventJournal>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessSubscriptionSource,
+                TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CommittedCompositionSubscriptionSource>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>());
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore,
+                TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresCompositionRoutePlanStore>();
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
@@ -652,6 +670,16 @@ public static class Startup
             .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
             ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
         siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
+        var commandAuditPersistenceOptions = config
+            .GetSection(TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions();
+        siContainer.RegisterInstance(commandAuditPersistenceOptions.Validate());
+        var inMemoryEventSourceActorOptions = config
+            .GetSection(TomasAI.IFM.Shared.EventModelActor.InMemoryEventSourceActorOptions.SectionName)
+            .Get<TomasAI.IFM.Shared.EventModelActor.InMemoryEventSourceActorOptions>()
+            ?? new TomasAI.IFM.Shared.EventModelActor.InMemoryEventSourceActorOptions();
+        siContainer.RegisterInstance(inMemoryEventSourceActorOptions.Validate());
 
         var domainAssemblies = new List<Assembly>
         {
@@ -678,9 +706,11 @@ public static class Startup
             .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
-            .Where(static type => type != typeof(SystemAdminDbContext))
+            .Where(static type => type != typeof(SystemAdminDbContext) && type != typeof(EventSourceActorDbContext))
             .ToArray();
         siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
+        var eventSourceRegistration = Lifestyle.Singleton.CreateRegistration<EventSourceActorDbContext>(siContainer);
+        siContainer.AddRegistration<IObjectRepository<EventSourceActorDbContext>>(eventSourceRegistration);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(siContainer);
         siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
         siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
@@ -735,6 +765,7 @@ public static class Startup
         siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IActorStateDenormalizer<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorStateRepository<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IResidentEventSourceActorStateRepository<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceFunctionStateRepository<,>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionProjector<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);

@@ -21,6 +21,24 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     public abstract ActorThreadId Id { get; set; }
     protected abstract bool Apply(IEvent domainEvent);
     public bool Updated { get; private set; }
+    public long CommittedStreamVersion { get; private set; }
+
+    /// <summary>Clears events already applied to this live state after their durable commit succeeds.</summary>
+    public void AcceptChanges()
+    {
+        CommittedStreamVersion = checked(CommittedStreamVersion + _domainEvents.Count);
+        _domainEvents.Clear();
+        _domainEvents = [];
+        Updated = false;
+    }
+
+    public DomainEventCollection DetachChanges()
+    {
+        var detached = _domainEvents;
+        _domainEvents = [];
+        Updated = false;
+        return detached;
+    }
 
     /// <summary>
     /// Replays a collection of domain events to rebuild the current state of the object.
@@ -57,6 +75,8 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
             if (e is not null && e.ToDomainEvent() is IEvent @event)
                 Apply(@event, false);
         }
+        CommittedStreamVersion = Math.Max(CommittedStreamVersion,
+            domainEvents.Count == 0 ? 0 : domainEvents.Max(static e => e.StreamVersion));
         _domainEvents = [];
         Updated = false;
     }
@@ -76,7 +96,10 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
         foreach (var e in eventStream)
         {
             if (e is not null && e.ToDomainEvent() is IEvent @event)
+            {
                 Apply(@event, false);
+                CommittedStreamVersion = Math.Max(CommittedStreamVersion, e.StreamVersion);
+            }
         }
         _domainEvents = [];
         Updated = false;

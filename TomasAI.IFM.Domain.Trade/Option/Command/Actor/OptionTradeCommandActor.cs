@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
 using TomasAI.IFM.Domain.Trade.Option.Command.Extensions;
@@ -29,15 +30,17 @@ namespace TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class OptionTradeCommandActor(
-    ICommandActorContext<OptionTradeCommandActor> actorContext)
-    : BaseEventSourceCommandActor<OptionTradeCommandActor>(actorContext, actorContext.Logger)
+    ICommandActorContext<OptionTradeCommandActor> actorContext,
+    InMemoryEventSourceActorOptions? inMemoryOptions = null)
+    : BaseInMemoryEventSourceCommandActor<OptionTradeCommandActor, OptionTradeCommandState>(
+        actorContext, actorContext.Logger, inMemoryOptions)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IOptionTradeCommandContext ActorContext =>
         IsArgumentNull.Set(Context as IOptionTradeCommandContext, nameof(Context))!;
 
     public const string ActorName = "OptionTradeCommand";
-    IEventSourceActorStateRepository<OptionTradeCommandState> _repo = default!;
+    IResidentEventSourceActorStateRepository<OptionTradeCommandState> _repo = default!;
 
     /// <summary>
     /// Performs initialization logic when the actor starts up.
@@ -47,13 +50,13 @@ public class OptionTradeCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext<OptionTradeCommandActor> context)
+    protected override async ValueTask OnInMemoryStartupAsync(ICommandActorContext<OptionTradeCommandActor> context)
     {
         IsArgumentNull.Check(context);
-        _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<OptionTradeCommandState>>());
+        _repo = IsArgumentNull.Set(context.Container.Resolve<IResidentEventSourceActorStateRepository<OptionTradeCommandState>>());
         await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
     }
-    protected override async ValueTask OnShutdown(ICommandActorContext<OptionTradeCommandActor> context)
+    protected override async ValueTask OnInMemoryShutdownAsync(ICommandActorContext<OptionTradeCommandActor> context)
         => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
@@ -274,13 +277,13 @@ public class OptionTradeCommandActor(
     /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains the
     /// loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
-    }
+    protected override bool IsResidentCommand(ICommand command)
+        => command.GetType() == typeof(ChangeOptionTradeLegDataCommand);
+    protected override bool IsResidentMessage(ActorSubject subject)
+        => subject.Is(ActorType.Command, ActorName, ChangeOptionTradeLegDataCommand.Verb);
+
+    protected override bool IsCommittedDuplicateException(ICommand command, Exception exception)
+        => command is ChangeOptionTradeLegDataCommand && exception is CommandAuditDuplicateException;
 
     /// <summary>
     /// Asynchronously saves the current state of the option trade actor in response to a command.
@@ -292,16 +295,6 @@ public class OptionTradeCommandActor(
     /// cref="OptionTradeCommandState"/>.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override ValueTask OnSaveStateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
-        var optionTradeState = IsArgumentNull.Set((state as OptionTradeCommandState)!);
-        return _repo.SaveStateAsync(context, optionTradeState, cmd);
-    }
-
     /// <summary>
     /// Handles exceptions that occur during command execution and returns a failed service result containing error
     /// event information.
@@ -311,13 +304,22 @@ public class OptionTradeCommandActor(
     /// <param name="command">The command that encountered the exception.</param>
     /// <param name="ex">The exception that was thrown during command processing.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+    protected override async ValueTask<OptionTradeCommandState> LoadStateFromStoreAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
         => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
 
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.SaveStateAsync(context, (OptionTradeCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+    protected override async ValueTask SaveStateToStoreAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, OptionTradeCommandState state, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, state, cmd, cancellationToken).ConfigureAwait(false);
 
-    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+    protected override async ValueTask PersistResidentEventsAsync(
+        ICommandActorContext<OptionTradeCommandActor> context,
+        ICommand command,
+        DomainEventCollection events,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken)
+        => await _repo.SaveResidentEventsAsync(
+            context, events, command, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
+
+    protected override async ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         Context.Logger.LogError(ex, "Error processing {CommandName} in {Actor} for thread {ThreadId}", command.CommandName, ActorName, threadId);
         try

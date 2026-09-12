@@ -155,7 +155,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <param name="message">The message to be processed, containing the subject and entity information.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
-    public ValueTask HandleMessageAsync(IActorMessage message)
+    public virtual ValueTask HandleMessageAsync(IActorMessage message)
         => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
 
     /// <summary>
@@ -164,10 +164,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <param name="message">The message to be processed.</param>
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
+    public virtual async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
 
-    public async ValueTask HandleMessageAsync(
+    public virtual async ValueTask HandleMessageAsync(
         IActorMessage message,
         ActorThreadId threadId,
         CancellationToken cancellationToken)
@@ -210,10 +210,17 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                 bool accepted;
                 try
                 {
-                    var reservation = await _commandAuditLogger!
-                        .TryReserveAsync(command, cancellationToken)
-                        .ConfigureAwait(false);
-                    accepted = reservation.Accepted;
+                    if (AuditIsCommittedWithState(command))
+                    {
+                        accepted = true;
+                    }
+                    else
+                    {
+                        var reservation = await _commandAuditLogger!
+                            .TryReserveAsync(command, cancellationToken)
+                            .ConfigureAwait(false);
+                        accepted = reservation.Accepted;
+                    }
                 }
                 finally
                 {
@@ -311,6 +318,12 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         }
         catch (Exception ex)
         {
+            if (command is not null && IsCommittedDuplicateException(command, ex))
+            {
+                ActorRuntimeMetrics.DuplicateCommands.Add(1);
+                result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+                goto Reply;
+            }
             ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
             primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
                 Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
@@ -348,6 +361,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             }
         }
 
+        Reply:
         /// reply with the result...
         activeStage = ActorRuntimeMetrics.ReplyStage;
         var replyStarted = ActorRuntimeMetrics.StartStage();
@@ -408,6 +422,12 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     protected virtual ValueTask<bool> ShouldProcessDuplicateAsync(
         ICommandActorContext<TActor> context, ICommand command, CancellationToken cancellationToken)
         => ValueTask.FromResult(false);
+
+    /// <summary>Opt-in hook for stores that reserve the command audit in the same transaction as its events.</summary>
+    protected virtual bool AuditIsCommittedWithState(ICommand command) => false;
+
+    /// <summary>Recognizes an identical durable reservation discovered by atomic command/event persistence.</summary>
+    protected virtual bool IsCommittedDuplicateException(ICommand command, Exception exception) => false;
 
     /// <summary>
     /// Resolves a command parser from an actor-owned verb map and materializes the command.

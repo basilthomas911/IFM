@@ -29,3 +29,15 @@ public interface IEventSourceActorStateRepository<TState>
         return SaveStateAsync(context, state, command);
     }
 }
+
+/// <summary>Repository capable of atomically committing a command audit with resident-state events.</summary>
+public interface IResidentEventSourceActorStateRepository<TState> : IEventSourceActorStateRepository<TState>
+    where TState : IEventSourceActorState<TState>
+{
+    ValueTask SaveResidentEventsAsync(
+        ICommandActorContext context,
+        DomainEventCollection events,
+        ICommand command,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken);
+}

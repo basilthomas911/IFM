@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.CommandDeduplication;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -36,23 +37,40 @@ public class EventSourceActorDbContext(
     IDbContextFactory dbFactory,
     IBlackboardService blackboardService,
     ILogger<DbProvider> logger,
-    EventLogPersistenceOptions? eventLogPersistenceOptions = null)
+    EventLogPersistenceOptions? eventLogPersistenceOptions = null,
+    CommandAuditPersistenceOptions? commandAuditPersistenceOptions = null)
     : ObjectDataRepository<EventSourceActorDbContext>(connectionSettings[EventSourceActorDbConnection], logger),
       IEventSourceActorDbContext,
       ICommandAuditLogger,
+      IDisposable,
       IAsyncDisposable
 {
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new();
     readonly ConcurrentDictionary<Guid, Lazy<Task<bool>>> _legacyCommandReservations = new();
+    readonly ConcurrentDictionary<string, AtomicPreparationLane> _atomicPreparationLanes = new(StringComparer.Ordinal);
     readonly Lazy<CommandDuplicateCoordinator> _commandDuplicates = new(
         static () => new CommandDuplicateCoordinator(
             CommandDuplicateCoordinator.ReadConfiguredCapacity()),
         LazyThreadSafetyMode.ExecutionAndPublication);
+    readonly CommandAuditPersistenceOptions _commandAuditOptions =
+        (commandAuditPersistenceOptions ?? new CommandAuditPersistenceOptions()).Validate();
+    readonly CommandAuditMessagePackCodec _commandAuditCodec = new();
+    readonly Lazy<ICommandAuditWriter> _commandAuditWriter = new(
+        () => new PostgresCommandAuditWriter(
+            connectionSettings[EventSourceActorDbConnection].ConnectionString,
+            commandAuditPersistenceOptions ?? new CommandAuditPersistenceOptions()),
+        LazyThreadSafetyMode.ExecutionAndPublication);
     readonly Lazy<IEventLogAppender> _eventLogAppender = new(
         () => CreateEventLogAppender(
             connectionSettings[EventSourceActorDbConnection].ConnectionString,
+            eventLogPersistenceOptions ?? new EventLogPersistenceOptions()),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+    readonly Lazy<IEventLogAppender> _atomicCommandEventAppender = new(
+        () => new BinaryCopyEventLogAppender(
+            connectionSettings[EventSourceActorDbConnection].ConnectionString,
+            (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).UseLz4Compression,
             eventLogPersistenceOptions ?? new EventLogPersistenceOptions()),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -99,7 +117,11 @@ public class EventSourceActorDbContext(
             AggregateName: o.GetEnum<BoundedContextName>(2),
             CommandName: o.GetString(3),
             CommandTimestamp: o.GetDateTime(4),
-            CommandData: o.GetString(5)
+            CommandData: o.GetString(5),
+            CommandPayload: o.IsNull(6) ? null : o.GetBytes(6),
+            CommandPayloadFormat: o.IsNull(7) ? null : o.GetShort(7),
+            CommandPayloadVersion: o.IsNull(8) ? null : o.GetInt(8),
+            CommandPayloadSha256: o.IsNull(9) ? null : o.GetBytes(9)
         );
 
     /// <summary>
@@ -383,9 +405,146 @@ public class EventSourceActorDbContext(
         return saved;
     }
 
-    public ValueTask DisposeAsync() => _eventLogAppender.IsValueCreated
-        ? _eventLogAppender.Value.DisposeAsync()
-        : ValueTask.CompletedTask;
+    public Task<DomainEventCollection> SaveCommandEventsAtomicallyAsync(
+        ICommand command,
+        DomainEventCollection domainEvents,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(domainEvents);
+        if (expectedStreamVersion < 0) throw new ArgumentOutOfRangeException(nameof(expectedStreamVersion));
+        return SaveCommandEventsDeduplicatedAsync(
+            command, domainEvents, expectedStreamVersion, cancellationToken);
+    }
+
+    async Task<DomainEventCollection> SaveCommandEventsDeduplicatedAsync(
+        ICommand command,
+        DomainEventCollection domainEvents,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken)
+    {
+        var envelope = CommandAuditEnvelope.Create(command, _commandAuditCodec);
+        DomainEventCollection? committed = null;
+        var accepted = await _commandDuplicates.Value.TryAcceptAsync(
+            command.CommandId,
+            envelope.Payload.Sha256,
+            async token =>
+            {
+                if (domainEvents.Count == 0)
+                {
+                    var reservation = await _commandAuditWriter.Value
+                        .ReserveAsync(envelope, token).ConfigureAwait(false);
+                    if (!reservation.Accepted) return false;
+                    committed = [];
+                    return true;
+                }
+
+                var preparation = AcquireAtomicPreparation(command.StreamId);
+                committed = await PrepareAndSaveCommandEventsAtomicallyAsync(
+                    preparation, command, domainEvents, expectedStreamVersion, envelope, token)
+                    .ConfigureAwait(false);
+                return true;
+            },
+            cancellationToken).ConfigureAwait(false);
+        if (!accepted) throw new CommandAuditDuplicateException(command.CommandId);
+        return committed ?? throw new InvalidOperationException("Atomic command persistence completed without an event result.");
+    }
+
+    async Task<DomainEventCollection> PrepareAndSaveCommandEventsAtomicallyAsync(
+        AtomicPreparationLease preparation,
+        ICommand command,
+        DomainEventCollection domainEvents,
+        long expectedStreamVersion,
+        CommandAuditEnvelope commandAudit,
+        CancellationToken cancellationToken)
+    {
+        Task<EventLogAppendResult> persistence;
+        try
+        {
+            await preparation.Predecessor.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var streamId = await GetEventStreamIdAsync(command.StreamId, cancellationToken).ConfigureAwait(false);
+            var entries = new List<EventLogAppendEntry>(domainEvents.Count);
+            foreach (var domainEvent in domainEvents)
+                entries.Add(new EventLogAppendEntry(
+                    await GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken).ConfigureAwait(false),
+                    domainEvent));
+            persistence = _atomicCommandEventAppender.Value.AppendAsync(new EventLogAppendRequest(
+                command.StreamId,
+                streamId,
+                command.CommandId,
+                entries,
+                expectedStreamVersion,
+                DateTime.UtcNow,
+                commandAudit), cancellationToken).AsTask();
+        }
+        finally
+        {
+            ReleaseAtomicPreparation(command.StreamId, preparation);
+        }
+
+        var result = await persistence.ConfigureAwait(false);
+        return ApplyAssignments(domainEvents, result);
+    }
+
+    AtomicPreparationLease AcquireAtomicPreparation(string streamId)
+    {
+        while (true)
+        {
+            var lane = _atomicPreparationLanes.GetOrAdd(streamId, static _ => new AtomicPreparationLane());
+            lock (lane.Sync)
+            {
+                if (lane.Retired) continue;
+                lane.Users++;
+                var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var lease = new AtomicPreparationLease(lane, lane.Tail, release);
+                lane.Tail = release.Task;
+                return lease;
+            }
+        }
+    }
+
+    void ReleaseAtomicPreparation(string streamId, AtomicPreparationLease preparation)
+    {
+        preparation.Release.TrySetResult();
+        lock (preparation.Lane.Sync)
+        {
+            preparation.Lane.Users--;
+            if (preparation.Lane.Users != 0) return;
+            preparation.Lane.Retired = true;
+            _atomicPreparationLanes.TryRemove(
+                new KeyValuePair<string, AtomicPreparationLane>(streamId, preparation.Lane));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_commandAuditWriter.IsValueCreated)
+            await _commandAuditWriter.Value.DisposeAsync().ConfigureAwait(false);
+        if (_eventLogAppender.IsValueCreated)
+            await _eventLogAppender.Value.DisposeAsync().ConfigureAwait(false);
+        if (_atomicCommandEventAppender.IsValueCreated)
+            await _atomicCommandEventAppender.Value.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Drains owned persistence writers for hosts whose dependency-injection container exposes only synchronous
+    /// shutdown. Normal command processing never uses this blocking bridge.
+    /// </summary>
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    sealed class AtomicPreparationLane
+    {
+        public object Sync { get; } = new();
+        public Task Tail { get; set; } = Task.CompletedTask;
+        public int Users { get; set; }
+        public bool Retired { get; set; }
+    }
+
+    sealed record AtomicPreparationLease(
+        AtomicPreparationLane Lane,
+        Task Predecessor,
+        TaskCompletionSource Release);
 
     /// <summary>
     /// Stages an opted-in private event's recovery marker in its existing event-log transaction.
@@ -468,15 +627,32 @@ public class EventSourceActorDbContext(
                 await AwaitLegacyReservationAsync(legacyReservation.Value, cancellationToken)
                     .ConfigureAwait(false));
 
-        var accepted = await _commandDuplicates.Value.TryAcceptAsync(
-                command.CommandId,
-                token => InsertCommandLogCoreAsync(
-                    command,
-                    DateTime.UtcNow,
-                    JsonConvert.SerializeObject(command),
-                    token),
-                cancellationToken)
-            .ConfigureAwait(false);
+        bool accepted;
+        if (_commandAuditOptions.WriteMode == CommandAuditWriteMode.SequentialJsonLegacy)
+        {
+            accepted = await _commandDuplicates.Value.TryAcceptAsync(
+                    command.CommandId,
+                    token => InsertCommandLogCoreAsync(
+                        command,
+                        DateTime.UtcNow,
+                        JsonConvert.SerializeObject(command),
+                        token),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            // Serialize once before in-flight admission. The same stable bytes identify
+            // local duplicates and are handed directly to PostgreSQL on a cache miss.
+            var envelope = CommandAuditEnvelope.Create(command, _commandAuditCodec);
+            accepted = await _commandDuplicates.Value.TryAcceptAsync(
+                    command.CommandId,
+                    envelope.Payload.Sha256,
+                    async token => (await _commandAuditWriter.Value
+                        .ReserveAsync(envelope, token).ConfigureAwait(false)).Accepted,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
         return new CommandAuditReservation(accepted);
     }
 
@@ -1479,6 +1655,7 @@ public class EventSourceActorDbContext(
             eventStream.EventVersion = o.GetLong(3);
             eventStream.EventTypeName = o.GetString(2);
             eventStream.EventData = o.GetBytes(4);
+            eventStream.StreamVersion = o.GetLong(7);
             return eventStream;
         }
     }
@@ -1555,6 +1732,7 @@ public class EventSourceActorDbContext(
             eventStream.EventVersion = o.GetLong(3);
             eventStream.EventTypeName = o.GetString(2);
             eventStream.EventData = o.GetBytes(4);
+            eventStream.StreamVersion = o.GetLong(7);
             return eventStream;
         }
     }

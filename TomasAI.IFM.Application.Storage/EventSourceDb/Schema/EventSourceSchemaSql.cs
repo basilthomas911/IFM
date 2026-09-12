@@ -252,6 +252,36 @@ public static class EventSourceSchemaSql
     );
     """;
 
+    /// <summary>
+    /// Adds the versioned, uncompressed MessagePack command payload without rewriting immutable legacy JSON rows.
+    /// </summary>
+    public const string AddCommandLogMessagePackPayload = """
+    ALTER TABLE command_log
+        ADD COLUMN IF NOT EXISTS CommandPayload bytea NULL,
+        ADD COLUMN IF NOT EXISTS CommandPayloadFormat smallint NULL,
+        ADD COLUMN IF NOT EXISTS CommandPayloadVersion integer NULL,
+        ADD COLUMN IF NOT EXISTS CommandPayloadSha256 bytea NULL;
+
+    ALTER TABLE command_log
+        DROP CONSTRAINT IF EXISTS ck_command_log_payload_format;
+    ALTER TABLE command_log
+        ADD CONSTRAINT ck_command_log_payload_format CHECK (
+            (CommandPayload IS NULL AND CommandPayloadFormat IS NULL AND CommandPayloadVersion IS NULL AND CommandPayloadSha256 IS NULL)
+            OR
+            (CommandPayload IS NOT NULL AND CommandPayloadFormat = 1 AND CommandPayloadVersion > 0
+                AND CommandPayloadSha256 IS NOT NULL AND octet_length(CommandPayloadSha256) = 32)
+        );
+    """;
+
+    public const string DropCommandLogMessagePackPayload = """
+    ALTER TABLE command_log DROP CONSTRAINT IF EXISTS ck_command_log_payload_format;
+    ALTER TABLE command_log
+        DROP COLUMN IF EXISTS CommandPayloadSha256,
+        DROP COLUMN IF EXISTS CommandPayloadVersion,
+        DROP COLUMN IF EXISTS CommandPayloadFormat,
+        DROP COLUMN IF EXISTS CommandPayload;
+    """;
+
     /// <summary>Creates durable historical-data-load checkpoint and immutable manifest tables.</summary>
     public const string CreateHistoricalDataLoader = """
     CREATE TABLE IF NOT EXISTS historical_data_load_checkpoint (

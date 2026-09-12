@@ -105,6 +105,36 @@ internal static class ActorRuntimeMetrics
         "ifm.actor.commands.duplicates",
         description: "Commands acknowledged without processing because their command identifier was already reserved.");
 
+    internal static readonly Counter<long> ResidentStateHits = Meter.CreateCounter<long>(
+        "ifm.actor.resident_state.hits",
+        description: "Commands served from committed resident event-sourced state.");
+
+    internal static readonly Counter<long> ResidentStateMisses = Meter.CreateCounter<long>(
+        "ifm.actor.resident_state.misses",
+        description: "Commands that loaded event-sourced state from durable storage.");
+
+    internal static readonly Counter<long> ResidentStateEvictions = Meter.CreateCounter<long>(
+        "ifm.actor.resident_state.evictions",
+        description: "Resident event-sourced states evicted by barriers, capacity or persistence failures.");
+
+    internal static readonly UpDownCounter<long> ResidentStateCount = Meter.CreateUpDownCounter<long>(
+        "ifm.actor.resident_state.count",
+        "{state}",
+        "Current resident event-sourced states.");
+
+    internal static readonly UpDownCounter<long> ResidentPersistencePending = Meter.CreateUpDownCounter<long>(
+        "ifm.actor.resident_persistence.pending",
+        "{command}",
+        "Resident commands admitted but awaiting durable persistence.");
+
+    internal static readonly Counter<long> ResidentPersistenceCompleted = Meter.CreateCounter<long>(
+        "ifm.actor.resident_persistence.completed",
+        description: "Resident commands whose command audit and events committed atomically.");
+
+    internal static readonly Counter<long> ResidentPersistenceFailed = Meter.CreateCounter<long>(
+        "ifm.actor.resident_persistence.failed",
+        description: "Resident commands whose atomic durable persistence failed.");
+
     internal static readonly Counter<long> AdmissionWouldReject = Meter.CreateCounter<long>(
         "ifm.actor.admission.would_reject",
         description: "Messages that would be rejected by configured admission limits in observe-only mode.");

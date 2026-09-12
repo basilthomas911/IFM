@@ -7,6 +7,7 @@ using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 
@@ -137,6 +138,18 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
             try
             {
+                var audited = batch.Where(static item => item.Request.CommandAudit is not null)
+                    .Select(static item => item.Request.CommandAudit!).ToArray();
+                if (audited.Length > 0)
+                {
+                    var reservations = await CommandAuditPostgres.ReserveAsync(
+                        connection, transaction, audited, cancellationToken).ConfigureAwait(false);
+                    for (var index = 0; index < reservations.Length; index++)
+                    {
+                        if (!reservations[index].Accepted)
+                            throw new CommandAuditDuplicateException(audited[index].CommandId);
+                    }
+                }
                 var current = await LockStreamsAsync(connection, transaction, batch, cancellationToken).ConfigureAwait(false);
                 var planned = Plan(batch, current);
                 await UpdateStreamVersionsAsync(connection, transaction, current, cancellationToken).ConfigureAwait(false);
@@ -224,9 +237,15 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
     static PlannedAppend[] Plan(IReadOnlyList<PendingAppend> batch, Dictionary<long, long> cursors)
     {
         var planned = new PlannedAppend[batch.Count];
-        for (var requestIndex = 0; requestIndex < batch.Count; requestIndex++)
+        var ordered = batch
+            .Select(static (pending, ordinal) => (Pending: pending, Ordinal: ordinal))
+            .OrderBy(static item => item.Pending.Request.EventStreamId)
+            .ThenBy(static item => item.Pending.Request.ExpectedStreamVersion ?? long.MaxValue)
+            .ThenBy(static item => item.Ordinal)
+            .ToArray();
+        for (var requestIndex = 0; requestIndex < ordered.Length; requestIndex++)
         {
-            var pending = batch[requestIndex];
+            var pending = ordered[requestIndex].Pending;
             var cursor = cursors[pending.Request.EventStreamId];
             if (pending.Request.ExpectedStreamVersion is long expected && expected != cursor)
                 throw new ConcurrencyException($"Event stream {pending.Request.EventStream} is no longer at expected version {expected}.");
