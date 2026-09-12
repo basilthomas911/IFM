@@ -647,6 +647,11 @@ public static class Startup
             .GetSection(EventProjectorReliabilityOptions.SectionName)
             .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
         siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
+        var eventLogPersistenceOptions = config
+            .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
+        siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
 
         var domainAssemblies = new List<Assembly>
         {

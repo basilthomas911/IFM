@@ -20,10 +20,35 @@ public sealed class NatsMessagePackSerializer<T> : INatsSerializer<T>
     }
 
     public T? Deserialize(in ReadOnlySequence<byte> buffer)
-        => buffer.IsEmpty ? default : MessagePackSerializer.Deserialize<T>(buffer, Options);
+    {
+        if (buffer.IsEmpty)
+            return default;
+        try
+        {
+            var value = MessagePackSerializer.Deserialize<T>(buffer, Options);
+            NatsMessagingMetrics.RecordTypedDeserialization();
+            return value;
+        }
+        catch
+        {
+            NatsMessagingMetrics.RecordSerializationFailure();
+            throw;
+        }
+    }
 
     public void Serialize(IBufferWriter<byte> bufferWriter, T value)
-        => MessagePackSerializer.Serialize(bufferWriter, value, Options);
+    {
+        try
+        {
+            MessagePackSerializer.Serialize(bufferWriter, value, Options);
+            NatsMessagingMetrics.RecordTypedSerialization();
+        }
+        catch
+        {
+            NatsMessagingMetrics.RecordSerializationFailure();
+            throw;
+        }
+    }
 
     public INatsSerializer<T> CombineWith(INatsSerializer<T> next)
         => throw new NotSupportedException("MessagePack serializer composition is not supported.");

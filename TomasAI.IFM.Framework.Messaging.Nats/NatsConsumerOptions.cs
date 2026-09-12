@@ -43,6 +43,9 @@ public class NatsConsumerOptions : INatsConsumerOptions
     public bool UseOwnedQueryPayloads { get; set; } = true;
 
     /// <inheritdoc />
+    public bool UseOwnedRealtimePayloads { get; set; } = true;
+
+    /// <inheritdoc />
     public Dictionary<ActorType, CoreNatsTrafficClass> FireAndForgetTraffic { get; set; } = [];
 
     public int GetSubscriptionCapacity()

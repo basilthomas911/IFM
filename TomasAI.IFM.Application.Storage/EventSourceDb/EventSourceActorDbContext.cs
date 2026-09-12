@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.CommandDeduplication;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -30,10 +31,16 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// <param name="dbFactory">Factory providing access to event-source repository contexts.</param>
 /// <param name="blackboardService">Blackboard service for cached ID resolution and lookups.</param>
 /// <param name="logger">Logger for database provider diagnostics.</param>
-public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ILogger<DbProvider> logger)
+public class EventSourceActorDbContext(
+    IDbConnectionSettings connectionSettings,
+    IDbContextFactory dbFactory,
+    IBlackboardService blackboardService,
+    ILogger<DbProvider> logger,
+    EventLogPersistenceOptions? eventLogPersistenceOptions = null)
     : ObjectDataRepository<EventSourceActorDbContext>(connectionSettings[EventSourceActorDbConnection], logger),
       IEventSourceActorDbContext,
-      ICommandAuditLogger
+      ICommandAuditLogger,
+      IAsyncDisposable
 {
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
@@ -43,6 +50,22 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         static () => new CommandDuplicateCoordinator(
             CommandDuplicateCoordinator.ReadConfiguredCapacity()),
         LazyThreadSafetyMode.ExecutionAndPublication);
+    readonly Lazy<IEventLogAppender> _eventLogAppender = new(
+        () => CreateEventLogAppender(
+            connectionSettings[EventSourceActorDbConnection].ConnectionString,
+            eventLogPersistenceOptions ?? new EventLogPersistenceOptions()),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
+    static IEventLogAppender CreateEventLogAppender(string connectionString, EventLogPersistenceOptions options)
+    {
+        options.Validate();
+        return options.WriteMode switch
+        {
+            EventLogWriteMode.Sequential => new SequentialEventLogAppender(connectionString, options.UseLz4Compression, options),
+            EventLogWriteMode.BinaryCopy => new BinaryCopyEventLogAppender(connectionString, options.UseLz4Compression, options),
+            _ => throw new ArgumentOutOfRangeException(nameof(options.WriteMode))
+        };
+    }
 
     /// <summary>
     /// Gets the database context.
@@ -290,61 +313,28 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         DomainEventCollection domainEvents,
         CancellationToken cancellationToken)
     {
-        var savedEvents = new DomainEventCollection();
-        List<(int EventNameId, IEvent DomainEvent)> eventLogParams = [];
-
         var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken).ConfigureAwait(false);
+        var entries = new List<EventLogAppendEntry>(domainEvents.Count);
         foreach (var e in domainEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var eventNameId = await GetEventNameIdFromDomainEventAsync(e, cancellationToken).ConfigureAwait(false);
-            eventLogParams.Add((eventNameId, e));
+            entries.Add(new EventLogAppendEntry(eventNameId, e));
         }
-        var db = _dbFactory.ActorEventSourceDb;
-        var tx = db.BeginTransaction();
         try
         {
-            var eventDate = DateTime.Now;
-            foreach (var e in eventLogParams)
-            {
-                EventInitHelper.SetProperty(
-                    e.DomainEvent,
-                    nameof(IEvent.EventId),
-                    await InsertEventLogAsync(
-                        db,
-                        streamId,
-                        e.EventNameId,
-                        EventLogMessagePackCodec.Shared.Serialize(e.DomainEvent),
-                        commandId,
-                        eventDate,
-                        cancellationToken).ConfigureAwait(false));
-                await InsertRequiredProjectionAsync(db, e.DomainEvent, cancellationToken).ConfigureAwait(false);
-                savedEvents.Add(e.DomainEvent);
-            }
-            tx?.Commit();
-        }
-        catch (ConcurrencyException)
-        {
-            tx?.Rollback();
-            throw;
-        }
-        catch (StorageException)
-        {
-            tx?.Rollback();
-            throw;
+            var result = await _eventLogAppender.Value.AppendAsync(new EventLogAppendRequest(
+                eventStream, streamId, commandId, entries, null, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
+            return ApplyAssignments(domainEvents, result);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            tx?.Rollback();
             throw;
         }
         catch (Exception ex)
         {
-            tx?.Rollback();
             throw new StorageException(ERR_EventDbContext_SaveEventsAsync, ex);
         }
-        return savedEvents;
-
     }
 
     /// <summary>Saves one atomic event batch using optimistic stream-version concurrency.</summary>
@@ -358,50 +348,44 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         if (expectedStreamVersion < 0)
             throw new ArgumentOutOfRangeException(nameof(expectedStreamVersion));
 
-        var savedEvents = new DomainEventCollection();
-        List<(int EventNameId, IEvent DomainEvent)> eventLogParams = [];
         var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken).ConfigureAwait(false);
+        var entries = new List<EventLogAppendEntry>(domainEvents.Count);
         foreach (var domainEvent in domainEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            eventLogParams.Add((
+            entries.Add(new EventLogAppendEntry(
                 await GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken).ConfigureAwait(false),
                 domainEvent));
         }
-
-        var db = _dbFactory.ActorEventSourceDb;
-        var tx = db.BeginTransaction();
         try
         {
-            var eventDate = DateTime.UtcNow;
-            for (var index = 0; index < eventLogParams.Count; index++)
-            {
-                var entry = eventLogParams[index];
-                var eventVersion = await InsertEventLogExpectedVersionAsync(
-                    db,
-                    streamId,
-                    entry.EventNameId,
-                    EventLogMessagePackCodec.Shared.Serialize(entry.DomainEvent),
-                    commandId,
-                    eventDate,
-                    expectedStreamVersion + index,
-                    cancellationToken).ConfigureAwait(false);
-                if (eventVersion <= 0)
-                    throw new ConcurrencyException(
-                        $"Event stream {eventStream} is no longer at expected version {expectedStreamVersion + index}.");
-                EventInitHelper.SetProperty(entry.DomainEvent, nameof(IEvent.EventId), eventVersion);
-                await InsertRequiredProjectionAsync(db, entry.DomainEvent, cancellationToken).ConfigureAwait(false);
-                savedEvents.Add(entry.DomainEvent);
-            }
-            tx?.Commit();
-            return savedEvents;
+            var result = await _eventLogAppender.Value.AppendAsync(new EventLogAppendRequest(
+                eventStream, streamId, commandId, entries, expectedStreamVersion, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
+            return ApplyAssignments(domainEvents, result);
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            tx?.Rollback();
             throw;
         }
+        catch { throw; }
     }
+
+    static DomainEventCollection ApplyAssignments(DomainEventCollection domainEvents, EventLogAppendResult result)
+    {
+        if (result.Assignments.Count != domainEvents.Count)
+            throw new InvalidOperationException("The event-log appender returned an invalid assignment count.");
+        var saved = new DomainEventCollection();
+        for (var index = 0; index < domainEvents.Count; index++)
+        {
+            EventInitHelper.SetProperty(domainEvents[index], nameof(IEvent.EventId), result.Assignments[index].EventVersion);
+            saved.Add(domainEvents[index]);
+        }
+        return saved;
+    }
+
+    public ValueTask DisposeAsync() => _eventLogAppender.IsValueCreated
+        ? _eventLogAppender.Value.DisposeAsync()
+        : ValueTask.CompletedTask;
 
     /// <summary>
     /// Stages an opted-in private event's recovery marker in its existing event-log transaction.

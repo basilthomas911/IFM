@@ -113,7 +113,11 @@ public sealed class NatsRealtimeRoutingIntegrationTests
                 var message = callInfo.Arg<IActorMessage>();
                 var subject = callInfo.Arg<ActorSubject>();
                 message.Dispose();
-                received.TrySetResult(subject);
+                if (message is NatsOwnedEventMessage)
+                    received.TrySetResult(subject);
+                else
+                    received.TrySetException(new InvalidOperationException(
+                        $"Expected owned realtime payload, received {message.GetType().Name}."));
                 return ValueTask.FromResult(ActorAdmissionResult.AcceptedResult);
             });
         return queues;

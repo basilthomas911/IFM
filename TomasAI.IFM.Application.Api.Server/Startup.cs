@@ -249,6 +249,11 @@ public static class Startup
             var applicationStartup = config.GetSection(ApplicationStartupOptions.SectionName)
                 .Get<ApplicationStartupOptions>() ?? new ApplicationStartupOptions();
             services.AddSingleton(applicationStartup.Validate());
+            var eventLogPersistence = config
+                .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions.SectionName)
+                .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
+                ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
+            services.AddSingleton(eventLogPersistence.Validate());
             services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
             services.AddSingleton<IApplicationStartupHandoffStatusStore, ApplicationStartupHandoffStatusStore>();
             services.AddSingleton<IApplicationStartupActivities, ApiApplicationStartupActivities>();
@@ -921,6 +926,11 @@ public static class Startup
             .GetSection(EventProjectorReliabilityOptions.SectionName)
             .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
         _siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
+        var eventLogPersistenceOptions = config
+            .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
+        _siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
 
         var domainAssemblies = new List<Assembly>
         {

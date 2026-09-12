@@ -1,7 +1,5 @@
-using System.Buffers;
-using MessagePack;
-using MessagePack.Resolvers;
 using NATS.Client.Core;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -14,11 +12,6 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </summary>
 public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryCompletion
 {
-    static readonly MessagePackSerializerOptions SerializerOptions =
-        MessagePackSerializerOptions.Standard
-            .WithResolver(ContractlessStandardResolver.Instance)
-            .WithCompression(MessagePackCompression.Lz4BlockArray);
-
     readonly NatsSharedEventPayload _payload;
     readonly EventFanoutDelivery? _delivery;
     int _released;
@@ -35,6 +28,8 @@ public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryComplet
     }
 
     public ActorSubject Subject { get; }
+
+    public System.Diagnostics.ActivityContext TraceContext => _payload.TraceContext;
 
     public int AdmissionSizeBytes
         => Volatile.Read(ref _released) == 0 ? _payload.Memory.Length : 0;
@@ -55,9 +50,8 @@ public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryComplet
         var memory = _payload.Memory;
         if (memory.IsEmpty)
             return default;
-        return MessagePackSerializer.Deserialize<TEvent>(
-            new ReadOnlySequence<byte>(memory),
-            SerializerOptions);
+        return NatsMessagePackSerializer<TEvent>.Default.Deserialize(
+            new System.Buffers.ReadOnlySequence<byte>(memory));
     }
 
     public TQuery? AsQuery<TQuery, TResult>()
@@ -101,8 +95,16 @@ internal sealed class NatsSharedEventPayload : IDisposable
     int _rootReleased;
     int _disposed;
 
-    internal NatsSharedEventPayload(NatsMemoryOwner<byte> owner)
-        => _owner = owner;
+    internal NatsSharedEventPayload(
+        NatsMemoryOwner<byte> owner,
+        System.Diagnostics.ActivityContext traceContext = default)
+    {
+        _owner = owner;
+        TraceContext = traceContext;
+        NatsMessagingMetrics.AcquirePayloadLease(owner.Memory.Length);
+    }
+
+    internal System.Diagnostics.ActivityContext TraceContext { get; }
 
     internal ReadOnlyMemory<byte> Memory
     {
@@ -139,6 +141,7 @@ internal sealed class NatsSharedEventPayload : IDisposable
             {
                 _owner.Dispose();
                 _owner = default;
+                NatsMessagingMetrics.ReleasePayloadLease();
             }
             return;
         }

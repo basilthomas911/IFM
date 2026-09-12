@@ -1,6 +1,3 @@
-using System.Buffers;
-using MessagePack;
-using MessagePack.Resolvers;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -15,11 +12,6 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </summary>
 public sealed class NatsOwnedCommandMessage : IActorMessage
 {
-    static readonly MessagePackSerializerOptions SerializerOptions =
-        MessagePackSerializerOptions.Standard
-            .WithResolver(ContractlessStandardResolver.Instance)
-            .WithCompression(MessagePackCompression.Lz4BlockArray);
-
     readonly INatsConnection _connection;
     readonly string? _replyTo;
     NatsMemoryOwner<byte> _owner;
@@ -34,6 +26,7 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
         _owner = sourceMessage.Data;
         Subject = subject;
         TraceContext = ActorTrace.Extract(sourceMessage.Headers);
+        NatsMessagingMetrics.AcquirePayloadLease(_owner.Memory.Length);
     }
 
     public System.Diagnostics.ActivityContext TraceContext { get; }
@@ -68,9 +61,8 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
         var owner = _owner;
         if (owner.Memory.IsEmpty)
             return default;
-        return MessagePackSerializer.Deserialize<T>(
-            new ReadOnlySequence<byte>(owner.Memory),
-            SerializerOptions);
+        return NatsMessagePackSerializer<T>.Default.Deserialize(
+            new System.Buffers.ReadOnlySequence<byte>(owner.Memory));
     }
 
     public async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
@@ -89,6 +81,7 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
             return;
         _owner.Dispose();
         _owner = default;
+        NatsMessagingMetrics.ReleasePayloadLease();
     }
 
     public void Dispose() => ReleasePayload();

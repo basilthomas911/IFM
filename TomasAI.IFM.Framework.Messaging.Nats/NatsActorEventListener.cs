@@ -238,6 +238,7 @@ public class NatsActorEventListener(
                     msg.EnsureSuccess();
                     Interlocked.Increment(ref _messageCount);
                     NatsMessagingMetrics.Received.Add(1);
+                    NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     var msgSubject = msg.Subject.ToSubject();
                     if (acceptedVerbs.Contains(msgSubject.Verb))
                     {

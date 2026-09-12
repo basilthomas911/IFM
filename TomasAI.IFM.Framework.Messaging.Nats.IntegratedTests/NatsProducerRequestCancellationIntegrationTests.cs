@@ -86,6 +86,55 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
         }
     }
 
+    [Theory]
+    [InlineData(ActorType.Command)]
+    [InlineData(ActorType.Function)]
+    public async Task CommandAndFunctionRequests_UseTypedCompatibleReplies(ActorType actorType)
+    {
+        var subject = new ActorSubject(actorType, $"TypedReply{Guid.NewGuid():N}", "Run", "42");
+        var entityId = new ActorEntityId("42");
+        var command = new TestCommand
+        {
+            Subject = subject,
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            Value = 91
+        };
+        await using var server = new NatsClient(url);
+        await server.ConnectAsync();
+        await using var subscription = await server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString());
+        await server.Connection.PingAsync();
+        await using var manager = new NatsConnectionManager();
+        var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, NullLogger.Instance, manager);
+        using var deadline = new CancellationTokenSource(Timeout);
+
+        try
+        {
+            await producer.StartAsync(subject.ActorId, deadline.Token);
+            var pending = actorType == ActorType.Function
+                ? producer.RequestFunctionAsync<TestCommand, ActorEntityId, TestResult>(
+                    subject, command, entityId, deadline.Token).AsTask()
+                : producer.RequestAsync<TestCommand, ActorEntityId, TestResult>(
+                    subject, command, entityId, deadline.Token).AsTask();
+            var received = await subscription.Msgs.ReadAsync(deadline.Token);
+            var decoded = NatsMessagePackSerializer<TestCommand>.Default.Deserialize(
+                new System.Buffers.ReadOnlySequence<byte>(received.Data));
+            decoded.Should().BeEquivalentTo(command);
+            await received.ReplyAsync(
+                new ServiceResult<TestResult>(new TestResult { Value = 92 }),
+                serializer: NatsMessagePackSerializer<ServiceResult<TestResult>>.Default,
+                cancellationToken: deadline.Token);
+
+            var result = await pending.WaitAsync(Timeout);
+            result.Success.Should().BeTrue();
+            result.Value!.Value.Should().Be(92);
+        }
+        finally
+        {
+            await producer.StopAsync();
+        }
+    }
+
     [MessagePackObject]
     public sealed class TestQuery : IQuery<TestResult>
     {
@@ -99,5 +148,19 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
     public sealed class TestResult
     {
         [Key(0)] public int Value { get; init; }
+    }
+
+    [MessagePackObject]
+    public sealed class TestCommand : ICommand<ActorEntityId>
+    {
+        [Key(0)] public ActorSubject Subject { get; init; }
+        [Key(1)] public ActorEntityId EntityId { get; init; }
+        [Key(2)] public Guid CommandId { get; init; }
+        [Key(3)] public int Value { get; init; }
+        [IgnoreMember] public string CommandName => nameof(TestCommand);
+        [IgnoreMember] public BoundedContextName RouteTo => BoundedContextName.Undefined;
+        [IgnoreMember] public string StreamId => Subject.StreamId;
+        [IgnoreMember] public string EventSource => "IntegrationTest";
+        [IgnoreMember] public int ErrorCode => 0;
     }
 }

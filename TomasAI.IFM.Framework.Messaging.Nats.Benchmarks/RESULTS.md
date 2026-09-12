@@ -1,5 +1,31 @@
 # Messaging.Nats performance results
 
+## MessagePack/NATS completion run - 2026-09-11
+
+BenchmarkDotNet 0.15.8 executed 38 cases on .NET 10.0.10 with three warmups and eight measured iterations. The complete
+generated report is kept in the local ignored `BenchmarkDotNet.Artifacts` directory; the acceptance results are
+recorded here.
+
+| Boundary | Payload | Legacy | Optimized | Allocation change |
+| --- | ---: | ---: | ---: | ---: |
+| Request ingress | 256 B | 753.7 ns / 824 B | 711.4 ns / 424 B | -48.5% |
+| Request ingress | 4,096 B | 1,833.5 ns / 8,528 B | 1,490.4 ns / 4,264 B | -50.0% |
+| Typed request reply | 256 B | 868.3 ns / 408 B | 793.8 ns / 0 B | -100% |
+| Typed request reply | 4,096 B | 2,845.8 ns / 4,264 B | 2,060.1 ns / 0 B | -100% |
+| Event fan-out, one destination | 256 B | 1,203.5 ns / 1,296 B | 1,195.8 ns / 792 B | -38.9% |
+| Event fan-out, one destination | 4,096 B | 2,308.9 ns / 9,001 B | 2,228.7 ns / 4,632 B | -48.5% |
+| Event fan-out, seventeen destinations | 256 B | 19,665.5 ns / 15,122 B | 18,421.3 ns / 12,056 B | -20.3% |
+| Event fan-out, seventeen destinations | 4,096 B | 33,681.1 ns / 84,276 B | 31,228.9 ns / 77,336 B | -8.2% |
+
+The durable benchmark measured the intentionally retained nested representation at 1.923 us / 1,016 B for the
+256-byte input and 5.163 us / 8,753 B for the 4,096-byte input. Those arrays are owned by durable storage beyond a
+NATS pool lease and are tracked as required boundary allocations.
+
+The compression-only comparison reported 0 B/op for both profiles. LZ4 was 3.2-8.4 times slower than uncompressed
+serialization across random and repeated 256-byte, 4,096-byte, and 65,536-byte payloads. The current LZ4 setting is
+unchanged because encoded size, broker/network latency, historical payload compatibility, and rolling deployment
+must be assessed together before a protocol change.
+
 Benchmark host: AMD Ryzen Threadripper 1950X, Windows 10 22H2, .NET 10.0.10, x64 RyuJIT, concurrent workstation GC. BenchmarkDotNet 0.15.8; 3 warmups and 8 measured iterations.
 
 ## Before optimization

@@ -319,7 +319,14 @@ public class NatsActorConsumer(
             switch (_actorType)
             {
                 case ActorType.Realtime:
-                    await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    if (_options.UseOwnedRealtimePayloads)
+                        await RealtimeMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    else
+                    {
+                        _logger.LogWarning(
+                            "NATS realtime consumer is using the legacy byte[] payload path for diagnostics.");
+                        await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    }
                     break;
                 case ActorType.Command:
                 case ActorType.Function:
@@ -354,6 +361,85 @@ public class NatsActorConsumer(
         }
     }
 
+    async ValueTask RealtimeMessageLoopAsync(CancellationToken cancellationToken)
+    {
+        var stripes = _stripeChannels!;
+        var stripeCount = stripes.Length;
+        _logger.LogInformationEvent(
+            _serviceId,
+            "NATS realtime consumer started with shared owned pooled payloads");
+
+        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in _nc!.SubscribeAsync<NatsMemoryOwner<byte>>(
+            _subscriptionSubject,
+            serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
+            opts: _requestOptions,
+            cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            NatsSharedEventPayload? payload = null;
+            var ownerTransferred = false;
+            try
+            {
+                msg.EnsureSuccess();
+                if (msg.Data.Memory.IsEmpty)
+                    continue;
+
+                payload = new NatsSharedEventPayload(msg.Data, ActorTrace.Extract(msg.Headers));
+                ownerTransferred = true;
+                var source = msg.Subject.ToSubject();
+                var destinations = BuildPubSubDestinations(_supervisor, _actorType, source);
+                if (destinations.Count == 0)
+                {
+                    NatsMessagingMetrics.DispatchFailures.Add(1);
+                    _logger.LogErrorEvent(
+                        _serviceId,
+                        "NATS realtime message rejected because its primary actor {ActorId} is not registered.",
+                        source.ActorId);
+                    continue;
+                }
+
+                NatsMessagingMetrics.Received.Add(1);
+                foreach (var destination in destinations)
+                {
+                    NatsOwnedEventMessage? branch = null;
+                    var branchTransferred = false;
+                    try
+                    {
+                        branch = payload.CreateBranch(destination);
+                        var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+                        await stripes[stripe].Writer.WriteAsync(
+                            (branch, destination),
+                            cancellationToken).ConfigureAwait(false);
+                        branchTransferred = true;
+                    }
+                    finally
+                    {
+                        if (!branchTransferred)
+                            branch?.Dispose();
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(
+                    _serviceId,
+                    ex,
+                    "NATS realtime consumer failed before ownership transfer.");
+            }
+            finally
+            {
+                if (ownerTransferred)
+                    payload!.Dispose();
+                else
+                    msg.Data.Dispose();
+            }
+        }
+    }
+
     async ValueTask PubSubMessageLoopAsync(CancellationToken ctsRequestToken)
     {
         var stripes = _stripeChannels!;
@@ -373,6 +459,7 @@ public class NatsActorConsumer(
                     msg.EnsureSuccess();
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);
+                    NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (_logger.IsEnabled(LogLevel.Debug))
                         _logger.LogDebug("NATS {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
 
@@ -446,20 +533,20 @@ public class NatsActorConsumer(
             cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             var owner = msg.Data;
-
-            var transferred = false;
+            NatsOwnedCommandMessage? actorMessage = null;
+            var queued = false;
             try
             {
                 msg.EnsureSuccess();
                 var subject = msg.Subject.ToSubject();
-                var actorMessage = new NatsOwnedCommandMessage(msg, subject);
+                actorMessage = new NatsOwnedCommandMessage(msg, subject);
                 var stripe = (subject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
 
                 await stripes[stripe].Writer.WriteAsync(
                     (actorMessage, subject),
                     cancellationToken).ConfigureAwait(false);
 
-                transferred = true;
+                queued = true;
                 NatsMessagingMetrics.Received.Add(1);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -473,7 +560,9 @@ public class NatsActorConsumer(
             }
             finally
             {
-                if (!transferred)
+                if (!queued && actorMessage is not null)
+                    actorMessage.Dispose();
+                else if (actorMessage is null)
                     owner.Dispose();
             }
         }
@@ -505,6 +594,7 @@ public class NatsActorConsumer(
                     msg.EnsureSuccess();
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);
+                    NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (_logger.IsEnabled(LogLevel.Debug))
                         _logger.LogDebug("NATS {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
 
@@ -594,19 +684,20 @@ public class NatsActorConsumer(
             cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             var owner = msg.Data;
-            var transferred = false;
+            NatsOwnedQueryMessage? actorMessage = null;
+            var queued = false;
             try
             {
                 msg.EnsureSuccess();
                 var subject = msg.Subject.ToSubject();
-                var actorMessage = new NatsOwnedQueryMessage(msg, subject);
+                actorMessage = new NatsOwnedQueryMessage(msg, subject);
                 var stripe = (subject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
 
                 await stripes[stripe].Writer.WriteAsync(
                     (actorMessage, subject),
                     cancellationToken).ConfigureAwait(false);
 
-                transferred = true;
+                queued = true;
                 NatsMessagingMetrics.Received.Add(1);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -623,7 +714,9 @@ public class NatsActorConsumer(
             }
             finally
             {
-                if (!transferred)
+                if (!queued && actorMessage is not null)
+                    actorMessage.Dispose();
+                else if (actorMessage is null)
                     owner.Dispose();
             }
         }

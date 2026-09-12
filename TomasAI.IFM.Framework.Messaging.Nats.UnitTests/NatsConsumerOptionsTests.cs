@@ -19,6 +19,9 @@ public sealed class NatsConsumerOptionsTests
         options.DispatcherCount.Should().Be(4);
         options.DispatcherCapacity.Should().Be(4096);
         options.GetSubscriptionCapacity().Should().Be(16384);
+        options.UseOwnedCommandPayloads.Should().BeTrue();
+        options.UseOwnedQueryPayloads.Should().BeTrue();
+        options.UseOwnedRealtimePayloads.Should().BeTrue();
     }
 
     [Fact]

@@ -14,21 +14,28 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// as the messaging infrastructure. It provides utility methods to deserialize the message payload into strongly-typed
 /// data structures, as well as a mechanism to send replies.</remarks>
 /// <param name="NatsMessage"></param>
-public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
-    : IActorMessage
+public sealed class NatsActorMessage : IActorMessage
 {
-    static readonly NatsMessagePackDataSerializer  _dataSerializer = new();
-    static readonly NatsByteArrayMessageSerializer _msgSerializer = new();
+    static readonly NatsMessagePackDataSerializer _dataSerializer = new();
 
-    public NatsMsg<byte[]> NatsMessage { get; } = natsMessage;
+    public NatsActorMessage(NatsMsg<byte[]> natsMessage)
+    {
+        NatsMessage = natsMessage;
+        TraceContext = ActorTrace.Extract(natsMessage.Headers);
+    }
 
-    public System.Diagnostics.ActivityContext TraceContext { get; } = ActorTrace.Extract(natsMessage.Headers);
+    public NatsMsg<byte[]> NatsMessage { get; }
+
+    public System.Diagnostics.ActivityContext TraceContext { get; }
 
     readonly ActorSubject? _subject;
 
     internal NatsActorMessage(NatsMsg<byte[]> natsMessage, ActorSubject subject)
         : this(natsMessage)
-        => _subject = subject;
+    {
+        _subject = subject;
+        NatsMessagingMetrics.RecordLegacyPayloadCopy(natsMessage.Data?.Length ?? 0);
+    }
 
     public int AdmissionSizeBytes => NatsMessage.Data?.Length ?? 0;
 
@@ -47,10 +54,11 @@ public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
 
     public async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
     {
-        var data = _dataSerializer.Serialize(result);
         if (!string.IsNullOrEmpty(NatsMessage.ReplyTo))
         {
-            await NatsMessage.ReplyAsync(data, serializer: _msgSerializer);
+            await NatsMessage.ReplyAsync(
+                result,
+                serializer: NatsMessagePackSerializer<TResult>.Default).ConfigureAwait(false);
         }
     }
 

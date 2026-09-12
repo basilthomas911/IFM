@@ -9,6 +9,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -45,7 +46,7 @@ public sealed class EventSourceActorSnapshotRangeFixture
         new EventSourceSchemaDb(_connectionSettings, _logger).CreateAllAsync().GetAwaiter().GetResult();
 
         var cache = Substitute.For<IRedisCache>();
-        var cacheValues = new Dictionary<string, string>();
+        var cacheValues = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
         cache.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
         {
             var found = cacheValues.TryGetValue(call.ArgAt<string>(0), out var value);
@@ -63,8 +64,214 @@ public sealed class EventSourceActorSnapshotRangeFixture
     public DbContextFactory DbFactory { get; }
     public EventSourceActorDbContext ActorEventDb { get; }
 
-    public EventSourceActorDbContext CreateActorEventDb()
-        => new(_connectionSettings, DbFactory, _blackboard, _logger);
+    public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null)
+        => new(_connectionSettings, DbFactory, _blackboard, _logger, options);
+}
+
+public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapshotRangeFixture fixture)
+    : IClassFixture<EventSourceActorSnapshotRangeFixture>
+{
+    [Theory]
+    [InlineData(EventLogWriteMode.Sequential, false)]
+    [InlineData(EventLogWriteMode.Sequential, true)]
+    [InlineData(EventLogWriteMode.BinaryCopy, false)]
+    [InlineData(EventLogWriteMode.BinaryCopy, true)]
+    public async Task Both_appenders_and_compression_modes_write_replay_compatible_events(
+        EventLogWriteMode mode,
+        bool useLz4Compression)
+    {
+        var options = new EventLogPersistenceOptions
+        {
+            WriteMode = mode,
+            UseLz4Compression = useLz4Compression,
+            MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(1)
+        };
+        await using var context = fixture.CreateActorEventDb(options);
+        var stream = $"DualAppender.{mode}.{useLz4Compression}.{Guid.NewGuid():N}";
+        var events = new DomainEventCollection([NewSignal(), NewSignal()]);
+
+        var saved = await context.SaveEventsAsync(stream, Guid.NewGuid(), events, 0, CancellationToken.None);
+
+        saved.Should().HaveCount(2);
+        saved.Select(static item => item.EventId).Should().OnlyHaveUniqueItems();
+        var streamId = await context.GetEventStreamIdAsync(stream);
+        var rows = await context.LoadActorEventStreamAsync<DualAppenderState>(streamId);
+        rows.Select(static row => row.StreamVersion).Should().Equal(1, 2);
+        rows.Select(static row => row.ToDomainEvent()).Should().AllBeOfType<FuturesRsiSignalGeneratedEvent>();
+    }
+
+    [Fact]
+    public async Task Sequential_and_binary_copy_append_to_the_same_existing_stream()
+    {
+        var stream = $"DualAppender.CrossMode.{Guid.NewGuid():N}";
+        await using var sequential = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.Sequential,
+            UseLz4Compression = false
+        });
+        await sequential.SaveEventsAsync(stream, Guid.NewGuid(), new DomainEventCollection([NewSignal()]), 0, CancellationToken.None);
+
+        await using var binary = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.BinaryCopy,
+            UseLz4Compression = true
+        });
+        await binary.SaveEventsAsync(stream, Guid.NewGuid(), new DomainEventCollection([NewSignal()]), 1, CancellationToken.None);
+
+        var streamId = await binary.GetEventStreamIdAsync(stream);
+        var rows = await binary.LoadActorEventStreamAsync<DualAppenderState>(streamId);
+        rows.Select(static row => row.StreamVersion).Should().Equal(1, 2);
+        rows.Select(static row => row.ToDomainEvent()).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Binary_copy_commits_required_projection_marker_atomically()
+    {
+        await using var binary = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.BinaryCopy,
+            UseLz4Compression = true
+        });
+        var @event = new ValidProjectionEvent();
+
+        var saved = await binary.SaveEventsAsync(
+            $"DualAppender.Projection.{Guid.NewGuid():N}", @event.CommandId,
+            new DomainEventCollection([@event]), 0, CancellationToken.None);
+
+        saved.Should().ContainSingle();
+        var marker = await binary.GetEventProjectorExecutionStateAsync(
+            @event.EventId, @event.RequiredProjection.ProjectorName, CancellationToken.None);
+        marker.Should().NotBeNull();
+        marker!.Stage.Should().Be(EventProjectorStageType.ApplyProjection);
+    }
+
+    [Fact]
+    public async Task Binary_copy_rolls_back_event_when_required_projection_is_invalid()
+    {
+        await using var binary = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.BinaryCopy,
+            UseLz4Compression = true
+        });
+        var @event = new InvalidProjectionEvent();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => binary.SaveEventsAsync(
+            $"DualAppender.InvalidProjection.{Guid.NewGuid():N}", @event.CommandId,
+            new DomainEventCollection([@event]), 0, CancellationToken.None));
+
+        @event.EventId.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Binary_copy_batches_concurrent_commands_and_keeps_each_stream_contiguous()
+    {
+        await using var binary = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.BinaryCopy,
+            UseLz4Compression = true,
+            MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(10)
+        });
+        var streams = Enumerable.Range(0, 16)
+            .Select(_ => $"DualAppender.Concurrent.{Guid.NewGuid():N}")
+            .ToArray();
+
+        await Task.WhenAll(streams.Select(stream => binary.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([NewSignal(), NewSignal()]),
+            0,
+            CancellationToken.None)));
+
+        foreach (var stream in streams)
+        {
+            var rows = await binary.LoadActorEventStreamAsync<DualAppenderState>(
+                await binary.GetEventStreamIdAsync(stream));
+            rows.Select(static row => row.StreamVersion).Should().Equal(1, 2);
+        }
+    }
+
+    [Fact]
+    public async Task Sequential_appender_commits_independent_streams_concurrently()
+    {
+        await using var sequential = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.Sequential,
+            UseLz4Compression = true
+        });
+        var streams = Enumerable.Range(0, 16)
+            .Select(_ => $"SequentialAppender.Concurrent.{Guid.NewGuid():N}")
+            .ToArray();
+
+        var saved = await Task.WhenAll(streams.Select(stream => sequential.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([NewSignal()]),
+            0,
+            CancellationToken.None)));
+
+        saved.Should().OnlyContain(events => events.Count == 1);
+        foreach (var stream in streams)
+        {
+            var rows = await sequential.LoadActorEventStreamAsync<DualAppenderState>(
+                await sequential.GetEventStreamIdAsync(stream));
+            rows.Select(static row => row.StreamVersion).Should().Equal(1);
+        }
+    }
+
+    [Fact]
+    public void Persistence_options_reject_invalid_bounds()
+    {
+        var options = new EventLogPersistenceOptions { MaximumEventsPerBatch = 0 };
+
+        var validate = options.Invoking(static value => value.Validate());
+
+        validate.Should().Throw<ArgumentOutOfRangeException>()
+            .WithParameterName(nameof(EventLogPersistenceOptions.MaximumEventsPerBatch));
+    }
+
+    static FuturesRsiSignalGeneratedEvent NewSignal() => new()
+    {
+        EntityId = new FuturesRsiSignalEntityId("ESU6", new DateOnly(2026, 9, 11), TimeFrameType.Daily, 14),
+        CreatedOn = DateTime.UtcNow,
+        CreatedBy = "dual-appender-integration-test"
+    };
+
+    sealed class DualAppenderState : IActorState<DualAppenderState>
+    {
+        public ActorThreadId Id { get; set; }
+    }
+
+    public sealed record ValidProjectionEvent : IEvent, IRequireDurableProjection
+    {
+        public ActorSubject Subject { get; init; } = ActorSubject.Unknown;
+        public Guid Id { get; init; } = Guid.NewGuid();
+        public long EventId { get; init; }
+        public Guid CommandId { get; init; } = Guid.NewGuid();
+        public string AggregateId { get; init; } = "dual-appender";
+        public string EventSource { get; init; } = "DualAppenderIntegrationTests";
+        public DateTime ReceivedOn { get; init; } = DateTime.UtcNow;
+        public string UserName => "test";
+        public string EventName => nameof(ValidProjectionEvent);
+        public EventType EventType => EventType.DomainEvent;
+        public DurableProjectionRequirement RequiredProjection =>
+            new("DualAppenderActor", "DualAppenderProjector", EventProjectorStageType.ApplyProjection);
+    }
+
+    public sealed record InvalidProjectionEvent : IEvent, IRequireDurableProjection
+    {
+        public ActorSubject Subject { get; init; } = ActorSubject.Unknown;
+        public Guid Id { get; init; } = Guid.NewGuid();
+        public long EventId { get; init; }
+        public Guid CommandId { get; init; } = Guid.NewGuid();
+        public string AggregateId { get; init; } = "dual-appender";
+        public string EventSource { get; init; } = "DualAppenderIntegrationTests";
+        public DateTime ReceivedOn { get; init; } = DateTime.UtcNow;
+        public string UserName => "test";
+        public string EventName => nameof(InvalidProjectionEvent);
+        public EventType EventType => EventType.DomainEvent;
+        public DurableProjectionRequirement RequiredProjection =>
+            new("DualAppenderActor", "DualAppenderProjector", EventProjectorStageType.Completed);
+    }
 }
 
 public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFixture fixture)

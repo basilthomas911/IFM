@@ -229,6 +229,8 @@ public sealed class NatsJetStreamEventListener(
                         continue;
                     }
 
+                    NatsMessagingMetrics.RecordLegacyPayloadCopy(message.Data.Length);
+
                     var subject = message.Subject.ToSubject();
                     if (!acceptedVerbs.Contains(subject.Verb))
                     {

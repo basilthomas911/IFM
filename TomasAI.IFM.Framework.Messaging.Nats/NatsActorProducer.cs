@@ -26,8 +26,6 @@ public class NatsActorProducer(
     : IActorProducer
 {
     readonly INatsProducerOptions _options = IsArgumentNull.Set(options);
-    readonly INatsSerializer<byte[]> _messageSerializer = new NatsByteArrayMessageSerializer();
-    readonly NatsMessagePackDataSerializer _dataSerializer = new();
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
@@ -337,11 +335,10 @@ public class NatsActorProducer(
             if (!IsRunning)
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
 
-            var replyMessageData = await RequestAsync(
+            result = await RequestAsync<TCommand, TResult>(
                 subject.ToString(),
                 command.ToCommand<TCommand, TEntityId>(),
                 cancellationToken).ConfigureAwait(false);
-            result = _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)!;
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Requested command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
         }
@@ -369,13 +366,10 @@ public class NatsActorProducer(
         if (!IsRunning)
             await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
 
-        var replyMessageData = await RequestAsync(
+        return await RequestAsync<TCommand, TResult>(
             subject.ToString(),
             command.ToCommand<TCommand, TEntityId>(),
             cancellationToken).ConfigureAwait(false);
-        return _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)
-            ?? throw new InvalidOperationException(
-                $"Function actor '{subject}' returned no {typeof(TResult).Name} result.");
     }
 
     async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
@@ -402,21 +396,25 @@ public class NatsActorProducer(
         }
     }
 
-    async ValueTask<byte[]> RequestAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
+    async ValueTask<ServiceResult<TResult>> RequestAsync<TRequest, TResult>(
+        string subject,
+        TRequest message,
+        CancellationToken cancellationToken = default)
+        where TResult : class
     {
         var started = NatsMessagingMetrics.StartOperation();
         try
         {
             using var operationCancellation = CreateOperationCancellation(cancellationToken);
-            var data = (await _nc!.RequestAsync(
+            var reply = await _nc!.RequestAsync<TRequest, ServiceResult<TResult>>(
                 subject,
                 message,
                 headers: ActorTrace.Headers(),
-                requestSerializer: NatsMessagePackSerializer<T>.Default,
-                replySerializer: _messageSerializer,
-                cancellationToken: operationCancellation.Token).ConfigureAwait(false)).Data!;
+                requestSerializer: NatsMessagePackSerializer<TRequest>.Default,
+                replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
+                cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);
-            return data;
+            return IsArgumentNull.Set(reply.Data);
         }
         catch
         {

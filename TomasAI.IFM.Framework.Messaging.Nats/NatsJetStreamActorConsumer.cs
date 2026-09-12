@@ -443,6 +443,7 @@ public class NatsJetStreamActorConsumer(
                     }
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);
+                    NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (msg.Metadata?.NumDelivered > 1)
                         NatsMessagingMetrics.RecordJetStreamRedelivery(_actorType);
                     if (_logger.IsEnabled(LogLevel.Debug))
@@ -527,7 +528,7 @@ public class NatsJetStreamActorConsumer(
                         continue;
                     }
 
-                    payload = new NatsSharedEventPayload(msg.Data);
+                    payload = new NatsSharedEventPayload(msg.Data, ActorTrace.Extract(msg.Headers));
                     ownerTransferred = true;
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);

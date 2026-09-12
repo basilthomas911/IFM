@@ -21,33 +21,50 @@ $featureArguments = if ($EnableLive) { @('--features', 'live') } else { @() }
 $target = 'x86_64-pc-windows-msvc'
 $manifestPath = Join-Path $crateDirectory 'Cargo.toml'
 
-# Visual Studio's lightweight C++ SDK contains the linker, runtime libraries and
-# headers required by the MSVC Rust target even when the full Desktop C++ workload
-# is not installed. Configure it as a deterministic fallback for developer hosts.
-if (-not (Get-Command link.exe -ErrorAction SilentlyContinue)) {
-    $scopeCppRoot = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\18\Community\SDK\ScopeCppSDK\vc15\VC'
-    $scopeLinker = Join-Path $scopeCppRoot 'bin\link.exe'
-    $windowsKitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
-    $windowsSdk = Get-ChildItem -LiteralPath (Join-Path $windowsKitsRoot 'Lib') -Directory -ErrorAction SilentlyContinue |
-        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'um\x64\kernel32.lib') } |
-        Sort-Object { [version]$_.Name } -Descending |
-        Select-Object -First 1
-    if ((Test-Path -LiteralPath $scopeLinker) -and $windowsSdk) {
-        $sdkVersion = $windowsSdk.Name
-        $sdkInclude = Join-Path $windowsKitsRoot "Include\$sdkVersion"
-        $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = $scopeLinker
-        $env:PATH = (Join-Path $scopeCppRoot 'bin') + ';' +
-            (Join-Path $windowsKitsRoot "bin\$sdkVersion\x64") + ';' + $env:PATH
-        $env:LIB = (Join-Path $scopeCppRoot 'lib') + ';' +
-            (Join-Path $windowsSdk.FullName 'um\x64') + ';' +
-            (Join-Path $windowsSdk.FullName 'ucrt\x64')
-        $env:INCLUDE = (Join-Path $scopeCppRoot 'include') + ';' +
-            (Join-Path $sdkInclude 'ucrt') + ';' +
-            (Join-Path $sdkInclude 'shared') + ';' +
-            (Join-Path $sdkInclude 'um') + ';' +
-            (Join-Path $sdkInclude 'winrt')
-    }
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if (-not (Test-Path -LiteralPath $vswhere)) {
+    throw 'Visual Studio Installer discovery tool vswhere.exe was not found.'
 }
+
+$visualStudioInstallation = & $vswhere -latest `
+    -products Microsoft.VisualStudio.Product.Community `
+    -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+    -property installationPath
+$visualStudioVersion = & $vswhere -latest `
+    -products Microsoft.VisualStudio.Product.Community `
+    -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+    -property installationVersion
+if (-not $visualStudioInstallation -or -not $visualStudioVersion -or
+    $visualStudioVersion.Split('.')[0] -ne '18') {
+    throw 'Visual Studio Community 2026 with Desktop development with C++ was not found.'
+}
+
+$msvcTools = Get-ChildItem -LiteralPath (Join-Path $visualStudioInstallation 'VC\Tools\MSVC') `
+        -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'bin\Hostx64\x64\link.exe') } |
+    Sort-Object { [version]$_.Name } -Descending |
+    Select-Object -First 1
+if (-not $msvcTools) {
+    throw "The x64 MSVC linker was not found in Visual Studio Community 2026 at '$visualStudioInstallation'."
+}
+
+$windowsKitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
+$windowsSdk = Get-ChildItem -LiteralPath (Join-Path $windowsKitsRoot 'Lib') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'um\x64\kernel32.lib') } |
+    Sort-Object { [version]$_.Name } -Descending |
+    Select-Object -First 1
+if (-not $windowsSdk) {
+    throw 'A Windows SDK containing the x64 kernel32 import library was not found.'
+}
+
+$sdkVersion = $windowsSdk.Name
+$msvcBin = Join-Path $msvcTools.FullName 'bin\Hostx64\x64'
+$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = Join-Path $msvcBin 'link.exe'
+$env:PATH = $msvcBin + ';' + (Join-Path $windowsKitsRoot "bin\$sdkVersion\x64") + ';' + $env:PATH
+$env:LIB = (Join-Path $msvcTools.FullName 'lib\x64') + ';' +
+    (Join-Path $windowsSdk.FullName 'um\x64') + ';' +
+    (Join-Path $windowsSdk.FullName 'ucrt\x64')
+Write-Host "Using Visual Studio Community 2026 MSVC tools '$($msvcTools.Name)' from '$visualStudioInstallation'."
 
 if ($RunTests) {
     $testArguments = @('test', '--manifest-path', $manifestPath, '--target', $target) + $configurationArgument + $featureArguments

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using System.Data;
 using Npgsql;
 using NpgsqlTypes;
@@ -21,9 +22,13 @@ public interface IPostgresEventTransaction
 }
 
 /// <summary>Shared financial Command/Function unit of work. No transaction is stored in a singleton context.</summary>
-public sealed class PostgresEventTransaction(IDbConnectionSettings settings) : IPostgresEventTransaction
+public sealed class PostgresEventTransaction(
+    IDbConnectionSettings settings,
+    EventLogPersistenceOptions? eventLogPersistenceOptions = null) : IPostgresEventTransaction
 {
     readonly string connectionString = settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
+    readonly EventLogMessagePackCodec eventLogCodec = new(
+        (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate().UseLz4Compression);
 
     /// <inheritdoc />
     public async Task<T> ExecuteAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation,
@@ -69,7 +74,7 @@ public sealed class PostgresEventTransaction(IDbConnectionSettings settings) : I
         using var beginTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.begin");
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
         beginTrace?.Stop();
-        var enlisted = new EnlistedEventTransaction(connection, transaction);
+        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec);
         T result;
         try
         {
@@ -116,8 +121,12 @@ public sealed class EnlistedEventTransaction
 {
     readonly NpgsqlConnection connection;
     readonly NpgsqlTransaction transaction;
-    internal EnlistedEventTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction)
-        => (this.connection, this.transaction) = (connection, transaction);
+    readonly EventLogMessagePackCodec eventLogCodec;
+    internal EnlistedEventTransaction(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        EventLogMessagePackCodec eventLogCodec)
+        => (this.connection, this.transaction, this.eventLogCodec) = (connection, transaction, eventLogCodec);
 
     /// <summary>Executes parameterized SQL on the enlisted connection.</summary>
     public async Task<int> ExecuteAsync(string sql, object?[] parameters, CancellationToken cancellationToken)
@@ -162,7 +171,7 @@ public sealed class EnlistedEventTransaction
             [type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId,[type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false))!;
         using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
-        var payloadBytes = EventLogMessagePackCodec.Shared.Serialize(domainEvent);
+        var payloadBytes = eventLogCodec.Serialize(domainEvent);
         var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = payloadBytes };
         serializeTrace?.SetTag("event.payload.bytes", payloadBytes.Length);
         serializeTrace?.Stop();

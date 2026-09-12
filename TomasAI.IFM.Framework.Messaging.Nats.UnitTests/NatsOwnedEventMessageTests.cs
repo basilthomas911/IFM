@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using FluentAssertions;
 using MessagePack;
 using NATS.Client.Core;
@@ -12,6 +13,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests;
 public class NatsOwnedEventMessageTests
 {
     [Fact]
+    [Trait("Category", "Verification")]
     public void FanoutBranches_ReleaseSharedPayloadOnlyAfterLastOwner()
     {
         var sourceEvent = CreateEvent();
@@ -43,6 +45,24 @@ public class NatsOwnedEventMessageTests
         payload.IsDisposed.Should().BeTrue();
         FluentActions.Invoking(() => routed.AsEvent<TestEvent>())
             .Should().Throw<ObjectDisposedException>();
+    }
+
+    [Fact]
+    public void FanoutBranches_PreserveIngressTraceContext()
+    {
+        var traceContext = new ActivityContext(
+            ActivityTraceId.CreateRandom(),
+            ActivitySpanId.CreateRandom(),
+            ActivityTraceFlags.Recorded);
+        var writer = new ArrayBufferWriter<byte>();
+        var sourceEvent = CreateEvent();
+        NatsMessagePackSerializer<TestEvent>.Default.Serialize(writer, sourceEvent);
+        var owner = NatsMemoryOwner<byte>.Allocate(writer.WrittenCount);
+        writer.WrittenSpan.CopyTo(owner.Span);
+        using var payload = new NatsSharedEventPayload(owner, traceContext);
+        using var branch = payload.CreateBranch(sourceEvent.Subject);
+
+        branch.TraceContext.Should().Be(traceContext);
     }
 
     [Fact]

@@ -36,4 +36,19 @@ public sealed class EventLogBinaryCodecTests
     [Fact]
     public void Non_event_registered_type_is_rejected()
         => Assert.Throws<InvalidDataException>(() => EventLogMessagePackCodec.Shared.Deserialize(typeof(string).AssemblyQualifiedName!, 1, [1]));
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void Payload_is_replayable_when_reader_compression_preference_changes(bool writtenCompressed, bool readCompressed)
+    {
+        var source = new UnknownEvent(default, Guid.NewGuid(), default, 0, Guid.NewGuid(),
+            "", "test", DateTime.UtcNow, 3, 4, "missing", "diagnostic", DateTime.UtcNow);
+        var payload = new EventLogMessagePackCodec(writtenCompressed).Serialize(source);
+
+        var replayed = new EventLogMessagePackCodec(readCompressed)
+            .Deserialize(source.GetType().AssemblyQualifiedName!, 12, payload);
+
+        Assert.Equal(source with { EventId = 12 }, replayed);
+    }
 }

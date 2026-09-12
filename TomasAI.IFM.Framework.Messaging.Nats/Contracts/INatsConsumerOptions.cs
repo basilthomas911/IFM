@@ -42,6 +42,12 @@ public interface INatsConsumerOptions
     bool UseOwnedQueryPayloads { get; set; }
 
     /// <summary>
+    /// Gets or sets whether realtime event ingress retains one shared NATS pooled payload
+    /// across all actor fan-out branches. Disable only for controlled A/B diagnostics.
+    /// </summary>
+    bool UseOwnedRealtimePayloads { get; set; }
+
+    /// <summary>
     /// Gets or sets the explicit loss/retry contract for messages without a
     /// reply subject, keyed by actor type.
     /// </summary>

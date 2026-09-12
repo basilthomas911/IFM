@@ -700,7 +700,11 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             DateTimeOffset.UtcNow,
             null,
             null);
-        return MessagePackSerializer.Serialize(envelope, MessagePackOptions);
+        var payload = MessagePackSerializer.Serialize(envelope, MessagePackOptions);
+        // The durable store owns its byte[] independently of NATS and process lifetime.
+        // Both the typed event and its envelope therefore require stable managed arrays.
+        NatsMessagingMetrics.RecordDurablePayloadAllocations(2);
+        return payload;
     }
 
     static string CreateProcessMessageId(string eventProjectorName, IEvent domainEvent)
@@ -750,7 +754,9 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             FailedAtUtc = DateTimeOffset.UtcNow,
             ErrorMessage = exception.Message
         };
-        return MessagePackSerializer.Serialize(envelope, MessagePackOptions);
+        var failedPayload = MessagePackSerializer.Serialize(envelope, MessagePackOptions);
+        NatsMessagingMetrics.RecordDurablePayloadAllocations(1);
+        return failedPayload;
     }
 
     static DurableEventEnvelope DeserializeEnvelope(byte[] payload)
