@@ -50,7 +50,7 @@ public sealed class LegacyFinancialInventoryIntegrationTests(PortfolioEventStore
             (await source.HasLegacyFinancialRecordsOutsideRangeAsync(id,scope.Start,scope.End)).Should().BeFalse();
             (await source.HasLegacyFinancialRecordsOutsideRangeAsync(id,new(2026,9,9),scope.End)).Should().BeTrue();
             (await source.HasLegacyFinancialRecordsOutsideRangeAsync(id,scope.Start,new(2026,9,7))).Should().BeTrue();
-            (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(scope.DestinationPortfolioId)).Should().BeNull();
+            (await new PortfolioFinancialStore(Transactions()).ReadBookAsync(scope.DestinationPortfolioId)).Should().BeNull();
             if(mode=="ReadOnlyHistoryWithDevelopmentCapital")
             {
                 var sources=new TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioEventStore(fixture.EventSourceDb);
@@ -69,7 +69,7 @@ public sealed class LegacyFinancialInventoryIntegrationTests(PortfolioEventStore
                 var sealedResult=await service.RetainAsync(scope,access,"Retain without capital conversion");retained=true;
                 sealedResult.State.Should().Be("RetainedReadOnly");
                 (await service.RetainAsync(scope,access,"Retain without capital conversion")).Should().Be(sealedResult);
-                (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(id+1)).Should().BeNull();
+                (await new PortfolioFinancialStore(Transactions()).ReadBookAsync(id+1)).Should().BeNull();
                 await FluentActions.Awaiting(()=>source.InsertFundTransactionAsync(row with { TransactionDate=now.AddMinutes(1) })).Should().ThrowAsync<FinancialOperationException>();
                 await FluentActions.Awaiting(()=>Transactions().ExecuteAsync((db,ct)=>db.ExecuteAsync("DELETE FROM portfolio_financial.ledger_migration WHERE migration_id=$1;",[scope.InventoryId],ct))).Should().ThrowAsync<Npgsql.PostgresException>();
             }

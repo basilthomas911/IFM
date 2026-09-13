@@ -71,7 +71,7 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
             retry=retry with { ExpectedFinancialRevision=4 };retry=retry with { InputSha256=FinancialCanonicalHash.Request(retry) };
             var denied=await FluentActions.Awaiting(()=>Reserve(retry)).Should().ThrowAsync<FinancialOperationException>();
             denied.Which.Code.Should().Be(FinancialReasons.InsufficientCapacity);
-            (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,retry.OperationId)).Should().BeNull();
+            (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,retry.OperationId)).Should().BeNull();
         }
         (await Usage(book)).Held.Should().Be(700);
     }

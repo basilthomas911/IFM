@@ -28,7 +28,7 @@ public sealed class FinancialCommitUncertaintyTests(PortfolioEventStoreFixture f
         if(refuseRecovery) await FluentActions.Awaiting(attempt).Should().ThrowAsync<FunctionCommitOutcomeUnknownException>();
         else reply=await attempt();
         proxy.Dropped.Should().BeTrue("the proxy observed and suppressed PostgreSQL's actual COMMIT response");
-        var committed=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId);
+        var committed=await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId);
         committed.Should().NotBeNull(); if(reply is not null) reply.Id.Should().Be(committed!.Id);
         var retry=await Post(request); retry.Id.Should().Be(committed!.Id);
         var balance=await new FinancialQueryStore(Transactions()).ReadAsync(new FinancialReadScope { PortfolioId=book.PortfolioId,FundId=book.Funds[0].FundId,

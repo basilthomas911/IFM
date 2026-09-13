@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-12  
 **Version:** 1.0  
-**Status:** Approved for implementation  
+**Status:** Implemented and qualified; external-service soak deferred
 **Design authority:** `Trade-Order-Execution-Trade-Position-Backend-Schema-Design-v1.2.md`  
 **Actor convention:** `Documents/system/Actor-Implementation-Conventions.md`
 
@@ -24,17 +24,17 @@ The lifecycle carries Portfolio and Fund ownership from the approved order to th
 - Strategy Position actors own Open, MTM, EOD, Close, and Correction history.
 - Realtime actors route market ticks and never own P&L or position state.
 - Portfolio/Fund IDs are mandatory throughout the chain; Portfolio behavior is deferred.
-- Existing immutable history is never overwritten. Compatibility adapters keep legacy records readable.
+- Established lifecycle history is append-only. The legacy OptionTrade event stream requires no compatibility reader because no historical trade events exist.
 - No database access, LINQ, reflection, string formatting, or per-tick logging is permitted in the realtime tick-routing hot path.
 
-## 3. Gate 0 - inventory and compatibility fixtures
+## 3. Gate 0 - inventory and clean cutover
 
-1. Record legacy TradeOrder and OptionTrade message keys, event names, stream IDs, query results, and database shapes.
-2. Inventory callers of removed TradeOrder handlers and live-position responsibilities in OptionTrade.
-3. Preserve legacy MessagePack decoding and read paths while introducing versioned writers.
+1. Inventory callers of removed TradeOrder handlers and live-position responsibilities in OptionTrade.
+2. Map each required responsibility to TradeOrder, OrderExecution, established Trade, StrategyPosition, or analytics ownership.
+3. Remove the legacy OptionTrade command actor, command contracts, projector, state, repositories, endpoints, and clients.
 4. Establish build and test baselines before cutover.
 
-**Exit:** compatibility samples exist and all affected references have an owner in the new lifecycle.
+**Exit:** all affected references have an owner in the new lifecycle and no legacy OptionTrade writer remains discoverable.
 
 ## 4. Gate 1 - shared lifecycle contracts
 
@@ -112,7 +112,7 @@ Projection handlers run from committed lifecycle events. Every handoff has a dur
 
 ## 11. Gate 8 - end-to-end cutover
 
-Wire actor registration and lifecycle handoffs. Stop legacy writers only after the new path has passed build, unit, BDD, actor-map, serialization, replay, NATS, PostgreSQL, failure, and benchmark qualification. Keep compatibility readers until production history is migrated under a separately approved retirement gate.
+Wire actor registration and lifecycle handoffs. Remove legacy writers after the new path has passed build, unit, BDD, actor-map, serialization, replay, NATS, PostgreSQL, failure, and benchmark qualification. No historical migration or compatibility-event reader is required because the legacy trade event store is empty.
 
 **Exit:** `TradeOrder -> OrderExecution -> typed Trade -> StrategyPosition` completes exactly once and preserves ownership, fills, correlation, and causation.
 
@@ -165,3 +165,43 @@ Wire actor registration and lifecycle handoffs. Stop legacy writers only after t
 - custom mixed-asset Trade actors beyond the extensibility contracts;
 - production soak acceptance, which requires an approved live trading window.
 
+## 14. Implementation evidence (2026-09-12)
+
+The coding and automated qualification gates for the backend path are complete. Production code is organized under the owning `Trade/Order`, `Trade/Order/Execution`, `Trade/Futures/Trade`, `Trade/Futures/Option/Trade`, `Trade/Futures/Position`, and `Trade/Futures/Option/Position` hierarchies. No catch-all `Lifecycle` code namespace remains. The legacy `Domain.Trade.Option` command actor, command state, projector, shared command messages, HTTP/NATS clients, and server endpoints have been removed. The new aggregate uses `TomasAI.IFM.Domain.Trade.Shared.Model.TradeOrderId`, containing Portfolio, Fund, and Order IDs.
+
+| Gate | Implemented result | Verification |
+|---|---|---|
+| Contracts | Common ownership IDs, generic orders/components/legs, normalized fill evidence, established Futures/Option trades, strategy positions, commands, events, and concrete queries | MessagePack-shape, round-trip, validation, canonical identity, and compatibility checks |
+| TradeOrder | Event-sourced command/query actors with Create, Amend, Approve, Ready, Bind/Release Execution, Complete, Cancel, and Expire transitions. Release requires the exact bound attempt and proven zero exposure. | Unit transition, identity, release-fence, and replay tests |
+| OrderExecution | Manual/Broker-neutral execution state, deterministic fill allocation, balanced-partial policy, immutable original fill evidence | Unit and BDD happy/edge paths |
+| Established Trade | FuturesOptionTrade and FuturesTrade actors with concrete Iron Condor/Vertical Spread/Futures queries; the legacy OptionTrade command authority is removed | Serialization, classification, query-contract, and legacy-absence tests |
+| StrategyPosition | Resident event-sourced Futures outright, Iron Condor, and Vertical Spread actors; Open, per-leg MTM, EOD, Close, basis correction, and snapshot operations | Replay, stale-route, duplicate-sequence, and lifecycle tests |
+| Realtime routing | Separate Futures and Futures Option realtime actors over an actor-local `MarketInstrumentId` reverse index, complete startup recovery snapshot, tick fan-out registration, generation fence, and expected ignore outcomes | Direct handler tests, BDD pre-open/post-close/restart tests, allocation verification |
+| Durability | Additive CQL tables and projections for orders, executions/fills, trades/history, positions/history, route lookup, and route recovery. Established-trade history v2 includes `EvidenceRevision` in its immutable primary key and leaves any v1 table untouched. | Schema qualification plus a real Scylla round-trip integration test; no destructive migration statements |
+| Handoffs | Durable event projectors own all projections and `TradeOrder -> OrderExecution -> Trade -> StrategyPosition` handoffs. Deterministic destination command IDs make replay idempotent. Zero-fill cancelled/rejected executions release their exact bound order attempt; any exposure prevents automatic release. Portfolio Open/Close/Correction boundary events are emitted without mutating the deferred Portfolio aggregate. | Projector/repository registration, handoff identity, and execution-release fence tests |
+| Actor conventions | Every command, query, and realtime actor derives directly from its one standard framework base. Actors contain explicit parse/validation/receive maps and infrastructure lifecycle; domain work is in `Extensions` handlers or `Model` state machines. | Reflection qualification of all direct bases plus repository scan proving no trade `Lifecycle` code namespace |
+
+Focused automated results:
+
+- Trade-flow unit: 20 passed.
+- Trade-flow BDD: 5 passed.
+- Trade-flow integration: 5 passed across serialization, recovery, and runtime registration.
+- Trade-flow verification: 7 passed.
+- Complete Domain.Trade unit suite: 1,092 passed.
+- Complete Domain.Trade BDD suite: 41 passed.
+- The broader integration and verification suites still require their local NATS/PostgreSQL/Scylla hosts; the trade-flow-filtered suites above are self-contained and passed.
+- Real Scylla lifecycle storage integration: implemented and compiled; its 2026-09-12 execution is blocked because no host on `localhost:9042` responded within the driver timeout.
+- Full repository build with Visual Studio 2026 Community native tooling: zero warnings and zero errors.
+
+BenchmarkDotNet results on .NET 10, AMD Ryzen Threadripper 1950X:
+
+| Operation | Mean | Managed allocation |
+|---|---:|---:|
+| Known instrument with no open position | 17.22 ns | 0 B |
+| One open-position route | 16.78 ns | 0 B |
+| Lookup plus complete walk of 64 routes | 81.16 ns | 0 B |
+| Four-leg position MTM calculation and immutable snapshot | 274.7 ns | 280 B |
+
+The four-leg calculation was reduced from 480.7 ns and 744 B by retaining canonical leg order in resident state and eliminating per-tick sorting and LINQ enumeration. The remaining allocation is the immutable leg array, changed leg, and whole-position snapshot that become durable event evidence.
+
+The live NATS/PostgreSQL/Scylla lifecycle soak and production cutover remain scheduled for the approved trading window. IBKR adapters/emulator, order-entry UI, and Portfolio/Fund accounting mutations remain the explicitly deferred boundaries in section 13.

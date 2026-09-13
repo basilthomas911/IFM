@@ -21,7 +21,7 @@ public sealed class FinancialPayloadBoundaryTests(PortfolioEventStoreFixture fix
         listener.SetMeasurementEventCallback<double>((_,_,_,_)=>throw new InvalidOperationException("Injected observer failure"));
         listener.SetMeasurementEventCallback<long>((_,_,_,_)=>throw new InvalidOperationException("Injected observer failure"));listener.Start();
         var completed=await Post(request);listener.Dispose();
-        var saved=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId,request.InputSha256);
+        var saved=await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId,request.InputSha256);
         saved!.Id.Should().Be(completed.Id);saved.Receipt.FinancialRevision.Should().Be(1);
         var balance=await new FinancialQueryStore(Transactions()).ReadAsync(new() { PortfolioId=book.PortfolioId,Access=request.Access },new GetAccountBalancesRequest());
         balance.Value!.AvailableCash.Should().Be(100);
@@ -46,7 +46,7 @@ public sealed class FinancialPayloadBoundaryTests(PortfolioEventStoreFixture fix
             Body=request.Body with { Source=request.Body.Source with { SourceEventId=Guid.NewGuid() },Lines=[..request.Body.Lines,request.Body.Lines[0]] } };
         invalid=invalid with { InputSha256=FinancialCanonicalHash.Request(invalid) };
         await FluentActions.Awaiting(()=>PostLines(invalid,default)).Should().ThrowAsync<FinancialOperationException>();
-        (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,invalid.OperationId)).Should().BeNull();
+        (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,invalid.OperationId)).Should().BeNull();
         var balance=await new FinancialQueryStore(Transactions()).ReadAsync(new() { PortfolioId=book.PortfolioId,Access=template.Access },new GetAccountBalancesRequest());
         balance.Value!.AvailableCash.Should().Be(128);balance.FinancialRevision.Should().Be(3);
     }

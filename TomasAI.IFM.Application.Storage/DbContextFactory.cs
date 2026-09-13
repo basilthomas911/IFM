@@ -53,7 +53,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
-    public IPortfolioDbContext PortfolioDb => _dbContextResolver.Resolve<PortfolioDbContext>() as IPortfolioDbContext;
+    public PortfolioDbContext PortfolioDb => (_dbContextResolver.Resolve<PortfolioDbContext>() as PortfolioDbContext)!;
     public IMarketDataServiceStore MarketDataServiceDb =>
         (_dbContextResolver.Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!;
 

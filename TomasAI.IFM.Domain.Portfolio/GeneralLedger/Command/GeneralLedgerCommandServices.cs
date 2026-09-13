@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
-public sealed record GeneralLedgerCommandServices(IGeneralLedgerStore Store,IPortfolioFinancialDbContext Database,
+public sealed record GeneralLedgerCommandServices(IGeneralLedgerStore Store,IPortfolioDbReadContext Database,
     FinancialIdentityAllocator Ids,IEventProjector<GeneralLedgerCommandActor> Projector,ILogger<GeneralLedgerCommandActor> Logger);
 
 /// <summary>Projection retry cannot turn a confirmed financial commit into a reported financial failure.</summary>

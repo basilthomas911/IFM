@@ -15,7 +15,8 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
 {
     static PostgresEventTransaction Transactions() => new(new DbConnectionSettings().Add(
         EventSourceActorDbContext.EventSourceActorDbConnection,
-        "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres"));
+        Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+            ?? "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres"));
 
     [Theory]
     [InlineData(0)]

@@ -50,7 +50,7 @@ public interface IDbContextFactory
     ITradeDbContext TradeDb { get; }
     ISystemAdminDbContext SystemAdminDb { get; }
     IConfigurationDbContext ConfigurationDb { get; }
-    IPortfolioDbContext PortfolioDb { get; }
+    PortfolioDbContext PortfolioDb { get; }
     IMarketDataServiceStore MarketDataServiceDb { get; }
 
     EventSourceSchemaDb EventSourceSchema { get; }

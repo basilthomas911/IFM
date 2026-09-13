@@ -79,4 +79,16 @@ public enum BoundedContextName
     GeneralLedgerBoundedContext,
     /// <summary>Routes Portfolio capacity reservation, consumption and lifecycle operations.</summary>
     CapacityReservationBoundedContext,
+    /// <summary>Routes Portfolio-owned atomic order-composition decisions.</summary>
+    PortfolioOrderCompositionBoundedContext,
+    /// <summary>Routes broker-neutral order-execution lifecycle commands.</summary>
+    OrderExecutionBoundedContext,
+    /// <summary>Routes established Futures Trade commands.</summary>
+    FuturesTradeBoundedContext,
+    /// <summary>Routes resident one-leg Futures position commands.</summary>
+    FuturesTradePositionBoundedContext,
+    /// <summary>Routes Futures Iron Condor position commands.</summary>
+    FuturesIronCondorTradePositionBoundedContext,
+    /// <summary>Routes Futures Vertical Spread position commands.</summary>
+    FuturesVerticalSpreadTradePositionBoundedContext,
 }

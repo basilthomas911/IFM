@@ -116,6 +116,7 @@ public sealed class PortfolioProjectionHandlerTests
         public Task UpsertRiskEnvelopeAsync(PortfolioProjection<FundRiskEnvelopeReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken cancellationToken = default) { Deletion = deletion; return Task.CompletedTask; }
         public Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken cancellationToken = default) { Policies.Add(row); return Task.CompletedTask; }
+        public Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     sealed class DeletionEventStore(PortfolioAggregate aggregate) : IPortfolioEventStore

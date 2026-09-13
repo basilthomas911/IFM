@@ -48,7 +48,7 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         var fence=new LegacyFinancialWriterFence(Transactions());
         var legacy=new TomasAI.IFM.Application.Storage.FundDb.FundDbContext(settings,factory,Substitute.For<ISequenceIdGenerator>(),logger,fence);
         repositories.Add(typeof(TomasAI.IFM.Framework.Storage.IObjectRepository<TomasAI.IFM.Application.Storage.FundDb.FundDbContext>),legacy);
-        var services=new LedgerConfigurationCommandServices(store,new PortfolioFinancialDbContext(Transactions()),sources,
+        var services=new LedgerConfigurationCommandServices(store,new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),sources,
             Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),fence,legacy,new(true));
         await command.PrepareDevelopmentQualificationAsync(services,default);
@@ -56,7 +56,7 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
             .Should().ThrowAsync<FinancialOperationException>();
         var result=await store.ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute);
         result.Receipt.OperatingState.Should().Be("NeedsRefresh");
-        var saved=(await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(book.PortfolioId))!;
+        var saved=(await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadBookAsync(book.PortfolioId))!;
         saved.MigrationQualified.Should().BeTrue();saved.Funds.Should().OnlyContain(x=>!x.CanSpend);
         var migration=await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT cutover_state FROM portfolio_financial.ledger_migration WHERE migration_id=$1;",[command.OperationId],ct));
         migration.Should().Be("Qualified");
@@ -90,7 +90,7 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         refresh=LedgerConfigurationIntegrationTests.Command(draft.Book!,fresh.FinancialRevision,fresh.Value!.Draft with { Reason="Fresh sources" });
         await refresh.ValidateAuthoritySourcesAsync(sources,default);
         (await store.ConfigureAsync(refresh,refresh.Complete,FinancialCanonicalHash.Compute)).Receipt.OperatingState.Should().Be("Importing");
-        (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(scope.PortfolioId))!.Funds.Should().OnlyContain(x=>!x.CanSpend);
+        (await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadBookAsync(scope.PortfolioId))!.Funds.Should().OnlyContain(x=>!x.CanSpend);
         await FluentActions.Awaiting(()=>query.PrepareAsync(scope with { Access=new("reader",["LedgerRead"],[scope.PortfolioId]) },new(),default))
             .Should().ThrowAsync<FinancialOperationException>();
     }
@@ -128,7 +128,7 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         if(forbidden) scope=scope with { Access=new("reader",["LedgerRead"],[scope.PortfolioId]) };
         await FluentActions.Awaiting(()=>preparation.PrepareAsync(scope,new(account=="DEV-ACCOUNT"?$"DEV-ACCOUNT-{scope.PortfolioId}":account,new(2026,1,1),new(2026,12,31)),default))
             .Should().ThrowAsync<FinancialOperationException>();
-        (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(scope.PortfolioId)).Should().BeNull();
+        (await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadBookAsync(scope.PortfolioId)).Should().BeNull();
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         await FluentActions.Awaiting(()=>command.ValidateAuthoritySourcesAsync(store,default)).Should().ThrowAsync<FinancialOperationException>();
         await FluentActions.Awaiting(()=>new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute))
             .Should().ThrowAsync<FinancialOperationException>();
-        (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(scope.PortfolioId)).Should().BeNull();
+        (await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadBookAsync(scope.PortfolioId)).Should().BeNull();
     }
 
     async Task<(FinancialBookPreparation Preparation,FinancialReadScope Scope,PortfolioEventStore Store)> Setup(bool development=true)
@@ -164,6 +164,6 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         var sequence=Substitute.For<ISequenceIdGenerator>();long next=Random.Shared.Next(100000,900000000);
         sequence.GetSequenceIdAsync(Arg.Any<SequenceName>(),Arg.Any<CancellationToken>()).Returns(_=>new ValueTask<long>(Interlocked.Increment(ref next)));
         var scope=new FinancialReadScope { PortfolioId=id,Access=new("test",["PortfolioAdministrator"]) };
-        return(new(store,new PortfolioFinancialDbContext(Transactions()),new(sequence),new(development)),scope,store);
+        return(new(store,new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),new(sequence),new(development)),scope,store);
     }
 }

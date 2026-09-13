@@ -37,7 +37,7 @@ public sealed class LedgerConfigurationIntegrationTests
         var completed=await Configure(request);
         completed.Receipt.OperatingState.Should().Be("Importing");
         var replay=await Configure(request); replay.Id.Should().Be(completed.Id);
-        var stored=await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(id);
+        var stored=await new PortfolioFinancialStore(Transactions()).ReadBookAsync(id);
         stored!.MigrationQualified.Should().BeFalse(); stored.Funds.Should().OnlyContain(x=>!x.CanSpend);
         var receipt=await new FinancialQueryStore(Transactions()).ReadAsync(new() { PortfolioId=id,Access=request.Access },new GetPostingReceiptRequest(request.OperationId));
         receipt.Value!.Configuration!.Id.Should().Be(completed.Id);

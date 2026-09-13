@@ -160,5 +160,9 @@ public sealed class PortfolioQueryServiceTests
         public Task<FundOrderTradeProjectionReadModel?> GetTradeAsync(int tradeId, CancellationToken cancellationToken = default) => Task.FromResult<FundOrderTradeProjectionReadModel?>(null);
         public Task<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>> GetCompositionsAsync(Guid workflowId, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>>([]);
         public Task<PortfolioFinancialPolicyReadModel?> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFinancialPolicyReadModel?>(portfolioId == Policy.PortfolioId ? Policy : null);
+        public Task<PortfolioFinancialPolicyReadModel?> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFinancialPolicyReadModel?>(policyId == Policy.PolicyId ? Policy : null);
+        public Task<IReadOnlyList<PortfolioFinancialPolicyReadModel>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PortfolioFinancialPolicyReadModel>>(portfolioId == Policy.PortfolioId ? [Policy] : []);
+        public Task<T?> ReadOperationAsync<T>(int portfolioId, Guid operationId, string? inputHash = null, CancellationToken cancellationToken = default) where T : class, TomasAI.IFM.Domain.Portfolio.Shared.Financial.IFinancialCompletedEvent => Task.FromResult<T?>(null);
+        public Task<TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBookConfiguration?> ReadBookAsync(int portfolioId, CancellationToken cancellationToken = default) => Task.FromResult<TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBookConfiguration?>(null);
     }
 }

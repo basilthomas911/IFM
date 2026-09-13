@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using NATS.Net;
@@ -13,7 +13,11 @@ using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
+using TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor;
+using TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Framework.SequenceId;
@@ -27,6 +31,53 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Messaging;
 [Collection("PortfolioFinancialDatabase"),Trait("Category","PortfolioFinancialNats"),Trait("Gate","PF-FIN-02")]
 public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixture):IClassFixture<PortfolioEventStoreFixture>
 {
+    [Fact]
+    public async Task Typed_order_composition_api_reaches_function_actor_and_replays_one_atomic_postgres_result()
+    {
+        _=fixture;
+        await PortfolioOrderCompositionIntegrationTests.InitializePortfolioSchema();
+        var book=await CreateBook();
+        var request=PortfolioOrderCompositionIntegrationTests.Request(book);
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await using var server=new NatsClient(Url);await server.ConnectAsync();
+        await using var subscription=await server.Connection.SubscribeCoreAsync<byte[]>(request.Subject.ToString(),serializer:new NatsByteArrayMessageSerializer());
+        await server.Connection.PingAsync(deadline.Token);
+        var producer=new NatsActorProducer(new NatsProducerOptions {Url=Url},NullLogger.Instance);
+        await producer.StartAsync(new(ActorType.Function,$"PortfolioOrderComposition{Guid.NewGuid():N}"),deadline.Token);
+        try
+        {
+            var api=(IPortfolioOrderCompositionApi)new PortfolioFinancialApi(producer);
+            var repository=new PortfolioOrderCompositionFunctionStateRepository(
+                new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
+                new PortfolioOrderCompositionStore(Transactions()),
+                new PortfolioOrderCompositionIntegrationTests.TestIdentityAllocator());
+            Guid? eventId=null;
+            for(var index=0;index<2;index++)
+            {
+                var pending=api.EvaluateAsync(request,deadline.Token).AsTask();
+                using var actorMessage=new NatsActorMessage(await subscription.Msgs.ReadAsync(deadline.Token));
+                await new PortfolioOrderCompositionFunctionActor(new OrderCompositionContext(repository)).HandleMessageAsync(actorMessage);
+                var result=await pending.WaitAsync(deadline.Token);
+                result.Success.Should().BeTrue(result.ErrorMessage);
+                result.Value!.Completed.Should().NotBeNull(result.Value.Failed?.ErrorData);
+                result.Value.Completed!.Receipt.Status.Should().Be(PortfolioOrderCompositionStatus.ExecuteTradeOrders);
+                if(eventId is null)eventId=result.Value.Completed.Id;
+                else result.Value.Completed.Id.Should().Be(eventId.Value);
+            }
+        }
+        finally {await producer.StopAsync();}
+    }
+
+    sealed class OrderCompositionContext(
+        IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState,EvaluatePortfolioOrderCompositionCommand> repository)
+        :IPortfolioOrderCompositionFunctionContext
+    {
+        public ActorMailboxId ActorId=>new(ActorType.Function,PortfolioOrderCompositionFunctionActor.ActorName);
+        public IContainerInstance Container=>throw new NotSupportedException();
+        public IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState,EvaluatePortfolioOrderCompositionCommand> StateRepository=>repository;
+        public TimeProvider TimeProvider=>TimeProvider.System;
+        public ILogger<PortfolioOrderCompositionFunctionActor> Logger=>NullLogger<PortfolioOrderCompositionFunctionActor>.Instance;
+    }
     sealed class CaptureLogger<T>:ILogger<T>
     {
         public List<string> Errors { get; }=[];
@@ -58,15 +109,15 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
             using var firstMessage=new NatsActorMessage(await firstSubscription.Msgs.ReadAsync(deadline.Token));
             using var secondMessage=new NatsActorMessage(await secondSubscription.Msgs.ReadAsync(deadline.Token));
             CapacityReservationFunctionActor Instance()=>new(new CapacityFunctionActorIntegrationTests.Context(
-                new CapacityReservationFunctionStateRepository(new PortfolioFinancialDbContext(Transactions()),new CapacityReservationStore(Transactions()))));
+                new CapacityReservationFunctionStateRepository(new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),new CapacityReservationStore(Transactions()))));
             await Task.WhenAll(Instance().HandleMessageAsync(firstMessage).AsTask(),Instance().HandleMessageAsync(secondMessage).AsTask());
             var response=await pending.WaitAsync(deadline.Token);response.Success.Should().BeTrue(response.ErrorMessage);
             response.Value!.Completed.Should().NotBeNull(response.Value.Failed?.Message);
-            var receipt=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,request.OperationId);
+            var receipt=await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,request.OperationId);
             receipt.Should().NotBeNull();receipt!.Id.Should().Be(response.Value.Completed!.Id);
             (await CapacityReservationIntegrationTests.Usage(book)).Held.Should().Be(700);
             // Reconstruct from a third repository after both instances finish; delivery does not create a second financial revision.
-            var fresh=new CapacityReservationFunctionStateRepository(new PortfolioFinancialDbContext(Transactions()),new CapacityReservationStore(Transactions()));
+            var fresh=new CapacityReservationFunctionStateRepository(new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),new CapacityReservationStore(Transactions()));
             var state=await fresh.LoadStateAsync(request,deadline.Token);state.CompletedEvent!.Id.Should().Be(receipt.Id);
         }
         finally { await producer.StopAsync(); }
@@ -86,7 +137,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         try
         {
             var api=new PortfolioFinancialApi(producer);
-            var repository=new CapacityReservationFunctionStateRepository(new PortfolioFinancialDbContext(Transactions()),new CapacityReservationStore(Transactions()));
+            var repository=new CapacityReservationFunctionStateRepository(new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),new CapacityReservationStore(Transactions()));
             Guid? first=null;
             for(var index=0;index<2;index++)
             {
@@ -127,7 +178,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
             var sequences=Substitute.For<ISequenceIdGenerator>();sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(),Arg.Any<CancellationToken>())
                 .Returns(_=>ValueTask.FromResult(Random.Shared.NextInt64(100000,long.MaxValue)));
             var logger=new CaptureLogger<GeneralLedgerCommandActor>();
-            var actor=new GeneralLedgerCommandActor(context,new(new GeneralLedgerStore(Transactions()),new PortfolioFinancialDbContext(Transactions()),
+            var actor=new GeneralLedgerCommandActor(context,new(new GeneralLedgerStore(Transactions()),new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
                 new(sequences),Substitute.For<IEventProjector<GeneralLedgerCommandActor>>(),logger),logger);
             await actor.StartAsync(supervisor,deadline.Token);return actor;
         }
@@ -146,7 +197,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
             await Send(original);await Send(Request(book,LedgerTransactionKind.DepositConfirmed,50,1));await Send(original);
             var balances=await new FinancialQueryStore(Transactions()).ReadAsync(new() { PortfolioId=book.PortfolioId,Access=original.Access },new GetAccountBalancesRequest());
             balances.FinancialRevision.Should().Be(2);balances.Value!.AvailableCash.Should().Be(150);
-            var receipt=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,original.OperationId);
+            var receipt=await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,original.OperationId);
             receipt!.Receipt.FinancialRevision.Should().Be(1);
         }
         finally { await firstActor.StopAsync();await secondActor.StopAsync();await producer.StopAsync(); }
@@ -175,19 +226,19 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         var projector=Substitute.For<IEventProjector<GeneralLedgerCommandActor>>();
         projector.DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>()).Returns(_=>throw new IOException("Injected post-commit publication outage"));
         var actorLogger=new CaptureLogger<GeneralLedgerCommandActor>();
-        var actor=new GeneralLedgerCommandActor(context,new(new GeneralLedgerStore(Transactions()),new PortfolioFinancialDbContext(Transactions()),
+        var actor=new GeneralLedgerCommandActor(context,new(new GeneralLedgerStore(Transactions()),new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
             new(sequences),projector,actorLogger),actorLogger);
         await actor.StartAsync(supervisor,deadline.Token);
         try
         {
             var api=new PortfolioFinancialApi(producer);
             var first=await Send(request); first.Success.Should().BeTrue(first.ErrorMessage+string.Join(Environment.NewLine,actorLogger.Errors)); first.Value!.Guid.Should().Be(request.OperationId);
-            var receipt=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId);
+            var receipt=await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId);
             receipt.Should().NotBeNull();
             var replay=await Send(request); replay.Success.Should().BeTrue(); replay.Value!.Guid.Should().Be(request.OperationId);
             var changed=request with { Body=request.Body with { Amount=200 } }; changed=changed with { InputSha256=FinancialCanonicalHash.Request(changed) };
             var conflict=await Send(changed); conflict.Success.Should().BeFalse(); conflict.ErrorCode.Should().Be(FinancialReasons.RequestMismatch);
-            var stored=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId);
+            var stored=await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId);
             stored!.Id.Should().Be(receipt!.Id);
             var balances=await new FinancialQueryStore(Transactions()).ReadAsync(new() { PortfolioId=book.PortfolioId,Access=request.Access },new GetAccountBalancesRequest());
             balances.Value!.AvailableCash.Should().Be(100); balances.FinancialRevision.Should().Be(1);

@@ -49,7 +49,7 @@ public sealed partial class TradeSelectionRuntimeTests
             return true;
         });
         var rule=new LedgerPostingRule(Guid.NewGuid(),1,"five-stage-funding-rule",LedgerTransactionKind.DepositConfirmed,new(101,1),new(102,1),true);
-        await new PortfolioFinancialDbContext(transactions).CreateBookAsync(book,
+        await new PortfolioFinancialStore(transactions).CreateBookAsync(book,
             [new(101,1,"Cash",PostingSide.Debit,true,"cash"),new(102,1,"Equity",PostingSide.Credit,true,"equity")],[rule],new(2020,1,1),new(2099,12,31));
         var postingId=Guid.NewGuid();var now=DateTime.UtcNow;
         var posting=new PostFundTransactionCommand { CommandId=postingId,OperationId=postingId,PortfolioId=book.PortfolioId,EntityId=new(book.PortfolioId),

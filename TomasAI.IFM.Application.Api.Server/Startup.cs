@@ -450,7 +450,6 @@ public static class Startup
                 TomasAI.IFM.Application.Api.Nats.Client.MarketDataAnalyticsCommandApi>();
             services.AddSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
             services.AddSingleton<IReferenceCommandApi, TomasAI.IFM.Application.Api.Nats.Client.ReferenceCommandApi>();
-            services.AddSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
             services.AddSingleton<SupervisorActorProducer>();
@@ -511,7 +510,7 @@ public static class Startup
                 .Add("SequenceIdDbConnection", config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("FundDbConnection", config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
                 .Add("PortfolioDbConnection", config.GetConnectionString("PortfolioDbConnection")
-                    ?? config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
+                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("MarketDataDbConnection", config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
                 .Add("OptionPricerDbConnection", config.GetConnectionString("OptionPricerDbConnection")!, "System.Data.ScyllaDb")
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
@@ -530,8 +529,6 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialWriterFence>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialInventoryStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialRetentionStore>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioFinancialDbContext,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialDbContext>();
             services.AddSingleton(provider => new TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy(
                 provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IGeneralLedgerStore,
@@ -547,6 +544,9 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>(provider =>
                     new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi(
                         provider.GetRequiredService<SupervisorActorProducer>()));
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioOrderCompositionApi>(provider =>
+                (TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi)provider.GetRequiredService<
+                    TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>());
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.AccountingExportStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.EmulatorExecutionStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioAuthorityFence,
@@ -568,15 +568,15 @@ public static class Startup
             services.AddSingleton<IPortfolioProjectionRebuilder>(provider =>
                 new PortfolioProjectionRebuilder(
                     provider.GetRequiredService<IPortfolioEventStore>(),
-                    provider.GetRequiredService<IPortfolioDbContext>()));
+                    provider.GetRequiredService<IPortfolioDbWriteContext>()));
             services.AddSingleton<ICommandAuditLogger>(provider =>
                 (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<FundDbContext>() as IFundDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<PortfolioDbContext>() as IPortfolioDbContext)!);
-            services.AddSingleton<IPortfolioDbReadContext>(provider => provider.GetRequiredService<IPortfolioDbContext>());
-            services.AddSingleton<IPortfolioDbWriteContext>(provider => provider.GetRequiredService<IPortfolioDbContext>());
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<PortfolioDbContext>() as PortfolioDbContext)!);
+            services.AddSingleton<IPortfolioDbReadContext>(provider => provider.GetRequiredService<PortfolioDbContext>());
+            services.AddSingleton<IPortfolioDbWriteContext>(provider => provider.GetRequiredService<PortfolioDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
@@ -986,6 +986,9 @@ public static class Startup
         _siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityConsumptionFunctionContext>(
             _siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
                 typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityConsumptionFunctionActor>)).Registration);
+        _siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.IPortfolioOrderCompositionFunctionContext>(
+            _siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.PortfolioOrderCompositionFunctionActor>)).Registration);
         _siContainer.AddRegistration<IRegimeDiscoveryFunctionContext>(
             _siContainer.GetCurrentRegistrations().Single(registration =>
                 registration.ServiceType == typeof(IFunctionActorContext<RegimeDiscoveryFunctionActor>)).Registration);

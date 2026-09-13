@@ -30,6 +30,16 @@ public readonly record struct FuturesTermStructureContracts(
 /// </remarks>
 public interface IMarketDataApi
 {
+    /// <summary>
+    /// Resolves the provider market-instrument identity already associated with a canonical
+    /// domain contract in the active market-data epoch.
+    /// </summary>
+    bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
+    {
+        marketInstrumentId = 0;
+        return false;
+    }
+
     /// <summary>Reads the selected futures contract's feed/cache admission, independent of unrelated datasets.</summary>
     FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)
         => new(false,false,string.Empty,null,DateTimeOffset.UtcNow,0);

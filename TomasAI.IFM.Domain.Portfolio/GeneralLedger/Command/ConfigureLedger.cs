@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
 public sealed record LedgerConfigurationCommandServices(ILedgerConfigurationStore Store,
-    IPortfolioFinancialDbContext Database,IPortfolioEventStore Sources,IEventProjector<LedgerConfigurationCommandActor> Projector,
+    IPortfolioDbReadContext Database,IPortfolioEventStore Sources,IEventProjector<LedgerConfigurationCommandActor> Projector,
     ILogger<LedgerConfigurationCommandActor> Logger,LegacyFinancialWriterFence? WriterFence=null,
     TomasAI.IFM.Application.Storage.FundDb.IFundDbContext? LegacySource=null,FinancialDevelopmentPolicy? DevelopmentPolicy=null);
 

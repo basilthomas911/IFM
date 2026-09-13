@@ -17,15 +17,13 @@ public sealed class PortfolioDbFixture : IDisposable
     public PortfolioDbFixture()
     {
         var settings = new DbConnectionSettings().Add(PortfolioDbContext.PortfolioDbConnection,
-            "Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db", "System.Data.ScyllaDb");
+            Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+                ?? "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         _schema = new PortfolioSchemaDb(settings, logger);
         _schema.CreateAllAsync().GetAwaiter().GetResult();
         _schema.CreateAllAsync().GetAwaiter().GetResult();
-        var repositories = new Dictionary<Type, object>();
-        var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        Db = new PortfolioDbContext(settings, factory, logger);
-        repositories.Add(typeof(IObjectRepository<PortfolioDbContext>), Db);
+        Db = new PortfolioDbContext(settings, logger);
     }
     public PortfolioDbContext Db { get; }
     public async Task ResetAsync()
@@ -42,7 +40,7 @@ public sealed class PortfolioDbIntegrationTests(PortfolioDbFixture fixture) : IC
     [Fact]
     [Trait("Gate", "PF-25")]
     [Trait("Category", "Portfolio")]
-    public async Task Real_Scylla_policy_point_list_active_and_deletion_fence_paths_round_trip()
+    public async Task Real_Postgres_policy_point_list_active_and_deletion_fence_paths_round_trip()
     {
         var value = Math.Abs(Guid.NewGuid().GetHashCode()) + 30_000;
         var now = new DateTime(2026, 8, 30, 19, 0, 0, DateTimeKind.Utc);
@@ -81,7 +79,7 @@ public sealed class PortfolioDbIntegrationTests(PortfolioDbFixture fixture) : IC
     [Fact]
     [Trait("Gate", "PF-09")]
     [Trait("Category", "Portfolio")]
-    public async Task Real_Scylla_Draft_deletion_removes_parent_and_owned_Fund_configuration_projections()
+    public async Task Real_Postgres_Draft_deletion_removes_parent_and_owned_Fund_configuration_projections()
     {
         var id = Math.Abs(Guid.NewGuid().GetHashCode()) + 20_000;
         var fundId = id + 1;
@@ -114,7 +112,7 @@ public sealed class PortfolioDbIntegrationTests(PortfolioDbFixture fixture) : IC
     [Fact]
     [Trait("Gate", "PF-08")]
     [Trait("Category", "Portfolio")]
-    public async Task Real_Scylla_schema_and_all_typed_access_paths_round_trip_without_filtering()
+    public async Task Real_Postgres_schema_and_all_typed_access_paths_round_trip_without_filtering()
     {
         var id = Math.Abs(Guid.NewGuid().GetHashCode()) + 10_000;
         var now = new DateTime(2026, 8, 29, 20, 0, 0, DateTimeKind.Utc);

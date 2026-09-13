@@ -29,6 +29,20 @@ public sealed class PostgresEventTransaction(
     readonly string connectionString = settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
     readonly EventLogMessagePackCodec eventLogCodec = new(
         (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate().UseLz4Compression);
+    readonly bool portfolioIdentityValidated = ValidateIfPresent(settings);
+
+
+    public static void ValidatePortfolioDatabaseIdentity(IDbConnectionSettings settings) =>
+        PostgresDatabaseIdentity.RequireSamePhysicalDatabase(settings,
+            EventSourceActorDbContext.EventSourceActorDbConnection,
+            PortfolioDb.PortfolioDbContext.PortfolioDbConnection);
+
+    static bool ValidateIfPresent(IDbConnectionSettings settings)
+    {
+        if (settings[PortfolioDb.PortfolioDbContext.PortfolioDbConnection] is null) return true;
+        ValidatePortfolioDatabaseIdentity(settings);
+        return true;
+    }
 
     /// <inheritdoc />
     public async Task<T> ExecuteAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation,
@@ -96,6 +110,10 @@ public sealed class PostgresEventTransaction(
             catch { }
             throw;
         }
+        finally
+        {
+            enlisted.Complete();
+        }
         try
         {
             using var commitTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.commit");
@@ -117,11 +135,12 @@ public sealed class PostgresEventTransaction(
 
 /// <summary>SQL/event operations explicitly enlisted in a single request-owned transaction.</summary>
 /// <remarks>Only storage implementations use this surface; actors never execute SQL.</remarks>
-public sealed class EnlistedEventTransaction
+public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
 {
     readonly NpgsqlConnection connection;
     readonly NpgsqlTransaction transaction;
     readonly EventLogMessagePackCodec eventLogCodec;
+    int completed;
     internal EnlistedEventTransaction(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -131,6 +150,7 @@ public sealed class EnlistedEventTransaction
     /// <summary>Executes parameterized SQL on the enlisted connection.</summary>
     public async Task<int> ExecuteAsync(string sql, object?[] parameters, CancellationToken cancellationToken)
     {
+        RequireActive();
         await using var command = CreateCommand(sql, parameters);
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -138,6 +158,7 @@ public sealed class EnlistedEventTransaction
     /// <summary>Reads a scalar on the same transaction; null remains explicit.</summary>
     public async Task<object?> ScalarAsync(string sql, object?[] parameters, CancellationToken cancellationToken)
     {
+        RequireActive();
         await using var command = CreateCommand(sql, parameters);
         var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return value is DBNull ? null : value;
@@ -147,6 +168,7 @@ public sealed class EnlistedEventTransaction
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object?[] parameters,
         Func<NpgsqlDataReader, T> map, CancellationToken cancellationToken)
     {
+        RequireActive();
         await using var command = CreateCommand(sql, parameters);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var values = new List<T>();
@@ -158,6 +180,7 @@ public sealed class EnlistedEventTransaction
     public async Task<long> AppendAsync(string stream, Guid commandId, IEvent domainEvent,
         long expectedStreamVersion, CancellationToken cancellationToken)
     {
+        RequireActive();
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.append");
         ArgumentException.ThrowIfNullOrWhiteSpace(stream);
         ArgumentNullException.ThrowIfNull(domainEvent);
@@ -203,5 +226,13 @@ public sealed class EnlistedEventTransaction
         foreach (var parameter in parameters)
             command.Parameters.Add(parameter is NpgsqlParameter typed ? typed : new NpgsqlParameter { Value = parameter ?? DBNull.Value });
         return command;
+    }
+
+    internal void Complete() => Interlocked.Exchange(ref completed, 1);
+
+    void RequireActive()
+    {
+        if (Volatile.Read(ref completed) != 0)
+            throw new ObjectDisposedException(nameof(EnlistedEventTransaction), "The enlisted transaction scope has completed.");
     }
 }

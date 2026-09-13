@@ -17,6 +17,15 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
     readonly ITradeStrategySymbolCatalog? _symbolCatalog;
+    public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        var active = Volatile.Read(ref _epoch);
+        if (active is not null)
+            return active.TryGetMarketInstrumentId(contractId, out marketInstrumentId);
+        marketInstrumentId = 0;
+        return false;
+    }
     public Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
         TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
         => _symbolCatalog?.GetAsync(family, cancellationToken)

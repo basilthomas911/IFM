@@ -112,6 +112,15 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _catalog ?? throw new InvalidOperationException("The epoch catalog is not ready.");
     public IDatabentoLastPriceReaderProvider LastPrices =>
         _lastPrices ?? throw new InvalidOperationException("The epoch last-price store is not ready.");
+    public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        var catalog = Volatile.Read(ref _catalog);
+        if (catalog is not null)
+            return catalog.TryGetMarketInstrumentId(contractId, out marketInstrumentId);
+        marketInstrumentId = 0;
+        return false;
+    }
     /// <summary>
     /// Reads the latest normalized TickAggregation hot-cache snapshot without checking stream ownership.
     /// </summary>

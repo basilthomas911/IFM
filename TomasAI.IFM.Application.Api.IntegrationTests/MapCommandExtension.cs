@@ -90,21 +90,6 @@ public static class MapCommandExtension
         app.MapPost(OptionPricerUriPath.ClearSpreadDistributionJob, async (HttpResponse resp) => await OptionPricerCommandApiResult.FromClearSpreadDistributionJobAsync(resp));
         app.MapPost(OptionPricerUriPath.DeleteSpreadDistributionJobsInProgress, async (HttpResponse resp) => await OptionPricerCommandApiResult.FromDeleteSpreadDistributionJobsInProgressAsync(resp));
 
-        // option trade command api paths...
-        app.MapPost(OptionTradeUriPath.Snapshot, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromSnapshotAsync(resp));
-        app.MapPost(OptionTradeUriPath.Delete, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromDeleteAsync(resp));
-        app.MapPost(OptionTradeUriPath.PlaceOrder, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromPlaceOrderAsync(resp));
-        app.MapPost(OptionTradeUriPath.Open, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromOpenOptionTradeAsync(resp));
-        app.MapPost(OptionTradeUriPath.Close, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromCloseOptionTradeAsync(resp));
-        app.MapPost(OptionTradeUriPath.InsertSpreadData, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromInsertOptionTradeSpreadDataAsync(resp));
-        app.MapPost(OptionTradeUriPath.InsertSpreadBarData, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromInsertOptionTradeSpreadBarDataAsync(resp));
-        app.MapPost(OptionTradeUriPath.DeleteSpreadBarData, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromDeleteOptionTradeSpreadBarDataAsync(resp));
-        app.MapPost(OptionTradeUriPath.ChangeLegData, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromChangeOptionLegDataAsync(resp));
-        app.MapPost(OptionTradeUriPath.ChangeDistributionStatistics, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromChangeDistributionStatisticsAsync(resp));
-        app.MapPost(OptionTradeUriPath.ProcessEndOfDay, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromProcessEndOfDayAsync(resp));
-        app.MapPost(OptionTradeUriPath.UpdateDailyProfitTarget, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromUpdateTradeLimitDailyProfitTargetAsync(resp));
-        app.MapPost(OptionTradeUriPath.DeleteOptionTrades, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromDeleteOptionTradesAsync(resp));
-
         // reference command api paths...
         app.MapPost(MarketDataUriPath.ChangeEconomicCalendar, async (HttpResponse resp) => await MarketDataCommandApiResult.FromChangeEconomicCalendarAsync(resp));
         app.MapPost(MarketDataUriPath.AddEconomicCalendar, async (HttpResponse resp) => await MarketDataCommandApiResult.FromAddEconomicCalendarAsync(resp));

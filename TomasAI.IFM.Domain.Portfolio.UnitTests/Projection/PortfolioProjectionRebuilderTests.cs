@@ -81,5 +81,7 @@ public sealed class PortfolioProjectionRebuilderTests
         public Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

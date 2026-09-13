@@ -80,6 +80,8 @@ internal sealed class FakeMarketDataEpoch :
     internal FakeMarketDataCatalog Catalog { get; }
     IDatabentoMarketDataCatalog IDatabentoMarketDataEpoch.Catalog => Catalog;
     public IDatabentoLastPriceReaderProvider LastPrices => this;
+    public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId) =>
+        Catalog.TryGetMarketInstrumentId(contractId, out marketInstrumentId);
     internal FakeTickAggregationStatus TickAggregation { get; } = new();
     internal FakeTreasuryCurve TreasuryCurve { get; } = new();
     internal FakeOptionRouteRegistry OptionRoutes { get; } = new();
@@ -340,6 +342,8 @@ internal sealed class FakeMarketDataCatalog : IDatabentoMarketDataCatalog
         new(StringComparer.Ordinal);
     internal Dictionary<string, string> OptionUnderlyings { get; } =
         new(StringComparer.Ordinal);
+    internal Dictionary<string, uint> MarketInstrumentIds { get; } =
+        new(StringComparer.Ordinal);
     internal int ProviderQueryCount;
 
     internal FuturesContractV3ReadModel? FindFuture(string contractId)
@@ -356,6 +360,10 @@ internal sealed class FakeMarketDataCatalog : IDatabentoMarketDataCatalog
 
     public FuturesContractV3ReadModel? FindFutures(string contractId) =>
         FindFuture(contractId);
+
+    public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId) =>
+        MarketInstrumentIds.TryGetValue(contractId, out marketInstrumentId)
+        && marketInstrumentId != 0;
 
     public FuturesOptionContractReadModel? FindFuturesOption(string contractId) =>
         FindOption(contractId);

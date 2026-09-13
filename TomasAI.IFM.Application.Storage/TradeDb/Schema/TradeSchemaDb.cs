@@ -10,6 +10,15 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("trade_order_v3", TradeFlowSchemaCql.TradeOrder, "DROP TABLE IF EXISTS trade_order_v3;"),
+        new("order_execution_v1", TradeFlowSchemaCql.OrderExecution, "DROP TABLE IF EXISTS order_execution_v1;"),
+        new("order_execution_fill_v1", TradeFlowSchemaCql.ExecutionFill, "DROP TABLE IF EXISTS order_execution_fill_v1;"),
+        new("established_trade_v1", TradeFlowSchemaCql.EstablishedTrade, "DROP TABLE IF EXISTS established_trade_v1;"),
+        new("established_trade_history_v2", TradeFlowSchemaCql.EstablishedTradeHistory, "DROP TABLE IF EXISTS established_trade_history_v2;"),
+        new("strategy_position_current_v1", TradeFlowSchemaCql.PositionCurrent, "DROP TABLE IF EXISTS strategy_position_current_v1;"),
+        new("strategy_position_history_v1", TradeFlowSchemaCql.PositionHistory, "DROP TABLE IF EXISTS strategy_position_history_v1;"),
+        new("open_position_route_v1", TradeFlowSchemaCql.OpenPositionRoute, "DROP TABLE IF EXISTS open_position_route_v1;"),
+        new("open_position_route_recovery_v1", TradeFlowSchemaCql.OpenPositionRouteRecovery, "DROP TABLE IF EXISTS open_position_route_recovery_v1;"),
         new("risk_management_invocation", "CREATE TABLE IF NOT EXISTS risk_management_invocation (workflow_id uuid,invocation_id uuid,revision bigint,payload blob,content_hash text,PRIMARY KEY ((workflow_id,invocation_id),revision)) WITH CLUSTERING ORDER BY (revision DESC);", "DROP TABLE IF EXISTS risk_management_invocation;"),
         new("risk_management_history", "CREATE TABLE IF NOT EXISTS risk_management_history (portfolio_id int,fund_id int,value_date date,evaluated_at_utc timestamp,invocation_id uuid,revision bigint,payload blob,PRIMARY KEY ((portfolio_id,fund_id,value_date),evaluated_at_utc,invocation_id)) WITH CLUSTERING ORDER BY (evaluated_at_utc DESC,invocation_id ASC);", "DROP TABLE IF EXISTS risk_management_history;"),
         new("order_composition_invocation", OrderCompositionSchemaCql.Invocation, "DROP TABLE IF EXISTS order_composition_invocation;"),

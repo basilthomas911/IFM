@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Projection;
 
 public sealed class PortfolioEventProjector(
     IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    ILogger<PortfolioEventProjector> logger, IPortfolioEventStore events, IPortfolioDbContext projections,
+    ILogger<PortfolioEventProjector> logger, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
     EventProjectorReliabilityOptions? options = null)
     : ConventionalEventProjector<PortfolioCommandActor>(replayQueue, eventSource, blackboard, logger, options)
 {
@@ -45,7 +45,7 @@ public sealed class PortfolioEventProjector(
 
 public sealed class PortfolioFundEventProjector(
     IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    ILogger<PortfolioFundEventProjector> logger, IPortfolioEventStore events, IPortfolioDbContext projections,
+    ILogger<PortfolioFundEventProjector> logger, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
     EventProjectorReliabilityOptions? options = null)
     : ConventionalEventProjector<PortfolioFundCommandActor>(replayQueue, eventSource, blackboard, logger, options)
 {
@@ -70,7 +70,7 @@ public sealed class PortfolioFundEventProjector(
 
 public sealed class PortfolioFinancialPolicyEventProjector(
     IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    ILogger<PortfolioFinancialPolicyEventProjector> logger, IPortfolioEventStore events, IPortfolioDbContext projections,
+    ILogger<PortfolioFinancialPolicyEventProjector> logger, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
     EventProjectorReliabilityOptions? options = null)
     : ConventionalEventProjector<PortfolioFinancialPolicyCommandActor>(replayQueue, eventSource, blackboard, logger, options)
 {

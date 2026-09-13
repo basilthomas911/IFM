@@ -12,8 +12,6 @@ using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.Commands;
-using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -153,70 +151,6 @@ internal static class SpreadDistributionJobEventExtensions
         if (serviceResult.Success && serviceResult.Value is not null)
             ironCondorMarketDataFeed = serviceResult.Value;
         return ironCondorMarketDataFeed!;
-    }
-
-    /// <summary>
-    /// Asynchronously updates the spread distribution statistics for a specified option trade using the provided
-    /// distribution models and trade details.
-    /// </summary>
-    /// <param name="context">The event actor context used to execute the update command and handle the request asynchronously.</param>
-    /// <param name="orderId">The unique identifier of the order associated with the option trade.</param>
-    /// <param name="tradeId">The unique identifier of the option trade to update.</param>
-    /// <param name="tradeType">The type of the option trade, indicating whether it is a put or call.</param>
-    /// <param name="valueDate">The value date for which the spread distribution statistics are being updated.</param>
-    /// <param name="tradeStatus">The current status of the option trade, which may affect the update process.</param>
-    /// <param name="putSpreadDistribution">The spread distribution read model containing statistical data for put options.</param>
-    /// <param name="callSpreadDistribution">The spread distribution read model containing statistical data for call options.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the update operation fails or the service result indicates an error.</exception>
-    internal static async ValueTask UpdateSpreadDistributionStatisticsAsync(
-        this IEventActorContext commandApi,
-        int orderId,
-        int tradeId,
-        TradeType tradeType,
-        DateOnly valueDate,
-        TradeStatus tradeStatus,
-        SpreadDistributionReadModel putSpreadDistribution,
-        SpreadDistributionReadModel callSpreadDistribution)
-    {
-        _ = await TradeCommandApiExtensions.UpdateSpreadDistributionStatisticsAsync(commandApi,
-            orderId,
-            tradeId,
-            tradeType,
-            valueDate,
-            tradeStatus,
-            putSpreadDistribution,
-            callSpreadDistribution);
-    }
-
-    /// <summary>
-    /// Asynchronously changes the spread distribution statistics for a specified option trade using the provided
-    /// distribution models and trade details.
-    /// </summary>
-    /// <param name="context">The event actor context used to execute the change command and handle the request asynchronously.</param>
-    /// <param name="orderId">The unique identifier of the order associated with the option trade.</param>
-    /// <param name="tradeId">The unique identifier of the option trade to change.</param>
-    /// <param name="tradeType">The type of the option trade, indicating whether it is a put or call.</param>
-    /// <param name="valueDate">The value date for which the spread distribution statistics are being changed.</param>
-    /// <param name="tradeStatus">The current status of the option trade, which may affect the change process.</param>
-    /// <param name="putSpreadDistribution">The spread distribution read model containing statistical data for put options.</param>
-    /// <param name="callSpreadDistribution">The spread distribution read model containing statistical data for call options.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the change operation fails or the service result indicates an error.</exception>
-    internal static async ValueTask ChangeSpreadDistributionStatisticsAsync(
-        this IEventActorContext commandApi,
-        int orderId,
-        int tradeId,
-        double forwardLossRatio,
-        double lossProbability,
-        DateOnly valueDate)
-    {
-        _ = await TradeCommandApiExtensions.ChangeSpreadDistributionStatisticsAsync(commandApi,
-            orderId,
-            tradeId,
-            forwardLossRatio,
-            lossProbability,
-            valueDate);
     }
 
     /// <summary>

@@ -5,7 +5,6 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Option.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

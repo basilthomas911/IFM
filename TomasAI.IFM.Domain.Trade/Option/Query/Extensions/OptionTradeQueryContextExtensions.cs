@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

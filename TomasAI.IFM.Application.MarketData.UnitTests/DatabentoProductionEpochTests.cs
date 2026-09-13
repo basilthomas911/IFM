@@ -66,6 +66,12 @@ public sealed class DatabentoProductionEpochTests
         var mappedOption = await api.GetFuturesOptionContractAsync("ES20260918C6500");
         Assert.NotNull(mappedOption);
         Assert.Equal(6500.123456789d, mappedOption.StrikePrice);
+        Assert.True(api.TryGetMarketInstrumentId("ES-202609", out var futureInstrumentId));
+        Assert.Equal(42u, futureInstrumentId);
+        Assert.True(api.TryGetMarketInstrumentId("ES20260918C6500", out var optionInstrumentId));
+        Assert.Equal(43u, optionInstrumentId);
+        Assert.False(api.TryGetMarketInstrumentId("UNKNOWN", out var unknownInstrumentId));
+        Assert.Equal(0u, unknownInstrumentId);
         Assert.Same(
             api.GetFuturesLastPriceReader("ES-202609"),
             api.GetFuturesLastPriceReader("ES-202609"));

@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 
 /// <summary>Prepares development book configuration from committed membership, with sequence-generated keys and no money effects.</summary>
-public sealed class FinancialBookPreparation(IPortfolioEventStore sources,IPortfolioFinancialDbContext database,
+public sealed class FinancialBookPreparation(IPortfolioEventStore sources,IPortfolioDbReadContext database,
     FinancialIdentityAllocator identities,FinancialDevelopmentPolicy development)
 {
     public async Task<FinancialRead<FinancialBookSetup>> PrepareAsync(FinancialReadScope scope,PrepareFinancialBookRequest request,CancellationToken token)

@@ -40,7 +40,7 @@ internal static class FinancialProcessHost
             supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());
             var sequences=Substitute.For<ISequenceIdGenerator>();sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(),Arg.Any<CancellationToken>())
                 .Returns(_=>ValueTask.FromResult(Random.Shared.NextInt64(100000,long.MaxValue)));
-            ledger=new GeneralLedgerCommandActor(context,new(new GeneralLedgerStore(Transactions()),new PortfolioFinancialDbContext(Transactions()),
+            ledger=new GeneralLedgerCommandActor(context,new(new GeneralLedgerStore(Transactions()),new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
                 new(sequences),Substitute.For<IEventProjector<GeneralLedgerCommandActor>>(),NullLogger<GeneralLedgerCommandActor>.Instance),NullLogger<GeneralLedgerCommandActor>.Instance);
             await ledger.StartAsync(supervisor,deadline.Token);
         }
@@ -51,7 +51,7 @@ internal static class FinancialProcessHost
             using var message=new NatsActorMessage(await subscription.Msgs.ReadAsync(deadline.Token));
             if(ledger is not null) await ledger.HandleMessageAsync(message,message.Subject.ThreadId,deadline.Token);
             else await new CapacityReservationFunctionActor(new CapacityFunctionActorIntegrationTests.Context(
-                new CapacityReservationFunctionStateRepository(new PortfolioFinancialDbContext(Transactions()),new CapacityReservationStore(Transactions())))).HandleMessageAsync(message);
+                new CapacityReservationFunctionStateRepository(new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),new CapacityReservationStore(Transactions())))).HandleMessageAsync(message);
             await connection.Connection.PingAsync(deadline.Token);
             return 0;
         }

@@ -40,7 +40,7 @@ public sealed class DevelopmentOpeningCapitalIntegrationTests
         var failure=await FluentActions.Awaiting(()=>PostOpening(command,policy)).Should().ThrowAsync<FinancialOperationException>();
         failure.Which.Code.Should().Be(FinancialReasons.AuthorityDenied);
         await AssertBook(book,expectedCash:0,expectedRevision:2);
-        (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,command.OperationId))
+        (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,command.OperationId))
             .Should().BeNull();
         var counts=await Transactions().ExecuteAsync(async(db,ct)=>
         {
@@ -79,7 +79,7 @@ public sealed class DevelopmentOpeningCapitalIntegrationTests
             info=>command.Complete(info))).Should().ThrowAsync<FinancialOperationException>();
         failure.Which.Code.Should().Be(FinancialReasons.AuthorityDenied);
         await AssertBook(book,expectedCash:0,expectedRevision:2);
-        (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingBatchCompletedEvent>(book.PortfolioId,command.OperationId))
+        (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingBatchCompletedEvent>(book.PortfolioId,command.OperationId))
             .Should().BeNull();
         var sources=await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync(
             "SELECT count(*) FROM portfolio_financial.financial_source_receipt WHERE operation_id=$1;",[command.OperationId],ct));
@@ -99,7 +99,7 @@ public sealed class DevelopmentOpeningCapitalIntegrationTests
         var replay=await PostOpening(command,new(false));
         replay.Id.Should().Be(original.Id);
         await AssertBook(book,expectedCash:100,expectedRevision:3);
-        var saved=await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(book.PortfolioId);
+        var saved=await new PortfolioFinancialStore(Transactions()).ReadBookAsync(book.PortfolioId);
         saved!.MigrationQualified.Should().BeFalse();
     }
 

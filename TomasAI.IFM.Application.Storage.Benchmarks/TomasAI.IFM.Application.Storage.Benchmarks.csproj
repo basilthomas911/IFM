@@ -16,6 +16,8 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
   </ItemGroup>
 
 </Project>

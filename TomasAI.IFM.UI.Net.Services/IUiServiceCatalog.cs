@@ -82,9 +82,6 @@ public interface IUiServiceCatalog
     /// <summary>Gets the Strategy Operations service.</summary>
     StrategyOperationsService StrategyOperations { get; }
 
-    /// <summary>Gets the Trade command service.</summary>
-    TradeCommandService TradeCommands { get; }
-
     /// <summary>Gets the Trade query service.</summary>
     TradeQueryService TradeQueries { get; }
 

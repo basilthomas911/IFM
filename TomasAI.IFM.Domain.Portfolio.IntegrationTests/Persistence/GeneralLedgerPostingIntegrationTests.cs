@@ -14,7 +14,8 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {
     internal static PostgresEventTransaction Transactions()=>new(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,
-        "Host=localhost;Port=5432;Database=event-source-test-db","System.Data.Postgres"));
+        Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+            ?? "Host=localhost;Port=5432;Database=event-source-test-db","System.Data.Postgres"));
 
     [Fact]
     public async Task Posting_replays_original_event_after_later_commands_without_reposting_money()
@@ -27,7 +28,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
         replay.Id.Should().Be(original.Id); replay.Receipt.FinancialRevision.Should().Be(1);
         second.Receipt.FinancialRevision.Should().Be(2);
         (await Cash(book)).Should().Be(1050);
-        var saved=await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,first.OperationId,first.InputSha256);
+        var saved=await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,first.OperationId,first.InputSha256);
         saved!.Receipt.JournalId.Should().Be(original.Receipt.JournalId);
     }
 
@@ -88,7 +89,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
         failure.Which.SqlState.Should().Be("23514");
         failure.Which.MessageText.Should().Be("GL.JOURNAL.UNBALANCED");
         (await Cash(book)).Should().Be(0);
-        (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId)).Should().BeNull();
+        (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId)).Should().BeNull();
     }
 
     internal static async Task<FinancialBookConfiguration> CreateBook(Func<FinancialBookConfiguration,FinancialBookConfiguration>? configure = null)
@@ -108,7 +109,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
             }
             return true;
         });
-        await new PortfolioFinancialDbContext(transactions).CreateBookAsync(book,
+        await new PortfolioFinancialStore(transactions).CreateBookAsync(book,
             [new(101,1,"Cash",PostingSide.Debit,true,"cash"),new(102,1,"Equity",PostingSide.Credit,true,"equity"),new(103,1,"Expense",PostingSide.Debit,true,"expense")],
             [Rule(LedgerTransactionKind.DepositConfirmed),Rule(LedgerTransactionKind.WithdrawalRequested),Rule(LedgerTransactionKind.Commission)],
             new DateOnly(2020,1,1),new DateOnly(2099,12,31));

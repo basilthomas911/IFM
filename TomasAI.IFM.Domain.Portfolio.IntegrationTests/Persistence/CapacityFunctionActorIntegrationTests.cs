@@ -24,7 +24,7 @@ public sealed class CapacityFunctionActorIntegrationTests(PortfolioEventStoreFix
     {
         var book=await CapacityReservationIntegrationTests.FundedBook();
         var request=await CapacityReservationIntegrationTests.ReserveRequest(book,700);
-        var database=new PortfolioFinancialDbContext(GeneralLedgerPostingIntegrationTests.Transactions());
+        var database=new PortfolioDbReadTestContext(new PortfolioFinancialStore(GeneralLedgerPostingIntegrationTests.Transactions()));
         await using var proxy=new LostCommitReplyProxy(refuseRecovery);
         var repository=new CapacityReservationFunctionStateRepository(database,
             new CapacityReservationStore(FinancialCommitUncertaintyTests.ProxiedTransactions(proxy.Port)));
@@ -53,7 +53,7 @@ public sealed class CapacityFunctionActorIntegrationTests(PortfolioEventStoreFix
     {
         var book=await CapacityReservationIntegrationTests.FundedBook();
         var request=await CapacityReservationIntegrationTests.ReserveRequest(book,700);
-        var database=new PortfolioFinancialDbContext(GeneralLedgerPostingIntegrationTests.Transactions());
+        var database=new PortfolioDbReadTestContext(new PortfolioFinancialStore(GeneralLedgerPostingIntegrationTests.Transactions()));
         var repository=new CapacityReservationFunctionStateRepository(database,new CapacityReservationStore(GeneralLedgerPostingIntegrationTests.Transactions()));
         var actor=new CapacityReservationFunctionActor(new Context(repository));
         var first=new Message(request); await actor.HandleMessageAsync(first);

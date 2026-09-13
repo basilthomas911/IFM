@@ -24,7 +24,7 @@ public sealed class PortfolioProjectorDescriptorTests
         var source = Substitute.For<IEventSourceActorDbContext>();
         var blackboard = Substitute.For<IBlackboardService>();
         var events = Substitute.For<IPortfolioEventStore>();
-        var projections = Substitute.For<IPortfolioDbContext>();
+        var projections = Substitute.For<IPortfolioDbWriteContext>();
         var portfolio = new PortfolioEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioEventProjector>>(), events, projections);
         var fund = new PortfolioFundEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFundEventProjector>>(), events, projections);
         var policy = new PortfolioFinancialPolicyEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFinancialPolicyEventProjector>>(), events, projections);

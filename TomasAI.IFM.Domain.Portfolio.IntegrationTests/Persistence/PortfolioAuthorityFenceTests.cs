@@ -35,7 +35,7 @@ public sealed class PortfolioAuthorityFenceTests(PortfolioEventStoreFixture fixt
         var changed=new FundCompositionStateChanged(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"integration",
             new() { PortfolioId=book.PortfolioId,FundId=book.Funds[0].FundId,OrderId=123,Status="Composed" });
         await events.AppendFundAsync(new PortfolioFundId(book.PortfolioId,book.Funds[0].FundId),changed,1);
-        var refreshed=await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(book.PortfolioId);
+        var refreshed=await new PortfolioFinancialStore(Transactions()).ReadBookAsync(book.PortfolioId);
         refreshed!.Funds[0].FundStreamVersion.Should().Be(2); refreshed.Funds[0].Reference.Should().Be(book.Funds[0].Reference);
         var request=await CapacityReservationIntegrationTests.ReserveRequest(refreshed,700);
         (await CapacityReservationIntegrationTests.Reserve(request)).Receipt.FinancialRevision.Should().Be(2);

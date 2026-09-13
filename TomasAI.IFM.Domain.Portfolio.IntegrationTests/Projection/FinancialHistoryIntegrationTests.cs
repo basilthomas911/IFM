@@ -24,7 +24,7 @@ public sealed class FinancialHistoryIntegrationTests(PortfolioEventStoreFixture 
         var factory=new DbContextFactory(new DbContextResolver(type=>type==typeof(IObjectRepository<PortfolioDbContext>)?scylla.Db:throw new NotSupportedException()));
         var projection=new FinancialHistoryProjection(factory);
         await projection.ApplyAsync(completed); await projection.ApplyAsync(completed);
-        var receipt=(await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId))!;
+        var receipt=(await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId))!;
         await projection.ApplyAsync(receipt);
         var rows=await factory.PortfolioDb.Use("FinancialHistory.IntegrationRead","""
             SELECT sourceEventId,payloadJson FROM financial_operation_by_portfolio_month WHERE portfolioId=? AND month=?;

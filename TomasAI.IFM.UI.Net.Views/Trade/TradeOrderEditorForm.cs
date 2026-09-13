@@ -651,7 +651,7 @@ public partial class TradeOrderEditorForm
         btnRemoveTrade.Enabled = !readOnlyHistory && _viewModel.CanRemoveTrade;
         btnChangeTradeState.Enabled = !readOnlyHistory && _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
         ddlTradeState.Enabled = !readOnlyHistory && _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
-        btnEndOfDay.Enabled = !readOnlyHistory && _viewModel.CanEndOfDay;
+        btnEndOfDay.Enabled = false;
         btnSubmitOrder.Enabled = !readOnlyHistory && _viewModel.CanSubmitOrder;
         cbLiveFeed.Enabled = !readOnlyHistory && _viewModel.CanUseLiveFeed;
         btnOpenTrade.Enabled = _legacyOrderSelected && lstTrades.SelectedItems.Count > 0;
@@ -1123,27 +1123,7 @@ public partial class TradeOrderEditorForm
         tradeOrderControl?.SetNearestStrikePrices();
     }
 
-    async void btnEndOfDay_Click(object sender, EventArgs e)
-    {
-        var index = lstTradeOrders.SelectedIndices.Count > 0 ? lstTradeOrders.SelectedIndices[0] : 0;
-        var fundOrder = _viewModel.GetFundOrder(index);
-        index = lstTrades.SelectedIndices.Count > 0 ? lstTrades.SelectedIndices[0] : 0;
-        var fundOrderTrade = _viewModel.GetFundOrderTrade(lstTrades.SelectedIndices[0]);
-        var baseContract = _viewModel.BaseContracts.Where(o => o.Symbol == fundOrderTrade!.BaseContractSymbol.Trim()).FirstOrDefault();
-        var eodParam = new TradeEndOfDayParameter
-        {
-            FundId = fundOrder!.FundId,
-            OrderId = fundOrder.OrderId,
-            TradeId = fundOrderTrade!.TradeId,
-            TradeType = fundOrderTrade.TradeType,
-            BaseContractId =baseContract!.ContractId,
-            ValueDate = DateOnly.FromDateTime(dtpTradeDate.Value)
-        };
-        var dlg = new TradeEndOfDayForm(_appRoot, eodParam);
-        var dlgResult = dlg.ShowDialog();
-        if (dlgResult == DialogResult.OK)
-            await ObserveAsync(LoadFundsAsync);
-    }
+    void btnEndOfDay_Click(object sender, EventArgs e) { }
 
     async void btnChangeTradeState_Click(object sender, EventArgs e)
     {

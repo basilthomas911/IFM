@@ -39,7 +39,7 @@ public sealed partial class TradeSelectionRuntimeTests
             return true;
         });
         var rule=new LedgerPostingRule(Guid.NewGuid(),1,"five-stage-funding-rule",LedgerTransactionKind.DepositConfirmed,new(101,1),new(102,1),true);
-        await new PortfolioFinancialDbContext(transactions).CreateBookAsync(book,
+        await new PortfolioFinancialStore(transactions).CreateBookAsync(book,
             [new(101,1,"Cash",PostingSide.Debit,true,"cash"),new(102,1,"Equity",PostingSide.Credit,true,"equity")],[rule],new(2020,1,1),new(2099,12,31));
         var id=Guid.NewGuid();var now=DateTime.UtcNow;
         var posting=new PostFundTransactionCommand { CommandId=id,OperationId=id,PortfolioId=book.PortfolioId,EntityId=new(book.PortfolioId),
@@ -76,6 +76,6 @@ public sealed partial class TradeSelectionRuntimeTests
         var accepted=await new FinancialQueryStore(FinancialBoundaryTransactions()).ReadAsync(new() { PortfolioId=book.PortfolioId,FundId=risk.FundId,Access=reserve.Access with { Roles=["LedgerRead"] } },new GetFundRiskAuthorizationRequest(fundEvent.CommandId));
         accepted.Value!.Authorization.Should().Be(authorization);
         // Store reload proves these results came from the actual persisted Risk event and one reservation.
-        (await new PortfolioFinancialDbContext(FinancialBoundaryTransactions()).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,reserve.OperationId))!.Id.Should().Be(grant.Id);
+        (await new PortfolioFinancialStore(FinancialBoundaryTransactions()).ReadOperationAsync<CapacityReservationCompletedEvent>(book.PortfolioId,reserve.OperationId))!.Id.Should().Be(grant.Id);
     }
 }

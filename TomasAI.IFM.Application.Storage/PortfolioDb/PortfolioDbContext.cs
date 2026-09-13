@@ -1,143 +1,208 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Npgsql;
+using NpgsqlTypes;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 
-public sealed class PortfolioDbContext(IDbConnectionSettings settings, IDbContextFactory factory, ILogger<DbProvider> logger)
-    : ObjectDataRepository<PortfolioDbContext>(settings[PortfolioDbConnection], logger), IPortfolioDbContext
+public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<DbProvider> logger,
+    IPostgresEventTransaction? transactions = null)
+    : ObjectDataRepository<PortfolioDbContext>(settings[PortfolioDbConnection], logger),
+      IPortfolioDbReadContext, IPortfolioDbWriteContext
 {
     public const string PortfolioDbConnection = "PortfolioDbConnection";
     public override PortfolioDbContext Database => this;
 
-    public Task<PortfolioReadModel?> GetPortfolioAsync(int id, CancellationToken ct = default) => One<PortfolioReadModel>(PortfolioDbCql.GetPortfolio, V(id), ct);
+    public Task<T?> ReadOperationAsync<T>(int portfolioId, Guid operationId, string? inputHash = null, CancellationToken ct = default)
+        where T : class, IFinancialCompletedEvent => RequiredTransactions().ExecuteAsync(
+            (db, cancellation) => PortfolioDbFinancialSupport.ReadOperationAsync<T>(db, portfolioId, operationId, inputHash, cancellation), ct);
+
+    public Task<FinancialBookConfiguration?> ReadBookAsync(int portfolioId, CancellationToken ct = default) =>
+        RequiredTransactions().ExecuteAsync(async (db, cancellation) =>
+        {
+            var value = await db.ScalarAsync(PortfolioDbSql.Financial.ReadBook, [portfolioId], cancellation).ConfigureAwait(false);
+            return value is string json ? PortfolioDbFinancialSupport.Decode<FinancialBookConfiguration>(json) : null;
+        }, ct);
+
+    internal Task CreateBookAsync(FinancialBookConfiguration book, IReadOnlyList<LedgerAccountDefinition> accounts,
+        IReadOnlyList<LedgerPostingRule> rules, DateOnly periodStart, DateOnly periodEnd, CancellationToken ct = default) =>
+        RequiredTransactions().ExecuteAsync(async (db, cancellation) =>
+        {
+            await PortfolioDbFinancialSupport.CreateBookAsync(db, book, accounts, rules, periodStart, periodEnd, Guid.NewGuid(), cancellation).ConfigureAwait(false);
+            return true;
+        }, ct);
+
+    public Task<PortfolioReadModel?> GetPortfolioAsync(int id, CancellationToken ct = default) =>
+        One<PortfolioReadModel>(nameof(PortfolioDbSql.Portfolio.Get), PortfolioDbSql.Portfolio.Get, Values(Pos(id)), ct);
     public Task<PortfolioProjectionRevision?> GetPortfolioRevisionAsync(int id, CancellationToken ct = default) =>
-        OneValue<PortfolioProjectionRevision>(PortfolioDbCql.GetPortfolioRevision, V(Pos(id)), row => new(id, null, row.GetLong(0), row.GetLong(1)), ct);
-    public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState s, int b, int a, int n, CancellationToken ct = default) => Many<PortfolioReadModel>(PortfolioDbCql.GetPortfoliosByState, V(s.ToString(), b, a, Page(n)), ct);
-    public Task<IReadOnlyList<FundMandateReadModel>> GetFundsByPortfolioAsync(int p, int a, int n, CancellationToken ct = default) => Many<FundMandateReadModel>(PortfolioDbCql.GetFundsByPortfolio, V(Pos(p), a, Page(n)), ct);
-    public Task<FundMandateReadModel?> GetFundAsync(int id, CancellationToken ct = default) => One<FundMandateReadModel>(PortfolioDbCql.GetFund, V(Pos(id)), ct);
+        OneValue(nameof(PortfolioDbSql.Portfolio.Revision), PortfolioDbSql.Portfolio.Revision, Values(Pos(id)),
+            row => new PortfolioProjectionRevision(id, null, row.GetLong(0), row.GetLong(1)), ct);
+    public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState state, int bucket, int afterId, int size, CancellationToken ct = default) =>
+        Many<PortfolioReadModel>(nameof(PortfolioDbSql.Portfolio.ByState), PortfolioDbSql.Portfolio.ByState, Values(state.ToString(), bucket, afterId, Page(size)), ct);
+    public Task<IReadOnlyList<FundMandateReadModel>> GetFundsByPortfolioAsync(int portfolioId, int afterId, int size, CancellationToken ct = default) =>
+        Many<FundMandateReadModel>(nameof(PortfolioDbSql.Fund.ByPortfolio), PortfolioDbSql.Fund.ByPortfolio, Values(Pos(portfolioId), afterId, Page(size)), ct);
+    public Task<FundMandateReadModel?> GetFundAsync(int id, CancellationToken ct = default) =>
+        One<FundMandateReadModel>(nameof(PortfolioDbSql.Fund.Get), PortfolioDbSql.Fund.Get, Values(Pos(id)), ct);
     public Task<PortfolioProjectionRevision?> GetFundRevisionAsync(int id, CancellationToken ct = default) =>
-        OneValue<PortfolioProjectionRevision>(PortfolioDbCql.GetFundRevision, V(Pos(id)), row => new(row.GetInt(0), id, row.GetLong(1), row.GetLong(2)), ct);
-    public Task<IReadOnlyList<FundMandateReadModel>> GetActiveFundsAsync(int p, int y, string h, DateTime at, int n, CancellationToken ct = default) { Utc(at); ArgumentException.ThrowIfNullOrWhiteSpace(h); return Many<FundMandateReadModel>(PortfolioDbCql.GetActiveFunds, V(Pos(p), y, h, at, Page(n)), ct); }
-    public async Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetSelectionAssignmentsAsync(int p,int f,long version,string horizon,string root,DateTime asOfUtc,CancellationToken ct=default)
+        OneValue(nameof(PortfolioDbSql.Fund.Revision), PortfolioDbSql.Fund.Revision, Values(Pos(id)),
+            row => new PortfolioProjectionRevision(row.GetInt(0), id, row.GetLong(1), row.GetLong(2)), ct);
+
+    public Task<IReadOnlyList<FundMandateReadModel>> GetActiveFundsAsync(int portfolioId, int year, string horizon, DateTime atUtc, int size, CancellationToken ct = default)
     {
-        Utc(asOfUtc);ArgumentException.ThrowIfNullOrWhiteSpace(horizon);ArgumentException.ThrowIfNullOrWhiteSpace(root);
-        const string cql="SELECT payloadJson FROM fund_template_assignment WHERE portfolioId=? AND fundId=? AND fundMandateVersion=?;";
-        List<FundTradeTemplateAssignmentReadModel> result=[];byte[]? cursor=null;
-        for(var pageNumber=0;pageNumber<64;pageNumber++)
-        {
-            var page=await factory.PortfolioDb.Use("PortfolioDb.SelectionAssignments",cql).SetParameters(V(Pos(p),Pos(f),Positive(version)))
-                .ExecutePageAsync(Map<FundTradeTemplateAssignmentReadModel>,64,cursor,ct).ConfigureAwait(false);
-            foreach(var assignment in page.Items)
-                if(assignment.EffectiveFromUtc<=asOfUtc && !(assignment.EffectiveUntilUtc<=asOfUtc) && assignment.DecisionHorizon.Equals(horizon,StringComparison.OrdinalIgnoreCase)
-                    && assignment.UnderlyingUniverse.Contains(root,StringComparer.OrdinalIgnoreCase))
-                {
-                    result.Add(assignment);if(result.Count==17)return result;
-                }
-            cursor=page.PagingState;if(cursor is null || cursor.Length==0)return result;
-        }
-        throw new InvalidOperationException("Selection assignment partition exceeds the 4096-row historical scan budget; no truncated candidates returned.");
+        Utc(atUtc); ArgumentException.ThrowIfNullOrWhiteSpace(horizon);
+        return Many<FundMandateReadModel>(nameof(PortfolioDbSql.Fund.Active), PortfolioDbSql.Fund.Active,
+            Values(Pos(portfolioId), year, horizon, atUtc, Page(size)), ct);
     }
-    public Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetAssignmentsAsync(int p, int f, long v, int n, CancellationToken ct = default) => Many<FundTradeTemplateAssignmentReadModel>(PortfolioDbCql.GetAssignments, V(Pos(p), Pos(f), Positive(v), Page(n)), ct);
-    public Task<FundAllocationReadModel?> GetCurrentAllocationAsync(int p, int f, CancellationToken ct = default) => One<FundAllocationReadModel>(PortfolioDbCql.GetAllocation, V(Pos(p), Pos(f)), ct);
-    public Task<FundRiskEnvelopeReadModel?> GetCurrentRiskEnvelopeAsync(int p, int f, CancellationToken ct = default) => One<FundRiskEnvelopeReadModel>(PortfolioDbCql.GetEnvelope, V(Pos(p), Pos(f)), ct);
-    public Task<IReadOnlyList<FundOrderProjectionReadModel>> GetOrdersAsync(int p, int f, DateOnly m, DateTime before, int n, CancellationToken ct = default) { Utc(before); return Many<FundOrderProjectionReadModel>(PortfolioDbCql.GetOrders, V(Pos(p), Pos(f), m, before, Page(n)), ct); }
-    public Task<FundOrderProjectionReadModel?> GetOrderAsync(int id, CancellationToken ct = default) => One<FundOrderProjectionReadModel>(PortfolioDbCql.GetOrder, V(Pos(id)), ct);
-    public Task<IReadOnlyList<FundOrderTradeProjectionReadModel>> GetOrderTradesAsync(int id, int n, CancellationToken ct = default) => Many<FundOrderTradeProjectionReadModel>(PortfolioDbCql.GetOrderTrades, V(Pos(id), Page(n)), ct);
-    public Task<FundOrderTradeProjectionReadModel?> GetTradeAsync(int id, CancellationToken ct = default) => One<FundOrderTradeProjectionReadModel>(PortfolioDbCql.GetTrade, V(Pos(id)), ct);
-    public Task<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>> GetCompositionsAsync(Guid id, int n, CancellationToken ct = default) { if (id == Guid.Empty) throw new ArgumentException("WorkflowId is required."); return Many<FundCompositionWorkflowProjectionReadModel>(PortfolioDbCql.GetCompositions, V(id, Page(n)), ct); }
+
+    public async Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetSelectionAssignmentsAsync(int portfolioId, int fundId, long version, string horizon, string root, DateTime asOfUtc, CancellationToken ct = default)
+    {
+        Utc(asOfUtc); ArgumentException.ThrowIfNullOrWhiteSpace(horizon); ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        var rows = await Many<FundTradeTemplateAssignmentReadModel>(nameof(PortfolioDbSql.Fund.Assignments), PortfolioDbSql.Fund.Assignments,
+            Values(Pos(portfolioId), Pos(fundId), Positive(version), 4096), ct).ConfigureAwait(false);
+        if (rows.Count == 4096)
+            throw new InvalidOperationException("Selection assignment partition reached the 4096-row historical scan budget; no truncated candidates returned.");
+        return rows.Where(x => x.EffectiveFromUtc <= asOfUtc && !(x.EffectiveUntilUtc <= asOfUtc)
+                && x.DecisionHorizon.Equals(horizon, StringComparison.OrdinalIgnoreCase)
+                && x.UnderlyingUniverse.Contains(root, StringComparer.OrdinalIgnoreCase)).Take(17).ToArray();
+    }
+
+    public Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetAssignmentsAsync(int portfolioId, int fundId, long version, int size, CancellationToken ct = default) =>
+        Many<FundTradeTemplateAssignmentReadModel>(nameof(PortfolioDbSql.Fund.Assignments), PortfolioDbSql.Fund.Assignments,
+            Values(Pos(portfolioId), Pos(fundId), Positive(version), Page(size)), ct);
+    public Task<FundAllocationReadModel?> GetCurrentAllocationAsync(int portfolioId, int fundId, CancellationToken ct = default) =>
+        One<FundAllocationReadModel>(nameof(PortfolioDbSql.Fund.Allocation), PortfolioDbSql.Fund.Allocation, Values(Pos(portfolioId), Pos(fundId)), ct);
+    public Task<FundRiskEnvelopeReadModel?> GetCurrentRiskEnvelopeAsync(int portfolioId, int fundId, CancellationToken ct = default) =>
+        One<FundRiskEnvelopeReadModel>(nameof(PortfolioDbSql.Fund.Envelope), PortfolioDbSql.Fund.Envelope, Values(Pos(portfolioId), Pos(fundId)), ct);
+
+    public Task<IReadOnlyList<FundOrderProjectionReadModel>> GetOrdersAsync(int portfolioId, int fundId, DateOnly month, DateTime beforeUtc, int size, CancellationToken ct = default)
+    {
+        Utc(beforeUtc);
+        return Many<FundOrderProjectionReadModel>(nameof(PortfolioDbSql.Orders.Timeline), PortfolioDbSql.Orders.Timeline,
+            Values(Pos(portfolioId), Pos(fundId), month, beforeUtc, Page(size)), ct);
+    }
+    public Task<FundOrderProjectionReadModel?> GetOrderAsync(int id, CancellationToken ct = default) =>
+        One<FundOrderProjectionReadModel>(nameof(PortfolioDbSql.Orders.Get), PortfolioDbSql.Orders.Get, Values(Pos(id)), ct);
+    public Task<IReadOnlyList<FundOrderTradeProjectionReadModel>> GetOrderTradesAsync(int id, int size, CancellationToken ct = default) =>
+        Many<FundOrderTradeProjectionReadModel>(nameof(PortfolioDbSql.Orders.Trades), PortfolioDbSql.Orders.Trades, Values(Pos(id), Page(size)), ct);
+    public Task<FundOrderTradeProjectionReadModel?> GetTradeAsync(int id, CancellationToken ct = default) =>
+        One<FundOrderTradeProjectionReadModel>(nameof(PortfolioDbSql.Orders.Trade), PortfolioDbSql.Orders.Trade, Values(Pos(id)), ct);
+    public Task<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>> GetCompositionsAsync(Guid workflowId, int size, CancellationToken ct = default)
+    {
+        if (workflowId == Guid.Empty) throw new ArgumentException("WorkflowId is required.", nameof(workflowId));
+        return Many<FundCompositionWorkflowProjectionReadModel>(nameof(PortfolioDbSql.Orders.Compositions), PortfolioDbSql.Orders.Compositions, Values(workflowId, Page(size)), ct);
+    }
+
     public Task<PortfolioFinancialPolicyReadModel?> GetPolicyAsync(int id, long? version = null, CancellationToken ct = default) => version is null
-        ? One<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetPolicy, V(Pos(id)), ct)
-        : One<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetPolicyVersion, V(Pos(id), Positive(version.Value)), ct);
-    public Task<IReadOnlyList<PortfolioFinancialPolicyReadModel>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken ct = default) =>
-        Many<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetPolicies, V(Pos(portfolioId), Page(pageSize)), ct);
+        ? One<PortfolioFinancialPolicyReadModel>(nameof(PortfolioDbSql.Policy.GetCurrent), PortfolioDbSql.Policy.GetCurrent, Values(Pos(id)), ct)
+        : One<PortfolioFinancialPolicyReadModel>(nameof(PortfolioDbSql.Policy.GetVersion), PortfolioDbSql.Policy.GetVersion, Values(Pos(id), Positive(version.Value)), ct);
+    public Task<IReadOnlyList<PortfolioFinancialPolicyReadModel>> GetPoliciesAsync(int portfolioId, int size, CancellationToken ct = default) =>
+        Many<PortfolioFinancialPolicyReadModel>(nameof(PortfolioDbSql.Policy.ByPortfolio), PortfolioDbSql.Policy.ByPortfolio, Values(Pos(portfolioId), Page(size)), ct);
     public Task<PortfolioFinancialPolicyReadModel?> GetActivePolicyAsync(int portfolioId, CancellationToken ct = default) =>
-        One<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetActivePolicy, V(Pos(portfolioId)), ct);
+        One<PortfolioFinancialPolicyReadModel>(nameof(PortfolioDbSql.Policy.Active), PortfolioDbSql.Policy.Active, Values(Pos(portfolioId)), ct);
 
-    public async Task UpsertPortfolioAsync(PortfolioProjection<PortfolioReadModel> row, int bucket, CancellationToken ct = default)
+    public Task UpsertPortfolioAsync(PortfolioProjection<PortfolioReadModel> row, int bucket, CancellationToken ct = default)
     {
-        Check(row); var x = row.Value; var c = Common(row);
-        await Put(PortfolioDbCql.InsertPortfolio, V(x.PortfolioId, x.PortfolioVersion, x.OperatingState.ToString(), c), ct);
-        await Put(PortfolioDbCql.InsertPortfolioState, V(x.OperatingState.ToString(), bucket, x.PortfolioId, x.PortfolioVersion, c), ct);
+        Check(row); if (bucket < 0) throw new ArgumentOutOfRangeException(nameof(bucket)); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Portfolio.Upsert), PortfolioDbSql.Portfolio.Upsert,
+            Values(x.PortfolioId, x.PortfolioVersion, x.OperatingState.ToString(), Common(row), bucket), ct);
     }
-    public async Task UpsertFundAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken ct = default)
+    public Task UpsertFundAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken ct = default)
     {
-        Check(row); var x = row.Value; var c = Common(row);
-        await Put(PortfolioDbCql.InsertFundPortfolio, V(x.PortfolioId, x.FundId, x.FundMandateVersion, x.OperatingState.ToString(), c), ct);
-        await Put(PortfolioDbCql.InsertFundId, V(x.FundId, x.FundMandateVersion, x.PortfolioId, x.OperatingState.ToString(), c), ct);
-        if (x.OperatingState == FundOperatingState.Active)
-            await Put(PortfolioDbCql.InsertActiveFund, V(x.PortfolioId, x.TradingYear, x.DecisionHorizon, x.EffectiveFromUtc, x.FundId, x.FundMandateVersion, c), ct);
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Fund.Upsert), PortfolioDbSql.Fund.Upsert,
+            Values(x.PortfolioId, x.FundId, x.FundMandateVersion, x.OperatingState.ToString(), Common(row), x.TradingYear, x.DecisionHorizon, x.EffectiveFromUtc), ct);
     }
-    public Task UpsertAssignmentAsync(PortfolioProjection<FundTradeTemplateAssignmentReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; return Put(PortfolioDbCql.InsertAssignment,V(x.PortfolioId,x.FundId,x.FundMandateVersion,x.TradeTemplateId,x.TradeTemplateVersion,Common(r)),ct); }
-    public Task UpsertAllocationAsync(PortfolioProjection<FundAllocationReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; return Put(PortfolioDbCql.InsertAllocation,V(x.PortfolioId,x.FundId,x.AllocationVersion,Common(r)),ct); }
-    public Task UpsertRiskEnvelopeAsync(PortfolioProjection<FundRiskEnvelopeReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; return Put(PortfolioDbCql.InsertEnvelope,V(x.PortfolioId,x.FundId,x.EnvelopeVersion,Common(r)),ct); }
-    public async Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> r, DateOnly month, CancellationToken ct = default) { Check(r); var x=r.Value; var c=Common(r); await Put(PortfolioDbCql.InsertOrderTimeline,V(x.PortfolioId,x.FundId,month,x.CreatedOnUtc,x.OrderId,x.Status,c),ct); await Put(PortfolioDbCql.InsertOrderId,V(x.OrderId,x.PortfolioId,x.FundId,x.Status,c),ct); }
-    public async Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; var c=Common(r); await Put(PortfolioDbCql.InsertTradeOrder,V(x.OrderId,x.TradeId,x.PortfolioId,x.FundId,c),ct); await Put(PortfolioDbCql.InsertTradeId,V(x.TradeId,x.OrderId,x.PortfolioId,x.FundId,c),ct); }
-    public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; return Put(PortfolioDbCql.InsertComposition,V(x.WorkflowId,x.OrderId,x.PortfolioId,x.FundId,x.Status,Common(r)),ct); }
-    public async Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> r, CancellationToken ct = default)
+    public Task UpsertAssignmentAsync(PortfolioProjection<FundTradeTemplateAssignmentReadModel> row, CancellationToken ct = default)
     {
-        Check(r); var x = r.Value; var c = Common(r);
-        await Put(PortfolioDbCql.InsertPolicyById, V(x.PolicyId, x.PolicyVersion, x.PortfolioId, x.OperatingState.ToString(), c), ct);
-        await Put(PortfolioDbCql.InsertPolicyByPortfolio, V(x.PortfolioId, x.PolicyId, x.PolicyVersion, x.OperatingState.ToString(), c), ct);
-        if (x.OperatingState == PortfolioFinancialPolicyState.Active)
-            await Put(PortfolioDbCql.InsertActivePolicy, V(x.PortfolioId, x.PolicyId, x.PolicyVersion, c), ct);
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Fund.UpsertAssignment), PortfolioDbSql.Fund.UpsertAssignment,
+            Values(x.PortfolioId, x.FundId, x.FundMandateVersion, x.TradeTemplateId, x.TradeTemplateVersion, Common(row)), ct);
     }
-
-    public async Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken ct = default)
+    public Task UpsertAllocationAsync(PortfolioProjection<FundAllocationReadModel> row, CancellationToken ct = default)
+    {
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Fund.UpsertAllocation), PortfolioDbSql.Fund.UpsertAllocation, Values(x.PortfolioId, x.FundId, x.AllocationVersion, Common(row)), ct);
+    }
+    public Task UpsertRiskEnvelopeAsync(PortfolioProjection<FundRiskEnvelopeReadModel> row, CancellationToken ct = default)
+    {
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Fund.UpsertEnvelope), PortfolioDbSql.Fund.UpsertEnvelope, Values(x.PortfolioId, x.FundId, x.EnvelopeVersion, Common(row)), ct);
+    }
+    public Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> row, DateOnly month, CancellationToken ct = default)
+    {
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Orders.UpsertOrder), PortfolioDbSql.Orders.UpsertOrder,
+            Values(x.PortfolioId, x.FundId, month, x.CreatedOnUtc, x.OrderId, x.Status, Common(row)), ct);
+    }
+    public Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> row, CancellationToken ct = default)
+    {
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Orders.UpsertTrade), PortfolioDbSql.Orders.UpsertTrade, Values(x.OrderId, x.TradeId, x.PortfolioId, x.FundId, Common(row)), ct);
+    }
+    public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> row, CancellationToken ct = default)
+    {
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Orders.UpsertComposition), PortfolioDbSql.Orders.UpsertComposition,
+            Values(x.WorkflowId, x.OrderId, x.PortfolioId, x.FundId, x.Status, Common(row)), ct);
+    }
+    public Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken ct = default)
+    {
+        Check(row); var x = row.Value;
+        return Put(nameof(PortfolioDbSql.Policy.Upsert), PortfolioDbSql.Policy.Upsert,
+            Values(x.PolicyId, x.PolicyVersion, x.PortfolioId, x.OperatingState.ToString(), Common(row)), ct);
+    }
+    public Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(deletion);
-        var eventId = Positive(deletion.SourceEventId);
-        await Delete(PortfolioDbCql.DeletePolicyById, V(eventId, Pos(deletion.PolicyId)), ct);
-        await Delete(PortfolioDbCql.DeletePolicyByPortfolio, V(eventId, Pos(deletion.PortfolioId), Pos(deletion.PolicyId)), ct);
-        await Delete(PortfolioDbCql.DeleteActivePolicy, V(eventId, Pos(deletion.PortfolioId)), ct);
+        return Put(nameof(PortfolioDbSql.Policy.DeleteDraft), PortfolioDbSql.Policy.DeleteDraft,
+            Values(Pos(deletion.PortfolioId), Pos(deletion.PolicyId), Positive(deletion.SourceEventId)), ct);
+    }
+    public Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(deletion); if (deletion.StateBucket < 0) throw new ArgumentOutOfRangeException(nameof(deletion));
+        return Put(nameof(PortfolioDbSql.Portfolio.DeleteDraft), PortfolioDbSql.Portfolio.DeleteDraft,
+            Values(Pos(deletion.PortfolioId), Positive(deletion.SourceEventId)), ct);
     }
 
-    public async Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(deletion);
-        var portfolioId = Pos(deletion.PortfolioId);
-        var sourceEventId = Positive(deletion.SourceEventId);
-        if (deletion.StateBucket < 0) throw new ArgumentOutOfRangeException(nameof(deletion));
-        await Delete(PortfolioDbCql.DeletePortfolioById, V(sourceEventId, portfolioId), ct);
-        await Delete(PortfolioDbCql.DeletePortfolioByState, V(sourceEventId, PortfolioOperatingState.Draft.ToString(), deletion.StateBucket, portfolioId), ct);
-        await Delete(PortfolioDbCql.DeleteFundsByPortfolio, V(sourceEventId, portfolioId), ct);
-        foreach (var fund in deletion.Funds)
-        {
-            var fundId = Pos(fund.FundId);
-            await Delete(PortfolioDbCql.DeleteFundById, V(sourceEventId, fundId), ct);
-            await Delete(PortfolioDbCql.DeleteAllocation, V(sourceEventId, portfolioId, fundId), ct);
-            await Delete(PortfolioDbCql.DeleteRiskEnvelope, V(sourceEventId, portfolioId, fundId), ct);
-            foreach (var version in fund.MandateVersions.Distinct().Order())
-                await Delete(PortfolioDbCql.DeleteAssignments, V(sourceEventId, portfolioId, fundId, Positive(version)), ct);
-        }
-    }
+    async Task<T?> One<T>(string name, string sql, PortfolioParameters values, CancellationToken ct) where T : class =>
+        await Use($"{nameof(PortfolioDbSql)}.{name}", sql).SetParameters(values).ExecuteSingleAsync(Map<T>, ct).ConfigureAwait(false);
+    async Task<T?> OneValue<T>(string name, string sql, PortfolioParameters values, Func<IObjectDataRecord, T> map, CancellationToken ct) where T : class =>
+        await Use($"{nameof(PortfolioDbSql)}.{name}", sql).SetParameters(values).ExecuteSingleAsync(map, ct).ConfigureAwait(false);
+    async Task<IReadOnlyList<T>> Many<T>(string name, string sql, PortfolioParameters values, CancellationToken ct) where T : class =>
+        [.. await Use($"{nameof(PortfolioDbSql)}.{name}", sql).SetParameters(values).ExecuteQueryAsync(Map<T>, ct).ConfigureAwait(false)];
+    Task Put(string name, string sql, PortfolioParameters values, CancellationToken ct) =>
+        Use($"{nameof(PortfolioDbSql)}.{name}", sql).SetParameters(values).ExecuteCommandAsync(ct);
 
-    async Task<T?> One<T>(string cql, PortfolioValues values, CancellationToken ct) where T : class => await factory.PortfolioDb.Use($"PortfolioDb.{nameof(One)}",cql).SetParameters(values).ExecuteSingleAsync(Map<T>,ct).ConfigureAwait(false);
-    async Task<T?> OneValue<T>(string cql, PortfolioValues values, Func<IObjectDataRecord, T> map, CancellationToken ct) where T : class =>
-        await factory.PortfolioDb.Use($"PortfolioDb.{nameof(OneValue)}", cql).SetParameters(values).ExecuteSingleAsync(map, ct).ConfigureAwait(false);
-    async Task<IReadOnlyList<T>> Many<T>(string cql, PortfolioValues values, CancellationToken ct) where T : class => [.. await factory.PortfolioDb.Use($"PortfolioDb.{nameof(Many)}",cql).SetParameters(values).ExecuteQueryAsync(Map<T>,ct).ConfigureAwait(false)];
-    async Task Put(string cql, PortfolioValues values, CancellationToken ct)
+    static T Map<T>(IObjectDataRecord row) where T : class => JsonSerializer.Deserialize<T>(row.GetString(0))
+        ?? throw new InvalidOperationException($"Stored {typeof(T).Name} payload is invalid.");
+    static object?[] Common<T>(PortfolioProjection<T> row) =>
+        [row.SchemaVersion, row.AggregateVersion, row.SourceEventId, row.UpdatedOnUtc, new PortfolioJson(JsonSerializer.Serialize(row.Value)), row.PayloadHash];
+    static PortfolioParameters Values(params object?[] values) => new([.. Flatten(values).Select(Parameter)]);
+    static IEnumerable<object?> Flatten(IEnumerable<object?> values) => values.SelectMany(value => value is object?[] array ? Flatten(array) : [value]);
+    static NpgsqlParameter Parameter(object? value) => value is PortfolioJson json
+        ? new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Jsonb, Value = json.Value }
+        : new NpgsqlParameter { Value = value ?? DBNull.Value };
+    static void Check<T>(PortfolioProjection<T> row)
     {
-        // EventSourceDb event IDs are globally increasing. Using them as the Scylla write timestamp
-        // makes replay idempotent and prevents a delayed older projection from replacing a newer row.
-        var monotonicCql = $"{cql.TrimEnd().TrimEnd(';')} USING TIMESTAMP :projectionWriteTimestamp;";
-        var monotonicValues = new PortfolioValues([.. values.Values, values.Values[^4]]);
-        await factory.PortfolioDb.Use("PortfolioDb.Upsert",monotonicCql).SetParameters(monotonicValues).ExecuteCommandAsync(ct).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(row);
+        if (row.SchemaVersion <= 0 || row.AggregateVersion <= 0 || row.SourceEventId <= 0 || row.PayloadHash.Length != 64)
+            throw new ArgumentException("Projection metadata is invalid.", nameof(row));
+        Utc(row.UpdatedOnUtc);
     }
-    Task Delete(string cql, PortfolioValues values, CancellationToken ct) =>
-        factory.PortfolioDb.Use("PortfolioDb.DeleteDraft", cql).SetParameters(values).ExecuteCommandAsync(ct);
-    static T Map<T>(IObjectDataRecord row) where T : class => JsonSerializer.Deserialize<T>(row.GetString(0)) ?? throw new InvalidOperationException($"Stored {typeof(T).Name} payload is invalid.");
-    static object?[] Common<T>(PortfolioProjection<T> r) => [r.SchemaVersion,r.AggregateVersion,r.SourceEventId,r.UpdatedOnUtc,JsonSerializer.Serialize(r.Value),r.PayloadHash];
-    static PortfolioValues V(params object?[] values) => new(Flatten(values));
-    static object?[] Flatten(object?[] values) => [.. values.SelectMany(x => x is object?[] a ? a : [x])];
-    static void Check<T>(PortfolioProjection<T> r) { ArgumentNullException.ThrowIfNull(r); if (r.SchemaVersion<=0||r.AggregateVersion<=0||r.SourceEventId<=0||r.PayloadHash.Length!=64) throw new ArgumentException("Projection metadata is invalid."); Utc(r.UpdatedOnUtc); }
-    static int Pos(int x) => x > 0 ? x : throw new ArgumentOutOfRangeException(nameof(x));
-    static long Positive(long x) => x > 0 ? x : throw new ArgumentOutOfRangeException(nameof(x));
-    static int Page(int n) => n is >= 1 and <= 200 ? n : throw new ArgumentOutOfRangeException(nameof(n),"Page size must be 1..200.");
-    static void Utc(DateTime x) { if (x.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC."); }
+    static int Pos(int value) => value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    static long Positive(long value) => value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    static int Page(int value) => value is >= 1 and <= 4096 ? value : throw new ArgumentOutOfRangeException(nameof(value), "Page size must be 1..4096.");
+    static void Utc(DateTime value) { if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC."); }
+    readonly record struct PortfolioJson(string Value);
+
+    IPostgresEventTransaction RequiredTransactions() => transactions
+        ?? throw new InvalidOperationException("The EventSource PostgreSQL transaction coordinator is required for financial operations.");
 }
 
-internal readonly record struct PortfolioValues(object?[] Values) : IBindValue { public object Bind() => Values; }
+internal readonly record struct PortfolioParameters(NpgsqlParameter[] Values) : IBindValue { public object Bind() => Values; }

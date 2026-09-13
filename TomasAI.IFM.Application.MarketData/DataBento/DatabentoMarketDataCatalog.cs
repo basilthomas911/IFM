@@ -226,6 +226,19 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
     public FuturesContractV3ReadModel? FindFutures(string contractId) =>
         _resolved.GetValueOrDefault(contractId)?.Futures;
 
+    public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        if (_resolved.TryGetValue(contractId, out var resolved)
+            && resolved.Detail.Instrument.InstrumentId != 0)
+        {
+            marketInstrumentId = resolved.Detail.Instrument.InstrumentId;
+            return true;
+        }
+        marketInstrumentId = 0;
+        return false;
+    }
+
     public FuturesOptionContractReadModel? FindFuturesOption(string contractId) =>
         _resolved.GetValueOrDefault(contractId)?.Option;
 

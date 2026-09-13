@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.State;
 
 /// <summary>Commits business changes and their canonical completion together; ordinary Function saves are forbidden.</summary>
-public sealed class CapacityConsumptionFunctionStateRepository(IPortfolioFinancialDbContext database,ICapacityReservationStore store)
+public sealed class CapacityConsumptionFunctionStateRepository(IPortfolioDbReadContext database,ICapacityReservationStore store)
     : ITransactionalFunctionStateRepository<CapacityConsumptionFunctionState,ConsumeCapacityReservationCommand,CapacityConsumptionCompletedEvent>
 {
     public async ValueTask<CapacityConsumptionFunctionState> LoadStateAsync(ConsumeCapacityReservationCommand request,CancellationToken cancellationToken=default)

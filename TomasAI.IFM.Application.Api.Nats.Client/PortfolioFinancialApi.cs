@@ -1,12 +1,18 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 /// <summary>Uses standard typed NATS transport without nested serialization or replacement operation identities.</summary>
-public sealed class PortfolioFinancialApi(IActorProducer producer):NatsClientApi(producer),IPortfolioFinancialApi
+public sealed class PortfolioFinancialApi(IActorProducer producer):NatsClientApi(producer),IPortfolioFinancialApi,IPortfolioOrderCompositionApi
 {
+    public ValueTask<ServiceResult<FunctionResult<PortfolioOrderCompositionCompletedEvent,PortfolioOrderCompositionFailedEvent>>> EvaluateAsync(
+        EvaluatePortfolioOrderCompositionCommand request,CancellationToken cancellationToken=default)
+        =>RequestFunctionAsync<EvaluatePortfolioOrderCompositionCommand,FinancialExecutionId,
+            FunctionResult<PortfolioOrderCompositionCompletedEvent,PortfolioOrderCompositionFailedEvent>>(
+                request,request.EntityId,cancellationToken);
     public Task<ServiceResult<FinancialRead<FinancialAuthorityDraft>>> PrepareFinancialAuthorityAsync(FinancialReadScope scope,PrepareFinancialAuthorityRequest request,CancellationToken token=default)
         =>Read<PrepareFinancialAuthorityRequest,FinancialAuthorityDraft>(scope,request,"GeneralLedgerQuery","PrepareFinancialAuthority",token);
     public Task<ServiceResult<FinancialRead<FinancialBookSetup>>> PrepareFinancialBookAsync(FinancialReadScope scope,PrepareFinancialBookRequest request,CancellationToken token=default)

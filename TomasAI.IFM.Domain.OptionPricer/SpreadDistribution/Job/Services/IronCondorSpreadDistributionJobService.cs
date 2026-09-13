@@ -32,7 +32,6 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
 
     /// <summary>The actor context used to query trade, market data, and market data feed information.</summary>
     readonly IEventActorContext _context;
-    readonly IEventActorContext _tradeCommandApi;
 
     /// <summary>
     /// Initializes a new instance of <see cref="IronCondorSpreadDistributionJobService"/>.
@@ -53,7 +52,7 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
     {
         _jobSubmittedEvent = IsArgumentNull.Set(e);
         _context = IsArgumentNull.Set(context);
-        _tradeCommandApi = IsArgumentNull.Set(tradeCommandApi);
+        IsArgumentNull.Check(tradeCommandApi);
     }
 
     /// <summary>
@@ -306,15 +305,6 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
             return new ServiceFailed<SpreadDistributionJobReadModel>(2009, string.Concat("SpreadDistributionJobFailed: ", ex.Message));
         }
 
-        // update spread trade distributionstatistics...
-        await TradeCommandApiExtensions.UpdateSpreadDistributionStatisticsAsync(_tradeCommandApi,
-            orderId: e.OrderId,
-            tradeId: e.TradeId,
-            tradeType: e.TradeType,
-            valueDate: e.ValueDate,
-            tradeStatus: e.TradeStatus,
-            putSpreadDistribution: e.PutSpreadDistribution,
-            callSpreadDistribution: e.CallSpreadDistribution);
         return new ServiceOk<SpreadDistributionJobReadModel>(e);
     }
 }

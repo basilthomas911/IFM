@@ -21,7 +21,7 @@ public sealed class FundRiskAuthorizationIntegrationTests(PortfolioEventStoreFix
         actual.Value!.Authorization.Should().Be(grant);
         actual.Value.EventId.Should().Be(changed.Id);
         actual.FinancialRevision.Should().Be(grant.FinancialRevision);
-        (await new PortfolioFinancialDbContext(Transactions()).ReadBookAsync(book.PortfolioId))!.Funds[0].FundStreamVersion.Should().Be(2);
+        (await new PortfolioFinancialStore(Transactions()).ReadBookAsync(book.PortfolioId))!.Funds[0].FundStreamVersion.Should().Be(2);
     }
 
     [Theory]

@@ -11,14 +11,17 @@ public sealed class PortfolioQueryLanguageScenarios
     {
         string[] journeys =
         [
-            PortfolioDbCql.GetPortfolio, PortfolioDbCql.GetPortfoliosByState,
-            PortfolioDbCql.GetFundsByPortfolio, PortfolioDbCql.GetFund,
-            PortfolioDbCql.GetActiveFunds, PortfolioDbCql.GetAssignments,
-            PortfolioDbCql.GetEnvelope, PortfolioDbCql.GetOrders,
-            PortfolioDbCql.GetOrder, PortfolioDbCql.GetOrderTrades,
-            PortfolioDbCql.GetTrade, PortfolioDbCql.GetCompositions
+            PortfolioDbSql.Portfolio.Get, PortfolioDbSql.Portfolio.ByState,
+            PortfolioDbSql.Fund.ByPortfolio, PortfolioDbSql.Fund.Get,
+            PortfolioDbSql.Fund.Active, PortfolioDbSql.Fund.Assignments,
+            PortfolioDbSql.Fund.Envelope, PortfolioDbSql.Orders.Timeline,
+            PortfolioDbSql.Orders.Get, PortfolioDbSql.Orders.Trades,
+            PortfolioDbSql.Orders.Trade, PortfolioDbSql.Orders.Compositions
         ];
         journeys.Should().OnlyContain(x => x.Contains("WHERE", StringComparison.OrdinalIgnoreCase));
+        journeys.Should().OnlyContain(x => x.Contains("LIMIT", StringComparison.OrdinalIgnoreCase)
+            || x.Contains("order_id=$1",StringComparison.OrdinalIgnoreCase)
+            || x.Contains("trade_id=$1",StringComparison.OrdinalIgnoreCase));
         journeys.Should().OnlyContain(x => !x.Contains("ALLOW FILTERING", StringComparison.OrdinalIgnoreCase));
     }
 }

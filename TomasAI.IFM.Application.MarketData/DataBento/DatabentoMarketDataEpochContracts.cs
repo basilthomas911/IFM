@@ -23,6 +23,11 @@ public interface IDatabentoMarketDataEpoch : IAsyncDisposable
     DateOnly ValueDate { get; }
     IDatabentoMarketDataCatalog Catalog { get; }
     IDatabentoLastPriceReaderProvider LastPrices { get; }
+    bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
+    {
+        marketInstrumentId = 0;
+        return false;
+    }
     bool TryGetLastTickPrice(
         string contractId,
         out FuturesMarketPriceSnapshot snapshot);
@@ -107,6 +112,11 @@ public readonly record struct DatabentoMarketDataApiHealth(
 
 public interface IDatabentoMarketDataCatalog
 {
+    bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
+    {
+        marketInstrumentId = 0;
+        return false;
+    }
     FuturesContractV3ReadModel? FindFutures(string contractId);
     FuturesOptionContractReadModel? FindFuturesOption(string contractId);
     string? FindOptionUnderlying(string futuresOptionContractId);

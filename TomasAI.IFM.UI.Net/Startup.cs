@@ -159,7 +159,6 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IPortfolioFinancialPolicyCommandApi, PortfolioFinancialPolicyCommandApi>();
             _container!.RegisterSingleton<IPortfolioFundCommandApi, PortfolioFundCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
-            _container!.RegisterSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
             _container!.RegisterSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
             _container!.RegisterSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
@@ -315,7 +314,6 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<IOptionPricingService, OptionPricingService>();
             _container.RegisterSingleton<SpreadDistributionJobService>();
             _container.RegisterSingleton<StrategyOperationsService>();
-            _container.RegisterSingleton<TradeCommandService>();
             _container.RegisterSingleton<TradeQueryService>();
             _container.RegisterSingleton<TradePlacementCommandService>();
             _container.RegisterSingleton<TradePlacementEventService>();

@@ -118,14 +118,14 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         finally{await supervisor.ShutdownAsync();}
     }
     [Fact,Trait("Gate","TS-03")]
-    public async Task Real_Scylla_assignment_paging_crosses_history_and_returns_seventeen_row_overflow_sentinel()
+    public async Task Real_Postgres_assignment_paging_crosses_history_and_returns_seventeen_row_overflow_sentinel()
     {
-        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add("PortfolioDbConnection","Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db","System.Data.ScyllaDb");
+        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add("PortfolioDbConnection",
+            Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+                ?? "Host=localhost;Port=5432;Database=event-source-test-db","System.Data.Postgres");
         var logger=Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Framework.Storage.DbProvider>>();
         await new TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb(settings,logger).CreateAllAsync();
-        var repositories=new Dictionary<Type,object>();var factory=new DbContextFactory(new DbContextResolver(t=>repositories[t]));
-        var db=new TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext(settings,factory,logger);
-        repositories.Add(typeof(TomasAI.IFM.Framework.Storage.IObjectRepository<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>),db);
+        var db=new TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext(settings,logger);
         var c=await TradeSelectionFixture.Command(atUtc:DateTime.UtcNow);var a=c.SelectionBinding.PortfolioSnapshot.Assignments.Single();
         var id=Random.Shared.Next(1000000,2000000);var now=c.EvaluatedAtUtc;
         try
@@ -142,7 +142,8 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         }
         finally
         {
-            await factory.PortfolioDb.Use("SelectionVerification.CleanupAssignments","DELETE FROM fund_template_assignment WHERE portfolioId=? AND fundId=? AND fundMandateVersion=?;").SetParameters(new Values([id,id,1L])).ExecuteCommandAsync();
+            await db.Use("SelectionVerification.CleanupAssignments","DELETE FROM portfolio.fund_template_assignment WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3;")
+                .SetParameters(new Values([id,id,1L])).ExecuteCommandAsync();
         }
     }
     [Fact,Trait("Gate","TS-05"),Trait("Gate","TS-08")]

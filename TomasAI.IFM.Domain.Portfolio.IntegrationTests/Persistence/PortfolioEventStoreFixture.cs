@@ -19,7 +19,8 @@ public sealed class PortfolioEventStoreFixture
     {
         var settings = new DbConnectionSettings().Add(
             EventSourceActorDbContext.EventSourceActorDbConnection,
-            "Host=localhost;Port=5432;Database=event-source-test-db",
+            Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+                ?? "Host=localhost;Port=5432;Database=event-source-test-db",
             "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         if(initializeSchema) new EventSourceSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();

@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator;
 
-public sealed record EmulatorExecutionCommandServices(EmulatorExecutionStore Store,IPortfolioFinancialDbContext Database,
+public sealed record EmulatorExecutionCommandServices(EmulatorExecutionStore Store,IPortfolioDbReadContext Database,
     IEventProjector<EmulatorExecutionCommandActor> Projector,ILogger<EmulatorExecutionCommandActor> Logger);
 
 /// <summary>Mapped emulator command handling; replay uses its original receipt before checking the original deadline.</summary>

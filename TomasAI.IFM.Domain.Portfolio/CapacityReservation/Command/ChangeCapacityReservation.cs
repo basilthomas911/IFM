@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command;
 
-public sealed record CapacityReservationCommandServices(ICapacityReservationStore Store,IPortfolioFinancialDbContext Database,
+public sealed record CapacityReservationCommandServices(ICapacityReservationStore Store,IPortfolioDbReadContext Database,
     IEventProjector<CapacityReservationCommandActor> Projector,ILogger<CapacityReservationCommandActor> Logger);
 
 public static class ChangeCapacityReservation

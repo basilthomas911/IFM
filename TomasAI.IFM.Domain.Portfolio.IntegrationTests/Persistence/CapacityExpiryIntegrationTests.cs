@@ -56,7 +56,7 @@ public sealed class CapacityExpiryIntegrationTests(PortfolioEventStoreFixture fi
         retry.OperationId.Should().NotBe(command.OperationId);retry.ExpectedFinancialRevision.Should().Be(3);
         retry.Body.Source.SourceEventId.Should().Be(command.Body.Source.SourceEventId);
         (await Change(retry)).Receipt.Status.Should().Be(ReservationStatus.Expired);
-        (await new PortfolioFinancialDbContext(Transactions()).ReadOperationAsync<CapacityLifecycleCompletedEvent>(book.PortfolioId,command.OperationId)).Should().BeNull();
+        (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<CapacityLifecycleCompletedEvent>(book.PortfolioId,command.OperationId)).Should().BeNull();
         (await Usage(book)).Should().Be((0m,0m,0m));
     }
     static async Task Past(DateTime deadline)
