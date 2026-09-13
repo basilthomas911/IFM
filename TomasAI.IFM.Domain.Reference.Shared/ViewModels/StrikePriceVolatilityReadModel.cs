@@ -4,7 +4,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 

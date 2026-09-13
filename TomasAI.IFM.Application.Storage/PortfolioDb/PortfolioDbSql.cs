@@ -891,6 +891,7 @@ public static class PortfolioDbSql
             CREATE TABLE IF NOT EXISTS portfolio.order_composition_fund_decision(operation_id uuid NOT NULL REFERENCES portfolio.order_composition_decision(operation_id) ON DELETE RESTRICT,fund_id int NOT NULL,accepted boolean NOT NULL,reason_code text NOT NULL,order_id int NULL,PRIMARY KEY(operation_id,fund_id));
             CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order(order_id int PRIMARY KEY,operation_id uuid NOT NULL REFERENCES portfolio.order_composition_decision(operation_id) ON DELETE RESTRICT,portfolio_id int NOT NULL,fund_id int NOT NULL,status smallint NOT NULL,definition_hash text NOT NULL,definition jsonb NOT NULL,valid_until_utc timestamptz NOT NULL,UNIQUE(operation_id,fund_id));
             CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order_leg(order_id int NOT NULL REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,component_id uuid NOT NULL,trade_leg_id uuid NOT NULL,ordinal int NOT NULL,definition jsonb NOT NULL,PRIMARY KEY(order_id,component_id,trade_leg_id));
+            CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order_capacity(order_id int NOT NULL REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,portfolio_id int NOT NULL,fund_id int NOT NULL,scope_kind int NOT NULL,scope_key text NOT NULL,measure int NOT NULL,unit int NOT NULL,amount numeric(38,10) NOT NULL,method_version int NOT NULL,financial_revision bigint NOT NULL,PRIMARY KEY(order_id,scope_kind,scope_key,measure,unit));
             """;
         public const string Drop="DROP SCHEMA IF EXISTS portfolio CASCADE;";
     }
@@ -993,5 +994,6 @@ public static class PortfolioDbSql
         public const string InsertFundDecision = "INSERT INTO portfolio.order_composition_fund_decision(operation_id,fund_id,accepted,reason_code,order_id) VALUES($1,$2,$3,$4,$5);";
         public const string InsertOrder = "INSERT INTO portfolio.accepted_trade_order(order_id,operation_id,portfolio_id,fund_id,status,definition_hash,definition,valid_until_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8);";
         public const string InsertLeg = "INSERT INTO portfolio.accepted_trade_order_leg(order_id,component_id,trade_leg_id,ordinal,definition) VALUES($1,$2,$3,$4,$5);";
+        public const string InsertCapacity = "INSERT INTO portfolio.accepted_trade_order_capacity(order_id,portfolio_id,fund_id,scope_kind,scope_key,measure,unit,amount,method_version,financial_revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);";
     }
 }

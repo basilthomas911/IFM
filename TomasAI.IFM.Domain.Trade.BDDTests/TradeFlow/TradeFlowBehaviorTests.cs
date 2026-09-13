@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Realtime.Model;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Model;
 using TomasAI.IFM.Domain.Trade.Order.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.BDDTests.TradeFlow;
 
@@ -33,7 +33,7 @@ public sealed class TradeFlowBehaviorTests
                 Legs = legIds.Select((id, index) => new TradeLegDefinition
                 {
                     TradeLegId = id,
-                    MarketInstrumentId = (uint)(9100 + index),
+                    ContractId = $"ES-OPTION-{index}",
                     AssetFamily = TradeAssetFamily.FuturesOption,
                     SignedQuantity = index is 0 or 3 ? -1 : 1,
                     ContractKey = $"ES-OPTION-{index}"
@@ -57,10 +57,10 @@ public sealed class TradeFlowBehaviorTests
             {
                 ExecutionFillId = Guid.NewGuid(),
                 ExecutionAttemptId = attempt,
-                ExternalExecutionId = $"MANUAL-{leg.MarketInstrumentId}",
+                ExternalExecutionId = $"MANUAL-{leg.ContractId}",
                 ComponentId = componentId,
                 TradeLegId = leg.TradeLegId,
-                MarketInstrumentId = leg.MarketInstrumentId,
+                ContractId = leg.ContractId,
                 SignedQuantity = leg.SignedQuantity,
                 Price = 2m,
                 Commission = .25m,
@@ -76,16 +76,15 @@ public sealed class TradeFlowBehaviorTests
         opened.IsOpen.Should().BeTrue();
         opened.Legs.Should().HaveCount(4);
 
-        var routes = new MarketInstrumentRouteIndex();
+        var routes = new ContractIdRouteIndex();
         foreach (var leg in opened.Legs)
-            routes.Add(new MarketPositionRoute(
+            routes.Add(new PortfolioFundTradeLeg(
                 opened.Id.Trade.PortfolioId, opened.Id.Trade.FundId, opened.Id.Trade.OrderId,
                 opened.Id.Trade.TradeId, opened.Id.PositionId, leg.TradeLegId, opened.StrategyKind,
-                "FuturesIronCondorTradePositionCommand", opened.Id.Format(), opened.RouteGeneration),
-                leg.MarketInstrumentId).Should().BeTrue();
+                opened.RouteGeneration), leg.ContractId).Should().BeTrue();
 
         var changedLeg = opened.Legs[0];
-        routes.TryRoute(new PositionMarketTick(changedLeg.MarketInstrumentId, 2.5m, 1, Now.AddSeconds(4)), out var destinations)
+        routes.TryRoute(new PositionMarketTick(changedLeg.ContractId, 2.5m, 1, Now.AddSeconds(4)), out var destinations)
             .Should().Be(MarketRouteLookupOutcome.Routed);
         destinations.Should().ContainSingle();
         position.UpdateLeg(destinations[0].TradeLegId, 2.5m, 1, Now.AddSeconds(4), destinations[0].Generation)
@@ -95,17 +94,17 @@ public sealed class TradeFlowBehaviorTests
     [Fact]
     public void Tick_before_open_and_after_close_is_observed_and_ignored()
     {
-        var index = new MarketInstrumentRouteIndex();
-        index.RegisterKnownInstrument(7001);
-        index.TryRoute(new PositionMarketTick(7001, 100m, 1, Now), out _)
+        var index = new ContractIdRouteIndex();
+        index.RegisterKnownContract("ESZ6");
+        index.TryRoute(new PositionMarketTick("ESZ6", 100m, 1, Now), out _)
             .Should().Be(MarketRouteLookupOutcome.NoOpenPosition);
 
         var positionId = Guid.NewGuid();
-        index.Add(new MarketPositionRoute(1, 2, 3, 4, positionId, Guid.NewGuid(),
-            TradeStrategyKind.FuturesOutright, "FuturesTradePositionCommand", "1.2.3.4", 1), 7001);
-        index.RemovePosition(positionId).Should().Be(1);
+        index.Add(new PortfolioFundTradeLeg(1, 2, 3, 4, positionId, Guid.NewGuid(),
+            TradeStrategyKind.FuturesOutright, 1), "ESZ6");
+        index.RemovePosition(positionId, 2).Should().Be(1);
 
-        index.TryRoute(new PositionMarketTick(7001, 101m, 2, Now.AddMilliseconds(1)), out _)
+        index.TryRoute(new PositionMarketTick("ESZ6", 101m, 2, Now.AddMilliseconds(1)), out _)
             .Should().Be(MarketRouteLookupOutcome.NoOpenPosition);
     }
 
@@ -146,16 +145,16 @@ public sealed class TradeFlowBehaviorTests
         var leg2 = Guid.NewGuid();
         var recovered = new[]
         {
-            (8001u, new MarketPositionRoute(1, 10, 20, 30, oldPosition, leg1,
-                TradeStrategyKind.IronCondor, "Iron", "old", 1)),
-            (8001u, new MarketPositionRoute(2, 11, 21, 31, currentPosition, leg2,
-                TradeStrategyKind.VerticalSpread, "Vertical", "current", 2))
+            ("ESZ6-C5000", new PortfolioFundTradeLeg(1, 10, 20, 30, oldPosition, leg1,
+                TradeStrategyKind.IronCondor, 1)),
+            ("ESZ6-C5000", new PortfolioFundTradeLeg(2, 11, 21, 31, currentPosition, leg2,
+                TradeStrategyKind.VerticalSpread, 2))
         };
-        var index = new MarketInstrumentRouteIndex();
+        var index = new ContractIdRouteIndex();
 
         index.ReplaceFromSnapshot(recovered);
-        index.RemovePosition(oldPosition).Should().Be(1);
-        index.TryRoute(new PositionMarketTick(8001, 2m, 1, Now), out var routes)
+        index.RemovePosition(oldPosition, 2).Should().Be(1);
+        index.TryRoute(new PositionMarketTick("ESZ6-C5000", 2m, 1, Now), out var routes)
             .Should().Be(MarketRouteLookupOutcome.Routed);
 
         routes.Should().ContainSingle().Which.Generation.Should().Be(2);
@@ -171,8 +170,8 @@ public sealed class TradeFlowBehaviorTests
             PermitBalancedPartialAcceptance = permitPartial,
             Legs =
             [
-                new() { TradeLegId = Guid.NewGuid(), MarketInstrumentId = 1, AssetFamily = TradeAssetFamily.FuturesOption, SignedQuantity = -quantity, ContractKey = "A" },
-                new() { TradeLegId = Guid.NewGuid(), MarketInstrumentId = 2, AssetFamily = TradeAssetFamily.FuturesOption, SignedQuantity = quantity, ContractKey = "B" }
+                new() { TradeLegId = Guid.NewGuid(), ContractId = "A", AssetFamily = TradeAssetFamily.FuturesOption, SignedQuantity = -quantity, ContractKey = "A" },
+                new() { TradeLegId = Guid.NewGuid(), ContractId = "B", AssetFamily = TradeAssetFamily.FuturesOption, SignedQuantity = quantity, ContractKey = "B" }
             ]
         };
         return new TradeOrderDefinition
@@ -189,7 +188,7 @@ public sealed class TradeFlowBehaviorTests
     {
         ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = attempt,
         ExternalExecutionId = Guid.NewGuid().ToString("N"), ComponentId = component.ComponentId,
-        TradeLegId = leg.TradeLegId, MarketInstrumentId = leg.MarketInstrumentId,
+        TradeLegId = leg.TradeLegId, ContractId = leg.ContractId,
         SignedQuantity = quantity, Price = 1m, FilledAtUtc = Now
     };
 }

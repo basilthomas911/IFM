@@ -3,7 +3,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.TradeFlow;
@@ -46,7 +46,7 @@ public sealed class TradeFlowSerializationAndRecoveryTests
     {
         var legacyPayload = MessagePackSerializer.Serialize(new LegacyComponent(
             Guid.NewGuid(), TradeStrategyKind.FuturesOutright,
-            [new TradeLegDefinition { TradeLegId = Guid.NewGuid(), MarketInstrumentId = 8, AssetFamily = TradeAssetFamily.Futures, SignedQuantity = 1 }],
+            [new TradeLegDefinition { TradeLegId = Guid.NewGuid(), LegacyMarketInstrumentId = 8, AssetFamily = TradeAssetFamily.Futures, SignedQuantity = 1 }],
             false));
 
         var restored = MessagePackSerializer.Deserialize<TradeOrderComponentDefinition>(legacyPayload);
@@ -97,7 +97,7 @@ public sealed class TradeFlowSerializationAndRecoveryTests
             Legs = [new TradeLegDefinition
             {
                 TradeLegId = legId,
-                MarketInstrumentId = 8,
+                ContractId = "ESZ6",
                 AssetFamily = TradeAssetFamily.Futures,
                 SignedQuantity = 1,
                 ContractKey = "ESZ6"

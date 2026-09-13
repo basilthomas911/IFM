@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using MessagePack;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

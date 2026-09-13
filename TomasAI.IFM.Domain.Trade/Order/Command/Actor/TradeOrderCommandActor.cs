@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Order.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
@@ -69,7 +70,7 @@ public sealed class TradeOrderCommandActor(ICommandActorContext<TradeOrderComman
         .ValidateCommandId(command.CommandId,command.CommandName)
         .CaptureCommandValidation(() =>
         {
-            if (command is not ICommand<TomasAI.IFM.Domain.Trade.Shared.Model.TradeOrderId> typed || !typed.EntityId.IsValid ||
+            if (command is not ICommand<TomasAI.IFM.Domain.Trade.Shared.TradeOrderId> typed || !typed.EntityId.IsValid ||
                 !string.Equals(command.Subject.EntityId,typed.EntityId.Format(),StringComparison.Ordinal))
                 throw new ArgumentException("Valid Trade Order identity and matching subject are required.");
         });

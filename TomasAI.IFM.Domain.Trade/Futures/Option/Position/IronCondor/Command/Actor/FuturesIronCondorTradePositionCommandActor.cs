@@ -1,4 +1,96 @@
-using System.Collections.Frozen;using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Extensions;using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;using TomasAI.IFM.Domain.Trade.Shared.Model;using TomasAI.IFM.Shared.Domain;using TomasAI.IFM.Shared.EventModelActor;using TomasAI.IFM.Shared.EventModelActor.Contracts;using TomasAI.IFM.Shared.EventSourcing;using TomasAI.IFM.Shared.Validation;
+using System.Collections.Frozen;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Validation;
+
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Actor;
-public sealed class FuturesIronCondorTradePositionCommandActor(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>context,InMemoryEventSourceActorOptions?options=null):BaseInMemoryEventSourceCommandActor<FuturesIronCondorTradePositionCommandActor,IronCondorPositionCommandState>(context,T(context).Logger,options)
-{public const string ActorName=PositionActorNames.IronCondorCommand;readonly IIronCondorPositionCommandContext s=T(context);static readonly IReadOnlyDictionary<string,Func<IActorMessage,ICommand>>_parseMap=new Dictionary<string,Func<IActorMessage,ICommand>>{{OpenIronCondorPositionCommand.Verb,m=>m.AsCommand<OpenIronCondorPositionCommand>()!},{UpdateIronCondorPositionLegMarketPriceCommand.Verb,m=>m.AsCommand<UpdateIronCondorPositionLegMarketPriceCommand>()!},{EndOfDayIronCondorPositionCommand.Verb,m=>m.AsCommand<EndOfDayIronCondorPositionCommand>()!},{CloseIronCondorPositionCommand.Verb,m=>m.AsCommand<CloseIronCondorPositionCommand>()!},{CorrectIronCondorPositionBasisCommand.Verb,m=>m.AsCommand<CorrectIronCondorPositionBasisCommand>()!},{SnapshotIronCondorPositionCommand.Verb,m=>m.AsCommand<SnapshotIronCondorPositionCommand>()!}}.ToFrozenDictionary();static readonly Type[]Types=[typeof(OpenIronCondorPositionCommand),typeof(UpdateIronCondorPositionLegMarketPriceCommand),typeof(EndOfDayIronCondorPositionCommand),typeof(CloseIronCondorPositionCommand),typeof(CorrectIronCondorPositionBasisCommand),typeof(SnapshotIronCondorPositionCommand)];static readonly IReadOnlyDictionary<Type,Func<ICommand,List<ValidationError>>>_validationMap=Types.ToDictionary(x=>x,_=>(Func<ICommand,List<ValidationError>>)Validate).ToFrozenDictionary();static readonly IReadOnlyDictionary<Type,Func<ICommand,IronCondorPositionCommandState,ServiceResult<GuidResult>>>_receiveMap=new Dictionary<Type,Func<ICommand,IronCondorPositionCommandState,ServiceResult<GuidResult>>>{{typeof(OpenIronCondorPositionCommand),static(c,s)=>((OpenIronCondorPositionCommand)c).Execute(s)},{typeof(UpdateIronCondorPositionLegMarketPriceCommand),static(c,s)=>((UpdateIronCondorPositionLegMarketPriceCommand)c).Execute(s)},{typeof(EndOfDayIronCondorPositionCommand),static(c,s)=>((EndOfDayIronCondorPositionCommand)c).Execute(s)},{typeof(CloseIronCondorPositionCommand),static(c,s)=>((CloseIronCondorPositionCommand)c).Execute(s)},{typeof(CorrectIronCondorPositionBasisCommand),static(c,s)=>((CorrectIronCondorPositionBasisCommand)c).Execute(s)},{typeof(SnapshotIronCondorPositionCommand),static(c,s)=>((SnapshotIronCondorPositionCommand)c).Execute(s)}}.ToFrozenDictionary();protected override bool IsResidentCommand(ICommand c)=>c is UpdateIronCondorPositionLegMarketPriceCommand;protected override bool IsResidentMessage(ActorSubject s)=>s.Verb==UpdateIronCondorPositionLegMarketPriceCommand.Verb;protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c)=>s.EventProjector.StartAsync(c);protected override ValueTask OnInMemoryShutdownAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c)=>s.EventProjector.StopAsync();protected override ICommand ParseMessage(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,IActorMessage m)=>ParseMappedCommand(c,m,_parseMap);protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,ActorThreadId i,ICommand x){ValidateMappedCommand(x,_validationMap);return ValueTask.CompletedTask;}protected override ValueTask<ServiceResult<GuidResult>>ReceiveAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,IActorState x,ICommand q)=>ValueTask.FromResult(ResolveMappedCommandHandler(q,_receiveMap)(q,(IronCondorPositionCommandState)x));protected override ValueTask<IronCondorPositionCommandState>LoadStateFromStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,ActorThreadId i,ICommand q,CancellationToken t)=>s.StateRepository.LoadStateAsync(q,t);protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,ActorThreadId i,IronCondorPositionCommandState x,ICommand q,CancellationToken t)=>s.StateRepository.SaveStateAsync(c,x,q,t);protected override ValueTask PersistResidentEventsAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,ICommand q,DomainEventCollection e,long v,CancellationToken t)=>s.StateRepository.SaveResidentEventsAsync(c,e,q,v,t);protected override ValueTask<ServiceResult<GuidResult>>HandleCommandExceptionAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c,ActorThreadId i,ICommand q,Exception e)=>ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(q.ErrorCode,e.Message));static List<ValidationError>Validate(ICommand c)=>new List<ValidationError>().ValidateCommandId(c.CommandId,c.CommandName).CaptureCommandValidation(()=>{if(c is not ICommand<StrategyPositionId>x||!x.EntityId.IsValid||c.Subject.EntityId!=x.EntityId.Format()||c is OpenIronCondorPositionCommand{Trade.StrategyKind:not TradeStrategyKind.IronCondor})throw new ArgumentException("Valid Iron Condor position identity, type, and subject are required.");});static IIronCondorPositionCommandContext T(ICommandActorContext<FuturesIronCondorTradePositionCommandActor>c)=>c as IIronCondorPositionCommandContext??throw new ArgumentException("Typed Iron Condor position context required.");}
+
+public sealed class FuturesIronCondorTradePositionCommandActor(
+    ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context,
+    InMemoryEventSourceActorOptions? options = null)
+    : BaseInMemoryEventSourceCommandActor<FuturesIronCondorTradePositionCommandActor, IronCondorPositionCommandState>(
+        context, Typed(context).Logger, options)
+{
+    public const string ActorName = PositionActorNames.IronCondorCommand;
+    readonly IIronCondorPositionCommandContext services = Typed(context);
+
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+        {
+            [OpenIronCondorPositionCommand.Verb] = message => message.AsCommand<OpenIronCondorPositionCommand>()!,
+            [UpdateIronCondorPositionLegMarketPriceCommand.Verb] = message => message.AsCommand<UpdateIronCondorPositionLegMarketPriceCommand>()!,
+            [ChangeTradeLegDataCommand.Verb] = message => message.AsCommand<ChangeTradeLegDataCommand>()!,
+            [EndOfDayIronCondorPositionCommand.Verb] = message => message.AsCommand<EndOfDayIronCondorPositionCommand>()!,
+            [CloseIronCondorPositionCommand.Verb] = message => message.AsCommand<CloseIronCondorPositionCommand>()!,
+            [CorrectIronCondorPositionBasisCommand.Verb] = message => message.AsCommand<CorrectIronCondorPositionBasisCommand>()!,
+            [SnapshotIronCondorPositionCommand.Verb] = message => message.AsCommand<SnapshotIronCondorPositionCommand>()!
+        }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    static readonly Type[] CommandTypes =
+    [
+        typeof(OpenIronCondorPositionCommand), typeof(UpdateIronCondorPositionLegMarketPriceCommand),
+        typeof(ChangeTradeLegDataCommand), typeof(EndOfDayIronCondorPositionCommand),
+        typeof(CloseIronCondorPositionCommand), typeof(CorrectIronCondorPositionBasisCommand),
+        typeof(SnapshotIronCondorPositionCommand)
+    ];
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap =
+        CommandTypes.ToDictionary(type => type, _ => (Func<ICommand, List<ValidationError>>)Validate).ToFrozenDictionary();
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>> ReceiveMap =
+        new Dictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>>
+        {
+            [typeof(OpenIronCondorPositionCommand)] = static (command, state) => ((OpenIronCondorPositionCommand)command).Execute(state),
+            [typeof(UpdateIronCondorPositionLegMarketPriceCommand)] = static (command, state) => ((UpdateIronCondorPositionLegMarketPriceCommand)command).Execute(state),
+            [typeof(ChangeTradeLegDataCommand)] = static (command, state) => ((ChangeTradeLegDataCommand)command).Execute(state),
+            [typeof(EndOfDayIronCondorPositionCommand)] = static (command, state) => ((EndOfDayIronCondorPositionCommand)command).Execute(state),
+            [typeof(CloseIronCondorPositionCommand)] = static (command, state) => ((CloseIronCondorPositionCommand)command).Execute(state),
+            [typeof(CorrectIronCondorPositionBasisCommand)] = static (command, state) => ((CorrectIronCondorPositionBasisCommand)command).Execute(state),
+            [typeof(SnapshotIronCondorPositionCommand)] = static (command, state) => ((SnapshotIronCondorPositionCommand)command).Execute(state)
+        }.ToFrozenDictionary();
+
+    protected override bool IsResidentCommand(ICommand command) =>
+        command is UpdateIronCondorPositionLegMarketPriceCommand or ChangeTradeLegDataCommand;
+
+    protected override bool IsResidentMessage(ActorSubject subject) =>
+        subject.Verb is UpdateIronCondorPositionLegMarketPriceCommand.Verb or ChangeTradeLegDataCommand.Verb;
+
+    protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) => services.EventProjector.StartAsync(context);
+    protected override ValueTask OnInMemoryShutdownAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) => services.EventProjector.StopAsync();
+    protected override ICommand ParseMessage(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, ParseMap);
+
+    protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command)
+    {
+        ValidateMappedCommand(command, ValidationMap);
+        return ValueTask.CompletedTask;
+    }
+
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorState state, ICommand command) =>
+        ValueTask.FromResult(ResolveMappedCommandHandler(command, ReceiveMap)(command, (IronCondorPositionCommandState)state));
+
+    protected override ValueTask<IronCondorPositionCommandState> LoadStateFromStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) => services.StateRepository.LoadStateAsync(command, cancellationToken);
+    protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, IronCondorPositionCommandState state, ICommand command, CancellationToken cancellationToken) => services.StateRepository.SaveStateAsync(context, state, command, cancellationToken);
+    protected override ValueTask PersistResidentEventsAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ICommand command, DomainEventCollection events, long expectedStreamVersion, CancellationToken cancellationToken) => services.StateRepository.SaveResidentEventsAsync(context, events, command, expectedStreamVersion, cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
+
+    static List<ValidationError> Validate(ICommand command) =>
+        new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName).CaptureCommandValidation(() =>
+        {
+            if (command is not ICommand<StrategyPositionId> typed || !typed.EntityId.IsValid ||
+                command.Subject.EntityId != typed.EntityId.Format() ||
+                command is OpenIronCondorPositionCommand { Trade.StrategyKind: not TradeStrategyKind.IronCondor } ||
+                command is ChangeTradeLegDataCommand routed &&
+                (routed.TradeType != TradeStrategyKind.IronCondor || string.IsNullOrWhiteSpace(routed.ContractId)))
+                throw new ArgumentException("Valid Iron Condor position identity, type, ContractId, and subject are required.");
+        });
+
+    static IIronCondorPositionCommandContext Typed(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) =>
+        context as IIronCondorPositionCommandContext ?? throw new ArgumentException("Typed Iron Condor position context required.");
+}

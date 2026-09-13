@@ -31,23 +31,34 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         var binding = command.SelectionBinding;
         var authority = binding.PortfolioSnapshot;
         var fund = authority.Fund;
+        var portfolioNeutral = binding.SchemaVersion == 2;
         var regime = regimeResult.Decision;
         var assessment = assessmentResult.Assessment;
         Require(regime.IsComplete && regime.Confidence is >= 0 and <= 1 && assessment.AssessmentConfidence is >= 0 and <= 1
             && assessment.ConditionType.HasValue, "TS.UPSTREAM.INVALID", "Complete regime and assessment confidence are required.");
         var condition = assessment.ConditionType.Value;
-        var directions = fund.PermittedDirections.Select(NormalizeDirection).ToArray();
-        foreach (var permission in fund.PermittedConditions)
-            Require(Enum.TryParse<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.AssessmentCondition>(permission, false, out var parsed)
-                && Enum.IsDefined(parsed) && parsed.ToString() != "Undefined", "TS.CONFIG.PERMISSION", "Unknown Fund condition permission.");
-        foreach (var asset in fund.EligibleAssetTypes)
-            Require(asset is "Futures" or "FuturesOptions", "TS.CONFIG.PERMISSION", "Unsupported Fund asset permission.");
+        var directions = portfolioNeutral ? ["Bullish", "Bearish", "Neutral"] : fund.PermittedDirections.Select(NormalizeDirection).ToArray();
+        if (!portfolioNeutral)
+        {
+            foreach (var permission in fund.PermittedConditions)
+                Require(Enum.TryParse<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.AssessmentCondition>(permission, false, out var parsed)
+                    && Enum.IsDefined(parsed) && parsed.ToString() != "Undefined", "TS.CONFIG.PERMISSION", "Unknown Fund condition permission.");
+            foreach (var asset in fund.EligibleAssetTypes)
+                Require(asset is "Futures" or "FuturesOptions", "TS.CONFIG.PERMISSION", "Unsupported Fund asset permission.");
+        }
         List<SelectionRuleEvidence> globals = [];
-        Add(globals,"G01","Authority.OperatingState", authority.Portfolio.OperatingState == PortfolioOperatingState.Active && fund.OperatingState == FundOperatingState.Active,
-            new { Portfolio=authority.Portfolio.OperatingState, Fund=fund.OperatingState }, "Active", "TS.PERMISSION.OPERATING_STATE");
-        Add(globals,"G02","Authority.RiskEnvelope", authority.FinancialPolicy.OperatingState == PortfolioFinancialPolicyState.Active && authority.RiskEnvelope.PermitsNewExposureAt(command.EvaluatedAtUtc),
-            authority.RiskEnvelope.CapacityState, "AvailableOrConstrained", "TS.PERMISSION.ENVELOPE");
-        Add(globals,"G03","Fund.PermittedConditions", fund.PermittedConditions.Contains(condition.ToString(),StringComparer.Ordinal), condition,fund.PermittedConditions,"TS.PERMISSION.CONDITION");
+        if (portfolioNeutral)
+        {
+            Add(globals,"G01","StrategyUniverse.Identity",binding.StrategyUniverse is {SchemaVersion:1},binding.StrategyUniverse!.WorkflowId,command.WorkflowId.Value,"TS.CONFIG.INVALID");
+            Add(globals,"G02","StrategyUniverse.Deployments",binding.DeploymentSnapshots.Length>0,binding.DeploymentSnapshots.Length,">0","TS.CONFIG.MISSING");
+            Add(globals,"G03","SelectionPolicy.AllowedConditions",policy.AllowedAssessmentConditions.Contains(condition),condition,policy.AllowedAssessmentConditions,"TS.ASSESSMENT.CONDITION");
+        }
+        else
+        {
+            Add(globals,"G01","Authority.OperatingState",authority.Portfolio.OperatingState==PortfolioOperatingState.Active&&fund.OperatingState==FundOperatingState.Active,new{Portfolio=authority.Portfolio.OperatingState,Fund=fund.OperatingState},"Active","TS.PERMISSION.OPERATING_STATE");
+            Add(globals,"G02","Authority.RiskEnvelope",authority.FinancialPolicy.OperatingState==PortfolioFinancialPolicyState.Active&&authority.RiskEnvelope.PermitsNewExposureAt(command.EvaluatedAtUtc),authority.RiskEnvelope.CapacityState,"AvailableOrConstrained","TS.PERMISSION.ENVELOPE");
+            Add(globals,"G03","Fund.PermittedConditions",fund.PermittedConditions.Contains(condition.ToString(),StringComparer.Ordinal),condition,fund.PermittedConditions,"TS.PERMISSION.CONDITION");
+        }
         var restrictions = regime.Restrictions.Concat(assessment.InheritedRestrictions).Distinct().OrderBy(x => (int)x).ToArray();
         Require(restrictions.All(x => Enum.IsDefined(x)), "TS.UPSTREAM.INVALID", "Unknown numeric regime restriction.");
         Add(globals,"G04","Regime.Restrictions",!restrictions.Intersect(policy.RejectedInheritedRestrictions).Any(),restrictions,policy.RejectedInheritedRestrictions,"TS.REGIME.RESTRICTION");
@@ -87,16 +98,23 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
                 ?? throw new TradeSelectionValidationException("TS.CONFIG.CAPABILITY_UNSUPPORTED","No exact variant rule.");
             var comparison=new SelectionComparisonTuple {Priority=candidate.AssignmentPriority,Preference=rule.Preference,Deployment=candidate.DeploymentKey,Strategy=candidate.StrategyKey,Structure=candidate.StructureKey,Variant=candidate.VariantKey,ProductId=candidate.Product.ProductId,AssignmentVersion=candidate.AssignmentVersion};
             if(blocker is not null) {decisions.Add(new(){CandidateHash=candidate.CandidateHash,Status=SelectionCandidateStatus.NotEvaluated,Comparison=comparison,ReasonCodes=[blocker]}); continue;}
-            var assignment=authority.Assignments.Single(x=>x.AssignmentVersion==candidate.AssignmentVersion && x.TradeStrategyFamily?.CatalogDeployment==candidate.DeploymentKey);
+            var assignment=portfolioNeutral?null:authority.Assignments.Single(x=>x.AssignmentVersion==candidate.AssignmentVersion && x.TradeStrategyFamily?.CatalogDeployment==candidate.DeploymentKey);
             List<SelectionRuleEvidence> evidence=[];
-            Add(evidence,"C01","Assignment.Deployment",assignment.IsEffectiveAt(command.EvaluatedAtUtc) && fund.PermittedTradeStrategyFamilies.Any(x=>x.CatalogDeployment==candidate.DeploymentKey),candidate.DeploymentKey,fund.PermittedTradeStrategyFamilies.Select(x=>x.CatalogDeployment),"TS.PERMISSION.DEPLOYMENT");
             var asset=builder.Code=="Future"?"Futures":"FuturesOptions";
-            Add(evidence,"C02","Candidate.Product",fund.UnderlyingUniverse.Contains(candidate.Product.Symbol,StringComparer.Ordinal) && fund.EligibleAssetTypes.Contains(asset,StringComparer.Ordinal)
-                && fund.PermittedTradeFamilies.Contains(assignment.TradeFamily,StringComparer.Ordinal) && assignment.AssetType==asset,
-                new {candidate.Product,AssetType=asset,assignment.TradeFamily},new{fund.UnderlyingUniverse,fund.EligibleAssetTypes,fund.PermittedTradeFamilies},"TS.PERMISSION.PRODUCT");
+            if (portfolioNeutral)
+            {
+                Add(evidence,"C01","Catalog.Deployment",binding.DeploymentSnapshots.Any(x=>x.DeploymentKey==candidate.DeploymentKey),candidate.DeploymentKey,binding.DeploymentSnapshots.Select(x=>x.DeploymentKey),"TS.CONFIG.MISSING");
+                Add(evidence,"C02","Candidate.Product",candidate.Product.Symbol==policy.InstrumentRoot&&candidate.Product.ProductId>0,new{candidate.Product,AssetType=asset},new{policy.InstrumentRoot},"TS.CONFIG.PROFILE_MISMATCH");
+            }
+            else
+            {
+                Add(evidence,"C01","Assignment.Deployment",assignment!.IsEffectiveAt(command.EvaluatedAtUtc)&&fund.PermittedTradeStrategyFamilies.Any(x=>x.CatalogDeployment==candidate.DeploymentKey),candidate.DeploymentKey,fund.PermittedTradeStrategyFamilies.Select(x=>x.CatalogDeployment),"TS.PERMISSION.DEPLOYMENT");
+                Add(evidence,"C02","Candidate.Product",fund.UnderlyingUniverse.Contains(candidate.Product.Symbol,StringComparer.Ordinal)&&fund.EligibleAssetTypes.Contains(asset,StringComparer.Ordinal)&&fund.PermittedTradeFamilies.Contains(assignment.TradeFamily,StringComparer.Ordinal)&&assignment.AssetType==asset,new{candidate.Product,AssetType=asset,assignment.TradeFamily},new{fund.UnderlyingUniverse,fund.EligibleAssetTypes,fund.PermittedTradeFamilies},"TS.PERMISSION.PRODUCT");
+            }
             var bias=variant.Bias=="Balanced"?"Neutral":variant.Bias;
             var accepted=regime.Direction.ToString() switch {"Up"=>"Bullish","Down"=>"Bearish","Neutral"=>"Neutral",_=>"Unknown"};
-            Add(evidence,"C03","Candidate.Bias",bias==accepted && directions.Contains(bias,StringComparer.Ordinal),bias,new{Accepted=accepted,Permitted=directions},"TS.PERMISSION.DIRECTION");
+            Add(evidence,"C03","Candidate.Bias",bias==accepted && directions.Contains(bias,StringComparer.Ordinal),bias,new{Accepted=accepted,Permitted=directions},
+                portfolioNeutral ? "TS.VARIANT.DIRECTION" : "TS.PERMISSION.DIRECTION");
             Member(evidence,"C04","Variant.Direction",regime.Direction,rule.AllowedRegimeDirections,"TS.VARIANT.DIRECTION");
             Member(evidence,"C05","Variant.TrendPhase",regime.TrendPhase,rule.AllowedTrendPhases,"TS.VARIANT.PHASE");
             Member(evidence,"C06","Variant.TrendStrength",regime.TrendStrength,rule.AllowedTrendStrengths,"TS.VARIANT.STRENGTH");
@@ -120,7 +138,8 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         var result=new TradeSelectionResult
         {
             SchemaVersion=1,ResultId=command.CommandId,InvocationId=command.CommandId,WorkflowId=command.WorkflowId,EntityId=command.WorkflowEntityId,
-            InputWorkflowRevision=command.InputWorkflowRevision,TriggerEventId=command.WorkflowView.TriggerEventId,PortfolioId=authority.Portfolio.PortfolioId,FundId=fund.FundId,DecisionHorizon=policy.TargetHorizon,
+            InputWorkflowRevision=command.InputWorkflowRevision,TriggerEventId=command.WorkflowView.TriggerEventId,
+            PortfolioId=portfolioNeutral?0:authority.Portfolio.PortfolioId,FundId=portfolioNeutral?0:fund.FundId,DecisionHorizon=policy.TargetHorizon,
             Outcome=intent is null?SelectionOutcome.NoTrade:SelectionOutcome.Selected,SelectedCandidate=intent,
             DecisionContext=new(){SchemaVersion=1,RegimeResultEnvelope=command.RegimeResultEnvelope,AssessmentResultEnvelope=command.AssessmentResultEnvelope,SelectionBinding=binding},
             GlobalEvidence=[..globals],CandidateDecisions=[..decisions],SelectionConfidence=confidence,PrimaryReasonCode=reason,EvaluatedAtUtc=command.EvaluatedAtUtc,ProducedAtUtc=command.EvaluatedAtUtc,

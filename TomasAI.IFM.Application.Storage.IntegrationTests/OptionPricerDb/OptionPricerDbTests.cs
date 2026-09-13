@@ -13,7 +13,6 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.SequenceId;

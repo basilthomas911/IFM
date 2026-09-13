@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
@@ -95,7 +96,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                 CorrelationId = completed.CorrelationId, CausationId = completed.Id, CompletedAtUtc = completed.CompletedAtUtc,
                 AssessmentBinding = execute.WorkflowView.AssessmentBinding,
                 SelectionBinding = selection?.Binding,
-                FundId = selection?.FundId ?? 0,
+                FundId = 0,
                 TradeSelectionInitializationFailure = selectionFailure
             };
             await context.SendAsync<CompleteMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);

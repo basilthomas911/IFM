@@ -25,7 +25,7 @@ public sealed class PortfolioOrderCompositionFunctionStateRepository(
     public async ValueTask<PortfolioOrderCompositionCompletedEvent> CommitAsync(IFunctionActorContext context,EvaluatePortfolioOrderCompositionCommand request,PortfolioOrderCompositionCompletedEvent candidate,CancellationToken token=default)
         =>await store.EvaluateAsync(
             request,
-            (command,book,revision,cancellationToken) => PortfolioOrderCompositionModel.EvaluateAsync(
-                command,book,revision,identities,cancellationToken),
+            (command,book,revision,financial,cancellationToken) => PortfolioOrderCompositionModel.EvaluateAsync(
+                command,book,revision,financial,identities,cancellationToken),
             token);
 }

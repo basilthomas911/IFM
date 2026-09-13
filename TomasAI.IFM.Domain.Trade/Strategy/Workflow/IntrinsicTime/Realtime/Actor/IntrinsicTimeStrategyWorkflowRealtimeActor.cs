@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 using System.Globalization;
 using System.Security.Cryptography;

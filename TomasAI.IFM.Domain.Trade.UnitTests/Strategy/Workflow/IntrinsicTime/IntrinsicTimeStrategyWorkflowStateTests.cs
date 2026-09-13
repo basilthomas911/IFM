@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using MessagePack;

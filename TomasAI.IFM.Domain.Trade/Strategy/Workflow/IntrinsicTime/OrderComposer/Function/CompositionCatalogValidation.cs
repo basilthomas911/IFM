@@ -18,8 +18,15 @@ public static class CompositionCatalogValidation
             var selected = TradeSelectionContracts.ReadResult(c.AcceptedSelectionEnvelope);
             var resolved = CompositionBindingResolver.Resolve(selected, c.SelectionBinding, c.CompositionBinding.FrozenAtUtc);
             if (resolved.BindingSha256 != c.CompositionBinding.BindingSha256) errors.Add(new("OC.CONFIG.PROFILE_MISMATCH"));
-            if (c.WorkflowView.CompositionHandoff is not { } handoff) errors.Add(new("OC.CONTRACT.RESERVATION_INVALID"));
-            else TradeSelectionHandoff.ValidateReservation(handoff, c.Reservation);
+            if (c.SelectionBinding.SchemaVersion == 1)
+            {
+                if (c.WorkflowView.CompositionHandoff is not { } handoff || c.Reservation is null)
+                    errors.Add(new("OC.CONTRACT.RESERVATION_INVALID"));
+                else
+                    TradeSelectionHandoff.ValidateReservation(handoff, c.Reservation);
+            }
+            else if (c.Reservation is not null || c.WorkflowView.CompositionHandoff is not null)
+                errors.Add(new("OC.CONTRACT.OWNERSHIP_PREMATURE"));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {

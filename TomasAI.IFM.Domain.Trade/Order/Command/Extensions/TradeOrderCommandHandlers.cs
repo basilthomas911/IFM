@@ -2,7 +2,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Shared.Domain;
 

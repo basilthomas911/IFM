@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

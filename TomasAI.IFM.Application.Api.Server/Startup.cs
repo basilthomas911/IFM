@@ -345,6 +345,7 @@ public static class Startup
                 ProvisionDevelopmentMarketConditionAssessmentDefaults = provider.GetRequiredService<IConfiguration>().GetValue(
                     "AppSettings:IntrinsicTimeStrategyWorkflow:ProvisionDevelopmentMarketConditionAssessmentDefaults", false),
                 FundId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:FundId", 1),
+                PortfolioId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:PortfolioId", 1),
                 RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
             });
             var developmentPortfolio = config.GetSection(DevelopmentTradingPortfolioOptions.SectionName)
@@ -525,6 +526,7 @@ public static class Startup
             services.AddSingleton<IPortfolioBusinessIdAllocator, PortfolioBusinessIdAllocator>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction,
                 TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioOrderCompositionStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialWriterFence>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LegacyFinancialInventoryStore>();
@@ -1011,6 +1013,13 @@ public static class Startup
         _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IResidentEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventSourceFunctionStateRepository<,>), assemblies, Lifestyle.Singleton);
+        if (_siContainer.GetRegistration<IEventSourceFunctionStateRepository<
+            TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State.PortfolioOrderCompositionFunctionState,
+            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand>>(false) is null)
+            _siContainer.Register<IEventSourceFunctionStateRepository<
+                TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State.PortfolioOrderCompositionFunctionState,
+                TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand>,
+                TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State.PortfolioOrderCompositionFunctionStateRepository>(Lifestyle.Singleton);
         _siContainer.Register(typeof(IFunctionProjector<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.EmulatorExecutionCommandServices>(Lifestyle.Singleton);

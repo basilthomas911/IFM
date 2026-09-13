@@ -8,9 +8,13 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Exceptions;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
 
@@ -34,6 +38,11 @@ public static class ExecuteRiskManagement
         if (view.RiskManagement.ProcessingStatus==StrategyActorProcessingStatus.Completed)
         {
             await view.ExecuteFinancialHandoffAsync(context).ConfigureAwait(false);
+            return;
+        }
+        if (view.SelectionBinding?.SchemaVersion == 2)
+        {
+            await EvaluatePortfolioAsync(view, context).ConfigureAwait(false);
             return;
         }
         if (view.RiskExecution is not { } execute)
@@ -92,6 +101,153 @@ public static class ExecuteRiskManagement
     }
     static Guid StableId(StrategyWorkflowId workflow,long revision,Guid invocation,string verb)
         => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{workflow}|{revision}|{invocation}|{verb}")).AsSpan(0,16));
+
+    static async ValueTask EvaluatePortfolioAsync(IntrinsicTimeStrategyWorkflowView view,
+        IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+    {
+        var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+        EvaluatePortfolioOrderCompositionCommand request;
+        try
+        {
+            request = PortfolioOrderCompositionMapper.CreateRequest(view, context.Options.PortfolioId, now);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        {
+            await FailAsync(view, context, "RM.PORTFOLIO.MAPPING_FAILED", ex.Message, now).ConfigureAwait(false);
+            return;
+        }
+
+        using var timeout = new CancellationTokenSource(
+            (request.ExpiresAtUtc > now ? request.ExpiresAtUtc - now : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
+        var reply = await context.PortfolioOrderComposition.EvaluateAsync(request, timeout.Token).ConfigureAwait(false);
+        if (!reply.Success || reply.Value is null)
+        {
+            await FailAsync(view, context, "RM.PORTFOLIO.REQUEST_FAILED",
+                $"ErrorCode={reply.ErrorCode};ErrorMessage={reply.ErrorMessage}", now).ConfigureAwait(false);
+            return;
+        }
+        if (reply.Value.Failed is { } failed)
+        {
+            await FailAsync(view, context, "RM.PORTFOLIO.DECISION_FAILED",
+                $"ErrorCode={failed.ErrorCode};ErrorType={failed.ErrorType};ErrorMessage={failed.ErrorMessage};ErrorData={failed.ErrorData}",
+                failed.ErrorDate).ConfigureAwait(false);
+            return;
+        }
+        var completed = reply.Value.Completed;
+        if (completed is null)
+        {
+            await FailAsync(view, context, "RM.PORTFOLIO.RESULT_MISSING", "Portfolio returned no terminal result.", now)
+                .ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            PortfolioOrderCompositionMapper.ValidateCompletion(view, request, completed);
+            foreach (var order in completed.Receipt.TradeOrders.OrderBy(value => value.Id.FundId))
+                await DispatchTradeOrderAsync(order, completed.Id, context).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        {
+            await FailAsync(view, context, "RM.TRADE_ORDER.DISPATCH_FAILED", ex.Message, now).ConfigureAwait(false);
+            return;
+        }
+        var command = new CompleteRiskManagementCommand
+        {
+            CommandId = StableId(view.WorkflowId, view.WorkflowRevision, completed.Id, "CompletePortfolioRiskManagement"),
+            Subject = new(ActorType.Command, CompleteRiskManagementCommand.Actor, CompleteRiskManagementCommand.Verb,
+                view.EntityId.Format()),
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            SourceEventId = completed.Id,
+            CorrelationId = view.CorrelationId,
+            CausationId = completed.Id,
+            CompletedAtUtc = completed.CommittedAtUtc,
+            PortfolioDecision = PortfolioOrderCompositionMapper.ToDecision(completed.Receipt)
+        };
+        await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+            command, command.EntityId).ConfigureAwait(false);
+    }
+
+    static async ValueTask DispatchTradeOrderAsync(TradeOrderDefinition order, Guid portfolioEventId,
+        IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+    {
+        var seed = PortfolioOrderCompositionMapper.StableId(portfolioEventId, order.Id.Format());
+        await RequireAsync(new CreateTradeOrderCommand
+        {
+            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "create"),
+            Subject = Subject(CreateTradeOrderCommand.Verb, order.Id),
+            EntityId = order.Id,
+            Order = order
+        }).ConfigureAwait(false);
+        await RequireAsync(new ApproveTradeOrderCommand
+        {
+            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "approve"),
+            Subject = Subject(ApproveTradeOrderCommand.Verb, order.Id),
+            EntityId = order.Id
+        }).ConfigureAwait(false);
+        await RequireAsync(new ReadyTradeOrderCommand
+        {
+            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "ready"),
+            Subject = Subject(ReadyTradeOrderCommand.Verb, order.Id),
+            EntityId = order.Id
+        }).ConfigureAwait(false);
+        var executionAttemptId = PortfolioOrderCompositionMapper.StableId(seed, "execution-attempt");
+        await RequireAsync(new BindTradeOrderExecutionCommand
+        {
+            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "bind"),
+            Subject = Subject(BindTradeOrderExecutionCommand.Verb, order.Id),
+            EntityId = order.Id,
+            ExecutionAttemptId = executionAttemptId,
+            ExecutionChannel = ExecutionChannel.Broker,
+            EffectiveAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime
+        }).ConfigureAwait(false);
+        return;
+
+        ActorSubject Subject(string verb, TradeOrderId id) =>
+            new(ActorType.Command, TradeOrderActorNames.Command, verb, id.Format());
+        async ValueTask RequireAsync<TCommand>(TCommand command) where TCommand : class, ICommand<TradeOrderId>
+        {
+            try
+            {
+                await context.SendAsync<TCommand, TradeOrderId>(command, command.EntityId).ConfigureAwait(false);
+            }
+            catch (CommandException ex)
+            {
+                throw new InvalidOperationException(
+                    $"RM.TRADE_ORDER.COMMAND_FAILED;Command={command.CommandName};ErrorCode={ex.ErrorCode};ErrorMessage={ex.Message}", ex);
+            }
+        }
+    }
+
+    static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view,
+        IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)
+    {
+        var source = PortfolioOrderCompositionMapper.StableId(view.WorkflowId.Value, reasonCode + "/" + view.WorkflowRevision);
+        var command = new FailRiskManagementCommand
+        {
+            CommandId = StableId(view.WorkflowId, view.WorkflowRevision, source, FailRiskManagementCommand.Verb),
+            Subject = new(ActorType.Command, FailRiskManagementCommand.Actor, FailRiskManagementCommand.Verb,
+                view.EntityId.Format()),
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            SourceEventId = source,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.OrderComposition.SourceEventId,
+            FailedAtUtc = DateTime.SpecifyKind(failedAtUtc, DateTimeKind.Utc),
+            Failure = new StrategyPipelineFailure
+            {
+                ErrorCode = 23026,
+                ErrorType = "PortfolioOrderCompositionFailed",
+                ErrorMessage = "RiskManager-to-Portfolio order composition failed.",
+                ErrorData = $"{reasonCode};{details}",
+                FailedAtUtc = DateTime.SpecifyKind(failedAtUtc, DateTimeKind.Utc)
+            }
+        };
+        await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId)
+            .ConfigureAwait(false);
+    }
 
     // Only a workflow-accepted Composer result may advance the Fund. Read each committed
     // checkpoint first so redispatch after a lost reply never repeats a versioned mutation.

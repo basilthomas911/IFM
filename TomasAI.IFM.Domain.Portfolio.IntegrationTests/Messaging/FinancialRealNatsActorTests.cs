@@ -36,7 +36,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
     {
         _=fixture;
         await PortfolioOrderCompositionIntegrationTests.InitializePortfolioSchema();
-        var book=await CreateBook();
+        var book=await PortfolioOrderCompositionIntegrationTests.CreateOrderBook();
         var request=PortfolioOrderCompositionIntegrationTests.Request(book);
         using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await using var server=new NatsClient(Url);await server.ConnectAsync();
@@ -50,7 +50,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
             var repository=new PortfolioOrderCompositionFunctionStateRepository(
                 new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
                 new PortfolioOrderCompositionStore(Transactions()),
-                new PortfolioOrderCompositionIntegrationTests.TestIdentityAllocator());
+                new PortfolioOrderCompositionIntegrationTests.TestIdentityAllocator(request.OperationId));
             Guid? eventId=null;
             for(var index=0;index<2;index++)
             {

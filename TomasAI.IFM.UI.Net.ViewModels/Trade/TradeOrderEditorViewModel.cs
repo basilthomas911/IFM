@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -472,14 +472,14 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public Task ChangeFundOrderTradeState(FundOrderTradeId fundOrderTradeId, TradeState tradeState)
         => ExecuteMutationAsync(model => model.ChangeFundOrderTradeStateAsync(fundOrderTradeId, tradeState), CancellationToken.None);
 
-    public Task AddTradeLiveFeed(int orderId, int tradeId)
+    public Task AddTradeLiveFeed(TradeEntityId tradeId)
         => ExecuteFeedCommandAsync(
-            model => model.AddTradeLiveFeedAsync(orderId, tradeId, RequiredValueDate()),
+            model => model.AddTradeLiveFeedAsync(tradeId, RequiredValueDate()),
             "Add Trade Live Feed Error");
 
-    public Task RemoveTradeLiveFeed(int orderId, int tradeId)
+    public Task RemoveTradeLiveFeed(TradeEntityId tradeId)
         => ExecuteFeedCommandAsync(
-            model => model.RemoveTradeLiveFeedAsync(orderId, tradeId, RequiredValueDate()),
+            model => model.RemoveTradeLiveFeedAsync(tradeId, RequiredValueDate()),
             "Remove Trade Live Feed Error");
 
     public Task RemoveTradeLiveFeeds(int orderId)

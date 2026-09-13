@@ -3,7 +3,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Events;
 
@@ -30,8 +30,8 @@ public record OptionTradeSpreadDistributionStatisticsUpdatedEvent : IEvent<Optio
     [Key(10)] public TradeType TradeType { get; init; }
     [Key(11)] public DateOnly ValueDate { get; init; }
     [Key(12)] public TradeStatus TradeStatus { get; init; }
-    [Key(13)] public SpreadDistributionReadModel PutSpreadDistribution { get; init; }
-    [Key(14)] public SpreadDistributionReadModel CallSpreadDistribution { get; init; }
+    [Key(13)] public TradeSpreadDistributionSnapshot PutSpreadDistribution { get; init; }
+    [Key(14)] public TradeSpreadDistributionSnapshot CallSpreadDistribution { get; init; }
     [Key(15)] public double LossProbability { get; init; }
     [Key(16)] public decimal TradePnl { get; init; }
     [Key(17)] public DateTime UpdatedOn { get; init; }
@@ -58,8 +58,8 @@ public record OptionTradeSpreadDistributionStatisticsUpdatedEvent : IEvent<Optio
         TradeType tradeType,
         DateOnly valueDate,
         TradeStatus tradeStatus,
-        SpreadDistributionReadModel putSpreadDistribution,
-        SpreadDistributionReadModel callSpreadDistribution,
+        TradeSpreadDistributionSnapshot putSpreadDistribution,
+        TradeSpreadDistributionSnapshot callSpreadDistribution,
         double lossProbability,
         decimal tradePnl,
         DateTime updatedOn,
@@ -167,8 +167,8 @@ public record OptionTradeSpreadDistributionStatisticsUpdatedCompleteEvent : ICom
     [Key(10)] public TradeType TradeType { get; init; }
     [Key(11)] public DateOnly ValueDate { get; init; }
     [Key(12)] public TradeStatus TradeStatus { get; init; }
-    [Key(13)] public SpreadDistributionReadModel PutSpreadDistribution { get; init; }
-    [Key(14)] public SpreadDistributionReadModel CallSpreadDistribution { get; init; }
+    [Key(13)] public TradeSpreadDistributionSnapshot PutSpreadDistribution { get; init; }
+    [Key(14)] public TradeSpreadDistributionSnapshot CallSpreadDistribution { get; init; }
     [Key(15)] public double LossProbability { get; init; }
     [Key(16)] public decimal TradePnl { get; init; }
     [Key(17)] public DateTime UpdatedOn { get; init; }
@@ -195,8 +195,8 @@ public record OptionTradeSpreadDistributionStatisticsUpdatedCompleteEvent : ICom
         TradeType tradeType,
         DateOnly valueDate,
         TradeStatus tradeStatus,
-        SpreadDistributionReadModel putSpreadDistribution,
-        SpreadDistributionReadModel callSpreadDistribution,
+        TradeSpreadDistributionSnapshot putSpreadDistribution,
+        TradeSpreadDistributionSnapshot callSpreadDistribution,
         double lossProbability,
         decimal tradePnl,
         DateTime updatedOn,

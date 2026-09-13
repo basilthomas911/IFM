@@ -1,8 +1,9 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -27,56 +28,50 @@ public static class MarketDataFeedCommandApiExtensions
     /// Sends the turn trade live feed off command and awaits its typed actor reply.
     /// </summary>
     /// <param name="commandId">The originating command identifier.</param>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <param name="valueDate">The applicable market value date.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> TurnTradeLiveFeedOffAsync(
         Guid commandId,
-        int orderId,
-        int tradeId,
+        TradeEntityId tradeId,
         DateOnly valueDate)
     {
-        var entityId = new TradeLiveFeedId(orderId, tradeId, valueDate);
-        TurnTradeLiveFeedOffCommand command = new(orderId, tradeId, valueDate)
+        TurnTradeLiveFeedOffCommand command = new(tradeId, valueDate)
         {
             CommandId = commandId,
             Subject = context.Subject<TurnTradeLiveFeedOffCommand>(
                 TurnTradeLiveFeedOffCommand.Actor,
                 TurnTradeLiveFeedOffCommand.Verb,
-                entityId),
-            EntityId = entityId,
+                tradeId),
+            EntityId = tradeId,
             ErrorCode = TurnTradeLiveFeedOffCommand.ErrorId
         };
-        return context.RequestCommandAsync<TurnTradeLiveFeedOffCommand, TradeLiveFeedId>(command);
+        return context.RequestCommandAsync<TurnTradeLiveFeedOffCommand, TradeEntityId>(command);
     }
 
     /// <summary>
     /// Sends the turn trade live feed on command and awaits its typed actor reply.
     /// </summary>
     /// <param name="commandId">The originating command identifier.</param>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <param name="valueDate">The applicable market value date.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> TurnTradeLiveFeedOnAsync(
         Guid commandId,
-        int orderId,
-        int tradeId,
+        TradeEntityId tradeId,
         DateOnly valueDate)
     {
-        var entityId = new TradeLiveFeedId(orderId, tradeId, valueDate);
-        TurnTradeLiveFeedOnCommand command = new(orderId, tradeId, valueDate)
+        TurnTradeLiveFeedOnCommand command = new(tradeId, valueDate)
         {
             CommandId = commandId,
             Subject = context.Subject<TurnTradeLiveFeedOnCommand>(
                 TurnTradeLiveFeedOnCommand.Actor,
                 TurnTradeLiveFeedOnCommand.Verb,
-                entityId),
-            EntityId = entityId,
+                tradeId),
+            EntityId = tradeId,
             ErrorCode = TurnTradeLiveFeedOnCommand.ErrorId
         };
-        return context.RequestCommandAsync<TurnTradeLiveFeedOnCommand, TradeLiveFeedId>(command);
+        return context.RequestCommandAsync<TurnTradeLiveFeedOnCommand, TradeEntityId>(command);
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentValidation;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -12,7 +13,7 @@ public static class TradeSelectionValidationExtensions
     public static List<ValidationError> ValidateSelectionFields(this List<ValidationError> errors, ExecuteTradeSelectionPipelineCommand request)
     {
         ArgumentNullException.ThrowIfNull(errors);
-        errors.AddRange(new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(request.WorkflowEntityId));
+        errors.AddRange(new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(request.WorkflowEntityId));
         errors.AddRange(new CommandRules().Execute(request));
         return errors;
     }

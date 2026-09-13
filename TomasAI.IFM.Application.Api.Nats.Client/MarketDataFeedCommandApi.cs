@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -16,7 +16,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
@@ -387,24 +386,22 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <summary>
     /// Enables the live trade feed for the specified order and trade.
     /// </summary>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
-    public async Task<ServiceResult<Guid>> EnableTradeLiveFeedAsync(int orderId, int tradeId)
+    public async Task<ServiceResult<Guid>> EnableTradeLiveFeedAsync(TradeEntityId tradeId)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
             var valueDateLocal = DateOnly.FromDateTime(DateTime.UtcNow);
-            var entityId = new TradeLiveFeedId(orderId, tradeId, valueDateLocal);
-            var cmd = new TurnTradeLiveFeedOnCommand(orderId, tradeId, valueDateLocal)
+            var cmd = new TurnTradeLiveFeedOnCommand(tradeId, valueDateLocal)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, TurnTradeLiveFeedOnCommand.Actor, TurnTradeLiveFeedOnCommand.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, TurnTradeLiveFeedOnCommand.Actor, TurnTradeLiveFeedOnCommand.Verb, tradeId.Format()),
                 ErrorCode = TurnTradeLiveFeedOnCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, tradeId);
         }
         catch (Exception ex)
         {
@@ -416,24 +413,22 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <summary>
     /// Disables the live trade feed for the specified order and trade.
     /// </summary>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
-    public async Task<ServiceResult<Guid>> DisableTradeLiveFeedAsync(int orderId, int tradeId)
+    public async Task<ServiceResult<Guid>> DisableTradeLiveFeedAsync(TradeEntityId tradeId)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
             var valueDateLocalOff = DateOnly.FromDateTime(DateTime.UtcNow);
-            var entityId = new TradeLiveFeedId(orderId, tradeId, valueDateLocalOff);
-            var cmd = new TurnTradeLiveFeedOffCommand(orderId, tradeId, valueDateLocalOff)
+            var cmd = new TurnTradeLiveFeedOffCommand(tradeId, valueDateLocalOff)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, TurnTradeLiveFeedOffCommand.Actor, TurnTradeLiveFeedOffCommand.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, TurnTradeLiveFeedOffCommand.Actor, TurnTradeLiveFeedOffCommand.Verb, tradeId.Format()),
                 ErrorCode = TurnTradeLiveFeedOffCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, tradeId);
         }
         catch (Exception ex)
         {
@@ -445,24 +440,22 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <summary>
     /// Adds a trade to the live feed for the specified order and trade id on the given date.
     /// </summary>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <param name="valueDate">The date for the live feed addition.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
-    public async Task<ServiceResult<Guid>> AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
+    public async Task<ServiceResult<Guid>> AddTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityIdAdd = new TradeOrderId(orderId, tradeId);
-            var cmd = new AddTradeLiveFeedCommand(orderId, tradeId, valueDate)
+            var cmd = new AddTradeLiveFeedCommand(tradeId, valueDate)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, AddTradeLiveFeedCommand.Actor, AddTradeLiveFeedCommand.Verb, entityIdAdd.Format()),
+                Subject = new ActorSubject(ActorType.Command, AddTradeLiveFeedCommand.Actor, AddTradeLiveFeedCommand.Verb, tradeId.Format()),
                 ErrorCode = AddTradeLiveFeedCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityIdAdd);
+            serviceResult = await RequestCommandAsync(cmd!, tradeId);
         }
         catch (Exception ex)
         {
@@ -474,24 +467,22 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <summary>
     /// Removes a trade from the live feed for the specified order and trade id on the given date.
     /// </summary>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <param name="valueDate">The date for the live feed removal.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
-    public async Task<ServiceResult<Guid>> RemoveTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
+    public async Task<ServiceResult<Guid>> RemoveTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new TradeOrderId(orderId, tradeId);
-            var cmd = new RemoveTradeLiveFeedCommand(orderId, tradeId, valueDate)
+            var cmd = new RemoveTradeLiveFeedCommand(tradeId, valueDate)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, RemoveTradeLiveFeedCommand.Actor, RemoveTradeLiveFeedCommand.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, RemoveTradeLiveFeedCommand.Actor, RemoveTradeLiveFeedCommand.Verb, tradeId.Format()),
                 ErrorCode = RemoveTradeLiveFeedCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, tradeId);
         }
         catch (Exception ex)
         {
@@ -530,23 +521,21 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <summary>
     /// Halts the live trade feed for the specified order and trade.
     /// </summary>
-    /// <param name="orderId">The order identifier.</param>
-    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
-    public async Task<ServiceResult<Guid>> HaltTradeLiveFeedAsync(int orderId, int tradeId)
+    public async Task<ServiceResult<Guid>> HaltTradeLiveFeedAsync(TradeEntityId tradeId)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityIdHalt = new TradeOrderId(orderId, tradeId);
-            var cmd = new HaltTradeLiveFeedCommand(orderId, tradeId)
+            var cmd = new HaltTradeLiveFeedCommand(tradeId)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, HaltTradeLiveFeedCommand.Actor, HaltTradeLiveFeedCommand.Verb, entityIdHalt.Format()),
+                Subject = new ActorSubject(ActorType.Command, HaltTradeLiveFeedCommand.Actor, HaltTradeLiveFeedCommand.Verb, tradeId.Format()),
                 ErrorCode = HaltTradeLiveFeedCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityIdHalt);
+            serviceResult = await RequestCommandAsync(cmd!, tradeId);
         }
         catch (Exception ex)
         {

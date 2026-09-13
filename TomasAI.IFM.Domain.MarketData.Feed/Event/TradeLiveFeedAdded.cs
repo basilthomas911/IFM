@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
@@ -54,7 +55,10 @@ public static class TradeLiveFeedAdded
                     await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Futures Option Tick Data Streaming started for: {entityId.ContractId}");
                 }
                 p.OptionTradeLiveFeedMap.Add(optionTrade);
-                await commandApi.TurnTradeLiveFeedOnAsync(e.CommandId, e.OrderId, e.TradeId, e.EntityId.ValueDate);
+                await commandApi.TurnTradeLiveFeedOnAsync(
+                    e.CommandId,
+                    TradeEntityId.Parse(e.Subject.EntityId),
+                    e.EntityId.ValueDate);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Trade Live Feed added for OrderId: {e.OrderId}, TradeId: {e.TradeId}");
                 return true;
             }

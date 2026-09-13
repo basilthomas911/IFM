@@ -10,6 +10,7 @@ var app = builder.Build();
 app.ConfigureRequestPipeline(logger);
 app.MapApiCommands();
 app.MapApiQueries();
+await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
 await app.MapEventModelActorsAsync(logger);
 try
 {

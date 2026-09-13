@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;

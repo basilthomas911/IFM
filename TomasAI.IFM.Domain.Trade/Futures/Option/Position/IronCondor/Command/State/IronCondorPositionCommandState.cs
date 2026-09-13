@@ -1,3 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;using TomasAI.IFM.Domain.Trade.Shared.Model;using TomasAI.IFM.Shared.EventModelActor;using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;using TomasAI.IFM.Domain.Trade.Shared;using TomasAI.IFM.Shared.EventModelActor;using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
 public sealed class IronCondorPositionCommandState:BaseEventSourceActorState<IronCondorPositionCommandState>{public override ActorThreadId Id{get;set;}=default!;public StrategyPositionSnapshot?Current{get;private set;}protected override bool Apply(IEvent e){if(e is not IronCondorPositionChangedEvent x)return false;Current=x.State;return true;}}

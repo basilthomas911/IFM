@@ -1,57 +1,44 @@
 using MessagePack;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 
-/// <summary>
-/// Command to activate the live feed for a specific trade within an order.
-/// </summary>
-/// <remarks>
-/// MessagePack serialization pattern: base keys 0�5; custom properties start at key 6.
-/// Routes to <see cref="BoundedContextName.MarketDataFeedBoundedContext"/> (error code 4021).
-/// </remarks>
+/// <summary>Command to activate the live feed for one globally identified trade.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public record TurnTradeLiveFeedOnCommand : ICommand<TradeLiveFeedId>
+public record TurnTradeLiveFeedOnCommand : ICommand<TradeEntityId>
 {
     public const string Actor = "MarketDataFeedCommand";
     public const string Verb = "TurnTradeLiveFeedOn";
     public const int ErrorId = 4021;
 
-    // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }
     [Key(1)] public ActorSubject Subject { get; init; }
     [Key(2)] public bool PostEvents { get; init; }
-    [Key(3)] public TradeLiveFeedId EntityId { get; init; }
+    [Key(3)] public TradeEntityId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
+    [Key(6)] public DateOnly ValueDate { get; init; }
 
-    // Ignored / derived members
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
+    [IgnoreMember] public int PortfolioId => EntityId.PortfolioId;
+    [IgnoreMember] public int FundId => EntityId.FundId;
+    [IgnoreMember] public int OrderId => EntityId.OrderId;
+    [IgnoreMember] public int TradeId => EntityId.TradeId;
 
-    /// <summary>The order identifier.</summary>
-    [Key(6)]
-    public int OrderId { get; init; }
-
-    /// <summary>The trade identifier.</summary>
-    [Key(7)]
-    public int TradeId { get; init; }
-
-    /// <summary>Parameterless constructor for MessagePack.</summary>
     public TurnTradeLiveFeedOnCommand() { }
 
-    /// <summary>Create command to turn on live feed.</summary>
-    public TurnTradeLiveFeedOnCommand(int orderId, int tradeId, DateOnly valueDate)
+    public TurnTradeLiveFeedOnCommand(TradeEntityId entityId, DateOnly valueDate)
     {
-        OrderId = orderId;
-        TradeId = tradeId;
-        EntityId = new TradeLiveFeedId(OrderId, TradeId, valueDate);
+        EntityId = entityId;
+        ValueDate = valueDate;
         RouteTo = BoundedContextName.MarketDataFeedBoundedContext;
-        ErrorCode = 4021;
+        ErrorCode = ErrorId;
     }
 
     [SerializationConstructor]
@@ -59,11 +46,10 @@ public record TurnTradeLiveFeedOnCommand : ICommand<TradeLiveFeedId>
         Guid commandId,
         ActorSubject subject,
         bool postEvents,
-        TradeLiveFeedId entityId,
+        TradeEntityId entityId,
         int errorCode,
         BoundedContextName routeTo,
-        int orderId,
-        int tradeId)
+        DateOnly valueDate)
     {
         CommandId = commandId;
         Subject = subject;
@@ -71,7 +57,6 @@ public record TurnTradeLiveFeedOnCommand : ICommand<TradeLiveFeedId>
         EntityId = entityId;
         ErrorCode = errorCode;
         RouteTo = routeTo;
-        OrderId = orderId;
-        TradeId = tradeId;
+        ValueDate = valueDate;
     }
 }

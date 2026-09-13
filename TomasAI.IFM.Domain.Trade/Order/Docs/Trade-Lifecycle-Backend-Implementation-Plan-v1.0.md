@@ -167,7 +167,7 @@ Wire actor registration and lifecycle handoffs. Remove legacy writers after the 
 
 ## 14. Implementation evidence (2026-09-12)
 
-The coding and automated qualification gates for the backend path are complete. Production code is organized under the owning `Trade/Order`, `Trade/Order/Execution`, `Trade/Futures/Trade`, `Trade/Futures/Option/Trade`, `Trade/Futures/Position`, and `Trade/Futures/Option/Position` hierarchies. No catch-all `Lifecycle` code namespace remains. The legacy `Domain.Trade.Option` command actor, command state, projector, shared command messages, HTTP/NATS clients, and server endpoints have been removed. The new aggregate uses `TomasAI.IFM.Domain.Trade.Shared.Model.TradeOrderId`, containing Portfolio, Fund, and Order IDs.
+The coding and automated qualification gates for the backend path are complete. Production code is organized under the owning `Trade/Order`, `Trade/Order/Execution`, `Trade/Futures`, `Trade/Futures/Option`, `Trade/Futures/Position`, and `Trade/Futures/Option/Position` hierarchies. No catch-all `Lifecycle` code namespace remains. The legacy `Domain.Trade.Option` command actor, command state, projector, shared command messages, HTTP/NATS clients, and server endpoints have been removed. The new aggregate uses `TomasAI.IFM.Domain.Trade.Shared.Model.TradeOrderId`, containing Portfolio, Fund, and Order IDs.
 
 | Gate | Implemented result | Verification |
 |---|---|---|

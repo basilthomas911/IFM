@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using MessagePack;

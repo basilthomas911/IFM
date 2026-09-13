@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Serialization;
 using MessagePack;
 using System.Security.Cryptography;

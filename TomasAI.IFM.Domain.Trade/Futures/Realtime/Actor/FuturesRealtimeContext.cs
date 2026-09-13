@@ -10,7 +10,7 @@ public interface IFuturesRealtimeContext : IRealtimeActorContext<FuturesRealtime
 {
     IDbContextFactory DbFactory { get; }
     IActorService ActorService { get; }
-    MarketInstrumentRouteIndex RouteIndex { get; }
+    ContractIdRouteIndex RouteIndex { get; }
     ILogger<FuturesRealtimeActor> Logger { get; }
 }
 
@@ -27,11 +27,11 @@ public sealed class FuturesRealtimeContext : EventActorContext,
         DbFactory = dbFactory;
         ActorService = actorService;
         Logger = logger;
-        RouteIndex = new MarketInstrumentRouteIndex(4096);
+        RouteIndex = new ContractIdRouteIndex(4096);
     }
 
     public IDbContextFactory DbFactory { get; }
     public IActorService ActorService { get; }
-    public MarketInstrumentRouteIndex RouteIndex { get; }
+    public ContractIdRouteIndex RouteIndex { get; }
     public ILogger<FuturesRealtimeActor> Logger { get; }
 }

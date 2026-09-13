@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Util;
 
 namespace TomasAI.IFM.Application.Blackboard;

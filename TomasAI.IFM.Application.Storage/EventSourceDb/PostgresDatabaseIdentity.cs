@@ -12,7 +12,10 @@ public readonly record struct PostgresDatabaseIdentity(string Host, int Port, st
         var hosts = value.Host.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (hosts.Length != 1)
             throw new InvalidOperationException("Atomic PostgreSQL transactions require one explicit database host.");
-        return new(hosts[0].ToLowerInvariant(), value.Port, value.Database.ToLowerInvariant(), value.Username.ToLowerInvariant());
+        if (string.IsNullOrWhiteSpace(value.Database))
+            throw new InvalidOperationException("Atomic PostgreSQL transactions require one explicit database name.");
+        return new(hosts[0].ToLowerInvariant(), value.Port, value.Database.ToLowerInvariant(),
+            (value.Username ?? string.Empty).ToLowerInvariant());
     }
 
     public static void RequireSamePhysicalDatabase(IDbConnectionSettings settings, string firstName, string secondName)

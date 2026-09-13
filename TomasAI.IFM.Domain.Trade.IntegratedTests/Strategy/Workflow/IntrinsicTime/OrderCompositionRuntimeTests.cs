@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Api.Nats.Client;

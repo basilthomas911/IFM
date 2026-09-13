@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Order.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Execution.Model;
 
@@ -52,7 +52,7 @@ public sealed class OrderExecutionActorStateMachine
 
         var component = Current.Components.SingleOrDefault(value => value.ComponentId == fill.ComponentId);
         var leg = component?.Legs.SingleOrDefault(value => value.TradeLegId == fill.TradeLegId);
-        if (leg is null || leg.MarketInstrumentId != fill.MarketInstrumentId ||
+        if (leg is null || !string.Equals(leg.ContractId, fill.ContractId, StringComparison.Ordinal) ||
             Math.Sign(leg.SignedQuantity) != Math.Sign(fill.SignedQuantity))
             return Reject("OE.FILL_NOT_ALLOCATABLE", "Fill does not match a proposed component leg.");
 
@@ -87,7 +87,11 @@ public sealed class OrderExecutionActorStateMachine
             var assetFamily = component.StrategyKind == TradeStrategyKind.FuturesOutright
                 ? TradeAssetFamily.Futures
                 : TradeAssetFamily.FuturesOption;
-            var id = new TradeEntityId(Current.TradeOrderId, component.ReservedTradeId);
+            var id = new TradeEntityId(
+                Current.TradeOrderId.PortfolioId,
+                Current.TradeOrderId.FundId,
+                Current.TradeOrderId.OrderId,
+                component.ReservedTradeId);
             trades.Add(new EstablishedTradeDefinition
             {
                 Id = id,

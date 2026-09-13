@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;

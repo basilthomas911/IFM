@@ -17,7 +17,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.MarketDataFeed;
 

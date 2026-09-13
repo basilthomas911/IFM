@@ -27,7 +27,6 @@ using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
@@ -518,64 +517,64 @@ public static class MarketDataFeedCommands
 
         endpoints.MapPost(MarketDataFeedUriPath.AddTradeLiveFeed, async (IActorService e, AddTradeLiveFeedParameter cmdParam)
             => {
-            var entityId = new TradeOrderId(cmdParam.OrderId, cmdParam.TradeId);
-            AddTradeLiveFeedCommand cmd = new(cmdParam.OrderId, cmdParam.TradeId, cmdParam.ValueDate)
+            var entityId = cmdParam.EntityId;
+            AddTradeLiveFeedCommand cmd = new(entityId, cmdParam.ValueDate)
             {
                 CommandId = Guid.NewGuid(),
                 Subject = new ActorSubject(ActorType.Command, AddTradeLiveFeedCommand.Actor, AddTradeLiveFeedCommand.Verb, entityId.Format()),
                 EntityId = entityId
             };
-            return await e.RequestAsync<AddTradeLiveFeedCommand, TradeOrderId>(cmd!);
+            return await e.RequestAsync<AddTradeLiveFeedCommand, TradeEntityId>(cmd!);
         });
 
         endpoints.MapPost(MarketDataFeedUriPath.RemoveTradeLiveFeed, async (IActorService e, RemoveTradeLiveFeedParameter cmdParam)
             => {
-            var entityId = new TradeOrderId(cmdParam.OrderId, cmdParam.TradeId);
-            RemoveTradeLiveFeedCommand cmd = new(cmdParam.OrderId, cmdParam.TradeId, cmdParam.ValueDate)
+            var entityId = cmdParam.EntityId;
+            RemoveTradeLiveFeedCommand cmd = new(entityId, cmdParam.ValueDate)
             {
                 CommandId = Guid.NewGuid(),
                 Subject = new ActorSubject(ActorType.Command, RemoveTradeLiveFeedCommand.Actor, RemoveTradeLiveFeedCommand.Verb, entityId.Format()),
                 EntityId = entityId
             };
-            return await e.RequestAsync<RemoveTradeLiveFeedCommand, TradeOrderId>(cmd!);
+            return await e.RequestAsync<RemoveTradeLiveFeedCommand, TradeEntityId>(cmd!);
         });
 
         endpoints.MapPost(MarketDataFeedUriPath.HaltTradeLiveFeed, async (IActorService e, HaltTradeLiveFeedParameter cmdParam)
             => {
-            var entityId = new TradeOrderId(cmdParam.OrderId, cmdParam.TradeId);
-            HaltTradeLiveFeedCommand cmd = new(cmdParam.OrderId, cmdParam.TradeId)
+            var entityId = cmdParam.EntityId;
+            HaltTradeLiveFeedCommand cmd = new(entityId)
             {
                 CommandId = Guid.NewGuid(),
                 Subject = new ActorSubject(ActorType.Command, HaltTradeLiveFeedCommand.Actor, HaltTradeLiveFeedCommand.Verb, entityId.Format()),
                 EntityId = entityId
             };
-            return await e.RequestAsync<HaltTradeLiveFeedCommand, TradeOrderId>(cmd!);
+            return await e.RequestAsync<HaltTradeLiveFeedCommand, TradeEntityId>(cmd!);
         });
 
         endpoints.MapPost(MarketDataFeedUriPath.TurnTradeLiveFeedOn, async (IActorService e, TurnTradeLiveFeedOnCommand cmd)
             => {
-            var entityId = new TradeLiveFeedId(cmd.OrderId, cmd.TradeId, cmd.EntityId.ValueDate);
-            TurnTradeLiveFeedOnCommand newCmd = new(cmd.OrderId, cmd.TradeId, cmd.EntityId.ValueDate)
+            var entityId = cmd.EntityId;
+            TurnTradeLiveFeedOnCommand newCmd = new(entityId, cmd.ValueDate)
             {
                 CommandId = Guid.NewGuid(),
                 Subject = new ActorSubject(ActorType.Command, TurnTradeLiveFeedOnCommand.Actor, TurnTradeLiveFeedOnCommand.Verb, entityId.Format()),
                 EntityId = entityId,
                 ErrorCode = TurnTradeLiveFeedOnCommand.ErrorId
             };
-            return await e.RequestAsync<TurnTradeLiveFeedOnCommand, TradeLiveFeedId>(newCmd!);
+            return await e.RequestAsync<TurnTradeLiveFeedOnCommand, TradeEntityId>(newCmd!);
         });
 
         endpoints.MapPost(MarketDataFeedUriPath.TurnTradeLiveFeedOff, async (IActorService e, TurnTradeLiveFeedOffCommand cmd)
             => {
-            var entityId = new TradeLiveFeedId(cmd.OrderId, cmd.TradeId, cmd.EntityId.ValueDate);
-            TurnTradeLiveFeedOffCommand newCmd = new(cmd.OrderId, cmd.TradeId, cmd.EntityId.ValueDate)
+            var entityId = cmd.EntityId;
+            TurnTradeLiveFeedOffCommand newCmd = new(entityId, cmd.ValueDate)
             {
                 CommandId = Guid.NewGuid(),
                 Subject = new ActorSubject(ActorType.Command, TurnTradeLiveFeedOffCommand.Actor, TurnTradeLiveFeedOffCommand.Verb, entityId.Format()),
                 EntityId = entityId,
                 ErrorCode = TurnTradeLiveFeedOffCommand.ErrorId
             };
-            return await e.RequestAsync<TurnTradeLiveFeedOffCommand, TradeLiveFeedId>(newCmd!);
+            return await e.RequestAsync<TurnTradeLiveFeedOffCommand, TradeEntityId>(newCmd!);
         });
 
         endpoints.MapPost(MarketDataFeedUriPath.DeleteStreamingRequestId, async (IActorService e, DeleteStreamingRequestIdParameter cmdParam)

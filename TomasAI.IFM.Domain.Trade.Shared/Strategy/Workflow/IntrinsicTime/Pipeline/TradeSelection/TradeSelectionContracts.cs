@@ -56,19 +56,32 @@ public static partial class TradeSelectionContracts
     }
     public static TradeSelectionParameterSet ValidateBinding(TradeSelectionBinding b)
     {
-        Require(b is not null && b.SchemaVersion==1,"TS.CONTRACT.SCHEMA","Explicit binding schema 1 is required.");
+        Require(b is not null && b.SchemaVersion is 1 or 2,"TS.CONTRACT.SCHEMA","Explicit binding schema 1 or 2 is required.");
         Require(b.CommonPolicy is {Kind:CatalogPipelineParameterKind.TradeSelection},"TS.CONFIG.PROFILE_MISMATCH","Common selector policy is required.");
         var p=CommonPolicy(b);
         Require(p.ParameterSetId==b.CommonPolicy.Id && p.Version==b.CommonPolicy.Version && TradeSelectionPolicy.Hash(p)==b.CommonPolicy.PayloadSha256,"TS.CONTRACT.HASH","Common policy identity/hash mismatch.");
-        Require(Utc(b.FrozenAtUtc) && Utc(b.ValidUntilUtc) && b.ValidUntilUtc>b.FrozenAtUtc && b.TradeDatePolicy=="UTC.TriggerCreatedDate.Test.v1","TS.CONTRACT.VALUE_RANGE","Invalid binding times/date policy.");
-        Require(b.Candidates.Length<=p.MaximumCandidates && b.CatalogDefinitions.Length<=p.MaximumCatalogDefinitions && b.DeploymentSnapshots.Length<=p.MaximumAssignments && b.PortfolioSnapshot.Assignments.Length<=p.MaximumAssignments,"TS.CONFIG.CANDIDATE_LIMIT","Binding count limit exceeded.");
+        Require(Utc(b.FrozenAtUtc) && Utc(b.ValidUntilUtc) && b.ValidUntilUtc>b.FrozenAtUtc && b.TradeDatePolicy is "UTC.TriggerCreatedDate.Test.v1" or "UTC.TriggerCreatedDate.v2","TS.CONTRACT.VALUE_RANGE","Invalid binding times/date policy.");
+        Require(b.Candidates.Length<=p.MaximumCandidates && b.CatalogDefinitions.Length<=p.MaximumCatalogDefinitions && b.DeploymentSnapshots.Length<=p.MaximumAssignments
+            && (b.SchemaVersion==2 || b.PortfolioSnapshot.Assignments.Length<=p.MaximumAssignments),"TS.CONFIG.CANDIDATE_LIMIT","Binding count limit exceeded.");
         Require(MessagePackBinarySerializer.MeasureContent(b)<=p.MaximumBindingPayloadBytes,"TS.CONTRACT.PAYLOAD_SIZE","Binding byte limit exceeded.");
         Require(b.PayloadSha256==BindingHash(b),"TS.CONTRACT.HASH","Binding hash mismatch.");
-        var portfolio=b.PortfolioSnapshot;
-        ValidateAuthority(portfolio,b);
-        Require(portfolio.PayloadSha256==PortfolioCanonicalHash.Compute(portfolio with {PayloadSha256=""}),"TS.CONTRACT.HASH","Portfolio authority hash mismatch.");
-        Require(portfolio.WorkflowId!=Guid.Empty && portfolio.WorkflowRevision>0 && portfolio.Fund.FundId>0 && portfolio.Portfolio.PortfolioId>0 && portfolio.Fund.PortfolioId==portfolio.Portfolio.PortfolioId,"TS.CONTRACT.IDENTITY","Invalid Portfolio/Fund identity.");
-        Require(portfolio.ResolvedAtUtc==b.FrozenAtUtc && b.ValidUntilUtc<=portfolio.ValidUntilUtc && portfolio.Fund.DecisionHorizon==p.TargetHorizon.ToString(),"TS.CONTRACT.IDENTITY","Frozen authority horizon/time mismatch.");
+        if (b.SchemaVersion==1)
+        {
+            var portfolio=b.PortfolioSnapshot;
+            ValidateAuthority(portfolio,b);
+            Require(portfolio.PayloadSha256==PortfolioCanonicalHash.Compute(portfolio with {PayloadSha256=""}),"TS.CONTRACT.HASH","Portfolio authority hash mismatch.");
+            Require(portfolio.WorkflowId!=Guid.Empty && portfolio.WorkflowRevision>0 && portfolio.Fund.FundId>0 && portfolio.Portfolio.PortfolioId>0 && portfolio.Fund.PortfolioId==portfolio.Portfolio.PortfolioId,"TS.CONTRACT.IDENTITY","Invalid Portfolio/Fund identity.");
+            Require(portfolio.ResolvedAtUtc==b.FrozenAtUtc && b.ValidUntilUtc<=portfolio.ValidUntilUtc && portfolio.Fund.DecisionHorizon==p.TargetHorizon.ToString(),"TS.CONTRACT.IDENTITY","Frozen authority horizon/time mismatch.");
+        }
+        else
+        {
+            var universe=b.StrategyUniverse;
+            Require(universe is {SchemaVersion:1} && universe.WorkflowId!=Guid.Empty && universe.WorkflowRevision>0 && universe.CorrelationId!=Guid.Empty
+                && universe.InstrumentRoot==p.InstrumentRoot && universe.TargetHorizon==p.TargetHorizon
+                && universe.FrozenAtUtc==b.FrozenAtUtc && universe.ValidUntilUtc==b.ValidUntilUtc
+                && universe.DeploymentKeys.SequenceEqual(b.DeploymentSnapshots.Select(x=>x.DeploymentKey))
+                && universe.PayloadSha256==EvidenceHash(universe with {PayloadSha256=""}),"TS.CONTRACT.IDENTITY","Invalid portfolio-neutral strategy universe.");
+        }
         Require(b.CatalogDefinitions.Select(x=>x.Key).Distinct().Count()==b.CatalogDefinitions.Length && b.DeploymentSnapshots.Select(x=>x.DeploymentKey).Distinct().Count()==b.DeploymentSnapshots.Length && b.Candidates.Select(CandidateIdentity).Distinct().Count()==b.Candidates.Length,"TS.CONFIG.INVALID","Duplicate binding identity.");
         Require(b.PipelinePolicies.Select(x=>(x.Kind,x.Id,x.Version)).Distinct().Count()==b.PipelinePolicies.Length,"TS.CONFIG.INVALID","Duplicate pipeline policy identity.");
         var nodes=b.CatalogDefinitions.ToDictionary(x=>x.Key,SelectionCatalogTransport.ToSource);
@@ -131,8 +144,11 @@ public static partial class TradeSelectionContracts
             }
         }
         Require(SamePolicy(c.SelectionPolicyReference,b.CommonPolicy),"TS.CONFIG.PROFILE_MISMATCH","Candidates must share the pinned common policy.");
-        var assignment=b.PortfolioSnapshot.Assignments.SingleOrDefault(x=>x.AssignmentVersion==c.AssignmentVersion && x.TradeStrategyFamily?.CatalogDeployment==c.DeploymentKey);
-        Require(assignment is not null && assignment.SchemaVersion==3 && assignment.TradeTemplateId==c.DeploymentKey.Id && assignment.TradeTemplateVersion==c.DeploymentKey.Version && assignment.Priority==c.AssignmentPriority && assignment.TradeSelectionHintProfileId==c.SelectionPolicyReference.Id && assignment.TradeSelectionHintProfileVersion==c.SelectionPolicyReference.Version && assignment.OrderCompositionProfileId==c.CompositionPolicyReference.Id && assignment.OrderCompositionProfileVersion==c.CompositionPolicyReference.Version,"TS.CONTRACT.IDENTITY","Candidate assignment/profile identity mismatch.");
+        if(b.SchemaVersion==1)
+        {
+            var assignment=b.PortfolioSnapshot.Assignments.SingleOrDefault(x=>x.AssignmentVersion==c.AssignmentVersion && x.TradeStrategyFamily?.CatalogDeployment==c.DeploymentKey);
+            Require(assignment is not null && assignment.SchemaVersion==3 && assignment.TradeTemplateId==c.DeploymentKey.Id && assignment.TradeTemplateVersion==c.DeploymentKey.Version && assignment.Priority==c.AssignmentPriority && assignment.TradeSelectionHintProfileId==c.SelectionPolicyReference.Id && assignment.TradeSelectionHintProfileVersion==c.SelectionPolicyReference.Version && assignment.OrderCompositionProfileId==c.CompositionPolicyReference.Id && assignment.OrderCompositionProfileVersion==c.CompositionPolicyReference.Version,"TS.CONTRACT.IDENTITY","Candidate assignment/profile identity mismatch.");
+        }
     }
     public static (TradeSelectionParameterSet Policy,MarketConditionAssessmentResult Assessment,RegimeDiscoveryResult Regime) ValidateRequest(ExecuteTradeSelectionPipelineCommand c)
         => ValidateRequestEvidence(c, null);
@@ -150,10 +166,12 @@ public static partial class TradeSelectionContracts
         Check(c is not null && c.SchemaVersion==1 && c.CommandId!=Guid.Empty && !c.PostEvents,"TS.CONTRACT.SCHEMA","A schema-1 Function request is required.");
         Check(c.Subject.ActorType==ActorType.Function && c.Subject.Name==ExecuteTradeSelectionPipelineCommand.Actor && c.Subject.Verb==ExecuteTradeSelectionPipelineCommand.Verb && c.Subject.EntityId==c.EntityId.Format(),"TS.CONTRACT.IDENTITY","Function subject mismatch.");
         var v=c.WorkflowView; var p=ValidateBinding(c.SelectionBinding);
-        Check(c.EntityId.InputWorkflowRevision==c.InputWorkflowRevision && c.InputWorkflowRevision>0 && c.WorkflowId==v.WorkflowId && c.WorkflowEntityId==v.EntityId && c.InputWorkflowRevision==v.WorkflowRevision && c.WorkflowId.Value==c.SelectionBinding.PortfolioSnapshot.WorkflowId && v.SelectionBinding?.PayloadSha256==c.SelectionBinding.PayloadSha256,"TS.CONTRACT.IDENTITY","Frozen workflow identity mismatch.");
+        var bindingWorkflowId=c.SelectionBinding.SchemaVersion==2?c.SelectionBinding.StrategyUniverse!.WorkflowId:c.SelectionBinding.PortfolioSnapshot.WorkflowId;
+        Check(c.EntityId.InputWorkflowRevision==c.InputWorkflowRevision && c.InputWorkflowRevision>0 && c.WorkflowId==v.WorkflowId && c.WorkflowEntityId==v.EntityId && c.InputWorkflowRevision==v.WorkflowRevision && c.WorkflowId.Value==bindingWorkflowId && v.SelectionBinding?.PayloadSha256==c.SelectionBinding.PayloadSha256,"TS.CONTRACT.IDENTITY","Frozen workflow identity mismatch.");
         Check(v.Status==WorkflowStrategyMachineStatus.Started && v.CurrentStage==StrategyWorkflowStage.TradeSelection && c.TriggerEvent.Id==v.TriggerEventId && c.TriggerEvent.EntityId==v.TriggerEvent.EntityId && c.TriggerEvent.EntityId.TimePeriod==p.TargetHorizon,"TS.UPSTREAM.INVALID","Workflow stage/trigger/horizon mismatch.");
         Check(c.RegimeResultEnvelope.PayloadSha256==v.RegimeDiscovery.Result?.PayloadSha256 && c.AssessmentResultEnvelope.PayloadSha256==v.MarketCondition.Result?.PayloadSha256,"TS.UPSTREAM.INVALID","Upstream envelopes differ from accepted workflow.");
-        Check(c.CorrelationId!=Guid.Empty && c.CorrelationId==v.CorrelationId && c.CorrelationId==c.SelectionBinding.PortfolioSnapshot.CorrelationId && c.CausationId!=Guid.Empty,
+        var bindingCorrelationId=c.SelectionBinding.SchemaVersion==2?c.SelectionBinding.StrategyUniverse!.CorrelationId:c.SelectionBinding.PortfolioSnapshot.CorrelationId;
+        Check(c.CorrelationId!=Guid.Empty && c.CorrelationId==v.CorrelationId && c.CorrelationId==bindingCorrelationId && c.CausationId!=Guid.Empty,
             "TS.CONTRACT.IDENTITY","Workflow correlation/causation mismatch.");
         Check(v.RegimeDiscovery.ProcessingStatus==StrategyActorProcessingStatus.Completed && v.MarketCondition.ProcessingStatus==StrategyActorProcessingStatus.Completed
             && v.TradeSelection.ProcessingStatus==StrategyActorProcessingStatus.Processing && v.TradeSelection.InputWorkflowRevision==c.InputWorkflowRevision,

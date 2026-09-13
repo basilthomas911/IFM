@@ -8,9 +8,12 @@ public static partial class TradeSelectionContracts
     static void ValidateResultEvidence(TradeSelectionResult r,TradeSelectionParameterSet p)
     {
         var b=r.DecisionContext.SelectionBinding;var authority=b.PortfolioSnapshot;
-        Require(r.DecisionContext.SchemaVersion==1 && r.ResultId!=Guid.Empty && r.WorkflowId.Value==authority.WorkflowId && r.InputWorkflowRevision>authority.WorkflowRevision
+        var bindingWorkflowId=b.SchemaVersion==2?b.StrategyUniverse!.WorkflowId:authority.WorkflowId;
+        var bindingRevision=b.SchemaVersion==2?b.StrategyUniverse!.WorkflowRevision:authority.WorkflowRevision;
+        Require(r.DecisionContext.SchemaVersion==1 && r.ResultId!=Guid.Empty && r.WorkflowId.Value==bindingWorkflowId && r.InputWorkflowRevision>=bindingRevision
             && r.EntityId.ItiSignalEntityId.TimePeriod==p.TargetHorizon && r.DecisionHorizon==p.TargetHorizon && r.TriggerEventId!=Guid.Empty
-            && r.PortfolioId==authority.Portfolio.PortfolioId && r.FundId==authority.Fund.FundId && SamePolicy(r.CommonPolicyReference,b.CommonPolicy),"TS.RESULT.INVALID","Result identity/context mismatch.");
+            && (b.SchemaVersion==2 ? r.PortfolioId==0 && r.FundId==0 : r.PortfolioId==authority.Portfolio.PortfolioId && r.FundId==authority.Fund.FundId)
+            && SamePolicy(r.CommonPolicyReference,b.CommonPolicy),"TS.RESULT.INVALID","Result identity/context mismatch.");
         Require(Utc(r.EvaluatedAtUtc) && Utc(r.ProducedAtUtc) && Utc(r.ValidUntilUtc) && r.ProducedAtUtc==r.EvaluatedAtUtc && r.EvaluatedAtUtc>=b.FrozenAtUtc
             && r.ValidUntilUtc>r.EvaluatedAtUtc && r.ValidUntilUtc<=b.ValidUntilUtc && r.ValidUntilUtc<=r.EvaluatedAtUtc.AddSeconds(p.ResultLifetimeSeconds),"TS.RESULT.INVALID","Result validity mismatch.");
         var assessment=MarketConditionAssessmentContracts.ReadResult(r.DecisionContext.AssessmentResultEnvelope);

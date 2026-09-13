@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Immutable;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;

@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Order.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Query.Extensions;

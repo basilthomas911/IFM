@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;

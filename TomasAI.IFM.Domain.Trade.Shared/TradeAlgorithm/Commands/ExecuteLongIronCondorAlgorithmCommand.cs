@@ -6,8 +6,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
 

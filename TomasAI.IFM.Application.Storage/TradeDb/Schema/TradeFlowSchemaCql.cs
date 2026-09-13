@@ -28,6 +28,14 @@ public static class TradeFlowSchemaCql
         ) WITH CLUSTERING ORDER BY (filledAtUtc ASC, executionFillId ASC);
         """;
 
+    public const string ExecutionFillByContract = """
+        CREATE TABLE IF NOT EXISTS order_execution_fill_v2 (
+            executionAttemptId uuid, executionFillId uuid, componentId uuid,
+            tradeLegId uuid, contractId text, filledAtUtc timestamp, payload blob,
+            PRIMARY KEY ((executionAttemptId), filledAtUtc, executionFillId)
+        ) WITH CLUSTERING ORDER BY (filledAtUtc ASC, executionFillId ASC);
+        """;
+
     public const string EstablishedTrade = """
         CREATE TABLE IF NOT EXISTS established_trade_v1 (
             portfolioId int, fundId int, orderId int, tradeId int,
@@ -75,6 +83,23 @@ public static class TradeFlowSchemaCql
             shard tinyint, positionId uuid, tradeLegId uuid, marketInstrumentId bigint,
             portfolioId int, fundId int, orderId int, tradeId int, strategyKind text,
             positionActor text, positionActorThreadId text, generation bigint,
+            PRIMARY KEY ((shard), positionId, tradeLegId)
+        );
+        """;
+
+    public const string OpenPositionRouteByContract = """
+        CREATE TABLE IF NOT EXISTS open_position_route_v2 (
+            contractId text, portfolioId int, fundId int, orderId int, tradeId int,
+            positionId uuid, tradeLegId uuid, tradeType text, generation bigint,
+            PRIMARY KEY ((contractId), positionId, tradeLegId)
+        );
+        """;
+
+    public const string OpenPositionRouteRecoveryByContract = """
+        CREATE TABLE IF NOT EXISTS open_position_route_recovery_v2 (
+            shard tinyint, positionId uuid, tradeLegId uuid, contractId text,
+            portfolioId int, fundId int, orderId int, tradeId int, tradeType text,
+            generation bigint,
             PRIMARY KEY ((shard), positionId, tradeLegId)
         );
         """;

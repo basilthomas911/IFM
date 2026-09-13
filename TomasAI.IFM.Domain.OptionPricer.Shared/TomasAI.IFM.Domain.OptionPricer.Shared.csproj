@@ -9,7 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Primitives.Shared\TomasAI.IFM.Domain.Trade.Primitives.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

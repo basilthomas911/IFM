@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;

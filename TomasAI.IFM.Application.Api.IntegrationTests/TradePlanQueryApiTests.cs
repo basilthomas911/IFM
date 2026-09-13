@@ -8,7 +8,6 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 

@@ -11,7 +11,6 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 

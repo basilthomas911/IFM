@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Model;
 

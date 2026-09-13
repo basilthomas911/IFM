@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;

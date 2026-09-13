@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;

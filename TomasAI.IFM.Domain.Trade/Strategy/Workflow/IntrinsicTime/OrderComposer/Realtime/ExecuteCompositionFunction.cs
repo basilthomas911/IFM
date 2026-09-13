@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
 using System.Security.Cryptography;

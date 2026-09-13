@@ -15,6 +15,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.MarketDataFeed;
 
@@ -293,7 +294,12 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         _httpClientFactory.CreateClient();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
-        var response = await marketDataFeedApi.AddTradeLiveFeedAsync(orderId, tradeId, valueDate);
+        var entityId = new TradeEntityId(
+            Random.Shared.Next(1, int.MaxValue),
+            Random.Shared.Next(1, int.MaxValue),
+            orderId,
+            tradeId);
+        var response = await marketDataFeedApi.AddTradeLiveFeedAsync(entityId, valueDate);
 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
@@ -368,7 +374,12 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         _httpClientFactory.CreateClient();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
-        var addResponse = await marketDataFeedApi.AddTradeLiveFeedAsync(orderId, tradeId, valueDate);
+        var entityId = new TradeEntityId(
+            Random.Shared.Next(1, int.MaxValue),
+            Random.Shared.Next(1, int.MaxValue),
+            orderId,
+            tradeId);
+        var addResponse = await marketDataFeedApi.AddTradeLiveFeedAsync(entityId, valueDate);
 
         addResponse.Should().NotBeNull();
         addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
@@ -376,7 +387,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         tradeLiveFeedAddedEvent.Should().NotBeNull();
 
         // act...
-        var response = await marketDataFeedApi.RemoveTradeLiveFeedAsync(orderId, tradeId, valueDate);
+        var response = await marketDataFeedApi.RemoveTradeLiveFeedAsync(entityId, valueDate);
 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
@@ -457,7 +468,12 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         _httpClientFactory.CreateClient();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
-        var addResponse = await marketDataFeedApi.AddTradeLiveFeedAsync(orderId, tradeId, valueDate);
+        var entityId = new TradeEntityId(
+            Random.Shared.Next(1, int.MaxValue),
+            Random.Shared.Next(1, int.MaxValue),
+            orderId,
+            tradeId);
+        var addResponse = await marketDataFeedApi.AddTradeLiveFeedAsync(entityId, valueDate);
 
         addResponse.Should().NotBeNull();
         addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
@@ -465,7 +481,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         tradeLiveFeedAddedEvent.Should().NotBeNull();
 
         // act...
-        var response = await marketDataFeedApi.HaltTradeLiveFeedAsync(orderId, tradeId);
+        var response = await marketDataFeedApi.HaltTradeLiveFeedAsync(entityId);
 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;

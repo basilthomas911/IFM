@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;
@@ -338,6 +339,16 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         if(type==typeof(CompositionContractSelection)) return new CompositionContractSelection(new('c',64), ["ES-leg-a", "ES-leg-b"]);
         if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskFinancialHandoffPhase))
             return Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskFinancialHandoffPhase.ConsumePending;
+        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecision))
+            return new Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecision
+            {
+                CompositionId = Guid.Parse("0198E212-3C00-7000-8000-000000000021"),
+                WorkflowId = Guid.Parse("0198E212-3C00-7000-8000-000000000012"),
+                Status = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecisionStatus.NoTradeOrders,
+                FinancialRevision = 8,
+                RejectedFundCount = 1,
+                PortfolioId = 7
+            };
         throw new InvalidOperationException(
             $"No ITSW-3 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -18,8 +19,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
 {
     static async ValueTask ExecuteSelectionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        if (snapshot.State.CompositionHandoff is { Status: CompositionHandoffStatus.ReservationPending })
-        { await ReserveSelectionAsync(context, snapshot).ConfigureAwait(false); return; }
         var execute = snapshot.State.SelectionDispatch ?? throw new InvalidOperationException("Missing durable selector request. Historical unbound selector dispatch is disabled.");
         var clock = RequireEventContext(context).TimeProvider;
         FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> terminal;

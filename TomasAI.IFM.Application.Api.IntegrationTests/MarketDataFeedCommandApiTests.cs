@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -181,7 +181,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var orderId = 1;
         var tradeId = 1;
-        var response = await api.EnableTradeLiveFeedAsync(orderId, tradeId);
+        var response = await api.EnableTradeLiveFeedAsync(new TradeEntityId(1, 1, orderId, tradeId));
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }
@@ -193,7 +193,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var orderId = 1;
         var tradeId = 1;
-        var response = await api.DisableTradeLiveFeedAsync(orderId, tradeId);
+        var response = await api.DisableTradeLiveFeedAsync(new TradeEntityId(1, 1, orderId, tradeId));
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }
@@ -206,7 +206,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var orderId = 1;
         var tradeId = 1;
         var valueDate = DateOnly.FromDateTime(DateTime.Today);
-        var response = await api.AddTradeLiveFeedAsync(orderId, tradeId, valueDate);
+        var response = await api.AddTradeLiveFeedAsync(new TradeEntityId(1, 1, orderId, tradeId), valueDate);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }
@@ -218,7 +218,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var orderId = 1;
         var tradeId = 1;
-        var response = await api.HaltTradeLiveFeedAsync(orderId, tradeId);
+        var response = await api.HaltTradeLiveFeedAsync(new TradeEntityId(1, 1, orderId, tradeId));
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }
@@ -231,7 +231,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var orderId = 1;
         var tradeId = 1;
         var valueDate = DateOnly.FromDateTime(DateTime.Today);
-        var response = await api.RemoveTradeLiveFeedAsync(orderId, tradeId, valueDate);
+        var response = await api.RemoveTradeLiveFeedAsync(new TradeEntityId(1, 1, orderId, tradeId), valueDate);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }

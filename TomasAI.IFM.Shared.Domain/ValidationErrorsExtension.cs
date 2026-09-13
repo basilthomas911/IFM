@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using System.Text;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

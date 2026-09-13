@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

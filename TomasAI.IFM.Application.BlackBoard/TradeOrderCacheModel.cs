@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;

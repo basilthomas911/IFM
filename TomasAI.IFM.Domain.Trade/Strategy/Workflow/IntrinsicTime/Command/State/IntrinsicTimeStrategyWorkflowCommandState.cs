@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using System.Collections.Immutable;
@@ -601,7 +602,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
             MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
             AssessmentBinding = source.AssessmentBinding,
-            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch), CompositionDispatch = CopySelection(source.CompositionDispatch)
+            SelectionBinding = CopySelection(source.SelectionBinding), CompositionHandoff = CopySelection(source.CompositionHandoff), SelectionDispatch = CopySelection(source.SelectionDispatch), CompositionDispatch = CopySelection(source.CompositionDispatch),
+            PortfolioRiskDecision = CopySelection(source.PortfolioRiskDecision)
         };
 
     static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source)

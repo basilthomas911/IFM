@@ -15,6 +15,7 @@ public sealed record TradeSelectionActivation
     [JsonRequired] public string InstrumentRoot {get;init;}=string.Empty;
     [JsonRequired] public TimeFrameType TargetHorizon {get;init;}
     [JsonRequired] public SelectionPipelinePolicyReference SelectionPolicyReference {get;init;}=new();
+    [JsonRequired] public CatalogKey[] DeploymentKeys { get; init; } = [];
     static readonly JsonSerializerOptions Options=new(){UnmappedMemberHandling=JsonUnmappedMemberHandling.Disallow};
     public static TradeSelectionActivation Read(string json)
     {
@@ -25,7 +26,12 @@ public sealed record TradeSelectionActivation
     public string Hash()=>TradeSelectionPolicy.HashJson(Serialize());
     public void Validate()
     {
-        TradeSelectionContracts.Require(SchemaVersion==1 && ParameterSetId!=Guid.Empty && Version>0 && PortfolioId>0 && (FundId is null or >0) && InstrumentRoot=="ES" && TradeSelectionPolicy.IsHorizon(TargetHorizon),"TS.CONFIG.ACTIVATION","Invalid workflow activation.");
+        TradeSelectionContracts.Require(SchemaVersion is 1 or 2 && ParameterSetId!=Guid.Empty && Version>0 && InstrumentRoot=="ES" && TradeSelectionPolicy.IsHorizon(TargetHorizon),"TS.CONFIG.ACTIVATION","Invalid workflow activation.");
+        if (SchemaVersion == 1)
+            TradeSelectionContracts.Require(PortfolioId>0 && FundId is null or >0,"TS.CONFIG.ACTIVATION","Legacy activation requires Portfolio/Fund authority.");
+        else
+            TradeSelectionContracts.Require(DeploymentKeys.Length>0 && DeploymentKeys.All(x=>x.Kind==StrategyCatalogKind.Deployment && x.Id!=Guid.Empty && x.Version>0)
+                && DeploymentKeys.Distinct().Count()==DeploymentKeys.Length,"TS.CONFIG.ACTIVATION","Activation requires unique exact strategy deployments.");
         TradeSelectionContracts.Require(SelectionPolicyReference is {Kind:CatalogPipelineParameterKind.TradeSelection,Version:>0,Role:""} r && r.Id!=Guid.Empty && r.PayloadSha256.Length==64 && r.PayloadSha256.All(Uri.IsHexDigit),"TS.CONFIG.ACTIVATION","Activation requires an exact selector policy reference.");
     }
 }

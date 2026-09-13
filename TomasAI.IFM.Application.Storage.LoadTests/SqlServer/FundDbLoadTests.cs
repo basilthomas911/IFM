@@ -16,7 +16,6 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;

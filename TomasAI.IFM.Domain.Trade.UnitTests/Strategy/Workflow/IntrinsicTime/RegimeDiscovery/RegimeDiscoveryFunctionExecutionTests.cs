@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using NSubstitute;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
@@ -384,11 +383,19 @@ public partial class TradeOrderEditorForm
             {
                 case TradeAddedToFundOrderCompleteEvent added:
                     if (cbLiveFeed.Checked)
-                        await _viewModel.AddTradeLiveFeed(added.FundOrderTrade.OrderId, added.FundOrderTrade.TradeId);
+                        await _viewModel.AddTradeLiveFeed(new TradeEntityId(
+                            _viewModel.SelectedPortfolio!.PortfolioId,
+                            added.FundOrderTrade.FundId,
+                            added.FundOrderTrade.OrderId,
+                            added.FundOrderTrade.TradeId));
                     break;
                 case TradeRemovedFromFundOrderCompleteEvent removed:
                     if (cbLiveFeed.Checked)
-                        await _viewModel.RemoveTradeLiveFeed(removed.FundOrderTradeId.OrderId, removed.FundOrderTradeId.TradeId);
+                        await _viewModel.RemoveTradeLiveFeed(new TradeEntityId(
+                            _viewModel.SelectedPortfolio!.PortfolioId,
+                            removed.FundOrderTradeId.FundId,
+                            removed.FundOrderTradeId.OrderId,
+                            removed.FundOrderTradeId.TradeId));
                     break;
             }
         }

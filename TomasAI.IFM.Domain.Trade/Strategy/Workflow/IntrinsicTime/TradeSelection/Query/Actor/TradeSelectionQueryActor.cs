@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Serialization;
 using System.Collections.Frozen;
 using MessagePack;

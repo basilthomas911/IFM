@@ -1,19 +1,19 @@
 using MessagePack;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Trade;
 
 [MessagePackObject]
-[Union(0, typeof(Futures.Trade.CreateFuturesTradeCommand))]
-[Union(1, typeof(Futures.Trade.AmendFuturesTradeEvidenceCommand))]
-[Union(2, typeof(Futures.Trade.BeginCloseFuturesTradeCommand))]
-[Union(3, typeof(Futures.Trade.CloseFuturesTradeCommand))]
-[Union(4, typeof(Futures.Option.Trade.CreateOptionTradeCommand))]
-[Union(5, typeof(Futures.Option.Trade.AmendOptionTradeEvidenceCommand))]
-[Union(6, typeof(Futures.Option.Trade.BeginCloseOptionTradeCommand))]
-[Union(7, typeof(Futures.Option.Trade.CloseOptionTradeCommand))]
+[Union(0, typeof(Futures.CreateFuturesTradeCommand))]
+[Union(1, typeof(Futures.AmendFuturesTradeEvidenceCommand))]
+[Union(2, typeof(Futures.BeginCloseFuturesTradeCommand))]
+[Union(3, typeof(Futures.CloseFuturesTradeCommand))]
+[Union(4, typeof(Futures.Option.CreateOptionTradeCommand))]
+[Union(5, typeof(Futures.Option.AmendOptionTradeEvidenceCommand))]
+[Union(6, typeof(Futures.Option.BeginCloseOptionTradeCommand))]
+[Union(7, typeof(Futures.Option.CloseOptionTradeCommand))]
 public abstract record EstablishedTradeCommand : ICommand<TradeEntityId>
 {
     [Key(0)] public Guid CommandId { get; init; }
@@ -28,16 +28,16 @@ public abstract record EstablishedTradeCommand : ICommand<TradeEntityId>
 }
 
 [MessagePackObject]
-[Union(0, typeof(Futures.Trade.CreateFuturesTradeCommand))]
-[Union(1, typeof(Futures.Option.Trade.CreateOptionTradeCommand))]
+[Union(0, typeof(Futures.CreateFuturesTradeCommand))]
+[Union(1, typeof(Futures.Option.CreateOptionTradeCommand))]
 public abstract record CreateEstablishedTradeCommand : EstablishedTradeCommand
 {
     [Key(4)] public EstablishedTradeDefinition Trade { get; init; } = new();
 }
 
 [MessagePackObject]
-[Union(0, typeof(Futures.Trade.AmendFuturesTradeEvidenceCommand))]
-[Union(1, typeof(Futures.Option.Trade.AmendOptionTradeEvidenceCommand))]
+[Union(0, typeof(Futures.AmendFuturesTradeEvidenceCommand))]
+[Union(1, typeof(Futures.Option.AmendOptionTradeEvidenceCommand))]
 public abstract record AmendEstablishedTradeEvidenceCommand : EstablishedTradeCommand
 {
     [Key(4)] public Guid AmendmentId { get; init; }

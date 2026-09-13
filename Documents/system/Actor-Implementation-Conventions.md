@@ -3,7 +3,7 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
 **Created:** 2026-08-14  
-**Last updated:** 2026-09-07
+**Last updated:** 2026-09-13
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -29,13 +29,13 @@ Across all actor types, this document will be expanded as decisions are made abo
 
 The central design objective is:
 
-> Event actors should have the same core structure. Differences between actors should primarily represent domain behavior, and that behavior should be isolated in event-family handler extension classes.
+> Event actors should have the same core structure. Differences between actors should primarily represent domain behavior, and that behavior should be isolated in dedicated message handler extension classes.
 
 The structure must make an event actor easy to understand by inspection:
 
 1. the derived actor validates and parses the message through a verb map;
 2. the derived actor selects a handler through a receive map; and
-3. an event-family extension executes the domain-specific behavior.
+3. a dedicated extension for that concrete message executes the domain-specific behavior.
 
 The EventActor sections below record the convention. They do not, by themselves, authorize or imply that every existing event actor has already been migrated.
 
@@ -78,18 +78,24 @@ Supported messages and handlers must be visible in explicit maps. Reflection-bas
 
 The actor's maps are its supported-event manifest. A reviewer should be able to identify every accepted verb and every executable handler without tracing a switch statement or scanning the entire domain assembly.
 
-### 2.4 One event family per handler class
+### 2.4 One mapped message per handler class
 
-A handler extension class represents a main event and its lifecycle family. Complete and fail handlers do not receive separate extension classes.
+Every concrete message registered in an actor receive map has its own handler extension class. A handler class processes exactly one concrete command, query, event, realtime event, or function message. Main, complete, and fail lifecycle messages therefore use separate handler classes even when they share a lifecycle and service identifier.
 
 For example:
 
 ```text
-Main event:       FuturesTickTradeDataInsertedEvent
-Complete event:   FuturesTickTradeDataInsertedCompleteEvent
-Fail event:       FuturesTickTradeDataInsertedFailEvent
-Extension class:  FuturesTickTradeDataInserted
-Source file:      FuturesTickTradeDataInserted.cs
+Main event:        FuturesTickTradeDataInsertedEvent
+Handler class:     FuturesTickTradeDataInserted
+Source file:       FuturesTickTradeDataInserted.cs
+
+Complete event:    FuturesTickTradeDataInsertedCompleteEvent
+Handler class:     FuturesTickTradeDataInsertedComplete
+Source file:       FuturesTickTradeDataInsertedComplete.cs
+
+Fail event:        FuturesTickTradeDataInsertedFailEvent
+Handler class:     FuturesTickTradeDataInsertedFail
+Source file:       FuturesTickTradeDataInsertedFail.cs
 ```
 
 This co-location makes the complete lifecycle of one domain operation visible in one file.
@@ -116,9 +122,9 @@ A derived event actor owns common functionality for that actor, including:
 
 The derived actor forwards the resolved event to the selected extension handler. It should not contain the handler's domain algorithm.
 
-### 3.3 Event-family extension handler
+### 3.3 Mapped-message extension handler
 
-An event-family handler owns only the behavior of its event family. At a minimum, every public handler extension receives `IEventActorContext` and the derived actor's typed logger. Actor messaging, context operations, and exception logging must remain explicit at every mapped handler boundary.
+A mapped-message handler owns only the behavior of its single concrete message. At a minimum, every public handler extension receives `IEventActorContext` and the derived actor's typed logger. Actor messaging, context operations, and exception logging must remain explicit at every mapped handler boundary.
 
 A handler may also receive dependencies supplied by the derived actor, such as:
 
@@ -226,22 +232,24 @@ An event that passed parsing but has no receive handler is an actor configuratio
 
 ### 6.1 Naming
 
-The extension class and source filename use the main event type with the `Event` suffix removed.
+The extension class and source filename use the concrete event type with its message-type suffix removed. A lifecycle qualifier such as `Complete` or `Fail` remains part of the handler name.
 
 Examples:
 
-| Main event contract | Extension class | Source file |
+| Message contract | Extension class | Source file |
 | --- | --- | --- |
 | `FuturesEodDataInsertedEvent` | `FuturesEodDataInserted` | `FuturesEodDataInserted.cs` |
 | `VixFuturesEodDataInsertedEvent` | `VixFuturesEodDataInserted` | `VixFuturesEodDataInserted.cs` |
 | `FuturesTickTradeDataChangedEvent` | `FuturesTickTradeDataChanged` | `FuturesTickTradeDataChanged.cs` |
 | `FuturesTickTradeDataInsertedEvent` | `FuturesTickTradeDataInserted` | `FuturesTickTradeDataInserted.cs` |
+| `FuturesTickTradeDataInsertedCompleteEvent` | `FuturesTickTradeDataInsertedComplete` | `FuturesTickTradeDataInsertedComplete.cs` |
+| `FuturesTickTradeDataInsertedFailEvent` | `FuturesTickTradeDataInsertedFail` | `FuturesTickTradeDataInsertedFail.cs` |
 
-Separate classes named after `CompleteEvent` or `FailEvent` are not used when those events belong to an existing main-event family.
+Complete and fail messages always receive their own classes when they have distinct receive-map entries.
 
 ### 6.2 Extension method name
 
-Handler overloads use `ExecuteAsync`. The concrete `this` parameter selects the lifecycle member:
+Handlers use `ExecuteAsync`. Each class exposes the extension for its one concrete message:
 
 ```csharp
 public static ValueTask<bool> ExecuteAsync(
@@ -250,24 +258,13 @@ public static ValueTask<bool> ExecuteAsync(
     SomeEventParameters parameters,
     ILogger<SomeEventActor> logger);
 
-public static ValueTask<bool> ExecuteAsync(
-    this SomeInsertedCompleteEvent @event,
-    IEventActorContext context,
-    SomeEventParameters parameters,
-    ILogger<SomeEventActor> logger);
-
-public static ValueTask<bool> ExecuteAsync(
-    this SomeInsertedFailEvent @event,
-    IEventActorContext context,
-    SomeEventParameters parameters,
-    ILogger<SomeEventActor> logger);
 ```
 
 The return contract may be refined as the actor pattern evolves. Until then, an implementation must preserve the result semantics expected by its derived actor and must not use a successful return to conceal an exception that should trigger actor retry behavior.
 
 ### 6.3 Service identifier and log source
 
-Every main event-family extension class owns a static `ServiceId`. Its value comes from a dedicated `LogSourceType` entry whose name is the main event name with the `Event` suffix removed.
+Every mapped event handler exposes the lifecycle family's static `ServiceId`. Its value comes from a dedicated `LogSourceType` entry whose name is the main event name with the `Event` suffix removed.
 
 For example:
 
@@ -289,7 +286,7 @@ static FuturesTickTradeDataInserted()
 static string ServiceId { get; }
 ```
 
-New `LogSourceType` values are appended so existing numeric enum values are not shifted. Main, complete, and fail overloads in the same extension class share the main event family's `ServiceId`.
+New `LogSourceType` values are appended so existing numeric enum values are not shifted. Separate main, complete, and fail handler classes share the main event family's `ServiceId`.
 
 ### 6.4 Default logging behavior
 
@@ -319,7 +316,7 @@ Documentation must describe, as applicable:
 - retry implications; and
 - complete or fail lifecycle behavior.
 
-The extension class itself should also have a summary describing the event family it owns.
+The extension class itself should also have a summary describing the concrete message it owns and its place in any larger lifecycle.
 
 ### 6.6 Private helpers
 
@@ -329,11 +326,11 @@ A private helper must not perform hidden asynchronous work. Sending, persistence
 
 ## 7. EventActor complete and fail handlers
 
-### 7.1 Co-location
+### 7.1 Lifecycle handler separation
 
-Complete and fail handlers are overloads in the main event's extension class. This is mandatory even when their current implementation is terminal and has no additional domain work.
+Complete and fail receive-map entries use dedicated extension classes and source files. This is mandatory even when their current implementation is terminal and has no additional domain work. Related handlers remain co-located at the actor-role folder level and may share a lifecycle service identifier.
 
-For example, `FuturesEodDataInserted` owns handlers for:
+For example, one lifecycle uses these dedicated handlers:
 
 - `FuturesEodDataInsertedEvent`;
 - `FuturesEodDataInsertedCompleteEvent`; and
@@ -367,7 +364,7 @@ A default complete or fail handler must not:
 - publish another copy of the same lifecycle event; or
 - create a complete/fail processing loop.
 
-Specialized lifecycle behavior is allowed, such as the existing VIX completion workflow, but it must remain in the same main-event extension class and be explicitly tested.
+Specialized lifecycle behavior is allowed, but it must remain in the dedicated class for the mapped lifecycle message and be explicitly tested.
 
 ### 7.5 Transactional external-data imports
 
@@ -947,6 +944,40 @@ The extension—not the derived actor—owns:
 - `ServiceOk<GuidResult>` or `ServiceFailed<GuidResult>` creation; and
 - conversion of an expected business/calculation failure into a durable failure event when the domain requires one.
 
+For an ordinary aggregate transition, the command extension exposes the processing order directly:
+
+1. evaluate the state-dependent business rules in deterministic order;
+2. return `UpdateFailed` for the first rejected rule;
+3. construct the next immutable aggregate state and private domain event; and
+4. call `state.Update(domainEvent, command)` through `UpdatedOk`.
+
+The event-construction method remains in the same dedicated command extension class. A generic transition delegate or a newly allocated state-machine wrapper must not hide a small set of command-specific guards and updates. A state machine is appropriate only when the aggregate has a substantive reusable transition graph and its complete decision state can be reconstructed from durable events. Idempotency or deduplication data held only in a transient handler collection is invalid because it is lost between commands and after recovery.
+
+A representative synchronous handler has this form:
+
+```csharp
+public static ServiceResult<GuidResult> Execute(
+    this AddItemCommand command,
+    ItemCommandState state) => command switch
+    {
+        _ when state.Current is null =>
+            command.UpdateFailed("ITEM.NOT_FOUND;Item does not exist."),
+        _ when state.Current.Status == ItemStatus.Closed =>
+            command.UpdateFailed("ITEM.CLOSED;A closed item cannot be changed."),
+        _ => command.UpdatedOk(() => state.Update(
+            command.CreateItemChangedEvent(state.Current),
+            command))
+    };
+
+static ItemChangedEvent CreateItemChangedEvent(
+    this AddItemCommand command,
+    ItemDefinition current) => new()
+    {
+        EntityId = command.EntityId,
+        State = current with { Value = command.Value }
+    };
+```
+
 `UpdatedOk` is appropriate when the event update succeeds and the command should return success. `UpdateFailed` alone does not add an event. When a failed command must also reconstruct durable failed state, the extension first applies the private failure event and then returns the failed service result.
 
 Unexpected exceptions that are not part of the domain's durable failure model flow through the actor's `OnExceptionAsync` convention. Cancellation caused by transport or host shutdown is not silently converted into a business failure unless the domain explicitly defines that transition.
@@ -992,6 +1023,9 @@ The base actor saves pending state events after the mapped command extension ret
 - [ ] Synchronous extensions return `ServiceResult<GuidResult>`.
 - [ ] Genuine asynchronous extensions return `Task<ServiceResult<GuidResult>>` and are awaited; cancellation is propagated when the framework exposes it.
 - [ ] Command extensions create and apply the correct private domain event.
+- [ ] State-dependent business rules are explicit and ordered before private event creation and `state.Update`.
+- [ ] Simple command transitions are not hidden behind generic transition delegates or transient state-machine wrappers.
+- [ ] Idempotency and deduplication state used by a command decision is durably reconstructable.
 - [ ] Success and durable-failure service results preserve the command GUID.
 - [ ] State replay reconstructs completed and failed state.
 - [ ] Repository tests verify event-log persistence and projector handoff.
@@ -1307,6 +1341,26 @@ Existing entity-ID types retain their current representation until a separate sy
 
 For each approved conversion, validation must cover compilation, equality and hashing, default-value rejection, formatting and parsing, message round trips, storage round trips, actor routing, and the affected unit, BDD, and integration suites. A conversion must preserve the externally observable identity format and behavior unless a separately approved migration explicitly changes them.
 
+#### 13.4.2 Dedicated receive-map extension handlers
+
+This convention applies to CommandActor, QueryActor, EventActor, RealtimeActor, and FunctionActor receive maps. Every concrete message type registered in a receive map has exactly one dedicated extension-handler class and source file. A combined class such as `SomeActorHandlers` must not own handlers for several receive-map entries.
+
+The class and source filename are the concrete message name with the trailing message-role suffix removed. Recognized examples include `Command`, `Query`, `Event`, and `RealtimeEvent`; lifecycle qualifiers such as `Complete` and `Fail` remain in the name.
+
+| Actor message | Handler class and source file |
+| --- | --- |
+| `EvaluatePortfolioOrderCompositionCommand` | `EvaluatePortfolioOrderComposition.cs` |
+| `GetPortfolioTradeQuery` | `GetPortfolioTrade.cs` |
+| `OpenPositionRoutesChangedEvent` | `OpenPositionRoutesChanged.cs` |
+| `FuturesTickTradeDataChangedEvent` | `FuturesTickTradeDataChanged.cs` |
+| `FuturesMarketPriceUpdatedRealtimeEvent` | `FuturesMarketPriceUpdated.cs` |
+
+The handler source file resides directly in the owning actor-role folder: `Command`, `Query`, `Event`, `Realtime`, or `Function`. The actor implementation remains in that role's `Actor` child folder. Supporting calculation or domain algorithms may remain in a `Model` child folder, but a generic `Extensions` or actor-wide `Handlers` class must not hide multiple receive-map handlers.
+
+The receive-map delegate remains a thin, exact-type dispatcher. It casts the mapped message and invokes the dedicated extension through `Execute` or `ExecuteAsync`; it does not contain domain behavior. Parsing, validation, state loading, persistence, and exception flow continue to follow the owning actor-type convention.
+
+This rule applies immediately to new or modified receive handlers. Existing actors are migrated through explicitly scoped changes so adoption does not silently alter runtime behavior. The first scoped application is `FuturesRealtimeActor`, whose two entries map to `FuturesTickTradeDataChanged` and `OpenPositionRoutesChanged`.
+
 ## 14. Related documents
 
 - [Order Composition detailed specification](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Specification-v1.0.md) is implemented by the fourth Function actor, with five frozen maps, typed execution policy, List<ValidationError> extension validation, pure Models, typed terminal handlers and completed-only persistence.
@@ -1325,6 +1379,8 @@ For each approved conversion, validation must cover compilation, equality and ha
 
 | Date | Revision |
 | --- | --- |
+| 2026-09-13 | Required Command extension handlers to expose ordered state-dependent business rules before explicit event construction and state update; prohibited generic wrappers for simple transitions and transient, non-rehydratable deduplication state. |
+| 2026-09-13 | Established the system-wide one-message-per-extension-handler convention for Command, Query, Event, Realtime, and Function receive maps; required role-folder placement and message-suffix-based class and filename naming; and recorded `FuturesRealtimeActor` as the first scoped migration. |
 | 2026-08-14 | Created the initial system-wide event actor implementation convention. Recorded derived-actor parse/receive maps, event-family extension naming, main/complete/fail co-location, default lifecycle logging, responsibility boundaries, and initial Tick Aggregation and Futures EOD application. |
 | 2026-08-14 | Promoted the document to the system-wide Actor Implementation Conventions guide. Retained EventActor as the only currently defined convention and reserved CommandActor, QueryActor, and cross-actor sections for later implementation review. |
 | 2026-08-14 | Required every EventActor handler to receive the typed actor logger, added a main-event `LogSourceType` and shared family `ServiceId` convention, and limited default logging to caught exceptions and fail lifecycle events. |

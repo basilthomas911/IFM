@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Order.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Model;
 
@@ -34,7 +34,7 @@ public sealed class StrategyPositionActorStateMachine
             _legs.Add(leg.TradeLegId, new StrategyPositionLeg
             {
                 TradeLegId = leg.TradeLegId,
-                MarketInstrumentId = leg.MarketInstrumentId,
+                ContractId = leg.ContractId,
                 SignedQuantity = filledQuantity,
                 OpeningPrice = openingPrice,
                 CurrentPrice = openingPrice,
@@ -53,6 +53,15 @@ public sealed class StrategyPositionActorStateMachine
         long sourceSequence,
         DateTime occurredAtUtc,
         long routeGeneration)
+        => UpdateLeg(tradeLegId, null, price, sourceSequence, occurredAtUtc, routeGeneration);
+
+    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(
+        Guid tradeLegId,
+        string? contractId,
+        decimal price,
+        long sourceSequence,
+        DateTime occurredAtUtc,
+        long routeGeneration)
     {
         if (Current is null) return Reject("POSITION.NOT_FOUND", "Position does not exist.");
         if (!Current.IsOpen) return Reject("POSITION.CLOSED", "Position is closed.");
@@ -60,6 +69,8 @@ public sealed class StrategyPositionActorStateMachine
             return Reject("POSITION.STALE_ROUTE", "Route generation is stale.");
         if (!_legs.TryGetValue(tradeLegId, out var leg))
             return Reject("POSITION.UNKNOWN_LEG", "Trade leg is not part of this position.");
+        if (contractId is not null && !string.Equals(contractId, leg.ContractId, StringComparison.Ordinal))
+            return Reject("POSITION.CONTRACT_MISMATCH", "The routed ContractId does not identify this trade leg.");
         if (price <= 0 || occurredAtUtc.Kind != DateTimeKind.Utc)
             return Reject("POSITION.INVALID_TICK", "A positive price and UTC timestamp are required.");
         if (sourceSequence <= leg.LastSourceSequence)

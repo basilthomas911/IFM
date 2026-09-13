@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 
@@ -16,9 +16,9 @@ public partial interface ITradeDbContext
     Task UpsertStrategyPositionAsync(StrategyPositionSnapshot position, CancellationToken token = default);
     Task<StrategyPositionSnapshot?> GetStrategyPositionAsync(StrategyPositionId id, CancellationToken token = default);
     Task<QueryPage<StrategyPositionSnapshot>> GetStrategyPositionHistoryAsync(Guid positionId, DateTime fromUtc, DateTime toUtc, int pageSize, byte[]? pagingState = null, CancellationToken token = default);
-    Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, string actor, CancellationToken token = default);
-    Task<ICollection<(uint InstrumentId, MarketPositionRoute Route)>> GetOpenPositionRoutesAsync(uint marketInstrumentId, CancellationToken token = default);
-    Task<ICollection<(uint InstrumentId, MarketPositionRoute Route)>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default);
+    Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, CancellationToken token = default);
+    Task<ICollection<(string ContractId, PortfolioFundTradeLeg Route)>> GetOpenPositionRoutesAsync(string contractId, CancellationToken token = default);
+    Task<ICollection<(string ContractId, PortfolioFundTradeLeg Route)>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default);
 }
 
 public partial class TradeDbContext
@@ -51,9 +51,9 @@ public partial class TradeDbContext
                 execution.ExecutionAttemptId, execution.Status.ToString(), execution.StartedAtUtc, execution.CompletedAtUtc, payload]))
             .ExecuteCommandAsync(token).ConfigureAwait(false);
         foreach (var fill in execution.Fills)
-            await _dbFactory.TradeDb.Use("TradeFlow.Fill.Upsert", "INSERT INTO order_execution_fill_v1 (executionAttemptId,executionFillId,componentId,tradeLegId,marketInstrumentId,filledAtUtc,payload) VALUES (?,?,?,?,?,?,?);")
+            await _dbFactory.TradeDb.Use("TradeFlow.Fill.Upsert.V2", "INSERT INTO order_execution_fill_v2 (executionAttemptId,executionFillId,componentId,tradeLegId,contractId,filledAtUtc,payload) VALUES (?,?,?,?,?,?,?);")
                 .SetParameters(new TradeDbValues([fill.ExecutionAttemptId, fill.ExecutionFillId, fill.ComponentId, fill.TradeLegId,
-                    (long)fill.MarketInstrumentId, fill.FilledAtUtc, MessagePackBinarySerializer.Shared.Serialize(fill)]))
+                    fill.ContractId, fill.FilledAtUtc, MessagePackBinarySerializer.Shared.Serialize(fill)]))
                 .ExecuteCommandAsync(token).ConfigureAwait(false);
     }
 
@@ -134,55 +134,62 @@ public partial class TradeDbContext
             .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetBytes(0)), token);
     }
 
-    public async Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, string actor, CancellationToken token = default)
+    public async Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(position);
-        if (string.IsNullOrWhiteSpace(actor)) throw new ArgumentException("Actor name is required.", nameof(actor));
+        var existing = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Position.Get.V2",
+                "SELECT contractId,tradeLegId FROM open_position_route_recovery_v2 WHERE shard=? AND positionId=?;")
+            .SetParameters(new TradeDbValues([(sbyte)0, position.Id.PositionId]))
+            .ExecuteQueryAsync(row => (ContractId: row.GetString(0), TradeLegId: row.GetGuid(1)), token)
+            .ConfigureAwait(false);
+        foreach (var old in existing)
+        {
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Delete.V2",
+                    "DELETE FROM open_position_route_v2 WHERE contractId=? AND positionId=? AND tradeLegId=?;")
+                .SetParameters(new TradeDbValues([old.ContractId, position.Id.PositionId, old.TradeLegId]))
+                .ExecuteCommandAsync(token).ConfigureAwait(false);
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Delete.V2",
+                    "DELETE FROM open_position_route_recovery_v2 WHERE shard=? AND positionId=? AND tradeLegId=?;")
+                .SetParameters(new TradeDbValues([(sbyte)0, position.Id.PositionId, old.TradeLegId]))
+                .ExecuteCommandAsync(token).ConfigureAwait(false);
+        }
+        if (!position.IsOpen) return;
+
         foreach (var leg in position.Legs)
         {
-            var route = new MarketPositionRoute(position.Id.Trade.PortfolioId, position.Id.Trade.FundId,
+            if (string.IsNullOrWhiteSpace(leg.ContractId))
+                throw new ArgumentException("Every routed position leg requires ContractId.", nameof(position));
+            var route = new PortfolioFundTradeLeg(position.Id.Trade.PortfolioId, position.Id.Trade.FundId,
                 position.Id.Trade.OrderId, position.Id.Trade.TradeId, position.Id.PositionId, leg.TradeLegId,
-                position.StrategyKind, actor, position.Id.Format(), position.RouteGeneration);
-            if (position.IsOpen)
-            {
-                await _dbFactory.TradeDb.Use("TradeFlow.Route.Upsert", "INSERT INTO open_position_route_v1 (marketInstrumentId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,strategyKind,positionActor,positionActorThreadId,generation) VALUES (?,?,?,?,?,?,?,?,?,?,?);")
-                    .SetParameters(new TradeDbValues([(long)leg.MarketInstrumentId, route.PortfolioId, route.FundId, route.OrderId,
-                        route.TradeId, route.StrategyPositionId, route.TradeLegId, route.StrategyKind.ToString(), route.PositionActor,
-                        route.PositionActorThreadId, route.Generation])).ExecuteCommandAsync(token).ConfigureAwait(false);
-                await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Upsert", "INSERT INTO open_position_route_recovery_v1 (shard,positionId,tradeLegId,marketInstrumentId,portfolioId,fundId,orderId,tradeId,strategyKind,positionActor,positionActorThreadId,generation) VALUES (?,?,?,?,?,?,?,?,?,?,?,?);")
-                    .SetParameters(new TradeDbValues([(sbyte)0, route.StrategyPositionId, route.TradeLegId, (long)leg.MarketInstrumentId,
-                        route.PortfolioId, route.FundId, route.OrderId, route.TradeId, route.StrategyKind.ToString(), route.PositionActor,
-                        route.PositionActorThreadId, route.Generation])).ExecuteCommandAsync(token).ConfigureAwait(false);
-            }
-            else
-            {
-                await _dbFactory.TradeDb.Use("TradeFlow.Route.Delete", "DELETE FROM open_position_route_v1 WHERE marketInstrumentId=? AND positionId=? AND tradeLegId=?;")
-                    .SetParameters(new TradeDbValues([(long)leg.MarketInstrumentId, route.StrategyPositionId, route.TradeLegId]))
-                    .ExecuteCommandAsync(token).ConfigureAwait(false);
-                await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Delete", "DELETE FROM open_position_route_recovery_v1 WHERE shard=? AND positionId=? AND tradeLegId=?;")
-                    .SetParameters(new TradeDbValues([(sbyte)0, route.StrategyPositionId, route.TradeLegId]))
-                    .ExecuteCommandAsync(token).ConfigureAwait(false);
-            }
+                position.StrategyKind, position.RouteGeneration);
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Upsert.V2", "INSERT INTO open_position_route_v2 (contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?);")
+                .SetParameters(new TradeDbValues([leg.ContractId, route.PortfolioId, route.FundId, route.OrderId,
+                    route.TradeId, route.StrategyPositionId, route.TradeLegId, route.TradeType.ToString(), route.Generation]))
+                .ExecuteCommandAsync(token).ConfigureAwait(false);
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Upsert.V2", "INSERT INTO open_position_route_recovery_v2 (shard,positionId,tradeLegId,contractId,portfolioId,fundId,orderId,tradeId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?,?);")
+                .SetParameters(new TradeDbValues([(sbyte)0, route.StrategyPositionId, route.TradeLegId, leg.ContractId,
+                    route.PortfolioId, route.FundId, route.OrderId, route.TradeId, route.TradeType.ToString(), route.Generation]))
+                .ExecuteCommandAsync(token).ConfigureAwait(false);
         }
     }
 
-    public async Task<ICollection<(uint InstrumentId, MarketPositionRoute Route)>> GetOpenPositionRoutesAsync(uint marketInstrumentId, CancellationToken token = default)
+    public async Task<ICollection<(string ContractId, PortfolioFundTradeLeg Route)>> GetOpenPositionRoutesAsync(string contractId, CancellationToken token = default)
     {
-        if (marketInstrumentId == 0) throw new ArgumentOutOfRangeException(nameof(marketInstrumentId));
-        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Get", "SELECT portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,strategyKind,positionActor,positionActorThreadId,generation FROM open_position_route_v1 WHERE marketInstrumentId=?;")
-            .SetParameters(new TradeDbValues([(long)marketInstrumentId]))
-            .ExecuteQueryAsync(row => (marketInstrumentId, new MarketPositionRoute(row.GetInt(0), row.GetInt(1), row.GetInt(2), row.GetInt(3),
-                row.GetGuid(4), row.GetGuid(5), row.GetEnum<TradeStrategyKind>(6), row.GetString(7), row.GetString(8), row.GetLong(9))), token)
+        if (string.IsNullOrWhiteSpace(contractId)) throw new ArgumentException("ContractId is required.", nameof(contractId));
+        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Get.V2", "SELECT portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_v2 WHERE contractId=?;")
+            .SetParameters(new TradeDbValues([contractId]))
+            .ExecuteQueryAsync(row => (contractId, new PortfolioFundTradeLeg(row.GetInt(0), row.GetInt(1), row.GetInt(2), row.GetInt(3),
+                row.GetGuid(4), row.GetGuid(5), row.GetEnum<TradeStrategyKind>(6), row.GetLong(7))), token)
             .ConfigureAwait(false);
         return result;
     }
 
-    public async Task<ICollection<(uint InstrumentId, MarketPositionRoute Route)>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default)
+    public async Task<ICollection<(string ContractId, PortfolioFundTradeLeg Route)>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default)
     {
-        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Get", "SELECT marketInstrumentId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,strategyKind,positionActor,positionActorThreadId,generation FROM open_position_route_recovery_v1 WHERE shard=?;")
+        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Get.V2", "SELECT contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_recovery_v2 WHERE shard=?;")
             .SetParameters(new TradeDbValues([(sbyte)0]))
-            .ExecuteQueryAsync(row => ((uint)row.GetLong(0), new MarketPositionRoute(row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetInt(4),
-                row.GetGuid(5), row.GetGuid(6), row.GetEnum<TradeStrategyKind>(7), row.GetString(8), row.GetString(9), row.GetLong(10))), token)
+            .ExecuteQueryAsync(row => (row.GetString(0), new PortfolioFundTradeLeg(row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetInt(4),
+                row.GetGuid(5), row.GetGuid(6), row.GetEnum<TradeStrategyKind>(7), row.GetLong(8))), token)
             .ConfigureAwait(false);
         return result;
     }

@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -29,6 +30,16 @@ public sealed record PortfolioOrderCandidate
     [Key(7)] public TradeOrderComponentDefinition[] Components { get; init; } = [];
     [Key(8)] public decimal RequiredCapital { get; init; }
     [Key(9)] public string EvidenceHash { get; init; } = string.Empty;
+    [Key(10)] public CatalogKey DeploymentKey { get; init; }
+    [Key(11)] public decimal MaximumLoss { get; init; }
+    [Key(12)] public decimal StressLoss { get; init; }
+    [Key(13)] public decimal Notional { get; init; }
+    [Key(14)] public string ProductSymbol { get; init; } = string.Empty;
+    [Key(15)] public string ProductExchange { get; init; } = string.Empty;
+    [Key(16)] public string ProductCurrency { get; init; } = string.Empty;
+    [Key(17)] public decimal Delta { get; init; }
+    [Key(18)] public decimal Gamma { get; init; }
+    [Key(19)] public decimal Vega { get; init; }
 }
 
 [MessagePackObject]
@@ -66,6 +77,23 @@ public sealed record PortfolioFundOrderDecision(
     [property: Key(3)] int? OrderId);
 
 [MessagePackObject]
+public sealed record PortfolioAcceptedCapacityEffect
+{
+    [Key(0)] public int PortfolioId { get; init; }
+    [Key(1)] public int FundId { get; init; }
+    [Key(2)] public int OrderId { get; init; }
+    [Key(3)] public string UnderlyingScopeKey { get; init; } = string.Empty;
+    [Key(4)] public decimal RequiredCash { get; init; }
+    [Key(5)] public CapacityExposure[] Exposures { get; init; } = [];
+}
+
+[MessagePackObject]
+public sealed record PortfolioFundFinancialSnapshot(
+    [property: Key(0)] int FundId,
+    [property: Key(1)] decimal AvailableCash,
+    [property: Key(2)] CapacityUsed[] Usage);
+
+[MessagePackObject]
 public sealed record PortfolioOrderCompositionReceipt
 {
     [Key(0)] public Guid CompositionId { get; init; }
@@ -74,6 +102,8 @@ public sealed record PortfolioOrderCompositionReceipt
     [Key(3)] public PortfolioFundOrderDecision[] FundDecisions { get; init; } = [];
     [Key(4)] public TradeOrderDefinition[] TradeOrders { get; init; } = [];
     [Key(5)] public long FinancialRevision { get; init; }
+    [Key(6)] public int PortfolioId { get; init; }
+    [Key(7)] public PortfolioAcceptedCapacityEffect[] CapacityEffects { get; init; } = [];
 }
 
 [MessagePackObject]

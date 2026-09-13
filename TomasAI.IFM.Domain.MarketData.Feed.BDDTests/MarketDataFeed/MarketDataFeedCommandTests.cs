@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.MarketDataFeed;
 
@@ -24,6 +25,18 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     {
         "Start", "Stop", "Reset", "Add", "Remove", "TurnOn", "TurnOff", "Delete", "Halt"
     };
+
+    public static TheoryData<TradeEntityId> InvalidTradeEntityIds => new()
+    {
+        new TradeEntityId(0, SampleData.FundId, SampleData.OrderId, SampleData.TradeId),
+        new TradeEntityId(SampleData.PortfolioId, 0, SampleData.OrderId, SampleData.TradeId),
+        new TradeEntityId(SampleData.PortfolioId, SampleData.FundId, 0, SampleData.TradeId),
+        new TradeEntityId(SampleData.PortfolioId, SampleData.FundId, SampleData.OrderId, 0)
+    };
+
+    [Fact]
+    public void Given_AFormattedGlobalTradeIdentity_When_Parsed_Then_AllFourFieldsArePreserved()
+        => TradeEntityId.Parse(TradeId().Format()).Should().Be(TradeId());
 
     [Fact]
     public async Task Given_ARepository_When_TheActorStarts_Then_ItResolvesTheMarketDataFeedRepository()
@@ -58,6 +71,32 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
             Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
+    }
+
+    [Theory]
+    [InlineData("Add")]
+    [InlineData("Remove")]
+    [InlineData("TurnOn")]
+    [InlineData("TurnOff")]
+    [InlineData("Halt")]
+    public void Given_ATradeLiveFeedCommand_When_RoundTripped_Then_TheGlobalTradeIdentityIsPreserved(string kind)
+    {
+        var command = CreateCommand(kind);
+
+        var parsed = _fixture.CreateMarketDataFeedCommandActor().InvokeParseMessage(
+            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), CreateMessage(command));
+
+        var entityId = parsed switch
+        {
+            AddTradeLiveFeedCommand value => value.EntityId,
+            RemoveTradeLiveFeedCommand value => value.EntityId,
+            TurnTradeLiveFeedOnCommand value => value.EntityId,
+            TurnTradeLiveFeedOffCommand value => value.EntityId,
+            HaltTradeLiveFeedCommand value => value.EntityId,
+            _ => throw new InvalidOperationException($"Unexpected command type {parsed.GetType().Name}.")
+        };
+        entityId.Should().Be(TradeId());
+        parsed.Subject.EntityId.Should().Be(TradeId().Format());
     }
 
     [Theory]
@@ -179,7 +218,19 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     [Fact]
     public async Task Given_InvalidBusinessFields_When_Validated_Then_ValidationFails()
     {
-        var invalid = Route(new AddTradeLiveFeedCommand(0, 0, DateOnly.MinValue), Guid.NewGuid());
+        var invalid = Route(new AddTradeLiveFeedCommand(default, DateOnly.MinValue), Guid.NewGuid());
+
+        var act = () => _fixture.CreateMarketDataFeedCommandActor().InvokeOnValidateAsync(
+            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), invalid.Subject.ThreadId, invalid).AsTask();
+
+        await act.Should().ThrowAsync<CommandValidationException>();
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidTradeEntityIds))]
+    public async Task Given_AnIncompleteGlobalTradeIdentity_When_Validated_Then_ValidationFails(TradeEntityId entityId)
+    {
+        var invalid = Route(new AddTradeLiveFeedCommand(entityId, SampleData.ValueDate), Guid.NewGuid());
 
         var act = () => _fixture.CreateMarketDataFeedCommandActor().InvokeOnValidateAsync(
             Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), invalid.Subject.ThreadId, invalid).AsTask();
@@ -269,12 +320,12 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
             "Start" => new StartMarketDataFeedCommand(SampleData.FuturesContracts, SampleData.ValueDate, true),
             "Stop" => new StopMarketDataFeedCommand(SampleData.ValueDate),
             "Reset" => new ResetMarketDataFeedCommand(SampleData.FuturesContracts, SampleData.ValueDate),
-            "Add" => new AddTradeLiveFeedCommand(SampleData.OrderId, SampleData.TradeId, SampleData.ValueDate),
-            "Remove" => new RemoveTradeLiveFeedCommand(SampleData.OrderId, SampleData.TradeId, SampleData.ValueDate),
-            "TurnOn" => new TurnTradeLiveFeedOnCommand(SampleData.OrderId, SampleData.TradeId, SampleData.ValueDate),
-            "TurnOff" => new TurnTradeLiveFeedOffCommand(SampleData.OrderId, SampleData.TradeId, SampleData.ValueDate),
+            "Add" => new AddTradeLiveFeedCommand(TradeId(), SampleData.ValueDate),
+            "Remove" => new RemoveTradeLiveFeedCommand(TradeId(), SampleData.ValueDate),
+            "TurnOn" => new TurnTradeLiveFeedOnCommand(TradeId(), SampleData.ValueDate),
+            "TurnOff" => new TurnTradeLiveFeedOffCommand(TradeId(), SampleData.ValueDate),
             "Delete" => new DeleteStreamingRequestIdCommand(SampleData.StreamingFeedId),
-            "Halt" => new HaltTradeLiveFeedCommand(SampleData.OrderId, SampleData.TradeId),
+            "Halt" => new HaltTradeLiveFeedCommand(TradeId()),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
         return Route(command, commandId ?? Guid.NewGuid());
@@ -293,6 +344,12 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         HaltTradeLiveFeedCommand value => value with { CommandId = commandId, Subject = Subject(HaltTradeLiveFeedCommand.Verb, value.EntityId.Format()) },
         _ => throw new ArgumentOutOfRangeException(nameof(command))
     };
+
+    static TradeEntityId TradeId() => new(
+        SampleData.PortfolioId,
+        SampleData.FundId,
+        SampleData.OrderId,
+        SampleData.TradeId);
 
     static ActorSubject Subject(string verb, string entityId)
         => new(ActorType.Command, MarketDataFeedCommandActor.ActorName, verb, entityId);

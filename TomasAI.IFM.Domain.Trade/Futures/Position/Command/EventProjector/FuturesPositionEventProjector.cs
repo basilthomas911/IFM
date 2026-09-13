@@ -5,7 +5,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
 

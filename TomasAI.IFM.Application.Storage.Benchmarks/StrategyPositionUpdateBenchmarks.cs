@@ -1,7 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Storage.Benchmarks;
 
@@ -23,10 +23,10 @@ public class StrategyPositionUpdateBenchmarks
         var legs = legIds.Select((legId, index) => new TradeLegDefinition
         {
             TradeLegId = legId,
-            MarketInstrumentId = checked((uint)(100 + index)),
             AssetFamily = TradeAssetFamily.FuturesOption,
             SignedQuantity = index is 0 or 3 ? 1 : -1,
-            ContractKey = $"ES-OPTION-{index}"
+            ContractKey = $"ES-OPTION-{index}",
+            ContractId = $"ES-OPTION-{index}"
         }).ToArray();
         var fills = legs.Select((leg, index) => new ExecutionFillEvidence
         {
@@ -34,7 +34,7 @@ public class StrategyPositionUpdateBenchmarks
             ExecutionAttemptId = attemptId,
             ComponentId = componentId,
             TradeLegId = leg.TradeLegId,
-            MarketInstrumentId = leg.MarketInstrumentId,
+            ContractId = leg.ContractId,
             SignedQuantity = leg.SignedQuantity,
             Price = 10m + index,
             FilledAtUtc = DateTime.UnixEpoch,

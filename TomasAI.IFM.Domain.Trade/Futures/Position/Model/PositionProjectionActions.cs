@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -21,7 +21,7 @@ internal static class PositionProjectionActions
             StrategyPositionPhase.Close or StrategyPositionPhase.Correction)
         {
             await dbFactory.TradeDb
-                .ReplaceOpenPositionRoutesAsync(changed.State, positionActor)
+                .ReplaceOpenPositionRoutesAsync(changed.State)
                 .ConfigureAwait(false);
             await context.SendAsync<OpenPositionRoutesChangedEvent, StrategyPositionId>(new OpenPositionRoutesChangedEvent
             {

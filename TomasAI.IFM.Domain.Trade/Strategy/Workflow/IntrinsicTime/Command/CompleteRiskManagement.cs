@@ -54,6 +54,8 @@ public static class CompleteRiskManagement
                 command.Subject.EntityId, timedOut.WorkflowId, timedOut.WorkflowRevision);
             return Ok(command);
         }
+        if (command.PortfolioDecision is { } portfolioDecision)
+            return CompletePortfolioDecision(command, context, state, current, portfolioDecision, now);
         RiskAssessmentResult result;
         try
         {
@@ -125,4 +127,44 @@ public static class CompleteRiskManagement
 
     static ServiceResult<GuidResult> Ok(CompleteRiskManagementCommand command)
         => new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+
+    static ServiceResult<GuidResult> CompletePortfolioDecision(
+        CompleteRiskManagementCommand command,
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
+        IntrinsicTimeStrategyWorkflowCommandState state,
+        IntrinsicTimeStrategyWorkflowView current,
+        PortfolioRiskDecision decision,
+        DateTime now)
+    {
+        PortfolioOrderCompositionMapper.ValidateDecision(current, decision);
+        var noTrade = decision.Status == PortfolioRiskDecisionStatus.NoTradeOrders;
+        var updated = current with
+        {
+            Status = WorkflowStrategyMachineStatus.Completed,
+            Outcome = noTrade ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.Completed,
+            WorkflowRevision = checked(current.WorkflowRevision + 1),
+            CausationId = command.CausationId,
+            UpdatedAtUtc = now,
+            TerminalAtUtc = now,
+            StopReasonCode = noTrade ? "RM.PORTFOLIO.NO_TRADE_ORDERS" : string.Empty,
+            PortfolioRiskDecision = decision,
+            RiskManagement = current.RiskManagement with
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                ContinuationDecision = StrategyWorkflowContinuationDecision.Stop,
+                CompletedAtUtc = now,
+                FailedAtUtc = null,
+                Failure = null,
+                SourceEventId = command.SourceEventId,
+                ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v2",
+                ContinuationRuleSetVersion = 2,
+                ContinuationReasonCodes = noTrade ? ["RM.PORTFOLIO.NO_TRADE_ORDERS"] : ["RM.PORTFOLIO.TRADE_ORDERS_DISPATCHED"]
+            }
+        };
+        AppendSnapshot(state, command, current.Status, updated, now);
+        context.Logger.LogInformation(
+            "Portfolio completed workflow {WorkflowId} with {Status}, {OrderCount} Trade Orders and financial revision {FinancialRevision}",
+            current.WorkflowId, decision.Status, decision.TradeOrders.Length, decision.FinancialRevision);
+        return Ok(command);
+    }
 }

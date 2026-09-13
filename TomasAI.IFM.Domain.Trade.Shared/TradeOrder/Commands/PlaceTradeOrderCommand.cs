@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;

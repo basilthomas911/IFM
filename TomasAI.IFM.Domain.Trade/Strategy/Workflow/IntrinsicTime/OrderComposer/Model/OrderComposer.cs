@@ -81,7 +81,10 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             Outcome = best is null ? CompositionOutcome.NoCandidate : CompositionOutcome.Composed, Candidate = best,
             DecisionContext = new() { SelectionResultId = selected.ResultId, SelectionResultHash = c.AcceptedSelectionEnvelope.PayloadSha256,
                 InputHash = c.InputSha256, BindingHash = binding.BindingSha256, SnapshotHash = snapshot.Digest,
-                ValueDate = c.SelectionBinding.RequestedTradeDate, PortfolioId = selected.PortfolioId, FundId = selected.FundId, PricerVersion = pricer.Version, AlgorithmVersion = AlgorithmVersion },
+                ValueDate = c.SelectionBinding.RequestedTradeDate,
+                PortfolioId = c.SelectionBinding.SchemaVersion == 2 ? 0 : selected.PortfolioId,
+                FundId = c.SelectionBinding.SchemaVersion == 2 ? 0 : selected.FundId,
+                PricerVersion = pricer.Version, AlgorithmVersion = AlgorithmVersion },
             ResolvedParameters = resolved, CandidateCounts = new() { Generated = generated, Eligible = eligible, Rejected = generated - eligible },
             CandidateDiagnostics = rejected.Select(x => new CompositionRejection { ReasonCode = x.Key, Count = x.Value }).ToImmutableArray(),
             Reasons = reasons, ValidUntilUtc = best?.ValidUntilUtc, SummaryText = best is null ? "No eligible construction." : "One unapproved strategy unit.",
@@ -181,7 +184,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         // A development/paper Risk binding observes quote age through the handoff.
         // Keep explicit snapshot/order lifetimes; do not turn the quote-age threshold into another deadline.
         var valid = new[] { c.ExpiresAtUtc, c.SelectionBinding.ValidUntilUtc, c.CompositionBinding.ValidUntilUtc,
-            c.Reservation.Order.ExpiresAtUtc, c.MarketSnapshot.ValidUntilUtc.UtcDateTime,
+            c.MarketSnapshot.ValidUntilUtc.UtcDateTime,
             c.EvaluatedAtUtc.AddMilliseconds(p.CandidateLifetimeMilliseconds), expiration,
             instruments.Min(x => x.Pricing?.Contract.LastTradingUtc.UtcDateTime ?? x.FutureDefinition!.LastTradingUtc.UtcDateTime),
             enforceAge ? instruments.Min(x => x.Quote.EventAtUtc.UtcDateTime.AddMilliseconds(p.MaximumQuoteAgeMilliseconds)) : DateTime.MaxValue,
@@ -198,10 +201,15 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             Quote = instruments[i].Quote, Valuation = option ? values[instruments[i].ContractId] : null,
             DefinitionHash = instruments[i].Pricing?.Contract.DefinitionDigest ?? instruments[i].FutureDefinition!.DefinitionDigest
         }).ToImmutableArray();
+        var neutral = c.SelectionBinding.SchemaVersion == 2;
         var candidate = new CompositionCandidate
         {
-            CandidateId = c.CommandId, OrderId = c.Reservation.Order.OrderId, PrimaryTradeId = c.Reservation.Trades.Single().TradeId,
-            PortfolioId = c.Reservation.Order.PortfolioId, FundId = c.Reservation.Order.FundId, AssignmentVersion = intent.AssignmentVersion,
+            CandidateId = c.CommandId,
+            OrderId = neutral ? 0 : c.Reservation!.Order.OrderId,
+            PrimaryTradeId = neutral ? 0 : c.Reservation!.Trades.Single().TradeId,
+            PortfolioId = neutral ? 0 : c.Reservation!.Order.PortfolioId,
+            FundId = neutral ? 0 : c.Reservation!.Order.FundId,
+            AssignmentVersion = intent.AssignmentVersion,
             DeploymentKey = intent.DeploymentKey, StrategyKey = intent.StrategyKey, StructureKey = intent.StructureKey, VariantKey = intent.VariantKey,
             Product = intent.Product, TargetHorizon = c.CompositionBinding.Rules.SupportedHorizon, Side = intent.Side, Bias = intent.Bias,
             PremiumMode = intent.PremiumMode, Legs = legs, LiquidityCapacityUnits = units,

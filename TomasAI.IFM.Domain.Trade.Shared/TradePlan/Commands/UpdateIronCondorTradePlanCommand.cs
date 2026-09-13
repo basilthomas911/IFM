@@ -3,7 +3,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.TradePlan.Commands;

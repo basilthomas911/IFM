@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
@@ -35,7 +36,7 @@ public static class TurnTradeLiveFeedOff
         => new()
         {
             Subject = new ActorSubject(ActorType.Event, TradeLiveFeedTurnedOffEvent.Actor, TradeLiveFeedTurnedOffEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
+            EntityId = new TradeLiveFeedId(e.OrderId, e.TradeId, e.ValueDate),
             OrderId = e.OrderId,
             TradeId = e.TradeId,
             UpdatedOn = e.OriginatedOn,

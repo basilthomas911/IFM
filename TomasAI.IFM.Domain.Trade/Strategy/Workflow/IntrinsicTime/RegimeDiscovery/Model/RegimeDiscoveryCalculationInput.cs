@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;

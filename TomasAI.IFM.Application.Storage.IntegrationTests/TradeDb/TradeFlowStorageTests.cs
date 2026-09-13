@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -47,7 +47,11 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
     {
         var suffix = Random.Shared.Next(10_000, 900_000);
         var orderId = new TradeOrderId(suffix, suffix + 1, suffix + 2);
-        var tradeId = new TradeEntityId(orderId, suffix + 3);
+        var tradeId = new TradeEntityId(
+            orderId.PortfolioId,
+            orderId.FundId,
+            orderId.OrderId,
+            suffix + 3);
         var componentId = Guid.NewGuid();
         var legId = Guid.NewGuid();
         var executionAttemptId = Guid.NewGuid();
@@ -56,7 +60,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
         var leg = new TradeLegDefinition
         {
             TradeLegId = legId,
-            MarketInstrumentId = (uint)(suffix + 10),
+            ContractId = $"ES-{suffix}",
             AssetFamily = TradeAssetFamily.Futures,
             SignedQuantity = 1,
             ContractKey = $"ES-{suffix}"
@@ -85,7 +89,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
             ExecutionAttemptId = executionAttemptId,
             ComponentId = componentId,
             TradeLegId = legId,
-            MarketInstrumentId = leg.MarketInstrumentId,
+            ContractId = leg.ContractId,
             SignedQuantity = 1,
             Price = 5_000m,
             Commission = 1.25m,
@@ -129,7 +133,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
             Legs = [new StrategyPositionLeg
             {
                 TradeLegId = legId,
-                MarketInstrumentId = leg.MarketInstrumentId,
+                ContractId = leg.ContractId,
                 SignedQuantity = 1,
                 OpeningPrice = 5_000m,
                 CurrentPrice = 5_000m,
@@ -145,7 +149,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
         await fixture.TradeDb.UpsertOrderExecutionAsync(execution);
         await fixture.TradeDb.UpsertEstablishedTradeAsync(trade);
         await fixture.TradeDb.UpsertStrategyPositionAsync(openPosition);
-        await fixture.TradeDb.ReplaceOpenPositionRoutesAsync(openPosition, "FuturesRealtime");
+        await fixture.TradeDb.ReplaceOpenPositionRoutesAsync(openPosition);
 
         (await fixture.TradeDb.GetTradeOrderAsync(orderId)).Should().BeEquivalentTo(order);
         (await fixture.TradeDb.GetOrderExecutionAsync(orderId, executionAttemptId)).Should().BeEquivalentTo(execution);
@@ -157,26 +161,45 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
         (await fixture.TradeDb.GetStrategyPositionHistoryAsync(positionId.PositionId,
             now.AddMinutes(-1), now.AddMinutes(1), 10)).Items.Should().ContainEquivalentOf(openPosition);
 
-        var routes = await fixture.TradeDb.GetOpenPositionRoutesAsync(leg.MarketInstrumentId);
+        var routes = await fixture.TradeDb.GetOpenPositionRoutesAsync(leg.ContractId);
         routes.Should().ContainSingle(entry => entry.Route.StrategyPositionId == positionId.PositionId);
         (await fixture.TradeDb.GetOpenPositionRouteSnapshotAsync())
             .Should().Contain(entry => entry.Route.StrategyPositionId == positionId.PositionId);
 
-        var closedPosition = openPosition with
+        var replacementLeg = openPosition.Legs[0] with
         {
-            Phase = StrategyPositionPhase.Close,
+            TradeLegId = Guid.NewGuid(),
+            ContractId = $"NQ-{suffix}"
+        };
+        var amendedPosition = openPosition with
+        {
             PositionSequence = 2,
             RouteGeneration = 2,
+            Legs = [replacementLeg],
+            AsOfUtc = now.AddMilliseconds(500)
+        };
+        await fixture.TradeDb.ReplaceOpenPositionRoutesAsync(amendedPosition);
+
+        (await fixture.TradeDb.GetOpenPositionRoutesAsync(leg.ContractId)).Should().BeEmpty();
+        (await fixture.TradeDb.GetOpenPositionRoutesAsync(replacementLeg.ContractId))
+            .Should().ContainSingle(entry => entry.Route.StrategyPositionId == positionId.PositionId
+                && entry.Route.TradeLegId == replacementLeg.TradeLegId);
+
+        var closedPosition = amendedPosition with
+        {
+            Phase = StrategyPositionPhase.Close,
+            PositionSequence = 3,
+            RouteGeneration = 3,
             AsOfUtc = now.AddSeconds(1),
             IsOpen = false
         };
         await fixture.TradeDb.UpsertStrategyPositionAsync(closedPosition);
-        await fixture.TradeDb.ReplaceOpenPositionRoutesAsync(closedPosition, "FuturesRealtime");
+        await fixture.TradeDb.ReplaceOpenPositionRoutesAsync(closedPosition);
 
         (await fixture.TradeDb.GetStrategyPositionAsync(positionId)).Should().BeEquivalentTo(closedPosition);
         (await fixture.TradeDb.GetStrategyPositionHistoryAsync(positionId.PositionId,
             now.AddMinutes(-1), now.AddMinutes(1), 10)).Items.Should().HaveCount(2);
-        (await fixture.TradeDb.GetOpenPositionRoutesAsync(leg.MarketInstrumentId)).Should().BeEmpty();
+        (await fixture.TradeDb.GetOpenPositionRoutesAsync(replacementLeg.ContractId)).Should().BeEmpty();
         (await fixture.TradeDb.GetOpenPositionRouteSnapshotAsync())
             .Should().NotContain(entry => entry.Route.StrategyPositionId == positionId.PositionId);
     }

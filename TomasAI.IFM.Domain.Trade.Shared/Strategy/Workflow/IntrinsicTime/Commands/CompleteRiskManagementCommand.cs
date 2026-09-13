@@ -1,5 +1,7 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -44,6 +46,8 @@ public sealed record CompleteRiskManagementCommand : ICommand<IntrinsicTimeStrat
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(12)] public DateTime CompletedAtUtc { get; init; }
+    /// <summary>Gets the atomic Portfolio decision for portfolio-neutral workflow schema 2.</summary>
+    [Key(13)] public PortfolioRiskDecision? PortfolioDecision { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteRiskManagementCommand);
@@ -92,7 +96,8 @@ public sealed record CompleteRiskManagementCommand : ICommand<IntrinsicTimeStrat
         StrategyStageResultEnvelope result,
         Guid correlationId,
         Guid causationId,
-        DateTime completedAtUtc)
+        DateTime completedAtUtc,
+        PortfolioRiskDecision? portfolioDecision = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +112,6 @@ public sealed record CompleteRiskManagementCommand : ICommand<IntrinsicTimeStrat
         CorrelationId = correlationId;
         CausationId = causationId;
         CompletedAtUtc = completedAtUtc;
+        PortfolioDecision = portfolioDecision;
     }
 }

@@ -127,11 +127,11 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             var selectionPolicy = selection.Single(x => x.TargetHorizon == pair.Key);
             var activation = new TradeSelectionActivation
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 ParameterSetId = DevelopmentTradingPortfolioDefaults.ActivationId(now.Year, pair.Key),
-                Version = 1,
-                PortfolioId = portfolioId,
-                FundId = pair.Value,
+                Version = 2,
+                PortfolioId = 0,
+                FundId = null,
                 InstrumentRoot = options.InstrumentRoot,
                 TargetHorizon = pair.Key,
                 SelectionPolicyReference = new()
@@ -140,22 +140,18 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                     Id = selectionPolicy.ParameterSetId,
                     Version = selectionPolicy.Version,
                     PayloadSha256 = TradeSelectionPolicy.Hash(selectionPolicy)
-                }
+                },
+                DeploymentKeys = catalog.For(pair.Key)
             };
             await EnsurePipelinePolicyAsync(CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow,
                 activation.ParameterSetId, activation.Version, activation.Hash(),
                 () => configuration.InsertTradeSelectionActivationDraftAsync(activation, "Development paper-trading workflow activation", Principal, token),
                 StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow, now, token).ConfigureAwait(false);
-            _ = await configuration.ResolveTradeSelectionActivationAsync(activation.ParameterSetId, 1, activation.Hash(), now, token).ConfigureAwait(false);
-            activationReferences.Add(new(pair.Key, activation.ParameterSetId, 1, activation.Hash()));
+            _ = await configuration.ResolveTradeSelectionActivationAsync(activation.ParameterSetId, activation.Version, activation.Hash(), now, token).ConfigureAwait(false);
+            activationReferences.Add(new(pair.Key, activation.ParameterSetId, activation.Version, activation.Hash()));
         }
+        workflow.PortfolioId = portfolioId;
         workflow.Activations = [.. activationReferences];
-
-        foreach (var pair in fundMap)
-            _ = await RequiredEventually(
-                () => queries.ResolveForSelectionAsync(portfolioId, pair.Value, now.Year, pair.Key.ToString(), options.InstrumentRoot,
-                    now, Guid.NewGuid(), 1, Guid.NewGuid(), token),
-                $"Resolve {pair.Key} selection authority", token).ConfigureAwait(false);
 
         logger.LogInformation("Development paper Portfolio {PortfolioId} is ready with {FundCount} Funds, {DeploymentCount} published deployments and {Capital} {Currency} separately posted capital",
             portfolioId, fundMap.Count, catalog.Deployments.Length, options.DevelopmentCapital, options.Currency);

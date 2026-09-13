@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -30,15 +31,23 @@ public static class CompositionDispatch
         using var requestTrace = WorkflowTrace.Start("composer.dispatch.build_request", view);
         var p = binding.Rules.VariantRules.Single(x => x.VariantKey == binding.Selected.VariantKey).BaseParameters;
         var id = new OrderCompositionExecutionId(view.EntityId, view.WorkflowId, view.WorkflowRevision);
+        var neutral = start.SelectionBinding!.SchemaVersion == 2;
+        var deadlines = new List<DateTime>
+        {
+            view.ExpiresAtUtc, binding.ValidUntilUtc, preparation.Snapshot.ValidUntilUtc.UtcDateTime,
+            now.AddMilliseconds(p.ExecutionMilliseconds)
+        };
+        if (!neutral)
+            deadlines.Add(start.Reservation!.Order.ExpiresAtUtc);
         var request = new ExecuteOrderCompositionPipelineCommand
         {
             SchemaVersion = 1, CommandId = start.CommandId, Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor,
                 ExecuteOrderCompositionPipelineCommand.Verb, id.Format()), EntityId = id, InputWorkflowRevision = view.WorkflowRevision,
             WorkflowView = view with { CompositionExecution = null, CompositionDispatch = null }, TriggerEvent = view.TriggerEvent, CorrelationId = view.CorrelationId,
             CausationId = start.CausationId, RequestedAtUtc = now, EvaluatedAtUtc = preparation.Snapshot.EvaluatedAtUtc.UtcDateTime,
-            ExpiresAtUtc = new[] { view.ExpiresAtUtc, start.Reservation!.Order.ExpiresAtUtc, binding.ValidUntilUtc,
-                preparation.Snapshot.ValidUntilUtc.UtcDateTime, now.AddMilliseconds(p.ExecutionMilliseconds) }.Min(),
-            AcceptedSelectionEnvelope = start.AcceptedSelection!, SelectionBinding = start.SelectionBinding!, Reservation = start.Reservation!,
+            ExpiresAtUtc = deadlines.Min(),
+            AcceptedSelectionEnvelope = start.AcceptedSelection!, SelectionBinding = start.SelectionBinding!,
+            Reservation = neutral ? null : start.Reservation!,
             CompositionBinding = binding, MarketSnapshot = CompositionSnapshotAdapter.From(preparation.Snapshot)
         };
         requestTrace?.Stop();

@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 
-public sealed record TradeSelectionPipelineInitialization(TradeSelectionBinding Binding, int FundId);
+public sealed record TradeSelectionPipelineInitialization(TradeSelectionBinding Binding);
 
 /// <summary>Owns activation, portfolio, fund, and policy initialization for Trade Selection.</summary>
 public static class StartTradeSelectionPipeline
@@ -21,8 +21,7 @@ public static class StartTradeSelectionPipeline
             if (view.SelectionBinding is { } existing)
             {
                 TradeSelectionContracts.ValidateBinding(existing);
-                return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(
-                    new(existing, view.FundId > 0 ? view.FundId : existing.PortfolioSnapshot.Fund.FundId));
+                return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(new(existing));
             }
             var horizon = view.TriggerEvent.EntityId.TimePeriod;
             var activationRef = context.Options.Activations.SingleOrDefault(value => value.Horizon == horizon);
@@ -32,17 +31,11 @@ public static class StartTradeSelectionPipeline
             var activation = await context.ConfigurationDb.ResolveTradeSelectionActivationAsync(
                 activationRef.Id, activationRef.Version, activationRef.PayloadSha256, view.StartedAtUtc).ConfigureAwait(false);
             var nextRevision = view.WorkflowRevision + 1;
-            var portfolio = await context.PortfolioQueries.ResolveForSelectionAsync(
-                activation.PortfolioId, activation.FundId, view.TriggerEvent.CreatedOn.Year, horizon.ToString(),
-                activation.InstrumentRoot, view.StartedAtUtc, view.WorkflowId.Value, nextRevision, causationId).ConfigureAwait(false);
-            if (!portfolio.Success || portfolio.Value is null)
-                return PipelineStartResult<TradeSelectionPipelineInitialization>.Failed("TS.INIT.PORTFOLIO_UNAVAILABLE", "PortfolioUnavailable",
-                    string.IsNullOrWhiteSpace(portfolio.ErrorMessage) ? "Selection portfolio authority could not be resolved." : portfolio.ErrorMessage);
-            var binding = await new TradeSelectionBindingResolver(context.ConfigurationDb).ResolveAsync(
-                portfolio.Value, activation.SelectionPolicyReference,
-                DateOnly.FromDateTime(view.TriggerEvent.CreatedOn)).ConfigureAwait(false);
+            var binding = await new StrategySelectionUniverseResolver(context.ConfigurationDb).ResolveAsync(
+                activation, view.WorkflowId.Value, nextRevision, view.CorrelationId, view.StartedAtUtc,
+                view.ExpiresAtUtc, DateOnly.FromDateTime(view.TriggerEvent.CreatedOn)).ConfigureAwait(false);
             TradeSelectionContracts.ValidateBinding(binding);
-            return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(new(binding, portfolio.Value.Fund.FundId));
+            return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(new(binding));
         }
         catch (Exception exception)
         {

@@ -7,24 +7,24 @@ using TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
-using TomasAI.IFM.Domain.Trade.Futures.Option.Trade.Command.Actor;
-using TomasAI.IFM.Domain.Trade.Futures.Option.Trade.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Realtime.Model;
-using TomasAI.IFM.Domain.Trade.Futures.Trade.Command.Actor;
-using TomasAI.IFM.Domain.Trade.Futures.Trade.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
-using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Trade;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
-using TomasAI.IFM.Domain.Trade.Shared.Futures.Trade;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Futures;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
@@ -45,7 +45,7 @@ public sealed class TradeFlowQualificationTests
             typeof(StrategyPositionId), typeof(TradeLegDefinition),
             typeof(TradeOrderComponentDefinition), typeof(TradeOrderDefinition), typeof(ExecutionFillEvidence),
             typeof(OrderExecutionDefinition), typeof(EstablishedTradeDefinition), typeof(StrategyPositionLeg),
-            typeof(StrategyPositionSnapshot), typeof(MarketPositionRoute),
+            typeof(StrategyPositionSnapshot), typeof(PortfolioFundTradeLeg),
             typeof(CreateTradeOrderCommand), typeof(ApproveTradeOrderCommand),
             typeof(ReleaseTradeOrderExecutionCommand), typeof(TradeOrderChangedEvent),
             typeof(StartOrderExecutionCommand), typeof(AddOrderExecutionFillCommand), typeof(OrderExecutionChangedEvent),
@@ -71,14 +71,14 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Valid_unrouted_tick_hot_path_allocates_zero_bytes()
     {
-        var index = new MarketInstrumentRouteIndex(8);
-        index.RegisterKnownInstrument(77);
+        var index = new ContractIdRouteIndex(8);
+        index.RegisterKnownContract("ESZ6");
         for (var sequence = 1; sequence <= 100; sequence++)
-            index.TryRoute(new PositionMarketTick(77, 10m, sequence, Now), out _);
+            index.TryRoute(new PositionMarketTick("ESZ6", 10m, sequence, Now), out _);
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var sequence = 101; sequence <= 10_100; sequence++)
-            index.TryRoute(new PositionMarketTick(77, 10m, sequence, Now), out _);
+            index.TryRoute(new PositionMarketTick("ESZ6", 10m, sequence, Now), out _);
 
         (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
     }
@@ -86,12 +86,12 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Routed_tick_reuses_the_prebuilt_route_bucket()
     {
-        var index = new MarketInstrumentRouteIndex(8);
-        index.Add(new MarketPositionRoute(1, 2, 3, 4, Guid.NewGuid(), Guid.NewGuid(),
-            TradeStrategyKind.IronCondor, "PositionActor", "thread", 1), 77);
-        index.TryGetRoutes(77, out var expected);
+        var index = new ContractIdRouteIndex(8);
+        index.Add(new PortfolioFundTradeLeg(1, 2, 3, 4, Guid.NewGuid(), Guid.NewGuid(),
+            TradeStrategyKind.IronCondor, 1), "ESZ6-C5000");
+        index.TryGetRoutes("ESZ6-C5000", out var expected);
 
-        index.TryRoute(new PositionMarketTick(77, 10m, 1, Now), out var actual)
+        index.TryRoute(new PositionMarketTick("ESZ6-C5000", 10m, 1, Now), out var actual)
             .Should().Be(MarketRouteLookupOutcome.Routed);
 
         actual.Should().BeSameAs(expected);
@@ -100,14 +100,14 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Closed_and_unknown_ticks_are_expected_outcomes()
     {
-        var index = new MarketInstrumentRouteIndex();
-        index.RegisterKnownInstrument(1);
+        var index = new ContractIdRouteIndex();
+        index.RegisterKnownContract("KNOWN");
 
-        index.TryRoute(new PositionMarketTick(1, 1m, 1, Now), out _)
+        index.TryRoute(new PositionMarketTick("KNOWN", 1m, 1, Now), out _)
             .Should().Be(MarketRouteLookupOutcome.NoOpenPosition);
-        index.TryRoute(new PositionMarketTick(2, 1m, 1, Now), out _)
+        index.TryRoute(new PositionMarketTick("UNKNOWN", 1m, 1, Now), out _)
             .Should().Be(MarketRouteLookupOutcome.UnknownInstrument);
-        index.TryRoute(new PositionMarketTick(0, 1m, 1, Now), out _)
+        index.TryRoute(new PositionMarketTick("", 1m, 1, Now), out _)
             .Should().Be(MarketRouteLookupOutcome.InvalidTick);
     }
 

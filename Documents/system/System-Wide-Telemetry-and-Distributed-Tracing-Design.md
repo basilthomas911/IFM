@@ -4,7 +4,7 @@
 
 **Status:** Proposed for review; development/paper-trading summary may precede full application tracing
 
-**Version:** 0.2
+**Version:** 0.3
 
 **Created:** 2026-08-20
 
@@ -50,6 +50,8 @@ alerting, security, and retention topology.
    development and paper trading. Continue independent OTLP export so Aspire can be used in development and a durable
    production telemetry stack can be added later.
 10. Telemetry failure, backpressure, or absence must never reject, delay, duplicate, or change a business operation.
+11. New and modified structured logging uses compile-time `LoggerMessage` source generation. Logging declarations live
+    in dedicated logging classes so domain handlers remain focused on processing and contain no logging definitions.
 
 ## 3. Current-state assessment
 
@@ -345,6 +347,43 @@ also include available business identifiers such as `CommandId`, `QueryId`, `Cor
 
 Stdout and stderr remain useful process evidence but are not authoritative business state. Server Manager displays
 them even if structured OpenTelemetry log export is disabled.
+
+#### 8.1.1 Compile-time structured logging convention
+
+New structured logs and existing logs changed as part of active work use the `Microsoft.Extensions.Logging`
+`LoggerMessage` source generator. Each instrumented component places its log declarations in a dedicated logging class,
+normally under a `Logging` folder and named `<Component>Logging`. The logging class contains only logging declarations;
+it does not select business outcomes, mutate state, route messages, query providers, or handle recovery.
+
+The domain, actor, provider, or message handler remains a normal non-partial class. It decides when an observation is
+meaningful and calls the dedicated logging class with already-computed structured values. Only the logging declaration
+class and its generated methods use `partial`, because that is the required compile-time extension point for the .NET
+logging source generator. This is an approved narrow use of partial classes and must not be used to distribute domain
+behavior across source files.
+
+Every generated log declaration must:
+
+- use `[LoggerMessage]` with an explicit stable `EventId`, `LogLevel`, and constant message template;
+- expose meaningful named template properties rather than interpolating or concatenating strings;
+- accept `ILogger` plus typed scalar or identifier arguments, and accept `Exception` when exception details belong to
+  the observation;
+- avoid serializing commands, events, database rows, credentials, connection strings, or other unrestricted payloads;
+- avoid computing expensive values before the call unless the caller has first established that the observation will
+  be emitted; and
+- retain existing rate limiting or aggregation on repetitive realtime paths so efficient logging does not become
+  excessive logging.
+
+The generated implementation performs the enabled-level check and writes the structured properties without runtime
+message-template parsing or boxing supported value types. Callers must not add a duplicate `IsEnabled` check for simple
+arguments. A caller may guard expensive argument construction when necessary.
+
+`FuturesTickTradeDataChangedLogging` is the first implementation of this convention. It isolates the unknown-contract,
+no-open-position, and route-send-failure definitions from `FuturesTickTradeDataChanged`; the realtime handler retains
+the decision and rate-limit logic while the logging class only emits the selected observation.
+
+This version establishes only the source-generation and separation convention. System-wide event taxonomy, EventId
+allocation ranges, common actor logging, database-provider call logging, redaction policy implementation, and broad
+migration of existing logs remain later observability work.
 
 ### 8.2 Metrics
 
@@ -674,5 +713,6 @@ The initial tracing foundation is accepted when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.3 | 2026-09-13 | Established compile-time structured logging with dedicated logging-only classes, narrowly permitted source-generator partial declarations, stable structured templates, and the first Futures Option realtime implementation. Deferred the broader actor, database-provider, taxonomy, and migration design. |
 | 0.2 | 2026-08-20 | Limited the Server Manager summary to development through paper trading and deferred production observability to a full Aspire-integrated, durable production-readiness milestone. |
 | 0.1 | 2026-08-20 | Defined identity, UI/query/NATS/database/workflow tracing, sampling and security policy, a bounded Server Manager telemetry summary, phased delivery, and acceptance gates. |

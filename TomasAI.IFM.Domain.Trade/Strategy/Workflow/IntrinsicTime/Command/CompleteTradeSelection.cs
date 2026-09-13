@@ -86,11 +86,12 @@ public static class CompleteTradeSelection
             return Ok(command);
         }
         var noTrade=result.Outcome==SelectionOutcome.NoTrade;
+        var neutral = current.SelectionBinding?.SchemaVersion == 2;
         var revision = current.WorkflowRevision + 1;
         var updated = current with
         {
             CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
-            CurrentStage = StrategyWorkflowStage.TradeSelection,
+            CurrentStage = noTrade || !neutral ? StrategyWorkflowStage.TradeSelection : StrategyWorkflowStage.OrderComposition,
             Status=noTrade?WorkflowStrategyMachineStatus.Completed:WorkflowStrategyMachineStatus.Started,
             Outcome=noTrade?StrategyWorkflowOutcome.NoTrade:StrategyWorkflowOutcome.None,
             TerminalAtUtc=noTrade?now:null,StopReasonCode=noTrade?result.PrimaryReasonCode:string.Empty,
@@ -102,7 +103,15 @@ public static class CompleteTradeSelection
                 SourceEventId = command.SourceEventId, ContinuationRuleSetId = "ts-rank-v1",
                 ContinuationRuleSetVersion = 1, ContinuationReasonCodes = [result.PrimaryReasonCode]
             },
-            CompositionHandoff=noTrade?null:TradeSelectionHandoff.Pending(result,command.Result,revision,command.SourceEventId,now)
+            CompositionHandoff = noTrade || neutral ? null
+                : TradeSelectionHandoff.Pending(result, command.Result, revision, command.SourceEventId, now),
+            OrderComposition = noTrade || !neutral ? current.OrderComposition : new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Processing,
+                StartedAtUtc = now,
+                InputWorkflowRevision = revision,
+                ExpiresAtUtc = new[] { current.ExpiresAtUtc, result.ValidUntilUtc }.Min()
+            }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
         return Ok(command);

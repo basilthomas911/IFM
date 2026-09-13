@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
@@ -380,7 +381,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             CompleteMarketConditionCommand value => value.Result,
             CompleteTradeSelectionCommand value => value.Result,
             CompleteOrderCompositionCommand value => value.Result,
-            CompleteRiskManagementCommand value => value.Result,
+            CompleteRiskManagementCommand value when value.PortfolioDecision is null => value.Result,
             _ => null
         };
         if (completionResult is not null)

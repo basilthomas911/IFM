@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -34,6 +35,7 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
     Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => throw new InvalidOperationException("Financial API is not configured.");
     IPortfolioQueryApi PortfolioQueries {get;}
     IPortfolioFundCommandApi PortfolioCommands {get;}
+    IPortfolioOrderCompositionApi PortfolioOrderComposition { get; }
     Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations
         => throw new InvalidOperationException("Composition preparation storage is not configured.");
     Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation
@@ -53,6 +55,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
     public Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => Container.Resolve<Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IPortfolioFundCommandApi PortfolioCommands => Container.Resolve<IPortfolioFundCommandApi>();
+    public IPortfolioOrderCompositionApi PortfolioOrderComposition => Container.Resolve<IPortfolioOrderCompositionApi>();
     public Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations
         => Container.Resolve<Application.MarketData.Pricing.ICompositionPreparationStore>();
     public Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation
@@ -119,6 +122,8 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions
 
     /// <summary>Gets or sets the fund used by the configured Intrinsic Time workflow.</summary>
     public int FundId { get; set; } = 1;
+    /// <summary>Portfolio authority consulted only at the RiskManager boundary.</summary>
+    public int PortfolioId { get; set; } = 1;
     public WorkflowActivationReference[] Activations {get;set;} = [];
 }
 

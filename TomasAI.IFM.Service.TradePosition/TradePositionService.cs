@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
@@ -236,7 +237,9 @@ public class TradePositionService : ITradePositionService
     {
         try
         {
-            await _optionPricerCommandApi.InsertSpreadDistributionsAsync(e.PutSpreadDistribution, e.CallSpreadDistribution);
+            await _optionPricerCommandApi.InsertSpreadDistributionsAsync(
+                e.PutSpreadDistribution.ToSpreadDistributionReadModel(),
+                e.CallSpreadDistribution.ToSpreadDistributionReadModel());
         }
         catch(Exception ex)
         {

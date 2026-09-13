@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -71,8 +72,11 @@ public static class ExecuteOrderComposition
             if (plan.Root != selection.SelectedCandidate.Product.Symbol)
                 throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
             using var timing_composer_market_prepare = WorkflowTrace.Start("composer.market.prepare", view);
+            var preparationDeadline = view.SelectionBinding?.SchemaVersion == 2
+                ? view.OrderComposition.ExpiresAtUtc ?? view.ExpiresAtUtc
+                : view.CompositionHandoff!.Request.ExpiresAtUtc;
             var result = await context.CompositionMarketPreparation.PrepareAsync(key, plan,
-                view.TriggerEvent.EntityId.TimePeriod.ToString(), new(view.CompositionHandoff!.Request.ExpiresAtUtc), default).ConfigureAwait(false);
+                view.TriggerEvent.EntityId.TimePeriod.ToString(), new(preparationDeadline), default).ConfigureAwait(false);
             timing_composer_market_prepare?.Stop();
             prepared = result.Preparation ?? throw new CompositionMarketSourceException(result.Failure?.Code ?? "CompositionPreparationUnavailable");
         }

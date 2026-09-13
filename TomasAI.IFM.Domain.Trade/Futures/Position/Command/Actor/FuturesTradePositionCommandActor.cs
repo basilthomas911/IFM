@@ -1,8 +1,8 @@
 using System.Collections.Frozen;
-using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -25,6 +25,7 @@ public sealed class FuturesTradePositionCommandActor(
         {
             [OpenFuturesPositionCommand.Verb] = message => message.AsCommand<OpenFuturesPositionCommand>()!,
             [UpdateFuturesPositionMarketPriceCommand.Verb] = message => message.AsCommand<UpdateFuturesPositionMarketPriceCommand>()!,
+            [ChangeTradeLegDataCommand.Verb] = message => message.AsCommand<ChangeTradeLegDataCommand>()!,
             [EndOfDayFuturesPositionCommand.Verb] = message => message.AsCommand<EndOfDayFuturesPositionCommand>()!,
             [CloseFuturesPositionCommand.Verb] = message => message.AsCommand<CloseFuturesPositionCommand>()!,
             [CorrectFuturesPositionBasisCommand.Verb] = message => message.AsCommand<CorrectFuturesPositionBasisCommand>()!,
@@ -34,6 +35,7 @@ public sealed class FuturesTradePositionCommandActor(
     static readonly Type[] CommandTypes =
     [
         typeof(OpenFuturesPositionCommand), typeof(UpdateFuturesPositionMarketPriceCommand),
+        typeof(ChangeTradeLegDataCommand),
         typeof(EndOfDayFuturesPositionCommand), typeof(CloseFuturesPositionCommand),
         typeof(CorrectFuturesPositionBasisCommand), typeof(SnapshotFuturesPositionCommand)
     ];
@@ -50,6 +52,8 @@ public sealed class FuturesTradePositionCommandActor(
                 ((OpenFuturesPositionCommand)command).Execute(state),
             [typeof(UpdateFuturesPositionMarketPriceCommand)] = static (command, state) =>
                 ((UpdateFuturesPositionMarketPriceCommand)command).Execute(state),
+            [typeof(ChangeTradeLegDataCommand)] = static (command, state) =>
+                ((ChangeTradeLegDataCommand)command).Execute(state),
             [typeof(EndOfDayFuturesPositionCommand)] = static (command, state) =>
                 ((EndOfDayFuturesPositionCommand)command).Execute(state),
             [typeof(CloseFuturesPositionCommand)] = static (command, state) =>
@@ -61,10 +65,10 @@ public sealed class FuturesTradePositionCommandActor(
         }.ToFrozenDictionary();
 
     protected override bool IsResidentCommand(ICommand command) =>
-        command is UpdateFuturesPositionMarketPriceCommand;
+        command is UpdateFuturesPositionMarketPriceCommand or ChangeTradeLegDataCommand;
 
     protected override bool IsResidentMessage(ActorSubject subject) =>
-        subject.Verb == UpdateFuturesPositionMarketPriceCommand.Verb;
+        subject.Verb is UpdateFuturesPositionMarketPriceCommand.Verb or ChangeTradeLegDataCommand.Verb;
 
     protected override ValueTask OnInMemoryStartupAsync(
         ICommandActorContext<FuturesTradePositionCommandActor> context) =>
@@ -132,7 +136,10 @@ public sealed class FuturesTradePositionCommandActor(
                     command.Subject.EntityId != typed.EntityId.Format() ||
                     command is OpenFuturesPositionCommand open &&
                     (open.Trade.AssetFamily != TradeAssetFamily.Futures ||
-                     open.Trade.StrategyKind != TradeStrategyKind.FuturesOutright))
+                     open.Trade.StrategyKind != TradeStrategyKind.FuturesOutright) ||
+                    command is ChangeTradeLegDataCommand routed &&
+                    (routed.TradeType != TradeStrategyKind.FuturesOutright ||
+                     string.IsNullOrWhiteSpace(routed.ContractId)))
                     throw new ArgumentException("Valid one-leg Futures position identity, type, and subject are required.");
             });
 

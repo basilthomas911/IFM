@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.ViewModels
 {

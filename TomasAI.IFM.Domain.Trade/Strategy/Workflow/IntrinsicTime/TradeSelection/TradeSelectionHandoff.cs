@@ -10,14 +10,27 @@ public static class TradeSelectionHandoff
     public static void ValidateStart(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.StartOrderCompositionPipelineCommand command,DateTime now)
     {
         var state=command.WorkflowState;
-        Require(command.AcceptedSelection is not null && command.SelectionBinding is not null && command.Reservation is not null && state.CompositionHandoff is {Status:CompositionHandoffStatus.Reserved},"TS.HANDOFF.INVALID","Missing accepted selection, binding or committed reservation.");
+        Require(command.AcceptedSelection is not null && command.SelectionBinding is not null,"TS.HANDOFF.INVALID","Missing accepted selection or binding.");
         var result=ReadResult(command.AcceptedSelection);
+        if(command.SelectionBinding.SchemaVersion==2)
+        {
+            Require(command.Reservation is null && state.CompositionHandoff is null
+                && state.CurrentStage==StrategyWorkflowStage.OrderComposition && state.Status==StrategyWorkflowStatus.Running
+                && command.WorkflowId==state.WorkflowId && command.EntityId==state.EntityId && command.InputWorkflowRevision==state.WorkflowRevision
+                && command.SelectionBinding.PayloadSha256==result.DecisionContext.SelectionBinding.PayloadSha256
+                && command.AcceptedSelection.PayloadSha256==state.TradeSelection.Result?.PayloadSha256
+                && result.Outcome==SelectionOutcome.Selected && now<result.ValidUntilUtc
+                && command.ExpectedCompletionAtUtc is {} deadline && now<deadline,"TS.HANDOFF.INVALID","Portfolio-neutral composition start is invalid.");
+            Require(state.SelectionDispatch is not null && EvidenceHash(TradeSelectionEvaluator.Evaluate(state.SelectionDispatch))==EvidenceHash(result),"TS.HANDOFF.INVALID","Composition result intent was changed.");
+            return;
+        }
+        Require(command.Reservation is not null && state.CompositionHandoff is {Status:CompositionHandoffStatus.Reserved},"TS.HANDOFF.INVALID","Legacy composition start requires a committed reservation.");
         var handoff=state.CompositionHandoff!;
         Require(state.CurrentStage==StrategyWorkflowStage.OrderComposition && state.Status==StrategyWorkflowStatus.Running && command.WorkflowId==state.WorkflowId && command.EntityId==state.EntityId && command.InputWorkflowRevision==state.WorkflowRevision
             && command.SelectionBinding.PayloadSha256==result.DecisionContext.SelectionBinding.PayloadSha256 && command.AcceptedSelection.PayloadSha256==state.TradeSelection.Result?.PayloadSha256
             && result.Outcome==SelectionOutcome.Selected && now<result.ValidUntilUtc && command.ExpectedCompletionAtUtc==handoff.Request.ExpiresAtUtc && now<command.ExpectedCompletionAtUtc,"TS.HANDOFF.INVALID","Composition start scope or validity differs from accepted selection.");
         Require(state.SelectionDispatch is not null && EvidenceHash(TradeSelectionEvaluator.Evaluate(state.SelectionDispatch))==EvidenceHash(result),"TS.HANDOFF.INVALID","Composition result intent was changed.");
-        ValidateReservation(handoff,command.Reservation);
+        ValidateReservation(handoff,command.Reservation!);
     }
 
     public static WorkflowCompositionHandoffState Pending(TradeSelectionResult result,StrategyStageResultEnvelope envelope,long acceptedRevision,Guid sourceId,DateTime now)

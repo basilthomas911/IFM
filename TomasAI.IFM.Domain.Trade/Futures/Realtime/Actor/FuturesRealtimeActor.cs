@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
-using TomasAI.IFM.Domain.Trade.Futures.Realtime.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Futures.Realtime;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -38,7 +38,7 @@ public sealed class FuturesRealtimeActor(IRealtimeActorContext<FuturesRealtimeAc
     {
         var routes = await services.DbFactory.TradeDb.GetOpenPositionRouteSnapshotAsync().ConfigureAwait(false);
         services.RouteIndex.ReplaceFromSnapshot(routes.Where(static value =>
-            value.Route.StrategyKind == TradeStrategyKind.FuturesOutright));
+            value.Route.TradeType == TradeStrategyKind.FuturesOutright));
         context.AddRealtimeRouter(TickRoute, Id);
     }
 

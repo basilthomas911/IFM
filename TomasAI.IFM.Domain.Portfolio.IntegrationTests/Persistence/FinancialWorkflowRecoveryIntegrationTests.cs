@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

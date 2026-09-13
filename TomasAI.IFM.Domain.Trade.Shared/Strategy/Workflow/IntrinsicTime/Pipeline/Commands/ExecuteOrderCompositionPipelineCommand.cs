@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -34,9 +35,9 @@ public sealed record ExecuteOrderCompositionPipelineCommand : ICommand<OrderComp
     [Key(16)] public TradeSelectionBinding SelectionBinding { get; init; } = new();
     [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
     FundCompositionReservationResult _reservation = default!;
-    [Key(17)] public FundCompositionReservationResult Reservation
+    [Key(17)] public FundCompositionReservationResult? Reservation
     {
-        get => _reservation is null ? null! : _reservation with { Trades = _reservation.Trades is null ? null! : [.. _reservation.Trades] };
+        get => _reservation is null ? null : _reservation with { Trades = _reservation.Trades is null ? null! : [.. _reservation.Trades] };
         init => _reservation = value is null ? null! : value with { Trades = value.Trades is null ? null! : [.. value.Trades] };
     }
     [Key(18)] public CompositionBinding CompositionBinding { get; init; } = new();

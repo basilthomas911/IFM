@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
@@ -154,7 +154,7 @@ public class TradeOrderModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
         var expectedKey = "TradeOrder:1.2.20241201";
         var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel();
@@ -174,7 +174,7 @@ public class TradeOrderModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
         var expectedKey = "TradeOrder:1.2.20241201";
         _redisCache.Get(expectedKey).Returns((string?)null);
 
@@ -191,7 +191,7 @@ public class TradeOrderModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
         var data = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel();
         var expectedKey = "TradeOrder:1.2.20241201";
         var serializedValue = "value";

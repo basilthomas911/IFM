@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -11,6 +11,7 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
@@ -42,18 +43,16 @@ public class MarketDataFeedCommandService(
     /// <summary>
     /// add trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
-    public async Task AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
-        => await ExecuteCommandAsync(() =>  _marketDataFeedCommandApi.AddTradeLiveFeedAsync(orderId, tradeId, valueDate));
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
+    public async Task AddTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate)
+        => await ExecuteCommandAsync(() =>  _marketDataFeedCommandApi.AddTradeLiveFeedAsync(tradeId, valueDate));
 
     /// <summary>
     /// remove trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
-    public async Task RemoveTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
-        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.RemoveTradeLiveFeedAsync(orderId, tradeId, valueDate));
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
+    public async Task RemoveTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate)
+        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.RemoveTradeLiveFeedAsync(tradeId, valueDate));
     /// <summary>Executes or exposes a documented UI service operation.</summary>
     public async Task RemoveTradeLiveFeedsAsync(int orderId)
         => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.RemoveTradeLiveFeedsAsync(orderId));

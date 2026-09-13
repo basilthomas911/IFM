@@ -5,7 +5,6 @@ using System.Text;
 using Xunit;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Shared.UnitTests.MarketData
 {

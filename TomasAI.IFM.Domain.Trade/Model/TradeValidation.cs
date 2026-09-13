@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
 
@@ -31,7 +31,7 @@ public static class TradeValidation
             {
                 if (leg.TradeLegId == Guid.Empty) errors.Add("TradeLegId cannot be empty.");
                 else if (!legs.Add(leg.TradeLegId)) errors.Add($"Duplicate TradeLegId {leg.TradeLegId}.");
-                if (leg.MarketInstrumentId == 0) errors.Add($"Leg {leg.TradeLegId} requires MarketInstrumentId.");
+                if (string.IsNullOrWhiteSpace(leg.ContractId)) errors.Add($"Leg {leg.TradeLegId} requires ContractId.");
                 if (leg.AssetFamily == TradeAssetFamily.Unknown) errors.Add($"Leg {leg.TradeLegId} requires AssetFamily.");
                 if (leg.SignedQuantity == 0) errors.Add($"Leg {leg.TradeLegId} quantity cannot be zero.");
             }
@@ -43,7 +43,7 @@ public static class TradeValidation
     {
         var expected = component.StrategyKind switch
         {
-            TradeStrategyKind.FuturesOutright or TradeStrategyKind.SingleOption => 1,
+            TradeStrategyKind.FuturesOutright or TradeStrategyKind.VanillaOption => 1,
             TradeStrategyKind.VerticalSpread => 2,
             TradeStrategyKind.IronCondor => 4,
             _ => component.Legs.Length
@@ -53,9 +53,8 @@ public static class TradeValidation
         if (component.StrategyKind == TradeStrategyKind.FuturesOutright &&
             component.Legs.Any(static leg => leg.AssetFamily != TradeAssetFamily.Futures))
             errors.Add("FuturesOutright can contain only Futures legs.");
-        if (component.StrategyKind is TradeStrategyKind.SingleOption or TradeStrategyKind.VerticalSpread or TradeStrategyKind.IronCondor &&
+        if (component.StrategyKind is TradeStrategyKind.VanillaOption or TradeStrategyKind.VerticalSpread or TradeStrategyKind.IronCondor &&
             component.Legs.Any(static leg => leg.AssetFamily != TradeAssetFamily.FuturesOption))
             errors.Add($"{component.StrategyKind} can contain only FuturesOption legs.");
     }
 }
-

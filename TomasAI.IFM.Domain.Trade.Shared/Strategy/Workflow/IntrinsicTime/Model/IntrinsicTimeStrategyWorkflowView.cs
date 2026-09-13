@@ -1,9 +1,11 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
@@ -79,5 +81,7 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(35)] public Pipeline.RiskManagement.RiskResizeEvidence? RiskResize { get; init; }
     [Key(36)] public Pipeline.RiskManagement.RiskExplanation? RiskExplanation { get; init; }
     [Key(37)] public ParameterApplicationProvenance? RegimeDiscoveryParameterApplication {get;init;}
+    /// <summary>Atomic Portfolio decision that owns all accepted Fund, Order and reserved Trade identities.</summary>
+    [Key(38)] public PortfolioRiskDecision? PortfolioRiskDecision { get; init; }
 
 }

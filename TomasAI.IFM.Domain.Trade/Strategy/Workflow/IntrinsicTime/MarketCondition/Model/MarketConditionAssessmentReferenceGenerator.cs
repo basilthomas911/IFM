@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

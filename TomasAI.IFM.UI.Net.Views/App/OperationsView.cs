@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Forms.DataVisualization.Charting;

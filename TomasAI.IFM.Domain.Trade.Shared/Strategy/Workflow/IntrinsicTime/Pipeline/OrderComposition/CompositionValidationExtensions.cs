@@ -40,14 +40,18 @@ public static class CompositionValidationExtensions
                 && selected.DecisionContext.SelectionBinding.PayloadSha256 == c.SelectionBinding.PayloadSha256
                 && CompositionHash.Compute(selected.SelectedCandidate) == CompositionHash.Compute(c.CompositionBinding.Selected)
                 && c.AcceptedSelectionEnvelope.HasSameContent(view.TradeSelection.Result), "OC.CONTRACT.UPSTREAM_INVALID");
-            Check(c.Reservation.Order is { OrderId: > 0 } o && o.WorkflowId == c.WorkflowId.Value
-                && o.PortfolioId == selected.PortfolioId && o.FundId == selected.FundId
-                && o.TradeSelectionResultId == selected.ResultId && o.TradeSelectionResultHash == c.AcceptedSelectionEnvelope.PayloadSha256
-                && c.Reservation.Trades.Length == 1 && c.Reservation.Trades[0].OrderId == o.OrderId && c.Reservation.Trades[0].TradeId > 0,
-                "OC.CONTRACT.RESERVATION_INVALID");
+            if(c.SelectionBinding.SchemaVersion==1)
+                Check(c.Reservation?.Order is { OrderId: > 0 } o && o.WorkflowId == c.WorkflowId.Value
+                    && o.PortfolioId == selected.PortfolioId && o.FundId == selected.FundId
+                    && o.TradeSelectionResultId == selected.ResultId && o.TradeSelectionResultHash == c.AcceptedSelectionEnvelope.PayloadSha256
+                    && c.Reservation.Trades.Length == 1 && c.Reservation.Trades[0].OrderId == o.OrderId && c.Reservation.Trades[0].TradeId > 0,
+                    "OC.CONTRACT.RESERVATION_INVALID");
+            else
+                Check(c.Reservation is null && selected.PortfolioId==0 && selected.FundId==0,"OC.CONTRACT.OWNERSHIP_PREMATURE");
         }
         Check(c.ExpiresAtUtc > c.RequestedAtUtc && c.EvaluatedAtUtc <= c.RequestedAtUtc && c.ExpiresAtUtc <= view.ExpiresAtUtc
-            && c.ExpiresAtUtc <= c.SelectionBinding.ValidUntilUtc && c.ExpiresAtUtc <= c.Reservation.Order.ExpiresAtUtc, "OC.CONTRACT.VALUE_RANGE");
+            && c.ExpiresAtUtc <= c.SelectionBinding.ValidUntilUtc
+            && (c.Reservation is null || c.ExpiresAtUtc <= c.Reservation.Order.ExpiresAtUtc), "OC.CONTRACT.VALUE_RANGE");
         Check(MessagePackBinarySerializer.MeasureContent(c.MarketSnapshot) <= 524288
             && MessagePackBinarySerializer.MeasureContent(c.CompositionBinding) <= 262144
             && MessagePackBinarySerializer.MeasureContent(c) <= 1048576 && MessagePackBinarySerializer.MeasureEncoded(c) <= 1048576,
@@ -72,7 +76,8 @@ public static class CompositionValidationExtensions
                 RuleFor(x => x.WorkflowView).NotNull(); RuleFor(x => x.TriggerEvent).NotNull();
                 RuleFor(x => x.AcceptedSelectionEnvelope).NotNull(); RuleFor(x => x.SelectionBinding).NotNull();
                 RuleFor(x => x.CompositionBinding).NotNull(); RuleFor(x => x.MarketSnapshot).NotNull();
-                RuleFor(x => x.Reservation).NotNull(); RuleFor(x => x.InputSha256).Length(64);
+                RuleFor(x => x.InputSha256).Length(64);
+                When(x => x.SelectionBinding?.SchemaVersion == 1, () => RuleFor(x => x.Reservation).NotNull());
                 When(x => x.CompositionBinding is not null, () =>
                 {
                     RuleFor(x => x.CompositionBinding.SchemaVersion).Equal((short)1);

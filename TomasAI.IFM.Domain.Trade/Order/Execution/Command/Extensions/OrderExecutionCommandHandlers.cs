@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Shared.Domain;

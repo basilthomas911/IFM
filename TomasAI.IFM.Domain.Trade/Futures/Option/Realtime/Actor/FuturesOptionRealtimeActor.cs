@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
-using TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Realtime;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -51,7 +51,7 @@ public sealed class FuturesOptionRealtimeActor(
 
         _runtime.RouteIndex.ReplaceFromSnapshot(
             routes.Where(route =>
-                route.Route.StrategyKind is TradeStrategyKind.IronCondor
+                route.Route.TradeType is TradeStrategyKind.IronCondor
                     or TradeStrategyKind.VerticalSpread));
 
         context.AddRealtimeRouter(TickRoute, Id);

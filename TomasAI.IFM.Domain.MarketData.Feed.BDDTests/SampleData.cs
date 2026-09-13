@@ -189,6 +189,8 @@ public static class SampleData
         ];
     }
 
+    public const int PortfolioId = 10;
+    public const int FundId = 20;
     public const int OrderId = 100;
     public const int TradeId = 200;
 

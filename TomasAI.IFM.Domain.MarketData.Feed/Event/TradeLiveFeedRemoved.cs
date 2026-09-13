@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
@@ -48,7 +49,10 @@ public static class TradeLiveFeedRemoved
 
                 // Stop option data feed if not already active...
                 p.OptionTradeLiveFeedMap.Remove(optionTrade);
-                await commandApi.TurnTradeLiveFeedOffAsync(e.CommandId, e.OrderId, e.TradeId, e.EntityId.ValueDate);
+                await commandApi.TurnTradeLiveFeedOffAsync(
+                    e.CommandId,
+                    TradeEntityId.Parse(e.Subject.EntityId),
+                    e.EntityId.ValueDate);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Trade Live Feed removed for OrderId: {e.OrderId}, TradeId: {e.TradeId}");
                 return true;
             }

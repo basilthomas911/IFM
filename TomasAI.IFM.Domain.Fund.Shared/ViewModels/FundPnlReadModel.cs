@@ -1,6 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 

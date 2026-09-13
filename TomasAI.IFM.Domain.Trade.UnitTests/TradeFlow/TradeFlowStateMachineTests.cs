@@ -1,19 +1,24 @@
 using FluentAssertions;
 using TomasAI.IFM.Domain.Trade.Futures.Realtime.Model;
-using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Model;
 using TomasAI.IFM.Domain.Trade.Order.Model;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
-using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
-using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Command;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
+using TomasAI.IFM.Domain.Trade.Futures.Command;
+using TomasAI.IFM.Domain.Trade.Futures.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Futures;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
-using TomasAI.IFM.Domain.Trade.Shared.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -145,19 +150,123 @@ public sealed class TradeFlowStateMachineTests
     }
 
     [Fact]
-    public void Established_trade_creation_and_evidence_amendment_are_idempotent()
+    public void Create_option_trade_handler_applies_rules_before_appending_the_initial_event()
     {
         var trade = Fixture.Trade();
-        var state = new EstablishedTradeActorStateMachine();
-        state.Create(trade).Accepted.Should().BeTrue();
-        state.Create(trade).Accepted.Should().BeTrue();
-        var amendment = Guid.NewGuid();
-        state.AmendEvidence(amendment, 2m);
-        state.AmendEvidence(amendment, 2m);
+        var state = new FuturesOptionTradeCommandState();
+        var create = Fixture.CreateOptionTradeCommand(trade);
 
-        state.Current!.EvidenceRevision.Should().Be(2);
-        state.Current.OpeningCommission.Should().Be(trade.OpeningCommission + 2m);
-        state.Current.OriginalFills.Should().BeSameAs(trade.OriginalFills);
+        create.Execute(state).Success.Should().BeTrue();
+
+        state.Current.Should().BeEquivalentTo(trade);
+        state.Events.Should().ContainSingle()
+            .Which.Should().BeOfType<OptionTradeChangedEvent>()
+            .Which.IsInitialEstablishment.Should().BeTrue();
+        state.AcceptChanges();
+
+        var conflictingTrade = trade with { ExecutionAttemptId = Guid.NewGuid() };
+        var result = Fixture.CreateOptionTradeCommand(conflictingTrade).Execute(state);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().StartWith("TRADE.ALREADY_EXISTS;");
+        state.Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Amend_option_trade_evidence_handler_rejects_missing_identity_and_applies_one_event()
+    {
+        var trade = Fixture.Trade();
+        var state = Fixture.CreatedOptionTradeState(trade);
+        var missingIdentity = Fixture.AmendOptionTradeEvidenceCommand(trade.Id, Guid.Empty, 2m);
+
+        var failed = missingIdentity.Execute(state);
+
+        failed.Success.Should().BeFalse();
+        failed.ErrorMessage.Should().StartWith("TRADE.INVALID_AMENDMENT;");
+        state.Events.Should().BeEmpty();
+
+        var amendment = Fixture.AmendOptionTradeEvidenceCommand(trade.Id, Guid.NewGuid(), 2m);
+        amendment.Execute(state).Success.Should().BeTrue();
+
+        state.Current!.OpeningCommission.Should().Be(trade.OpeningCommission + 2m);
+        state.Current.EvidenceRevision.Should().Be(trade.EvidenceRevision + 1);
+        state.Current.Status.Should().Be(EstablishedTradeStatus.Corrected);
+        state.Events.Should().ContainSingle().Which.Should().BeOfType<OptionTradeChangedEvent>();
+    }
+
+    [Fact]
+    public void Begin_close_option_trade_handler_allows_only_an_active_trade()
+    {
+        var trade = Fixture.Trade();
+        var state = Fixture.CreatedOptionTradeState(trade);
+        var beginClose = Fixture.BeginCloseOptionTradeCommand(trade.Id);
+
+        beginClose.Execute(state).Success.Should().BeTrue();
+
+        state.Current!.Status.Should().Be(EstablishedTradeStatus.Closing);
+        state.Events.Should().ContainSingle().Which.Should().BeOfType<OptionTradeChangedEvent>();
+        state.AcceptChanges();
+
+        var failed = Fixture.BeginCloseOptionTradeCommand(trade.Id).Execute(state);
+
+        failed.Success.Should().BeFalse();
+        failed.ErrorMessage.Should().StartWith("TRADE.INVALID_TRANSITION;");
+        state.Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Close_option_trade_handler_requires_closing_state_before_appending_the_event()
+    {
+        var trade = Fixture.Trade();
+        var state = Fixture.CreatedOptionTradeState(trade);
+
+        var failed = Fixture.CloseOptionTradeCommand(trade.Id).Execute(state);
+
+        failed.Success.Should().BeFalse();
+        failed.ErrorMessage.Should().StartWith("TRADE.INVALID_TRANSITION;");
+        state.Events.Should().BeEmpty();
+
+        Fixture.BeginCloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+        state.AcceptChanges();
+        Fixture.CloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+
+        state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
+        state.Events.Should().ContainSingle().Which.Should().BeOfType<OptionTradeChangedEvent>();
+    }
+
+    [Fact]
+    public void Futures_trade_handlers_apply_the_create_amend_and_close_lifecycle()
+    {
+        var trade = Fixture.FuturesTrade();
+        var state = new FuturesTradeCommandState();
+
+        Fixture.CreateFuturesTradeCommand(trade).Execute(state).Success.Should().BeTrue();
+
+        state.Current.Should().BeEquivalentTo(trade);
+        state.Events.Should().ContainSingle()
+            .Which.Should().BeOfType<FuturesTradeChangedEvent>()
+            .Which.IsInitialEstablishment.Should().BeTrue();
+        state.AcceptChanges();
+
+        var prematureClose = Fixture.CloseFuturesTradeCommand(trade.Id).Execute(state);
+        prematureClose.Success.Should().BeFalse();
+        prematureClose.ErrorMessage.Should().StartWith("TRADE.INVALID_TRANSITION;");
+        state.Events.Should().BeEmpty();
+
+        Fixture.AmendFuturesTradeEvidenceCommand(trade.Id, 1.5m)
+            .Execute(state).Success.Should().BeTrue();
+        state.Current!.Status.Should().Be(EstablishedTradeStatus.Corrected);
+        state.Current.OpeningCommission.Should().Be(trade.OpeningCommission + 1.5m);
+        state.AcceptChanges();
+
+        Fixture.BeginCloseFuturesTradeCommand(trade.Id)
+            .Execute(state).Success.Should().BeTrue();
+        state.Current!.Status.Should().Be(EstablishedTradeStatus.Closing);
+        state.AcceptChanges();
+
+        Fixture.CloseFuturesTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+        state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
+        state.Events.Should().ContainSingle().Which.Should().BeOfType<FuturesTradeChangedEvent>();
     }
 
     [Fact]
@@ -192,29 +301,29 @@ public sealed class TradeFlowStateMachineTests
     [Fact]
     public void Route_index_fans_one_contract_out_to_multiple_portfolios_and_removes_closed_position()
     {
-        var index = new MarketInstrumentRouteIndex();
+        var index = new ContractIdRouteIndex();
         var position1 = Guid.NewGuid();
         var position2 = Guid.NewGuid();
-        index.Add(Fixture.Route(position1, portfolioId: 1), 8001).Should().BeTrue();
-        index.Add(Fixture.Route(position2, portfolioId: 2), 8001).Should().BeTrue();
+        index.Add(Fixture.Route(position1, portfolioId: 1), "OPT-SHARED").Should().BeTrue();
+        index.Add(Fixture.Route(position2, portfolioId: 2), "OPT-SHARED").Should().BeTrue();
 
-        var outcome = index.TryRoute(new PositionMarketTick(8001, 10m, 1, Now), out var routes);
+        var outcome = index.TryRoute(new PositionMarketTick("OPT-SHARED", 10m, 1, Now), out var routes);
 
         outcome.Should().Be(MarketRouteLookupOutcome.Routed);
         routes.Should().HaveCount(2);
-        index.RemovePosition(position1).Should().Be(1);
-        index.TryGetRoutes(8001, out routes).Should().BeTrue();
+        index.RemovePosition(position1, 2).Should().Be(1);
+        index.TryGetRoutes("OPT-SHARED", out routes).Should().BeTrue();
         routes.Should().ContainSingle().Which.PortfolioId.Should().Be(2);
     }
 
     [Fact]
     public void Valid_tick_without_open_position_is_counted_and_ignored()
     {
-        var index = new MarketInstrumentRouteIndex();
-        index.RegisterKnownInstrument(9001);
+        var index = new ContractIdRouteIndex();
+        index.RegisterKnownContract("ESZ6");
 
         MarketRouteLookupOutcome outcome = default;
-        var action = () => outcome = index.TryRoute(new PositionMarketTick(9001, 10m, 1, Now), out _);
+        var action = () => outcome = index.TryRoute(new PositionMarketTick("ESZ6", 10m, 1, Now), out _);
 
         action.Should().NotThrow();
         outcome.Should().Be(MarketRouteLookupOutcome.NoOpenPosition);
@@ -344,7 +453,7 @@ public sealed class TradeFlowStateMachineTests
                 Legs = Enumerable.Range(1, 4).Select(index => new TradeLegDefinition
                 {
                     TradeLegId = Guid.Parse($"20000000-0000-0000-0000-{index:000000000000}"),
-                    MarketInstrumentId = (uint)(8000 + index),
+                    ContractId = $"OPT-{index}",
                     AssetFamily = TradeAssetFamily.FuturesOption,
                     SignedQuantity = (index is 1 or 4 ? -1 : 1) * quantities,
                     ContractKey = $"OPT-{index}",
@@ -362,7 +471,7 @@ public sealed class TradeFlowStateMachineTests
                 ExecutionAttemptId = attempt,
                 ComponentId = component.ComponentId,
                 TradeLegId = leg.TradeLegId,
-                MarketInstrumentId = leg.MarketInstrumentId,
+                ContractId = leg.ContractId,
                 SignedQuantity = Math.Sign(leg.SignedQuantity) * (absoluteQuantity ?? Math.Abs(leg.SignedQuantity)),
                 Price = 1m + index,
                 Commission = .25m,
@@ -377,7 +486,11 @@ public sealed class TradeFlowStateMachineTests
             var component = order.Components[0];
             return new EstablishedTradeDefinition
             {
-                Id = new TradeEntityId(order.Id, component.ReservedTradeId),
+                Id = new TradeEntityId(
+                    order.Id.PortfolioId,
+                    order.Id.FundId,
+                    order.Id.OrderId,
+                    component.ReservedTradeId),
                 AssetFamily = TradeAssetFamily.FuturesOption,
                 StrategyKind = TradeStrategyKind.IronCondor,
                 SourceComponentId = component.ComponentId,
@@ -392,6 +505,67 @@ public sealed class TradeFlowStateMachineTests
             };
         }
 
+        public static FuturesOptionTradeCommandState CreatedOptionTradeState(
+            EstablishedTradeDefinition trade)
+        {
+            var state = new FuturesOptionTradeCommandState();
+            CreateOptionTradeCommand(trade).Execute(state).Success.Should().BeTrue();
+            state.AcceptChanges();
+            return state;
+        }
+
+        public static CreateOptionTradeCommand CreateOptionTradeCommand(
+            EstablishedTradeDefinition trade) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = trade.Id,
+                Trade = trade,
+                Subject = OptionTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.Option.CreateOptionTradeCommand.Verb,
+                    trade.Id)
+            };
+
+        public static AmendOptionTradeEvidenceCommand AmendOptionTradeEvidenceCommand(
+            TradeEntityId tradeId,
+            Guid amendmentId,
+            decimal commissionDelta) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = tradeId,
+                AmendmentId = amendmentId,
+                CommissionDelta = commissionDelta,
+                Subject = OptionTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.Option.AmendOptionTradeEvidenceCommand.Verb,
+                    tradeId)
+            };
+
+        public static BeginCloseOptionTradeCommand BeginCloseOptionTradeCommand(
+            TradeEntityId tradeId) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = tradeId,
+                Subject = OptionTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.Option.BeginCloseOptionTradeCommand.Verb,
+                    tradeId)
+            };
+
+        public static CloseOptionTradeCommand CloseOptionTradeCommand(
+            TradeEntityId tradeId) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = tradeId,
+                Subject = OptionTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.Option.CloseOptionTradeCommand.Verb,
+                    tradeId)
+            };
+
+        static ActorSubject OptionTradeSubject(string verb, TradeEntityId tradeId) =>
+            new(
+                ActorType.Command,
+                FuturesOptionTradeActorNames.Command,
+                verb,
+                tradeId.Format());
+
         public static EstablishedTradeDefinition FuturesTrade()
         {
             var orderId = new TradeOrderId(11, 12, 14);
@@ -399,7 +573,7 @@ public sealed class TradeFlowStateMachineTests
             var leg = new TradeLegDefinition
             {
                 TradeLegId = Guid.Parse("30000000-0000-0000-0000-000000000001"),
-                MarketInstrumentId = 9001,
+                ContractId = "ESZ6",
                 AssetFamily = TradeAssetFamily.Futures,
                 SignedQuantity = 1,
                 ContractKey = "ESZ6",
@@ -407,7 +581,7 @@ public sealed class TradeFlowStateMachineTests
             };
             return new EstablishedTradeDefinition
             {
-                Id = new TradeEntityId(orderId, 22),
+                Id = new TradeEntityId(orderId.PortfolioId, orderId.FundId, orderId.OrderId, 22),
                 AssetFamily = TradeAssetFamily.Futures,
                 StrategyKind = TradeStrategyKind.FuturesOutright,
                 SourceComponentId = Guid.Parse("30000000-0000-0000-0000-000000000002"),
@@ -422,7 +596,7 @@ public sealed class TradeFlowStateMachineTests
                         ExecutionAttemptId = attempt,
                         ComponentId = Guid.Parse("30000000-0000-0000-0000-000000000002"),
                         TradeLegId = leg.TradeLegId,
-                        MarketInstrumentId = leg.MarketInstrumentId,
+                        ContractId = leg.ContractId,
                         SignedQuantity = 1,
                         Price = 100m,
                         FilledAtUtc = Now,
@@ -435,8 +609,58 @@ public sealed class TradeFlowStateMachineTests
             };
         }
 
-        public static MarketPositionRoute Route(Guid positionId, int portfolioId) => new(
-            portfolioId, 2, 3, 4, positionId, Guid.NewGuid(), TradeStrategyKind.IronCondor,
-            "FuturesIronCondorTradePositionCommand", $"{portfolioId}.2.3.4.{positionId:N}", 1);
+        public static CreateFuturesTradeCommand CreateFuturesTradeCommand(
+            EstablishedTradeDefinition trade) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = trade.Id,
+                Trade = trade,
+                Subject = FuturesTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.CreateFuturesTradeCommand.Verb,
+                    trade.Id)
+            };
+
+        public static AmendFuturesTradeEvidenceCommand AmendFuturesTradeEvidenceCommand(
+            TradeEntityId tradeId,
+            decimal commissionDelta) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = tradeId,
+                AmendmentId = Guid.NewGuid(),
+                CommissionDelta = commissionDelta,
+                Subject = FuturesTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.AmendFuturesTradeEvidenceCommand.Verb,
+                    tradeId)
+            };
+
+        public static BeginCloseFuturesTradeCommand BeginCloseFuturesTradeCommand(
+            TradeEntityId tradeId) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = tradeId,
+                Subject = FuturesTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.BeginCloseFuturesTradeCommand.Verb,
+                    tradeId)
+            };
+
+        public static CloseFuturesTradeCommand CloseFuturesTradeCommand(
+            TradeEntityId tradeId) => new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = tradeId,
+                Subject = FuturesTradeSubject(
+                    TomasAI.IFM.Domain.Trade.Shared.Futures.CloseFuturesTradeCommand.Verb,
+                    tradeId)
+            };
+
+        static ActorSubject FuturesTradeSubject(string verb, TradeEntityId tradeId) =>
+            new(
+                ActorType.Command,
+                FuturesTradeActorNames.Command,
+                verb,
+                tradeId.Format());
+
+        public static PortfolioFundTradeLeg Route(Guid positionId, int portfolioId) => new(
+            portfolioId, 2, 3, 4, positionId, Guid.NewGuid(), TradeStrategyKind.IronCondor, 1);
     }
 }

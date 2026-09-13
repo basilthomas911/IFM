@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using System.Drawing;
 using System.Reflection;
@@ -22,7 +23,7 @@ public sealed class OperationsViewRenderingTests
     public void WorkflowDetailsAccordion_RetainsControlsForSameRevisionAndRebuildsForNewRevision()
     {
         using var accordion = new StrategyWorkflowDetailsAccordion();
-        var workflowId = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.StrategyWorkflowId(Guid.NewGuid());
+        var workflowId = new TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId(Guid.NewGuid());
         var details = new StrategyWorkflowDetails(
             workflowId,
             4,

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.Domain;
@@ -181,35 +182,29 @@ public class MarketDataFeedCommandActor(
             var e = (AddTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOrderId(e.OrderId, e.CommandName)
-                .ValidateTradeId(e.TradeId, e.CommandName)
+                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
         [typeof(RemoveTradeLiveFeedCommand)] = cmd => {
             var e = (RemoveTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOrderId(e.OrderId, e.CommandName)
-                .ValidateTradeId(e.TradeId, e.CommandName)
+                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
         [typeof(TurnTradeLiveFeedOnCommand)] = cmd => {
             var e = (TurnTradeLiveFeedOnCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOrderId(e.OrderId, e.CommandName)
-                .ValidateTradeId(e.TradeId, e.CommandName);
+                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                .ValidateValueDate(e.ValueDate, e.CommandName);
         },
         [typeof(TurnTradeLiveFeedOffCommand)] = cmd => {
             var e = (TurnTradeLiveFeedOffCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOrderId(e.OrderId, e.CommandName)
-                .ValidateTradeId(e.TradeId, e.CommandName);
+                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                .ValidateValueDate(e.ValueDate, e.CommandName);
         },
         [typeof(DeleteStreamingRequestIdCommand)] = cmd => {
             var e = (DeleteStreamingRequestIdCommand)cmd; return new List<ValidationError>()
@@ -222,11 +217,20 @@ public class MarketDataFeedCommandActor(
             var e = (HaltTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOrderId(e.OrderId, e.CommandName)
-                .ValidateTradeId(e.TradeId, e.CommandName);
+                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName));
         }
     };
+
+    static void ValidateTradeEntityId(
+        TomasAI.IFM.Domain.Trade.Shared.TradeEntityId entityId,
+        ActorSubject subject,
+        string commandName)
+    {
+        if (!entityId.IsValid)
+            throw new ArgumentException($"{commandName}.EntityId requires positive PortfolioId, FundId, OrderId, and TradeId.");
+        if (!StringComparer.Ordinal.Equals(subject.EntityId, entityId.Format()))
+            throw new ArgumentException($"{commandName}.Subject.EntityId must match EntityId.");
+    }
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
@@ -290,10 +294,10 @@ public class MarketDataFeedCommandActor(
                         ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedRemovedFailEvent.Actor, TradeLiveFeedRemovedFailEvent.Verb),
                 TurnTradeLiveFeedOnException
                     => await ex.SendErrorEventAsync<TradeLiveFeedTurnedOnFailEvent, TradeLiveFeedId>(
-                        context, (command as TurnTradeLiveFeedOnCommand)!, TradeLiveFeedTurnedOnFailEvent.Actor, TradeLiveFeedTurnedOnFailEvent.Verb),
+                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedTurnedOnFailEvent.Actor, TradeLiveFeedTurnedOnFailEvent.Verb),
                 TurnTradeLiveFeedOffException
                     => await ex.SendErrorEventAsync<TradeLiveFeedTurnedOffFailEvent, TradeLiveFeedId>(
-                        context, (command as TurnTradeLiveFeedOffCommand)!, TradeLiveFeedTurnedOffFailEvent.Actor, TradeLiveFeedTurnedOffFailEvent.Verb),
+                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedTurnedOffFailEvent.Actor, TradeLiveFeedTurnedOffFailEvent.Verb),
                 _ => default!
             };
             if (errorEvent is null)

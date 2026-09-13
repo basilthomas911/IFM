@@ -1,10 +1,11 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -16,12 +17,12 @@ public interface IMarketDataFeedCommandApi
     Task<ServiceResult<Guid>> StopMarketDataFeedAsync(DateOnly valueDate);
     Task<ServiceResult<Guid>> ResetMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
 
-    Task<ServiceResult<Guid>> AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate);
-    Task<ServiceResult<Guid>> RemoveTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate);
+    Task<ServiceResult<Guid>> AddTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate);
+    Task<ServiceResult<Guid>> RemoveTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate);
     Task<ServiceResult<Guid>> RemoveTradeLiveFeedsAsync(int orderId);
-    Task<ServiceResult<Guid>> HaltTradeLiveFeedAsync(int orderId, int tradeId);
-    Task<ServiceResult<Guid>> EnableTradeLiveFeedAsync(int orderId, int tradeId);
-    Task<ServiceResult<Guid>> DisableTradeLiveFeedAsync(int orderId, int tradeId);
+    Task<ServiceResult<Guid>> HaltTradeLiveFeedAsync(TradeEntityId tradeId);
+    Task<ServiceResult<Guid>> EnableTradeLiveFeedAsync(TradeEntityId tradeId);
+    Task<ServiceResult<Guid>> DisableTradeLiveFeedAsync(TradeEntityId tradeId);
 
     Task<ServiceResult<Guid>> InsertFuturesTickDataAsync(FuturesContractV3ReadModel futuresContract, FuturesTickDataV2ReadModel futuresTickData);
     Task<ServiceResult<Guid>> InsertFuturesOptionTickDataAsync(FuturesContractV3ReadModel futuresContract, FuturesOptionTickDataV2ReadModel futuresOptionTickData);

@@ -21,6 +21,32 @@ public static partial class TradeSelectionContracts
     }
     static void ValidateEnumeration(TradeSelectionBinding b)
     {
+        if (b.SchemaVersion == 2)
+        {
+            var neutralExpected = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var graph in b.DeploymentSnapshots)
+            {
+                var deployment = b.CatalogDefinitions.Single(x => x.Key == graph.DeploymentKey);
+                var assignmentVersion = Array.IndexOf(b.StrategyUniverse!.DeploymentKeys, graph.DeploymentKey) + 1;
+                foreach (var product in deployment.Products.Where(x => x.Symbol == CommonPolicy(b).InstrumentRoot))
+                foreach (var variantKey in deployment.Variants)
+                {
+                    var variant = b.CatalogDefinitions.Single(x => x.Key == variantKey);
+                    neutralExpected.Add(CandidateIdentity(new SelectionCandidateBinding
+                    {
+                        AssignmentVersion = assignmentVersion,
+                        DeploymentKey = graph.DeploymentKey,
+                        StrategyKey = deployment.Parent!,
+                        StructureKey = variant.Parent!,
+                        VariantKey = variantKey,
+                        Product = product
+                    }));
+                }
+            }
+            Require(neutralExpected.SetEquals(b.Candidates.Select(CandidateIdentity)) && b.ExcludedAssignments.Length == 0,
+                "TS.CONFIG.INVALID", "Portfolio-neutral candidate enumeration is incomplete.");
+            return;
+        }
         var authority=b.PortfolioSnapshot;
         var expected=new HashSet<string>(StringComparer.Ordinal);
         var excluded=new List<SelectionAssignmentExclusion>();

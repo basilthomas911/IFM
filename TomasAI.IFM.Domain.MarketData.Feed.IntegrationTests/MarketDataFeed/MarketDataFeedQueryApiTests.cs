@@ -11,7 +11,6 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.MarketDataFeed;

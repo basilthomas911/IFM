@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Framework.Messaging;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Application.Api.Client;
@@ -164,43 +165,37 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <summary>
     /// enable trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> EnableTradeLiveFeedAsync(int orderId, int tradeId)
-        => await new EnableTradeLiveFeedParameter(orderId, tradeId, TurnTradeLiveFeedOnCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> EnableTradeLiveFeedAsync(TradeEntityId tradeId)
+        => await new EnableTradeLiveFeedParameter(tradeId, TurnTradeLiveFeedOnCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.EnableTradeLiveFeed, e));
 
     /// <summary>
     /// disable trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> DisableTradeLiveFeedAsync(
-        int orderId, 
-        int tradeId)
-        => await new DisableTradeLiveFeedParameter(orderId, tradeId, TurnTradeLiveFeedOffCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> DisableTradeLiveFeedAsync(TradeEntityId tradeId)
+        => await new DisableTradeLiveFeedParameter(tradeId, TurnTradeLiveFeedOffCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.DisableTradeLiveFeed, e));
 
     /// <summary>
     /// add trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
-        => await new AddTradeLiveFeedParameter(orderId, tradeId, valueDate, AddTradeLiveFeedCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> AddTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate)
+        => await new AddTradeLiveFeedParameter(tradeId, valueDate, AddTradeLiveFeedCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.AddTradeLiveFeed, e));
 
     /// <summary>
     /// remove trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> RemoveTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
-        => await new RemoveTradeLiveFeedParameter(orderId, tradeId, valueDate, RemoveTradeLiveFeedCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> RemoveTradeLiveFeedAsync(TradeEntityId tradeId, DateOnly valueDate)
+        => await new RemoveTradeLiveFeedParameter(tradeId, valueDate, RemoveTradeLiveFeedCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.RemoveTradeLiveFeed, e));
 
     /// <summary>
@@ -215,11 +210,10 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <summary>
     /// halt trade live feed
     /// </summary>
-    /// <param name="orderId"></param>
-    /// <param name="tradeId"></param>
+    /// <param name="tradeId">The global Portfolio, Fund, Order, and Trade identity.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> HaltTradeLiveFeedAsync(int orderId, int tradeId)
-        => await new HaltTradeLiveFeedParameter(orderId, tradeId, HaltTradeLiveFeedCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> HaltTradeLiveFeedAsync(TradeEntityId tradeId)
+        => await new HaltTradeLiveFeedParameter(tradeId, HaltTradeLiveFeedCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.HaltTradeLiveFeed, e));
 
     /// <summary>

@@ -3,8 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;

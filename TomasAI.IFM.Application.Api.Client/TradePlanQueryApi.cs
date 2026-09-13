@@ -6,7 +6,6 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventSourcing;

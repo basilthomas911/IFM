@@ -1,6 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
