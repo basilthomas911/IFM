@@ -149,6 +149,9 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IFundQueryApi, FundQueryApi>();
             _container!.RegisterSingleton<ITradeQueryApi, OptionTradeQueryApi>();
             _container!.RegisterSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
+            _container!.RegisterSingleton<
+                TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi,
+                StrategyTradePlanQueryApi>();
             _container!.RegisterSingleton<IDatabaseBackupQueryApi, DatabaseBackupQueryApi>();
         }
 
@@ -318,6 +321,7 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<TradePlacementCommandService>();
             _container.RegisterSingleton<TradePlacementEventService>();
             _container.RegisterSingleton<TradePlanQueryService>();
+            _container.RegisterSingleton<StrategyTradePlanQueryService>();
             _container.RegisterSingleton<TradePlanEventService>();
             _container.RegisterSingleton<TradePlanActionEventService>();
             _container.RegisterSingleton<TradePositionFeedEventService>();

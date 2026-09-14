@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradePositionOpenedEvent : IEvent<OptionTradeEntityId>
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "PositionOpened";
         [IgnoreMember] public const int ErrorCode = 7031;
 
@@ -121,7 +121,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradePositionOpenedCompleteEvent : ICompleteEvent<OptionTradeEntityId>
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "PositionOpenedComplete";
 
         [Key(0)] public ActorSubject Subject { get; init; }
@@ -177,7 +177,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradePositionOpenedFailEvent : IErrorEvent<OptionTradeEntityId>
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "PositionOpenedFail";
 
         [Key(0)] public ActorSubject Subject { get; init; }

@@ -551,7 +551,7 @@ public class EventSourceActorDbContext(
     /// </summary>
     static async Task InsertRequiredProjectionAsync(IObjectRepository<EventSourceActorDbContext> transactionDb, IEvent domainEvent, CancellationToken cancellationToken)
     {
-        if (domainEvent is not IRequireDurableProjection required) return;
+        if (domainEvent is not IRequireDurableProjection { RequiresDurableProjection: true } required) return;
         var requirement = required.RequiredProjection;
         ArgumentException.ThrowIfNullOrWhiteSpace(requirement.ActorName);
         ArgumentException.ThrowIfNullOrWhiteSpace(requirement.ProjectorName);

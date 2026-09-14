@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
 [MessagePackObject(AllowPrivate = true)]
 public record OptionTradeTickPriceDataUpdatedEvent : IEvent<FuturesOptionTickEntityId>
 {
-    [IgnoreMember] public const string Actor = "OptionTradeEvent";
+    [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
     [IgnoreMember] public const string Verb = "TickPriceDataUpdated";
 
     // base metadata (keys 0..7)

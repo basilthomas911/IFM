@@ -39,6 +39,23 @@ The structure must make an event actor easy to understand by inspection:
 
 The EventActor sections below record the convention. They do not, by themselves, authorize or imply that every existing event actor has already been migrated.
 
+## 1.3 Domain hierarchy and namespace ownership
+
+The project name establishes the root domain namespace once. A project such as
+`TomasAI.IFM.Domain.Trade` must place common position behavior under `Position` and use the namespace
+`TomasAI.IFM.Domain.Trade.Position`; it must not create a redundant `Trade` child folder or
+`TomasAI.IFM.Domain.Trade.Trade` namespace. Concrete strategy behavior remains beneath its complete
+domain hierarchy, such as `Futures/Option/Position/IronCondor/Plan`. Cross-strategy queries and reusable
+position-workflow support belong under the root `Position` hierarchy and do not create another generic
+strategy Plan domain.
+
+An asset class nested beneath another asset class must retain that complete ownership path. Futures
+options therefore belong under `Domain.Trade/Futures/Option`; they must not create a parallel
+`Domain.Trade/Option` root. Strategy-specific position, plan, workflow, command, event, query, and
+realtime actors remain beneath `Futures/Option`. Compatibility handlers may preserve an older message
+shape while callers are migrated, but the contract must route to the actor in the current domain
+hierarchy and the handler must reside beside that actor.
+
 ## 2. EventActor design principles
 
 ### 2.1 Uniform actor core
@@ -1138,6 +1155,13 @@ parity.
 
 **2026-09-08 alignment:** Market Condition and Trade Selection use the shared `BaseEventSourceFunctionActor`. Function actors use the mapped conventions below; Regime Discovery, Market Condition, Trade Selection and Order Composition implement the terminal `_eventMap` described here. A custom `IFunctionActor` host that duplicates the lifecycle does not satisfy this convention. Actor-specific execution policy is selected through `_executionPolicyMap`; actors must not calculate deadlines or construct lifecycle callback contexts in overrides. The base owns lifecycle enforcement and never publishes Function events.
 
+Every concrete FunctionActor inherits `BaseEventSourceFunctionActor<...>` directly. A domain-specific
+intermediate actor base class is not permitted because it hides the concrete actor's exact maps and
+prevents architecture checks from proving its complete message surface. Shared behavior belongs in
+pure Models or ordinary static helpers. The concrete actor still owns all five frozen maps, and each
+mapped receive, completion, failure, and execution-policy entry calls the dedicated extension in that
+actor's `Function` folder.
+
 A FunctionActor executes bounded calculation work as one Core NATS request/reply operation. Its
 request is an ordinary `ICommand<TEntityId>`, but its subject uses `ActorType.Function`. The typed
 reply contains exactly one `TCompletedEvent` or `TFailedEvent` in
@@ -1379,6 +1403,7 @@ This rule applies immediately to new or modified receive handlers. Existing acto
 
 | Date | Revision |
 | --- | --- |
+| 2026-09-13 | Required every concrete FunctionActor to inherit the framework FunctionActor base directly, retain its own five frozen maps, and delegate shared behavior through Models or static helpers; removed the strategy-exit intermediate actor bases. |
 | 2026-09-13 | Required Command extension handlers to expose ordered state-dependent business rules before explicit event construction and state update; prohibited generic wrappers for simple transitions and transient, non-rehydratable deduplication state. |
 | 2026-09-13 | Established the system-wide one-message-per-extension-handler convention for Command, Query, Event, Realtime, and Function receive maps; required role-folder placement and message-suffix-based class and filename naming; and recorded `FuturesRealtimeActor` as the first scoped migration. |
 | 2026-08-14 | Created the initial system-wide event actor implementation convention. Recorded derived-actor parse/receive maps, event-family extension naming, main/complete/fail co-location, default lifecycle logging, responsibility boundaries, and initial Tick Aggregation and Futures EOD application. |

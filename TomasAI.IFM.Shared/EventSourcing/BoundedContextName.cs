@@ -91,4 +91,8 @@ public enum BoundedContextName
     FuturesIronCondorTradePositionBoundedContext,
     /// <summary>Routes Futures Vertical Spread position commands.</summary>
     FuturesVerticalSpreadTradePositionBoundedContext,
+    /// <summary>Routes strategy-specific position Trade Plan Function commands.</summary>
+    StrategyPositionTradePlanBoundedContext,
+    /// <summary>Routes strategy-specific position exit-workflow commands.</summary>
+    StrategyPositionExitWorkflowBoundedContext,
 }

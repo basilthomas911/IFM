@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 public static class FuturesOptionTradeActorNames
 {
     public const string Command = "FuturesOptionTradeCommand";
+    public const string Event = "FuturesOptionTradeEvent";
     public const string Query = "FuturesOptionTradeQuery";
 }
 
@@ -23,7 +24,12 @@ public sealed record BeginCloseOptionTradeCommand : EstablishedTradeCommand
 { public const string Verb="BeginCloseOptionTrade"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.OptionTradeBoundedContext; }
 [MessagePackObject]
 public sealed record CloseOptionTradeCommand : EstablishedTradeCommand
-{ public const string Verb="CloseOptionTrade"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.OptionTradeBoundedContext; }
+{
+    public const string Verb = "CloseOptionTrade";
+    [Key(4)] public ExecutionFillEvidence[] ClosingFills { get; init; } = [];
+    [Key(5)] public DateTime ClosedAtUtc { get; init; }
+    [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.OptionTradeBoundedContext;
+}
 
 [MessagePackObject]
 public sealed record OptionTradeChangedEvent : IEvent<TradeEntityId>

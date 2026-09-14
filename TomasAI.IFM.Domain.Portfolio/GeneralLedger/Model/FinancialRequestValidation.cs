@@ -33,6 +33,7 @@ public static class FinancialRequestValidation
             ReservePortfolioTradeRiskCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
             ConsumeCapacityReservationCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
             TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
+            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioCloseOrderCompositionCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
             ChangeCapacityReservationCommand x when x.Body is not null && x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.ReservationId == x.Body.ReservationId => x.EntityId.Format(),
             _ => null
         };
@@ -43,6 +44,7 @@ public static class FinancialRequestValidation
             SubmitEmulatorOrderCommand => "EmulatorSubmit",
             ReservePortfolioTradeRiskCommand => "CapacityReserve", ConsumeCapacityReservationCommand => "CapacityConsume",
             TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand => "OrderCompositionEvaluate",
+            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioCloseOrderCompositionCommand => "OrderCompositionClose",
             ChangeCapacityReservationCommand => "CapacityLifecycle", ConfigureLedgerCommand => "LedgerConfigure", _ => "LedgerPost"
         };
         Add(request.Access?.Roles is { } roles && (roles.Contains("PortfolioAdministrator", StringComparer.Ordinal) || roles.Contains(permission, StringComparer.Ordinal)),

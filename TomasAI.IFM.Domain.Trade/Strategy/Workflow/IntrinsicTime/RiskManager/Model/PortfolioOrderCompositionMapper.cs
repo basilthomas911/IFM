@@ -79,7 +79,8 @@ public static class PortfolioOrderCompositionMapper
             ProductCurrency = candidate.Product.Currency,
             Delta = candidate.Greeks.Delta,
             Gamma = candidate.Greeks.Gamma,
-            Vega = candidate.Greeks.Vega
+            Vega = candidate.Greeks.Vega,
+            PositionType = TradeOrderPositionType.Opening
         };
         var operationId = StableId(view.WorkflowId.Value, $"portfolio-order-composition/{view.WorkflowRevision}");
         var entityId = new FinancialExecutionId(portfolioId, operationId);
@@ -125,6 +126,7 @@ public static class PortfolioOrderCompositionMapper
             || receipt.CapacityEffects.Length != receipt.TradeOrders.Length
             || receipt.TradeOrders.Any(order => !order.Id.IsValid || order.Id.PortfolioId != expectedPortfolioId
                 || order.Revision != 1 || order.Status != TradeOrderStatus.Approved
+                || order.PositionType != TradeOrderPositionType.Opening
                 || order.DefinitionHash != candidate.CandidateHash || order.Components.Length != 1
                 || order.Components[0].ReservedTradeId <= 0
                 || !order.Components[0].Legs.Select(leg => new { LegId = leg.TradeLegId, leg.ContractId })

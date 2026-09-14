@@ -148,6 +148,7 @@ public sealed class PortfolioOrderCompositionModelTests
             {
                 CompositionId=Guid.Parse("11111111-1111-1111-1111-111111111111"), WorkflowId=Guid.NewGuid(),
                 DecisionHorizon="Daily", StrategyKind=TradeStrategyKind.FuturesOutright,
+                PositionType=TradeOrderPositionType.Opening,
                 ValueDate=DateOnly.FromDateTime(now), ValidUntilUtc=now.AddMinutes(1), Origin="ITI",
                 EvidenceHash=new('b',64), DeploymentKey=new(StrategyCatalogKind.Deployment,
                     Guid.Parse("22222222-2222-2222-2222-222222222222"),1),

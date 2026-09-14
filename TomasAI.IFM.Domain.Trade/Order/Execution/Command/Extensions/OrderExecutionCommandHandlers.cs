@@ -19,7 +19,11 @@ public static class OrderExecutionCommandHandlers
     {
         var machine=Machine(s); var accepted=machine.Accept(c.EffectiveAtUtc);
         if(!accepted.Accepted||accepted.Value is null)return TradeCommandResult.Rejected(c.ErrorCode,accepted);
-        var current=machine.Current!; s.Update(new OrderExecutionChangedEvent{EntityId=c.EntityId,State=current,CreatedTrades=accepted.Value},c);
+        var current=machine.Current!; s.Update(new OrderExecutionChangedEvent
+        {
+            EntityId=c.EntityId,State=current,CreatedTrades=accepted.Value.CreatedTrades,
+            ClosedPositions=accepted.Value.ClosedPositions
+        },c);
         return TradeCommandResult.Accepted(c.CommandId);
     }
     static ServiceResult<GuidResult> Apply(ICommand<OrderExecutionId> command,OrderExecutionCommandState state,Func<OrderExecutionActorStateMachine,TradeDecision<OrderExecutionDefinition>> transition)

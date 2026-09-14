@@ -94,6 +94,9 @@ public interface IUiServiceCatalog
     /// <summary>Gets the Trade Plan query service.</summary>
     TradePlanQueryService TradePlanQueries { get; }
 
+    /// <summary>Gets the strategy-position Trade Plan query service.</summary>
+    StrategyTradePlanQueryService StrategyTradePlanQueries { get; }
+
     /// <summary>Gets the Trade Plan event service.</summary>
     TradePlanEventService TradePlanEvents { get; }
 

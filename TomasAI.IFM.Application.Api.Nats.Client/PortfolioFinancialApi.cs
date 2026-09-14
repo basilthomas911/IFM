@@ -13,6 +13,11 @@ public sealed class PortfolioFinancialApi(IActorProducer producer):NatsClientApi
         =>RequestFunctionAsync<EvaluatePortfolioOrderCompositionCommand,FinancialExecutionId,
             FunctionResult<PortfolioOrderCompositionCompletedEvent,PortfolioOrderCompositionFailedEvent>>(
                 request,request.EntityId,cancellationToken);
+    public ValueTask<ServiceResult<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,PortfolioCloseOrderCompositionFailedEvent>>> EvaluateCloseAsync(
+        EvaluatePortfolioCloseOrderCompositionCommand request,CancellationToken cancellationToken=default)
+        =>RequestFunctionAsync<EvaluatePortfolioCloseOrderCompositionCommand,FinancialExecutionId,
+            FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,PortfolioCloseOrderCompositionFailedEvent>>(
+                request,request.EntityId,cancellationToken);
     public Task<ServiceResult<FinancialRead<FinancialAuthorityDraft>>> PrepareFinancialAuthorityAsync(FinancialReadScope scope,PrepareFinancialAuthorityRequest request,CancellationToken token=default)
         =>Read<PrepareFinancialAuthorityRequest,FinancialAuthorityDraft>(scope,request,"GeneralLedgerQuery","PrepareFinancialAuthority",token);
     public Task<ServiceResult<FinancialRead<FinancialBookSetup>>> PrepareFinancialBookAsync(FinancialReadScope scope,PrepareFinancialBookRequest request,CancellationToken token=default)

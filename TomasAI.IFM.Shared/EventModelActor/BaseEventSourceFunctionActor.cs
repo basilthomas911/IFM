@@ -213,6 +213,32 @@ public abstract class BaseEventSourceFunctionActor<
                                 _logger.LogError(exception, "Committed Function {CommandId} requires state reload; durable completion is unchanged.", request.CommandId);
                             }
                         }
+                        else if (persistencePolicy.CompletionMode == FunctionCompletionMode.EventThenProjection)
+                        {
+                            stage = FunctionFailureStage.Persistence;
+                            await RunFunctionStageAsync(request, stage, async token =>
+                                {
+                                    await SaveFunctionStateAsync(_context, threadId, state, request, completed, token)
+                                        .ConfigureAwait(false);
+                                    return true;
+                                }, cancellationToken, preserveConfirmedCommit: true).ConfigureAwait(false);
+
+                            // EventSourceDb is authoritative. Projection is independently recoverable and
+                            // cannot change a completion that has already committed.
+                            try
+                            {
+                                stage = FunctionFailureStage.Projection;
+                                await RunFunctionStageAsync(request, stage,
+                                    token => ProjectFunctionResultAsync(request, completed, token),
+                                    cancellationToken).ConfigureAwait(false);
+                            }
+                            catch (Exception projectionFailure)
+                            {
+                                _logger.LogError(projectionFailure,
+                                    "Committed Function {CommandId} projection failed; durable completion is unchanged.",
+                                    request.CommandId);
+                            }
+                        }
                         else
                         {
                             stage = FunctionFailureStage.Projection;

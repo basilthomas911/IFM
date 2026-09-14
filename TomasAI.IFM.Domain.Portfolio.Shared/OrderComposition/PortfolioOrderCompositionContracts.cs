@@ -15,6 +15,8 @@ public interface IPortfolioOrderCompositionApi
 {
     ValueTask<ServiceResult<FunctionResult<PortfolioOrderCompositionCompletedEvent,PortfolioOrderCompositionFailedEvent>>> EvaluateAsync(
         EvaluatePortfolioOrderCompositionCommand request,CancellationToken cancellationToken=default);
+    ValueTask<ServiceResult<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,PortfolioCloseOrderCompositionFailedEvent>>> EvaluateCloseAsync(
+        EvaluatePortfolioCloseOrderCompositionCommand request,CancellationToken cancellationToken=default);
 }
 
 [MessagePackObject]
@@ -40,6 +42,7 @@ public sealed record PortfolioOrderCandidate
     [Key(17)] public decimal Delta { get; init; }
     [Key(18)] public decimal Gamma { get; init; }
     [Key(19)] public decimal Vega { get; init; }
+    [Key(20)] public TradeOrderPositionType PositionType { get; init; }
 }
 
 [MessagePackObject]

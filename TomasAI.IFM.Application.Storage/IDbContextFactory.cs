@@ -25,6 +25,8 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.TradePlanDb;
+using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.Storage;
@@ -48,6 +50,7 @@ public interface IDbContextFactory
     IReferenceDbContext ReferenceDb { get; }
     ISecuritiesDbContext SecuritiesDb { get; }
     ITradeDbContext TradeDb { get; }
+    ITradePlanDbContext TradePlanDb { get; }
     ISystemAdminDbContext SystemAdminDb { get; }
     IConfigurationDbContext ConfigurationDb { get; }
     PortfolioDbContext PortfolioDb { get; }
@@ -63,6 +66,7 @@ public interface IDbContextFactory
     ReferenceSchemaDb ReferenceSchema { get; }
     SecuritiesSchemaDb SecuritiesSchema { get; }
     TradeSchemaDb TradeSchema { get; }
+    TradePlanSchemaDb TradePlanSchema { get; }
     SystemAdminSchemaDb SystemAdminSchema { get; }
     ConfigurationSchemaDb ConfigurationSchema { get; }
     PortfolioSchemaDb PortfolioSchema { get; }

@@ -42,6 +42,7 @@ public sealed class UiServiceCatalog(
     TradePlacementCommandService tradePlacementCommands,
     TradePlacementEventService tradePlacementEvents,
     TradePlanQueryService tradePlanQueries,
+    StrategyTradePlanQueryService strategyTradePlanQueries,
     TradePlanEventService tradePlanEvents,
     TradePlanActionEventService tradePlanActionEvents,
     TradePositionFeedEventService tradePositionEvents,
@@ -105,6 +106,8 @@ public sealed class UiServiceCatalog(
     public TradePlacementEventService TradePlacementEvents { get; } = tradePlacementEvents;
     /// <inheritdoc />
     public TradePlanQueryService TradePlanQueries { get; } = tradePlanQueries;
+    /// <inheritdoc />
+    public StrategyTradePlanQueryService StrategyTradePlanQueries { get; } = strategyTradePlanQueries;
     /// <inheritdoc />
     public TradePlanEventService TradePlanEvents { get; } = tradePlanEvents;
     /// <inheritdoc />

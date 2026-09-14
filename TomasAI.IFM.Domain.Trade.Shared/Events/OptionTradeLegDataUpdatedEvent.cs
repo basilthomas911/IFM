@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradeLegDataUpdatedEvent : IEvent
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "LegDataUpdated";
         [IgnoreMember] public const int ErrorCode = 0;
         [IgnoreMember] static readonly string CachedUserName = $"{Environment.UserDomainName}\\{Environment.UserName}";

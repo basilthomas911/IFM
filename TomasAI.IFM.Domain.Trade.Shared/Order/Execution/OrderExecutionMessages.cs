@@ -88,6 +88,7 @@ public sealed record OrderExecutionChangedEvent : IEvent<OrderExecutionId>
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public OrderExecutionDefinition State { get; init; } = new();
     [Key(9)] public EstablishedTradeDefinition[] CreatedTrades { get; init; } = [];
+    [Key(10)] public PositionCloseExecution[] ClosedPositions { get; init; } = [];
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(OrderExecutionChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

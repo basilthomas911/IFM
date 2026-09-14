@@ -30,6 +30,8 @@ public sealed class OrderExecutionActorStateMachine
             ExecutionAttemptId = executionAttemptId,
             Channel = channel,
             Status = OrderExecutionStatus.Pending,
+            PositionType = order.PositionType,
+            TargetPositionId = order.TargetPositionId,
             OrderRevision = order.Revision,
             Components = order.Components,
             StartedAtUtc = startedAtUtc
@@ -67,22 +69,25 @@ public sealed class OrderExecutionActorStateMachine
         return TradeDecision<OrderExecutionDefinition>.Accept(Current);
     }
 
-    public TradeDecision<EstablishedTradeDefinition[]> Accept(DateTime completedAtUtc)
+    public TradeDecision<OrderExecutionAcceptance> Accept(DateTime completedAtUtc)
     {
         if (Current is null)
-            return TradeDecision<EstablishedTradeDefinition[]>.Reject("OE.NOT_FOUND", "Execution does not exist.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.NOT_FOUND", "Execution does not exist.");
         if (completedAtUtc.Kind != DateTimeKind.Utc)
-            return TradeDecision<EstablishedTradeDefinition[]>.Reject("OE.INVALID_TIME", "Completion time must be UTC.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.INVALID_TIME", "Completion time must be UTC.");
         if (Current.Status == OrderExecutionStatus.Filled)
-            return TradeDecision<EstablishedTradeDefinition[]>.Reject("OE.ALREADY_ACCEPTED", "Execution was already accepted.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.ALREADY_ACCEPTED", "Execution was already accepted.");
 
         List<EstablishedTradeDefinition> trades = [];
         foreach (var component in Current.Components)
         {
             var componentFills = _fills.Where(value => value.ComponentId == component.ComponentId).ToArray();
             if (!TryResolveAcceptedScale(component, componentFills, out _))
-                return TradeDecision<EstablishedTradeDefinition[]>.Reject(
+                return TradeDecision<OrderExecutionAcceptance>.Reject(
                     "OE.UNBALANCED_EXPOSURE", $"Component {component.ComponentId} is not completely filled or an allowed balanced partial fill.");
+
+            if (Current.PositionType == TradeOrderPositionType.Closing)
+                continue;
 
             var assetFamily = component.StrategyKind == TradeStrategyKind.FuturesOutright
                 ? TradeAssetFamily.Futures
@@ -109,8 +114,31 @@ public sealed class OrderExecutionActorStateMachine
             });
         }
 
+        PositionCloseExecution[] closedPositions = [];
+        if (Current.PositionType == TradeOrderPositionType.Closing)
+        {
+            if (Current.TargetPositionId is not { IsValid: true } target)
+                return TradeDecision<OrderExecutionAcceptance>.Reject(
+                    "OE.CLOSE_TARGET_REQUIRED", "A closing execution requires its existing strategy position identity.");
+            var strategyKinds = Current.Components.Select(static component => component.StrategyKind).Distinct().ToArray();
+            if (strategyKinds.Length != 1)
+                return TradeDecision<OrderExecutionAcceptance>.Reject(
+                    "OE.CLOSE_STRATEGY_AMBIGUOUS", "A closing order must contain exactly one strategy kind.");
+            closedPositions =
+            [
+                new PositionCloseExecution
+                {
+                    PositionId = target,
+                    StrategyKind = strategyKinds[0],
+                    ExecutionAttemptId = Current.ExecutionAttemptId,
+                    Fills = [.. _fills],
+                    CompletedAtUtc = completedAtUtc
+                }
+            ];
+        }
+
         Current = Current with { Status = OrderExecutionStatus.Filled, CompletedAtUtc = completedAtUtc, Fills = [.. _fills] };
-        return TradeDecision<EstablishedTradeDefinition[]>.Accept([.. trades]);
+        return TradeDecision<OrderExecutionAcceptance>.Accept(new([.. trades], closedPositions));
     }
 
     public TradeDecision<OrderExecutionDefinition> Cancel() =>
@@ -165,3 +193,7 @@ public sealed class OrderExecutionActorStateMachine
         TradeDecision<OrderExecutionDefinition>.Reject(code, detail);
     static TradeDecision<OrderExecutionDefinition> Missing() => Reject("OE.NOT_FOUND", "Execution does not exist.");
 }
+
+public sealed record OrderExecutionAcceptance(
+    EstablishedTradeDefinition[] CreatedTrades,
+    PositionCloseExecution[] ClosedPositions);

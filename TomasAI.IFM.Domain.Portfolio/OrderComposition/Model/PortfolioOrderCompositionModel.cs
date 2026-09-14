@@ -22,6 +22,7 @@ public static class PortfolioOrderCompositionModel
         var candidate = request.Body;
         if (request.PortfolioId <= 0 || request.OperationId == Guid.Empty || candidate.CompositionId == Guid.Empty
             || candidate.WorkflowId == Guid.Empty || candidate.Components.Length == 0
+            || candidate.PositionType != TradeOrderPositionType.Opening
             || candidate.Components.Any(component => component.Legs.Length == 0 ||
                 component.Legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId)))
             || candidate.DeploymentKey.Kind != TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment
@@ -91,6 +92,7 @@ public static class PortfolioOrderCompositionModel
             {
                 Id = new(request.PortfolioId, fund.FundId, orderId), Revision = 1,
                 Status = TradeOrderStatus.Approved, ValueDate = candidate.ValueDate,
+                PositionType = candidate.PositionType,
                 ValidUntilUtc = candidate.ValidUntilUtc, Origin = candidate.Origin,
                 Components = components,
                 DefinitionHash = candidate.EvidenceHash

@@ -205,7 +205,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         if (eventId is not long id) throw new ConcurrencyException($"Event stream {stream} is not at expected version {expectedStreamVersion}.");
         // EventId is transport/storage metadata. The immutable business event identity remains domainEvent.Id.
         EventInitHelper.SetProperty(domainEvent, nameof(IEvent.EventId), id);
-        if (domainEvent is IRequireDurableProjection required)
+        if (domainEvent is IRequireDurableProjection { RequiresDurableProjection: true } required)
         {
             var rule = required.RequiredProjection;
             if (rule.InitialStage is not (TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.PublishProcessingEvent

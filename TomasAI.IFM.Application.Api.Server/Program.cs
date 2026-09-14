@@ -6,6 +6,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -104,6 +105,7 @@ try
         // Portfolio projections are rebuildable, but their idempotent schema must exist
         // before command actors can start durable projector workers.
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<TradePlanSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();

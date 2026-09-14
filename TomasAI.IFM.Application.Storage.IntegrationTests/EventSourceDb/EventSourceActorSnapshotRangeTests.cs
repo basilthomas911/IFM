@@ -156,6 +156,26 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
     }
 
     [Fact]
+    public async Task Binary_copy_skips_projection_marker_when_event_instance_is_nonmaterial()
+    {
+        await using var binary = fixture.CreateActorEventDb(new EventLogPersistenceOptions
+        {
+            WriteMode = EventLogWriteMode.BinaryCopy,
+            UseLz4Compression = true
+        });
+        var @event = new ConditionalProjectionEvent();
+
+        var saved = await binary.SaveEventsAsync(
+            $"DualAppender.NonmaterialProjection.{Guid.NewGuid():N}", @event.CommandId,
+            new DomainEventCollection([@event]), 0, CancellationToken.None);
+
+        saved.Should().ContainSingle();
+        var marker = await binary.GetEventProjectorExecutionStateAsync(
+            @event.EventId, @event.RequiredProjection.ProjectorName, CancellationToken.None);
+        marker.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Binary_copy_rolls_back_event_when_required_projection_is_invalid()
     {
         await using var binary = fixture.CreateActorEventDb(new EventLogPersistenceOptions
@@ -438,6 +458,23 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
         public EventType EventType => EventType.DomainEvent;
         public DurableProjectionRequirement RequiredProjection =>
             new("DualAppenderActor", "DualAppenderProjector", EventProjectorStageType.Completed);
+    }
+
+    public sealed record ConditionalProjectionEvent : IEvent, IRequireDurableProjection
+    {
+        public ActorSubject Subject { get; init; } = ActorSubject.Unknown;
+        public Guid Id { get; init; } = Guid.NewGuid();
+        public long EventId { get; init; }
+        public Guid CommandId { get; init; } = Guid.NewGuid();
+        public string AggregateId { get; init; } = "dual-appender";
+        public string EventSource { get; init; } = "DualAppenderIntegrationTests";
+        public DateTime ReceivedOn { get; init; } = DateTime.UtcNow;
+        public string UserName => "test";
+        public string EventName => nameof(ConditionalProjectionEvent);
+        public EventType EventType => EventType.DomainEvent;
+        public bool RequiresDurableProjection => false;
+        public DurableProjectionRequirement RequiredProjection =>
+            new("DualAppenderActor", "DualAppenderProjector", EventProjectorStageType.ApplyProjection);
     }
 }
 

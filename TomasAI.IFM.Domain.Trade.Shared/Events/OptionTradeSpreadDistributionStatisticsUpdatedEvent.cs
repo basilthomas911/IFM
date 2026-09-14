@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
 [MessagePackObject(AllowPrivate = true)]
 public record OptionTradeSpreadDistributionStatisticsUpdatedEvent : IEvent<OptionTradeEntityId>
 {
-    [IgnoreMember] public const string Actor = "OptionTradeEvent";
+    [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
     [IgnoreMember] public const string Verb = "SpreadDistributionStatisticsUpdated";
     [IgnoreMember] public const int ErrorCode = 6004;
 
@@ -150,7 +150,7 @@ public record OptionTradeSpreadDistributionStatisticsUpdatedEvent : IEvent<Optio
 [MessagePackObject(AllowPrivate = true)]
 public record OptionTradeSpreadDistributionStatisticsUpdatedCompleteEvent : ICompleteEvent<OptionTradeEntityId>
 {
-    [IgnoreMember] public const string Actor = "OptionTradeEvent";
+    [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
     [IgnoreMember] public const string Verb = "SpreadDistributionStatisticsUpdatedComplete";
 
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -227,7 +227,7 @@ public record OptionTradeSpreadDistributionStatisticsUpdatedCompleteEvent : ICom
 [MessagePackObject(AllowPrivate = true)]
 public record OptionTradeSpreadDistributionStatisticsUpdatedFailEvent : IErrorEvent<OptionTradeEntityId>
 {
-    [IgnoreMember] public const string Actor = "OptionTradeEvent";
+    [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
     [IgnoreMember] public const string Verb = "SpreadDistributionStatisticsUpdatedFail";
 
     [Key(0)] public ActorSubject Subject { get; init; }

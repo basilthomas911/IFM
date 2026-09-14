@@ -26,8 +26,24 @@ public sealed class FunctionExecutionPolicyConventionTests
     public void Every_production_function_has_an_exact_frozen_policy_map_and_no_actor_deadline_or_observation_hooks()
     {
         var actors = typeof(TradeSelectionFunctionActor).Assembly.GetTypes()
-            .Where(t => t.BaseType?.Name.StartsWith("BaseEventSourceFunctionActor`", StringComparison.Ordinal) == true).ToArray();
-        actors.Should().BeEquivalentTo([typeof(RegimeDiscoveryFunctionActor), typeof(MarketConditionFunctionActor), typeof(TradeSelectionFunctionActor), typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor.OrderCompositionFunctionActor), typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor.RiskManagementFunctionActor)]);
+            .Where(t => !t.IsAbstract &&
+                t.BaseType?.Name.StartsWith("BaseEventSourceFunctionActor`", StringComparison.Ordinal) == true).ToArray();
+        actors.Should().BeEquivalentTo([
+            typeof(RegimeDiscoveryFunctionActor),
+            typeof(MarketConditionFunctionActor),
+            typeof(TradeSelectionFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor.OrderCompositionFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor.RiskManagementFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor.IronCondorTradePlanFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function.Actor.VerticalSpreadTradePlanFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function.Actor.FuturesTradePlanFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.OrderComposer.Function.Actor.IronCondorExitOrderCompositionFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.RiskManager.Function.Actor.IronCondorPositionExitRiskFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.OrderComposer.Function.Actor.VerticalSpreadExitOrderCompositionFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.RiskManager.Function.Actor.VerticalSpreadPositionExitRiskFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.OrderComposer.Function.Actor.FuturesExitOrderCompositionFunctionActor),
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.RiskManager.Function.Actor.FuturesPositionExitRiskFunctionActor)
+        ]);
         foreach (var actor in actors)
         {
             var requestType = actor.BaseType!.GetGenericArguments()[1];

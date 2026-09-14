@@ -892,6 +892,11 @@ public static class PortfolioDbSql
             CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order(order_id int PRIMARY KEY,operation_id uuid NOT NULL REFERENCES portfolio.order_composition_decision(operation_id) ON DELETE RESTRICT,portfolio_id int NOT NULL,fund_id int NOT NULL,status smallint NOT NULL,definition_hash text NOT NULL,definition jsonb NOT NULL,valid_until_utc timestamptz NOT NULL,UNIQUE(operation_id,fund_id));
             CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order_leg(order_id int NOT NULL REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,component_id uuid NOT NULL,trade_leg_id uuid NOT NULL,ordinal int NOT NULL,definition jsonb NOT NULL,PRIMARY KEY(order_id,component_id,trade_leg_id));
             CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order_capacity(order_id int NOT NULL REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,portfolio_id int NOT NULL,fund_id int NOT NULL,scope_kind int NOT NULL,scope_key text NOT NULL,measure int NOT NULL,unit int NOT NULL,amount numeric(38,10) NOT NULL,method_version int NOT NULL,financial_revision bigint NOT NULL,PRIMARY KEY(order_id,scope_kind,scope_key,measure,unit));
+            CREATE TABLE IF NOT EXISTS portfolio.accepted_position_close(
+              operation_id uuid PRIMARY KEY REFERENCES portfolio.order_composition_decision(operation_id) ON DELETE RESTRICT,
+              target_position_id text NOT NULL UNIQUE,target_order_id int NOT NULL,target_trade_id int NOT NULL,
+              close_order_id int NOT NULL UNIQUE REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,
+              accepted_at_utc timestamptz NOT NULL);
             """;
         public const string Drop="DROP SCHEMA IF EXISTS portfolio CASCADE;";
     }
@@ -995,5 +1000,8 @@ public static class PortfolioDbSql
         public const string InsertOrder = "INSERT INTO portfolio.accepted_trade_order(order_id,operation_id,portfolio_id,fund_id,status,definition_hash,definition,valid_until_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8);";
         public const string InsertLeg = "INSERT INTO portfolio.accepted_trade_order_leg(order_id,component_id,trade_leg_id,ordinal,definition) VALUES($1,$2,$3,$4,$5);";
         public const string InsertCapacity = "INSERT INTO portfolio.accepted_trade_order_capacity(order_id,portfolio_id,fund_id,scope_kind,scope_key,measure,unit,amount,method_version,financial_revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);";
+        public const string SelectOpeningOrder = "SELECT definition::text FROM portfolio.accepted_trade_order WHERE order_id=$1 AND portfolio_id=$2 AND fund_id=$3 FOR SHARE;";
+        public const string SelectAcceptedClose = "SELECT operation_id FROM portfolio.accepted_position_close WHERE target_position_id=$1;";
+        public const string InsertAcceptedClose = "INSERT INTO portfolio.accepted_position_close(operation_id,target_position_id,target_order_id,target_trade_id,close_order_id,accepted_at_utc) VALUES($1,$2,$3,$4,$5,$6);";
     }
 }

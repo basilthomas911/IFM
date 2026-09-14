@@ -38,7 +38,12 @@ public sealed class StrategyPositionActorStateMachine
                 SignedQuantity = filledQuantity,
                 OpeningPrice = openingPrice,
                 CurrentPrice = openingPrice,
-                LastPriceAtUtc = openedAtUtc
+                LastPriceAtUtc = openedAtUtc,
+                AssetFamily = leg.AssetFamily,
+                ContractKey = leg.ContractKey,
+                Expiry = leg.Expiry,
+                Strike = leg.Strike,
+                PutCall = leg.PutCall
             });
         }
         _orderedLegIds = _legs.Keys.Order().ToArray();

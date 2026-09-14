@@ -25,3 +25,26 @@ Raw BenchmarkDotNet artifacts are intentionally ignored. Reproduce them with:
 ```powershell
 dotnet run -c Release --project TomasAI.IFM.Domain.Trade.Benchmarks -- --filter *
 ```
+
+## Strategy position Trade Plan hot path (2026-09-13)
+
+BenchmarkDotNet 0.15.8 on .NET 10.0.10 measured the pure strategy-plan calculations,
+the exact four-leg closing composition, and MessagePack snapshot serialization.
+
+| Operation | Mean | Allocated |
+| --- | ---: | ---: |
+| Iron Condor maximum-loss plan | 1.480 us | 2,121 B |
+| Vertical Spread normal plan | 1.218 us | 1,488 B |
+| Outright Futures normal plan | 1.147 us | 1,488 B |
+| Four-leg closing composition | 13.474 us | 15,696 B |
+| MessagePack plan snapshot serialization | 2.297 us | 648 B |
+
+The plan calculations are suitable for the per-position update path. Closing composition
+runs only after an exit decision and is outside the normal tick path; its higher allocation
+is recorded as an optimization target rather than added to normal position processing.
+
+Reproduce this focused set with:
+
+```powershell
+dotnet run -c Release --project TomasAI.IFM.Domain.Trade.Benchmarks -- --filter *StrategyTradePlanBenchmarks* --join
+```

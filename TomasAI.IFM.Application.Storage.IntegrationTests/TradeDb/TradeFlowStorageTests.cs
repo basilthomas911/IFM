@@ -74,6 +74,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
         };
         var order = new TradeOrderDefinition
         {
+            PositionType = TradeOrderPositionType.Opening,
             Id = orderId,
             Revision = 1,
             Status = TradeOrderStatus.Completed,
@@ -98,6 +99,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
         };
         var execution = new OrderExecutionDefinition
         {
+            PositionType = TradeOrderPositionType.Opening,
             TradeOrderId = orderId,
             ExecutionAttemptId = executionAttemptId,
             Channel = ExecutionChannel.Manual,

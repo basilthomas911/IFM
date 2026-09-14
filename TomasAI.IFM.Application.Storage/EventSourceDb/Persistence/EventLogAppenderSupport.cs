@@ -51,7 +51,7 @@ internal static class EventLogAppenderSupport
             if (totalBytes > options.MaximumCommandPayloadBytes)
                 throw new ArgumentException("Event command exceeds its configured payload limit.", nameof(request));
             DurableProjectionRequirement? projection = null;
-            if (item.DomainEvent is IRequireDurableProjection required)
+            if (item.DomainEvent is IRequireDurableProjection { RequiresDurableProjection: true } required)
             {
                 projection = required.RequiredProjection;
                 ArgumentException.ThrowIfNullOrWhiteSpace(projection.ActorName);

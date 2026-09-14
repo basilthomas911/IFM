@@ -23,7 +23,12 @@ public sealed record BeginCloseFuturesTradeCommand : EstablishedTradeCommand
 { public const string Verb="BeginCloseFuturesTrade"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesTradeBoundedContext; }
 [MessagePackObject]
 public sealed record CloseFuturesTradeCommand : EstablishedTradeCommand
-{ public const string Verb="CloseFuturesTrade"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesTradeBoundedContext; }
+{
+    public const string Verb = "CloseFuturesTrade";
+    [Key(4)] public ExecutionFillEvidence[] ClosingFills { get; init; } = [];
+    [Key(5)] public DateTime ClosedAtUtc { get; init; }
+    [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesTradeBoundedContext;
+}
 
 [MessagePackObject]
 public sealed record FuturesTradeChangedEvent : IEvent<TradeEntityId>

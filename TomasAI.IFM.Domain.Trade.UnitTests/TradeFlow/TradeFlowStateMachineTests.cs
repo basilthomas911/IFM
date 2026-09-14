@@ -29,6 +29,14 @@ public sealed class TradeFlowStateMachineTests
     static readonly DateTime Now = new(2026, 9, 12, 14, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public void Trade_order_position_type_values_are_stable()
+    {
+        ((byte)TradeOrderPositionType.Unknown).Should().Be(0);
+        ((byte)TradeOrderPositionType.Opening).Should().Be(1);
+        ((byte)TradeOrderPositionType.Closing).Should().Be(2);
+    }
+
+    [Fact]
     public void Order_requires_complete_ownership_and_unique_stable_legs()
     {
         var invalid = Fixture.Order() with
@@ -102,12 +110,50 @@ public sealed class TradeFlowStateMachineTests
         var result = state.Accept(Now.AddSeconds(1));
 
         result.Accepted.Should().BeTrue();
-        var trade = result.Value!.Should().ContainSingle().Subject;
+        var trade = result.Value!.CreatedTrades.Should().ContainSingle().Subject;
         trade.Id.PortfolioId.Should().Be(11);
         trade.Id.FundId.Should().Be(12);
         trade.Id.TradeId.Should().Be(order.Components[0].ReservedTradeId);
         trade.OriginalFills.Should().HaveCount(4);
         trade.OriginalFills.Should().OnlyContain(fill => fill.ExecutionAttemptId == attempt);
+    }
+
+    [Fact]
+    public void Complete_closing_execution_targets_existing_position_without_creating_an_opposing_trade()
+    {
+        var opening = Fixture.ExecutingOrder();
+        var target = new StrategyPositionId(
+            new TradeEntityId(opening.Id.PortfolioId, opening.Id.FundId, opening.Id.OrderId,
+                opening.Components[0].ReservedTradeId), Guid.NewGuid());
+        var close = opening with
+        {
+            Id = new(opening.Id.PortfolioId, opening.Id.FundId, opening.Id.OrderId + 1),
+            PositionType = TradeOrderPositionType.Closing,
+            TargetPositionId = target,
+            Components =
+            [
+                opening.Components[0] with
+                {
+                    Legs = opening.Components[0].Legs.Select(leg => leg with
+                    {
+                        SignedQuantity = -leg.SignedQuantity
+                    }).ToArray()
+                }
+            ]
+        };
+        var state = new OrderExecutionActorStateMachine();
+        var attempt = Guid.NewGuid();
+        state.Start(close, attempt, ExecutionChannel.Broker, Now).Accepted.Should().BeTrue();
+        foreach (var fill in Fixture.Fills(close.Components[0], attempt))
+            state.AddFill(fill).Accepted.Should().BeTrue();
+
+        var result = state.Accept(Now.AddSeconds(1));
+
+        result.Accepted.Should().BeTrue();
+        result.Value!.CreatedTrades.Should().BeEmpty();
+        result.Value.ClosedPositions.Should().ContainSingle().Which.PositionId.Should().Be(target);
+        state.Current!.PositionType.Should().Be(TradeOrderPositionType.Closing);
+        state.Current.TargetPositionId.Should().Be(target);
     }
 
     [Fact]
@@ -220,7 +266,7 @@ public sealed class TradeFlowStateMachineTests
         var trade = Fixture.Trade();
         var state = Fixture.CreatedOptionTradeState(trade);
 
-        var failed = Fixture.CloseOptionTradeCommand(trade.Id).Execute(state);
+        var failed = Fixture.CloseOptionTradeCommand(trade).Execute(state);
 
         failed.Success.Should().BeFalse();
         failed.ErrorMessage.Should().StartWith("TRADE.INVALID_TRANSITION;");
@@ -228,10 +274,35 @@ public sealed class TradeFlowStateMachineTests
 
         Fixture.BeginCloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
         state.AcceptChanges();
-        Fixture.CloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+        Fixture.CloseOptionTradeCommand(trade).Execute(state).Success.Should().BeTrue();
 
         state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
+        state.Current.ClosingFills.Should().HaveCount(trade.Legs.Length);
+        state.Current.ClosedAtUtc.Should().Be(Now.AddMinutes(1));
         state.Events.Should().ContainSingle().Which.Should().BeOfType<OptionTradeChangedEvent>();
+    }
+
+    [Fact]
+    public void Close_option_trade_handler_rejects_incomplete_or_same_direction_fill_evidence()
+    {
+        var trade = Fixture.Trade();
+        var state = Fixture.CreatedOptionTradeState(trade);
+        Fixture.BeginCloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+        state.AcceptChanges();
+        var invalid = Fixture.CloseOptionTradeCommand(trade) with
+        {
+            ClosingFills =
+            [
+                Fixture.CloseFill(trade, trade.Legs[0], trade.Legs[0].SignedQuantity)
+            ]
+        };
+
+        var result = invalid.Execute(state);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().StartWith("TRADE.INVALID_CLOSE_EVIDENCE;");
+        state.Current!.Status.Should().Be(EstablishedTradeStatus.Closing);
+        state.Events.Should().BeEmpty();
     }
 
     [Fact]
@@ -248,7 +319,7 @@ public sealed class TradeFlowStateMachineTests
             .Which.IsInitialEstablishment.Should().BeTrue();
         state.AcceptChanges();
 
-        var prematureClose = Fixture.CloseFuturesTradeCommand(trade.Id).Execute(state);
+        var prematureClose = Fixture.CloseFuturesTradeCommand(trade).Execute(state);
         prematureClose.Success.Should().BeFalse();
         prematureClose.ErrorMessage.Should().StartWith("TRADE.INVALID_TRANSITION;");
         state.Events.Should().BeEmpty();
@@ -264,8 +335,9 @@ public sealed class TradeFlowStateMachineTests
         state.Current!.Status.Should().Be(EstablishedTradeStatus.Closing);
         state.AcceptChanges();
 
-        Fixture.CloseFuturesTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+        Fixture.CloseFuturesTradeCommand(trade).Execute(state).Success.Should().BeTrue();
         state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
+        state.Current.ClosingFills.Should().ContainSingle();
         state.Events.Should().ContainSingle().Which.Should().BeOfType<FuturesTradeChangedEvent>();
     }
 
@@ -431,6 +503,7 @@ public sealed class TradeFlowStateMachineTests
             Id = new TradeOrderId(11, 12, 13),
             Revision = 1,
             Status = TradeOrderStatus.Draft,
+            PositionType = TradeOrderPositionType.Opening,
             ValueDate = DateOnly.FromDateTime(Now),
             ValidUntilUtc = Now.AddMinutes(5),
             Origin = "UnitTest",
@@ -550,13 +623,15 @@ public sealed class TradeFlowStateMachineTests
             };
 
         public static CloseOptionTradeCommand CloseOptionTradeCommand(
-            TradeEntityId tradeId) => new()
+            EstablishedTradeDefinition trade) => new()
             {
                 CommandId = Guid.NewGuid(),
-                EntityId = tradeId,
+                EntityId = trade.Id,
+                ClosingFills = ClosingFills(trade),
+                ClosedAtUtc = Now.AddMinutes(1),
                 Subject = OptionTradeSubject(
                     TomasAI.IFM.Domain.Trade.Shared.Futures.Option.CloseOptionTradeCommand.Verb,
-                    tradeId)
+                    trade.Id)
             };
 
         static ActorSubject OptionTradeSubject(string verb, TradeEntityId tradeId) =>
@@ -644,14 +719,47 @@ public sealed class TradeFlowStateMachineTests
             };
 
         public static CloseFuturesTradeCommand CloseFuturesTradeCommand(
-            TradeEntityId tradeId) => new()
+            EstablishedTradeDefinition trade) => new()
             {
                 CommandId = Guid.NewGuid(),
-                EntityId = tradeId,
+                EntityId = trade.Id,
+                ClosingFills = ClosingFills(trade),
+                ClosedAtUtc = Now.AddMinutes(1),
                 Subject = FuturesTradeSubject(
                     TomasAI.IFM.Domain.Trade.Shared.Futures.CloseFuturesTradeCommand.Verb,
-                    tradeId)
+                    trade.Id)
             };
+
+        static ExecutionFillEvidence[] ClosingFills(EstablishedTradeDefinition trade)
+        {
+            var attempt = Guid.NewGuid();
+            return trade.Legs.Select((leg, index) => new ExecutionFillEvidence
+            {
+                ExecutionFillId = Guid.NewGuid(),
+                ExecutionAttemptId = attempt,
+                ComponentId = trade.SourceComponentId,
+                TradeLegId = leg.TradeLegId,
+                ContractId = leg.ContractId,
+                SignedQuantity = -leg.SignedQuantity,
+                Price = 1.5m + index,
+                FilledAtUtc = Now.AddMinutes(1),
+                ExternalExecutionId = $"CLOSE-{index}"
+            }).ToArray();
+        }
+
+        public static ExecutionFillEvidence CloseFill(
+            EstablishedTradeDefinition trade, TradeLegDefinition leg, int signedQuantity) => new()
+        {
+            ExecutionFillId = Guid.NewGuid(),
+            ExecutionAttemptId = Guid.NewGuid(),
+            ComponentId = trade.SourceComponentId,
+            TradeLegId = leg.TradeLegId,
+            ContractId = leg.ContractId,
+            SignedQuantity = signedQuantity,
+            Price = 1.5m,
+            FilledAtUtc = Now.AddMinutes(1),
+            ExternalExecutionId = "INVALID-CLOSE"
+        };
 
         static ActorSubject FuturesTradeSubject(string verb, TradeEntityId tradeId) =>
             new(

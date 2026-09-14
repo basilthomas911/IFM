@@ -1,8 +1,11 @@
 using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
+using TomasAI.IFM.Domain.Trade.Shared.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -27,7 +30,27 @@ public sealed class FuturesOptionTradeQueryActor(
             [GetIronCondorOptionTradesQuery.Verb] = message =>
                 message.AsQuery<GetIronCondorOptionTradesQuery, EstablishedTradeDefinition[]>()!,
             [GetVerticalSpreadOptionTradesQuery.Verb] = message =>
-                message.AsQuery<GetVerticalSpreadOptionTradesQuery, EstablishedTradeDefinition[]>()!
+                message.AsQuery<GetVerticalSpreadOptionTradesQuery, EstablishedTradeDefinition[]>()!,
+            [GetOptionTradeQuery.Verb] = message =>
+                message.AsQuery<GetOptionTradeQuery, OptionTradeReadModel>()!,
+            [GetOptionTradesQuery.Verb] = message =>
+                message.AsQuery<GetOptionTradesQuery, OptionTradeReadModel[]>()!,
+            [GetOptionTradeSpreadDataQuery.Verb] = message =>
+                message.AsQuery<GetOptionTradeSpreadDataQuery, OptionTradeSpreadsDataModel>()!,
+            [GetOptionTradeSpreadBarDataQuery.Verb] = message =>
+                message.AsQuery<GetOptionTradeSpreadBarDataQuery, OptionTradeSpreadBarsDataModel[]>()!,
+            [GetOptionLegContractIdsQuery.Verb] = message =>
+                message.AsQuery<GetOptionLegContractIdsQuery, string[]>()!,
+            [GetIronCondorTradePriceQuery.Verb] = message =>
+                message.AsQuery<GetIronCondorTradePriceQuery, TradePriceReadModel>()!,
+            [GetTradePositionsQuery.Verb] = message =>
+                message.AsQuery<GetTradePositionsQuery, TradePositionReadModel[]>()!,
+            [GetTradePositionTradeTypesQuery.Verb] = message =>
+                message.AsQuery<GetTradePositionTradeTypesQuery, string[]>()!,
+            [GetTradePlanActionQuery.Verb] = message =>
+                message.AsQuery<GetTradePlanActionQuery, TradePlanActionReadModel[]>()!,
+            [GetIronCondorMDILimitQuery.Verb] = message =>
+                message.AsQuery<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
@@ -42,7 +65,27 @@ public sealed class FuturesOptionTradeQueryActor(
             [typeof(GetIronCondorOptionTradesQuery)] = static (queryContext, query, token) =>
                 ((GetIronCondorOptionTradesQuery)query).ExecuteAsync(queryContext, token),
             [typeof(GetVerticalSpreadOptionTradesQuery)] = static (queryContext, query, token) =>
-                ((GetVerticalSpreadOptionTradesQuery)query).ExecuteAsync(queryContext, token)
+                ((GetVerticalSpreadOptionTradesQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetOptionTradeQuery)] = static (queryContext, query, token) =>
+                ((GetOptionTradeQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetOptionTradesQuery)] = static (queryContext, query, token) =>
+                ((GetOptionTradesQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetOptionTradeSpreadDataQuery)] = static (queryContext, query, token) =>
+                ((GetOptionTradeSpreadDataQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetOptionTradeSpreadBarDataQuery)] = static (queryContext, query, token) =>
+                ((GetOptionTradeSpreadBarDataQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetOptionLegContractIdsQuery)] = static (queryContext, query, token) =>
+                ((GetOptionLegContractIdsQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetIronCondorTradePriceQuery)] = static (queryContext, query, token) =>
+                ((GetIronCondorTradePriceQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradePositionsQuery)] = static (queryContext, query, token) =>
+                ((GetTradePositionsQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradePositionTradeTypesQuery)] = static (queryContext, query, token) =>
+                ((GetTradePositionTradeTypesQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradePlanActionQuery)] = static (queryContext, query, token) =>
+                ((GetTradePlanActionQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetIronCondorMDILimitQuery)] = static (queryContext, query, token) =>
+                ((GetIronCondorMDILimitQuery)query).ExecuteAsync(queryContext, token)
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
@@ -92,12 +135,14 @@ public interface IFuturesOptionTradeQueryContext :
     IQueryActorContext<FuturesOptionTradeQueryActor>
 {
     IDbContextFactory DbFactory { get; }
+    IBlackboardService BlackboardService { get; }
     ILogger<FuturesOptionTradeQueryActor> Logger { get; }
 }
 
 public sealed class FuturesOptionTradeQueryContext(
     IActorSupervisor supervisor,
     IDbContextFactory dbFactory,
+    IBlackboardService blackboardService,
     ILogger<FuturesOptionTradeQueryActor> logger)
     : QueryActorContext(
         supervisor,
@@ -106,5 +151,6 @@ public sealed class FuturesOptionTradeQueryContext(
         IFuturesOptionTradeQueryContext
 {
     public IDbContextFactory DbFactory { get; } = dbFactory;
+    public IBlackboardService BlackboardService { get; } = blackboardService;
     public ILogger<FuturesOptionTradeQueryActor> Logger { get; } = logger;
 }

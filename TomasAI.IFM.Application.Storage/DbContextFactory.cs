@@ -25,6 +25,8 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.TradePlanDb;
+using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.Storage;
@@ -51,6 +53,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public IReferenceDbContext ReferenceDb => _dbContextResolver.Resolve<ReferenceDbContext>() as IReferenceDbContext;
     public ISecuritiesDbContext SecuritiesDb => _dbContextResolver.Resolve<SecuritiesDbContext>() as ISecuritiesDbContext;
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
+    public ITradePlanDbContext TradePlanDb => (_dbContextResolver.Resolve<TradePlanDbContext>() as ITradePlanDbContext)!;
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
     public PortfolioDbContext PortfolioDb => (_dbContextResolver.Resolve<PortfolioDbContext>() as PortfolioDbContext)!;
@@ -67,6 +70,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ReferenceSchemaDb ReferenceSchema => (_dbContextResolver.Resolve<ReferenceSchemaDb>() as ReferenceSchemaDb)!;
     public SecuritiesSchemaDb SecuritiesSchema => (_dbContextResolver.Resolve<SecuritiesSchemaDb>() as SecuritiesSchemaDb)!;
     public TradeSchemaDb TradeSchema => (_dbContextResolver.Resolve<TradeSchemaDb>() as TradeSchemaDb)!;
+    public TradePlanSchemaDb TradePlanSchema => (_dbContextResolver.Resolve<TradePlanSchemaDb>() as TradePlanSchemaDb)!;
     public SystemAdminSchemaDb SystemAdminSchema => (_dbContextResolver.Resolve<SystemAdminSchemaDb>() as SystemAdminSchemaDb)!;
     public ConfigurationSchemaDb ConfigurationSchema => (_dbContextResolver.Resolve<ConfigurationSchemaDb>() as ConfigurationSchemaDb)!;
     public PortfolioSchemaDb PortfolioSchema => (_dbContextResolver.Resolve<PortfolioSchemaDb>() as PortfolioSchemaDb)!;

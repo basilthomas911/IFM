@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
+using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -25,6 +26,9 @@ public static class CloseOptionTrade
             _ when state.Current.Status != EstablishedTradeStatus.Closing =>
                 command.UpdateFailed(
                     $"TRADE.INVALID_TRANSITION;Cannot close from {state.Current.Status}."),
+            _ when !TradeCloseEvidence.IsExact(state.Current, command.ClosingFills, command.ClosedAtUtc) =>
+                command.UpdateFailed(
+                    "TRADE.INVALID_CLOSE_EVIDENCE;Closing fills and a UTC close time are required."),
             _ => command.UpdatedOk(() => state.Update(
                 command.CreateOptionTradeChangedEvent(state.Current!),
                 command))
@@ -41,7 +45,14 @@ public static class CloseOptionTrade
         EstablishedTradeDefinition current) => new()
         {
             EntityId = command.EntityId,
-            State = current with { Status = EstablishedTradeStatus.Closed },
+            State = current with
+            {
+                SchemaVersion = 3,
+                Status = EstablishedTradeStatus.Closed,
+                ClosingFills = command.ClosingFills,
+                ClosedAtUtc = command.ClosedAtUtc,
+                EvidenceRevision = current.EvidenceRevision + 1
+            },
             IsInitialEstablishment = false
         };
 }

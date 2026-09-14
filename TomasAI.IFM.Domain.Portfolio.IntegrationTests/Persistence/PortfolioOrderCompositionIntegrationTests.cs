@@ -195,6 +195,105 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
         after.Revision.Should().Be(before.Revision);after.Working.Should().Be(before.Working);
     }
 
+    [Fact]
+    public async Task Accepted_close_allocates_one_new_order_retains_trade_identity_and_commits_once()
+    {
+        _ = fixture;
+        await InitializePortfolioSchema();
+        var book = await CreateOrderBook();
+        var opening = await EvaluateAsync(new PortfolioOrderCompositionStore(Transactions()), Request(book));
+        var openingOrder = opening.Receipt.TradeOrders.Single();
+        var openingComponent = openingOrder.Components.Single();
+        var positionId = new StrategyPositionId(new TradeEntityId(
+            openingOrder.Id.PortfolioId, openingOrder.Id.FundId, openingOrder.Id.OrderId,
+            openingComponent.ReservedTradeId), Guid.NewGuid());
+        var now = DateTime.UtcNow;
+        var workflowId = new TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitPositionWorkflowId(
+            positionId, DateOnly.FromDateTime(now), Guid.NewGuid());
+        var operationId = Guid.NewGuid();
+        var close = new EvaluatePortfolioCloseOrderCompositionCommand
+        {
+            CommandId = operationId,
+            OperationId = operationId,
+            PortfolioId = book.PortfolioId,
+            EntityId = new(book.PortfolioId, operationId),
+            Subject = new(ActorType.Function, EvaluatePortfolioCloseOrderCompositionCommand.Actor,
+                EvaluatePortfolioCloseOrderCompositionCommand.Verb,
+                new FinancialExecutionId(book.PortfolioId, operationId).Format()),
+            CorrelationId = Guid.NewGuid(),
+            CausationId = Guid.NewGuid(),
+            RequestedAtUtc = now,
+            ExpiresAtUtc = now.AddMinutes(2),
+            Access = new("integration", ["OrderCompositionClose"], [book.PortfolioId]),
+            Body = new()
+            {
+                CompositionId = Guid.NewGuid(),
+                WorkflowId = workflowId,
+                StrategyKind = openingComponent.StrategyKind,
+                ValueDate = workflowId.ValueDate,
+                ValidUntilUtc = now.AddMinutes(1),
+                Origin = "FuturesExitPositionWorkflow",
+                EvidenceHash = new('c', 64),
+                PositionType = TradeOrderPositionType.Closing,
+                Position = new()
+                {
+                    Id = positionId,
+                    StrategyKind = openingComponent.StrategyKind,
+                    Phase = StrategyPositionPhase.MarkToMarket,
+                    PositionSequence = 5,
+                    RouteGeneration = 1,
+                    AsOfUtc = now,
+                    IsOpen = true,
+                    Legs = openingComponent.Legs.Select(leg => new StrategyPositionLeg
+                    {
+                        TradeLegId = leg.TradeLegId,
+                        ContractId = leg.ContractId,
+                        ContractKey = leg.ContractKey,
+                        AssetFamily = leg.AssetFamily,
+                        SignedQuantity = leg.SignedQuantity,
+                        OpeningPrice = 100,
+                        CurrentPrice = 101,
+                        LastSourceSequence = 5,
+                        LastPriceAtUtc = now,
+                        Expiry = leg.Expiry,
+                        Strike = leg.Strike,
+                        PutCall = leg.PutCall
+                    }).ToArray()
+                },
+                Component = openingComponent with
+                {
+                    Legs = openingComponent.Legs.Select(leg => leg with
+                    {
+                        SignedQuantity = -leg.SignedQuantity
+                    }).ToArray()
+                }
+            }
+        };
+        close = close with { InputSha256 = FinancialCanonicalHash.Request(close) };
+        var store = new PortfolioCloseOrderCompositionStore(Transactions());
+
+        var first = await store.EvaluateAsync(close, (request, authority, revision, order, token) =>
+            PortfolioCloseOrderCompositionModel.EvaluateAsync(request, authority, revision, order,
+                new TestIdentityAllocator(request.OperationId), token));
+        var duplicate = await store.EvaluateAsync(close, (_, _, _, _, _) =>
+            throw new InvalidOperationException("Duplicate close must not reevaluate."));
+
+        duplicate.Id.Should().Be(first.Id);
+        first.Receipt.TradeOrder!.PositionType.Should().Be(TradeOrderPositionType.Closing);
+        first.Receipt.TradeOrder.TargetPositionId.Should().Be(positionId);
+        first.Receipt.TradeOrder.Id.OrderId.Should().NotBe(openingOrder.Id.OrderId);
+        first.Receipt.TradeOrder.Components.Single().ReservedTradeId
+            .Should().Be(openingComponent.ReservedTradeId);
+        var counts = await Transactions().ExecuteAsync(async (db, token) => (
+            CloseRows: await db.ScalarAsync(
+                "SELECT count(*) FROM portfolio.accepted_position_close WHERE operation_id=$1;",
+                [operationId], token),
+            Events: await db.ScalarAsync("SELECT count(*) FROM event_log WHERE commandid=$1;",
+                [close.CommandId], token)));
+        counts.CloseRows.Should().Be(1L);
+        counts.Events.Should().Be(1L);
+    }
+
     static PostgresEventTransaction Transactions()=>GeneralLedgerPostingIntegrationTests.Transactions();
 
     static Task<PortfolioOrderCompositionCompletedEvent> EvaluateAsync(
@@ -228,6 +327,7 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
             Body=new()
             {
                 CompositionId=Guid.NewGuid(),WorkflowId=Guid.NewGuid(),DecisionHorizon="Daily",
+                PositionType=TradeOrderPositionType.Opening,
                 StrategyKind=TradeStrategyKind.FuturesOutright,ValueDate=DateOnly.FromDateTime(now),
                 ValidUntilUtc=now.AddMinutes(1),Origin="StrategyWorkflow",EvidenceHash=new('b',64),
                 RequiredCapital=1000,MaximumLoss=1000,StressLoss=1000,Notional=10000,

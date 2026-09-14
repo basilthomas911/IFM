@@ -11,6 +11,13 @@ public static class TradeValidation
         List<string> errors = [];
         if (!order.Id.IsValid) errors.Add("PortfolioId, FundId, OrderId and TradeId must be greater than zero.");
         if (order.Revision < 1) errors.Add("Order revision must be greater than zero.");
+        if (order.PositionType == TradeOrderPositionType.Unknown) errors.Add("Order position type is required.");
+        if (order.PositionType == TradeOrderPositionType.Opening && order.TargetPositionId is not null)
+            errors.Add("An opening order cannot target an existing position.");
+        if (order.PositionType == TradeOrderPositionType.Closing &&
+            (order.TargetPositionId is not { IsValid: true } target ||
+             target.Trade.PortfolioId != order.Id.PortfolioId || target.Trade.FundId != order.Id.FundId))
+            errors.Add("A closing order requires a valid target position in the same Portfolio and Fund.");
         if (order.ValueDate == default) errors.Add("ValueDate is required.");
         if (order.ValidUntilUtc.Kind != DateTimeKind.Utc) errors.Add("ValidUntilUtc must be UTC.");
         if (order.Components.Length == 0) errors.Add("At least one component is required.");
@@ -25,6 +32,9 @@ public static class TradeValidation
             if (component.ReservedTradeId <= 0) errors.Add("ReservedTradeId must be greater than zero.");
             else if (!tradeIds.Add(component.ReservedTradeId)) errors.Add($"Duplicate ReservedTradeId {component.ReservedTradeId}.");
             if (component.StrategyKind == TradeStrategyKind.Unknown) errors.Add("StrategyKind is required.");
+            if (order.PositionType == TradeOrderPositionType.Closing && order.TargetPositionId is { } closingTarget &&
+                component.ReservedTradeId != closingTarget.Trade.TradeId)
+                errors.Add("A closing order must retain the target Trade ID.");
             if (component.Legs.Length == 0) errors.Add($"Component {component.ComponentId} requires at least one leg.");
             ValidateTopology(component, errors);
             foreach (var leg in component.Legs)

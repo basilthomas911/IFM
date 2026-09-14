@@ -1,6 +1,52 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using System.Collections.Immutable;
+using TomasAI.IFM.Application.EventProjector;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
-using System.Collections.Immutable;using TomasAI.IFM.Application.EventProjector;using TomasAI.IFM.Application.EventProjector.Contracts;using TomasAI.IFM.Domain.Trade.Futures.Position.Model;using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.Actor;using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;using TomasAI.IFM.Shared.EventModelActor;using TomasAI.IFM.Shared.EventProjector;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector;
+
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.EventProjector;
-public sealed class VerticalSpreadPositionEventProjector:ConventionalEventProjector<FuturesVerticalSpreadTradePositionCommandActor>{readonly IVerticalSpreadPositionCommandContext c;readonly ImmutableArray<EventProjectionDescriptor>d;public VerticalSpreadPositionEventProjector(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor>x,EventProjectorReliabilityOptions?o=null):base(T(x).DurableReplayQueue,T(x).DbEventSource,T(x).BlackboardService,T(x).Logger,o){c=T(x);d=[DescribeNotification<VerticalSpreadPositionChangedEvent,TomasAI.IFM.Domain.Trade.Shared.StrategyPositionId>(Project)];}public override IReadOnlyCollection<EventProjectionDescriptor>ProjectionDescriptors=>d;public override IReadOnlyCollection<Type>ProjectedEventTypes=>[typeof(VerticalSpreadPositionChangedEvent)];Task Project(VerticalSpreadPositionChangedEvent e)=>PositionProjectionActions.ProjectAsync(c,c.DbFactory,e,FuturesVerticalSpreadTradePositionCommandActor.ActorName,FuturesOptionRealtimeActor.ActorName);static IVerticalSpreadPositionCommandContext T(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor>x)=>x as IVerticalSpreadPositionCommandContext??throw new ArgumentException("Typed Vertical Spread position context required.");}
+
+public sealed class VerticalSpreadPositionEventProjector
+    : ConventionalEventProjector<FuturesVerticalSpreadTradePositionCommandActor>
+{
+    readonly IVerticalSpreadPositionCommandContext context;
+    readonly ImmutableArray<EventProjectionDescriptor> descriptors;
+
+    public VerticalSpreadPositionEventProjector(
+        ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> actorContext,
+        EventProjectorReliabilityOptions? options = null)
+        : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource,
+            Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    {
+        context = Typed(actorContext);
+        descriptors =
+        [
+            DescribeNotification<VerticalSpreadPositionChangedEvent, StrategyPositionId>(ProjectAsync),
+            DescribeNotification<VerticalSpreadTradePlanUpdatedEvent, VerticalSpreadTradePlanId>(
+                ProjectTradePlanAsync)
+        ];
+    }
+
+    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
+    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
+        [typeof(VerticalSpreadPositionChangedEvent), typeof(VerticalSpreadTradePlanUpdatedEvent)];
+
+    Task ProjectAsync(VerticalSpreadPositionChangedEvent changed) => PositionProjectionActions.ProjectAsync(
+        context, context.DbFactory, changed, FuturesVerticalSpreadTradePositionCommandActor.ActorName,
+        FuturesOptionRealtimeActor.ActorName, VerticalSpreadTradePositionRealtimeActor.ActorName);
+
+    Task ProjectTradePlanAsync(VerticalSpreadTradePlanUpdatedEvent updated) =>
+        context.DbFactory.TradePlanDb.DbWriter.ProjectMaterialAsync(updated.Plan);
+
+    static IVerticalSpreadPositionCommandContext Typed(
+        ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> actorContext) =>
+        actorContext as IVerticalSpreadPositionCommandContext ??
+        throw new ArgumentException("Typed Vertical Spread position context required.");
+}

@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.Trade.Order.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
@@ -59,6 +61,8 @@ public sealed class OrderExecutionEventProjector
 
         foreach (var trade in changed.CreatedTrades)
             await EstablishAsync(trade).ConfigureAwait(false);
+        foreach (var closedPosition in changed.ClosedPositions)
+            await CloseAsync(closedPosition).ConfigureAwait(false);
 
         var complete = new CompleteTradeOrderCommand
         {
@@ -138,6 +142,105 @@ public sealed class OrderExecutionEventProjector
         Ensure(await context.ActorService
             .SendAsync<CreateOptionTradeCommand, TradeEntityId>(optionCommand, optionCommand.EntityId)
             .ConfigureAwait(false));
+    }
+
+    async ValueTask CloseAsync(PositionCloseExecution close)
+    {
+        var tradeId = close.PositionId.Trade;
+        if (close.StrategyKind == TradeStrategyKind.FuturesOutright)
+        {
+            var begin = new BeginCloseFuturesTradeCommand
+            {
+                CommandId = TradeHandoffIdentity.Create("begin-close-futures-trade", tradeId.Format(),
+                    close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, FuturesTradeCommandActor.ActorName,
+                    BeginCloseFuturesTradeCommand.Verb, tradeId.Format()),
+                EntityId = tradeId
+            };
+            Ensure(await context.ActorService.SendAsync<BeginCloseFuturesTradeCommand, TradeEntityId>(
+                begin, begin.EntityId).ConfigureAwait(false));
+            var closeTrade = new CloseFuturesTradeCommand
+            {
+                CommandId = TradeHandoffIdentity.Create("close-futures-trade", tradeId.Format(),
+                    close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, FuturesTradeCommandActor.ActorName,
+                    CloseFuturesTradeCommand.Verb, tradeId.Format()),
+                EntityId = tradeId,
+                ClosingFills = close.Fills,
+                ClosedAtUtc = close.CompletedAtUtc
+            };
+            Ensure(await context.ActorService.SendAsync<CloseFuturesTradeCommand, TradeEntityId>(
+                closeTrade, closeTrade.EntityId).ConfigureAwait(false));
+            var closePosition = new CloseFuturesPositionCommand
+            {
+                CommandId = TradeHandoffIdentity.Create("close-futures-position", close.PositionId.Format(),
+                    close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, FuturesPositionActorNames.Command,
+                    CloseFuturesPositionCommand.Verb, close.PositionId.Format()),
+                EntityId = close.PositionId,
+                EffectiveAtUtc = close.CompletedAtUtc
+            };
+            Ensure(await context.ActorService.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(
+                closePosition, closePosition.EntityId).ConfigureAwait(false));
+            return;
+        }
+
+        var beginOption = new BeginCloseOptionTradeCommand
+        {
+            CommandId = TradeHandoffIdentity.Create("begin-close-option-trade", tradeId.Format(),
+                close.ExecutionAttemptId.ToString("N")),
+            Subject = new(ActorType.Command, FuturesOptionTradeCommandActor.ActorName,
+                BeginCloseOptionTradeCommand.Verb, tradeId.Format()),
+            EntityId = tradeId
+        };
+        Ensure(await context.ActorService.SendAsync<BeginCloseOptionTradeCommand, TradeEntityId>(
+            beginOption, beginOption.EntityId).ConfigureAwait(false));
+        var closeOption = new CloseOptionTradeCommand
+        {
+            CommandId = TradeHandoffIdentity.Create("close-option-trade", tradeId.Format(),
+                close.ExecutionAttemptId.ToString("N")),
+            Subject = new(ActorType.Command, FuturesOptionTradeCommandActor.ActorName,
+                CloseOptionTradeCommand.Verb, tradeId.Format()),
+            EntityId = tradeId,
+            ClosingFills = close.Fills,
+            ClosedAtUtc = close.CompletedAtUtc
+        };
+        Ensure(await context.ActorService.SendAsync<CloseOptionTradeCommand, TradeEntityId>(
+            closeOption, closeOption.EntityId).ConfigureAwait(false));
+
+        if (close.StrategyKind == TradeStrategyKind.IronCondor)
+        {
+            var closePosition = new CloseIronCondorPositionCommand
+            {
+                CommandId = TradeHandoffIdentity.Create("close-iron-condor-position", close.PositionId.Format(),
+                    close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, PositionActorNames.IronCondorCommand,
+                    CloseIronCondorPositionCommand.Verb, close.PositionId.Format()),
+                EntityId = close.PositionId,
+                EffectiveAtUtc = close.CompletedAtUtc
+            };
+            Ensure(await context.ActorService.SendAsync<CloseIronCondorPositionCommand, StrategyPositionId>(
+                closePosition, closePosition.EntityId).ConfigureAwait(false));
+            return;
+        }
+
+        if (close.StrategyKind == TradeStrategyKind.VerticalSpread)
+        {
+            var closePosition = new CloseVerticalSpreadPositionCommand
+            {
+                CommandId = TradeHandoffIdentity.Create("close-vertical-spread-position", close.PositionId.Format(),
+                    close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, PositionActorNames.VerticalSpreadCommand,
+                    CloseVerticalSpreadPositionCommand.Verb, close.PositionId.Format()),
+                EntityId = close.PositionId,
+                EffectiveAtUtc = close.CompletedAtUtc
+            };
+            Ensure(await context.ActorService.SendAsync<CloseVerticalSpreadPositionCommand, StrategyPositionId>(
+                closePosition, closePosition.EntityId).ConfigureAwait(false));
+            return;
+        }
+
+        throw new InvalidOperationException($"ORDER_EXECUTION.CLOSE_STRATEGY_UNSUPPORTED;{close.StrategyKind}");
     }
 
     static void Ensure(ServiceResult<Guid> result)

@@ -19,6 +19,7 @@ public sealed class TradeFlowBehaviorTests
         var componentId = Guid.NewGuid();
         var orderDefinition = new TradeOrderDefinition
         {
+            PositionType = TradeOrderPositionType.Opening,
             Id = new TradeOrderId(100, 200, 300),
             Revision = 1,
             ValueDate = DateOnly.FromDateTime(Now),
@@ -67,7 +68,7 @@ public sealed class TradeFlowBehaviorTests
                 FilledAtUtc = Now.AddSeconds(1)
             }).Accepted.Should().BeTrue();
         }
-        var optionTrade = execution.Accept(Now.AddSeconds(2)).Value!.Single();
+        var optionTrade = execution.Accept(Now.AddSeconds(2)).Value!.CreatedTrades.Single();
         optionTrade.Id.PortfolioId.Should().Be(100);
         optionTrade.Id.FundId.Should().Be(200);
 
@@ -132,7 +133,7 @@ public sealed class TradeFlowBehaviorTests
         foreach (var leg in order.Components[0].Legs)
             execution.AddFill(Fill(order.Components[0], leg, attempt, Math.Sign(leg.SignedQuantity)));
 
-        execution.Accept(Now.AddSeconds(1)).Value.Should().ContainSingle()
+        execution.Accept(Now.AddSeconds(1)).Value!.CreatedTrades.Should().ContainSingle()
             .Which.StrategyKind.Should().Be(TradeStrategyKind.VerticalSpread);
     }
 
@@ -176,6 +177,7 @@ public sealed class TradeFlowBehaviorTests
         };
         return new TradeOrderDefinition
         {
+            PositionType = TradeOrderPositionType.Opening,
             Id = new TradeOrderId(1, 2, 3), Revision = 1,
             Status = TradeOrderStatus.Executing, ValueDate = DateOnly.FromDateTime(Now),
             ValidUntilUtc = Now.AddMinutes(1), Origin = "BDD", DefinitionHash = "vertical",

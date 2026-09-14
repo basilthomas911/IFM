@@ -4,6 +4,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 
 public enum TradeAssetFamily : byte { Unknown, Futures, FuturesOption, Equity, FixedIncome, Custom }
 public enum TradeStrategyKind : byte { Unknown, FuturesOutright, VanillaOption, VerticalSpread, IronCondor, Custom }
+public enum TradeOrderPositionType : byte { Unknown = 0, Opening = 1, Closing = 2 }
 public enum TradeOrderStatus : byte { Draft, Approved, Ready, Executing, Completed, Cancelled, Expired }
 public enum ExecutionChannel : byte { Manual, Broker }
 public enum OrderExecutionStatus : byte { Pending, Submitted, PartiallyFilled, Filled, Cancelled, Rejected, Reconciled }
@@ -53,7 +54,7 @@ public sealed record TradeOrderComponentDefinition
 [MessagePackObject]
 public sealed record TradeOrderDefinition
 {
-    [Key(0)] public ushort SchemaVersion { get; init; } = 2;
+    [Key(0)] public ushort SchemaVersion { get; init; } = 3;
     [Key(1)] public TradeOrderId Id { get; init; }
     [Key(2)] public int Revision { get; init; }
     [Key(3)] public TradeOrderStatus Status { get; init; }
@@ -65,6 +66,8 @@ public sealed record TradeOrderDefinition
     [Key(9)] public Guid? BoundExecutionAttemptId { get; init; }
     [Key(10)] public ExecutionChannel? BoundExecutionChannel { get; init; }
     [Key(11)] public DateTime? ExecutionBoundAtUtc { get; init; }
+    [Key(12)] public TradeOrderPositionType PositionType { get; init; }
+    [Key(13)] public StrategyPositionId? TargetPositionId { get; init; }
 }
 
 /// <summary>Normalized immutable fill evidence accepted by OrderExecution.</summary>
@@ -89,7 +92,7 @@ public sealed record ExecutionFillEvidence
 [MessagePackObject]
 public sealed record OrderExecutionDefinition
 {
-    [Key(0)] public ushort SchemaVersion { get; init; } = 2;
+    [Key(0)] public ushort SchemaVersion { get; init; } = 3;
     [Key(1)] public TradeOrderId TradeOrderId { get; init; }
     [Key(2)] public Guid ExecutionAttemptId { get; init; }
     [Key(3)] public ExecutionChannel Channel { get; init; }
@@ -99,14 +102,27 @@ public sealed record OrderExecutionDefinition
     [Key(7)] public ExecutionFillEvidence[] Fills { get; init; } = [];
     [Key(8)] public DateTime StartedAtUtc { get; init; }
     [Key(9)] public DateTime? CompletedAtUtc { get; init; }
+    [Key(10)] public TradeOrderPositionType PositionType { get; init; }
+    [Key(11)] public StrategyPositionId? TargetPositionId { get; init; }
     [IgnoreMember] public OrderExecutionId Id => new(TradeOrderId, ExecutionAttemptId);
+}
+
+/// <summary>Accepted close-fill evidence for one existing strategy position.</summary>
+[MessagePackObject]
+public sealed record PositionCloseExecution
+{
+    [Key(0)] public StrategyPositionId PositionId { get; init; }
+    [Key(1)] public TradeStrategyKind StrategyKind { get; init; }
+    [Key(2)] public Guid ExecutionAttemptId { get; init; }
+    [Key(3)] public ExecutionFillEvidence[] Fills { get; init; } = [];
+    [Key(4)] public DateTime CompletedAtUtc { get; init; }
 }
 
 /// <summary>Durable established trade created from accepted execution evidence.</summary>
 [MessagePackObject]
 public sealed record EstablishedTradeDefinition
 {
-    [Key(0)] public ushort SchemaVersion { get; init; } = 2;
+    [Key(0)] public ushort SchemaVersion { get; init; } = 3;
     [Key(1)] public TradeEntityId Id { get; init; }
     [Key(2)] public TradeAssetFamily AssetFamily { get; init; }
     [Key(3)] public TradeStrategyKind StrategyKind { get; init; }
@@ -119,6 +135,8 @@ public sealed record EstablishedTradeDefinition
     [Key(10)] public decimal OpeningCommission { get; init; }
     [Key(11)] public DateTime EstablishedAtUtc { get; init; }
     [Key(12)] public int EvidenceRevision { get; init; }
+    [Key(13)] public ExecutionFillEvidence[] ClosingFills { get; init; } = [];
+    [Key(14)] public DateTime? ClosedAtUtc { get; init; }
 }
 
 /// <summary>Current price and basis for one stable position leg.</summary>
@@ -134,6 +152,11 @@ public sealed record StrategyPositionLeg
     [Key(5)] public long LastSourceSequence { get; init; }
     [Key(6)] public DateTime LastPriceAtUtc { get; init; }
     [Key(7)] public string ContractId { get; init; } = string.Empty;
+    [Key(8)] public TradeAssetFamily AssetFamily { get; init; }
+    [Key(9)] public string ContractKey { get; init; } = string.Empty;
+    [Key(10)] public DateOnly? Expiry { get; init; }
+    [Key(11)] public decimal? Strike { get; init; }
+    [Key(12)] public byte? PutCall { get; init; }
 }
 
 /// <summary>One coherent whole-strategy position version.</summary>

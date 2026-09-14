@@ -1,17 +1,12 @@
 using Microsoft.Extensions.Logging;
-using NSubstitute;
 using NATS.Client.Core;
+using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Trade.Queries;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-
-using static TomasAI.IFM.Domain.Trade.UnitTests.Option.OptionTradeQueryActorTests;
 using static TomasAI.IFM.Domain.Trade.UnitTests.Queries.TradeQueryActorTests;
-using TomasAI.IFM.Domain.Trade.Option.Query;
-using TomasAI.IFM.Domain.Trade.Option.Query.Actor;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests;
 
@@ -26,25 +21,13 @@ public class TradeFixture : IDisposable
     public IDataSerializer DataSerializer => ActorExtensions.DataSerializer!;
     public INatsSerializer<byte[]> MsgSerializer => ActorExtensions.MsgSerializer!;
 
-    public TestableOptionTradeQueryActor CreateQueryActor(
-        IDbContextFactory? dbFactory = null,
-        IBlackboardService? blackboardService = null,
-        ILogger<OptionTradeQueryActor>? logger = null)
-    {
-        var db = dbFactory ?? Substitute.For<IDbContextFactory>();
-        var blackboard = blackboardService ?? Substitute.For<IBlackboardService>();
-        var lg = logger ?? Substitute.For<ILogger<OptionTradeQueryActor>>();
-        return new TestableOptionTradeQueryActor(db, blackboard, lg);
-    }
-
-
     public TestableTradeQueryActor CreateTradeQueryActor(
         IDbContextFactory? dbFactory = null,
         ILogger<TradeQueryActor>? logger = null)
     {
         var db = dbFactory ?? Substitute.For<IDbContextFactory>();
-        var lg = logger ?? Substitute.For<ILogger<TradeQueryActor>>();
-        return new TestableTradeQueryActor(db, lg);
+        var log = logger ?? Substitute.For<ILogger<TradeQueryActor>>();
+        return new TestableTradeQueryActor(db, log);
     }
 
     public void Dispose() { }

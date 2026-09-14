@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradeDeletedEvent : IEvent<OptionTradeEntityId>
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "Deleted";
         [IgnoreMember] public const int ErrorCode = 7018;
 
@@ -121,7 +121,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradeDeletedCompleteEvent : ICompleteEvent<OptionTradeEntityId>
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "DeletedComplete";
 
         [Key(0)] public ActorSubject Subject { get; init; }
@@ -177,7 +177,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events;
     [MessagePackObject(AllowPrivate = true)]
     public record OptionTradeDeletedFailEvent : IErrorEvent<OptionTradeEntityId>
     {
-        [IgnoreMember] public const string Actor = "OptionTradeEvent";
+        [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
         [IgnoreMember] public const string Verb = "DeletedFail";
 
         [Key(0)] public ActorSubject Subject { get; init; }

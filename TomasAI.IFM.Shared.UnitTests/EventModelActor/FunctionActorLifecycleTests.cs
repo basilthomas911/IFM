@@ -123,6 +123,48 @@ public sealed class FunctionActorLifecycleTests
     }
 
     [Fact]
+    public async Task Event_then_projection_mode_commits_before_projecting()
+    {
+        var calls = new List<string>();
+        var repository = new TestRepository(new TestState(), calls);
+        var actor = new TestFunctionActor(repository, new TestProjector(calls), (_, request) =>
+            FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        {
+            Policy = (_, _) => new(TimeProvider.System, null, FunctionCompletionMode.EventThenProjection)
+        };
+        var message = new TestMessage(new TestRequest());
+
+        await actor.HandleMessageAsync(message);
+
+        calls.Should().Equal("save", "project");
+        message.Reply!.Success.Should().BeTrue();
+        actor.Observations.Should().Equal(FunctionEventPhase.Committed);
+    }
+
+    [Fact]
+    public async Task Event_then_projection_mode_preserves_committed_result_when_projection_fails()
+    {
+        var calls = new List<string>();
+        var state = new TestState();
+        var actor = new TestFunctionActor(
+            new TestRepository(state, calls),
+            new TestProjector(calls, new InvalidOperationException("projection unavailable")),
+            (_, request) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        {
+            Policy = (_, _) => new(TimeProvider.System, null, FunctionCompletionMode.EventThenProjection)
+        };
+        var message = new TestMessage(new TestRequest());
+
+        await actor.HandleMessageAsync(message);
+
+        calls.Should().Equal("save", "project");
+        message.Reply!.Success.Should().BeTrue();
+        message.Reply.Value!.Completed.Should().NotBeNull();
+        state.IsCompleted.Should().BeTrue();
+        actor.Observations.Should().Equal(FunctionEventPhase.Committed);
+    }
+
+    [Fact]
     public async Task Existing_matching_completion_is_returned_without_execution_projection_or_save()
     {
         var request = new TestRequest();
