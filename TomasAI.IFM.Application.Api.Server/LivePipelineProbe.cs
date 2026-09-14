@@ -2,8 +2,8 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
@@ -29,6 +29,7 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
     IMarketDataAnalyticsCommandApi analyticsCommands,
     IDbContextFactory db,
     MarketDataOperationsHealthService operations, LivePipelineEvidence evidence,
+    FuturesItiSignalRuntimeTelemetry itiTelemetry,
     DeploymentIdentityMonitor deploymentIdentity,
     DatabentoMarketDataWatchdogService watchdog, TimeProvider time, IActorSupervisor? supervisor = null,
     NatsConnectionManager? messaging = null) : ILivePipelineProbe
@@ -148,18 +149,37 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
                 : status?.LastDurableTickPublishedAtUtc is { } sent && tick.LastProgressUtc is { } stored && sent.UtcDateTime - stored > TimeSpan.FromMinutes(1)
                     ? tick with { Status = "Degraded", Reason = "Durable tick publication is ahead of confirmed storage." } : tick);
         }
-        if (supervisor is not null)
-            Add("ITI route", "ES", supervisor.GetRealtimeRoutes(PriceRoute).Any(x => x.Destination == ItiMailbox), "Current realtime routing table must contain the ITI consumer.");
-        else checks.Add(evidence.Get("ITI route", "ES") ?? new("ITI route", "ES", "Unknown", "ITI realtime router attachment is unverified.", now));
-        var iti = evidence.Get("ITI", "ES");
-        var unprocessedTrade = market.TryGetOnTheRunFuturesContract("ES", out var itiContract)
-            && market.TryGetLastTickPrice(itiContract.ContractId, out var itiPrice) && itiPrice.Trade is { } trade
-            && iti?.LastProgressUtc is { } evaluated && trade.EventTimestamp.UtcDateTime - evaluated > TimeSpan.FromMinutes(1);
-        checks.Add(iti is null ? new("ITI", "ES", "Unknown", "No eligible trade evaluation observed.", now)
-            : unprocessedTrade && now - iti.ObservedUtc > TimeSpan.FromMinutes(1)
-                ? iti with { Status = "Degraded", Reason = "ES trades advanced without ITI evaluation progress; verify routing and VX prerequisites." } : iti);
         if (market.TryGetOnTheRunFuturesContract("ES", out var es))
         {
+            if (supervisor is not null)
+                Add("ITI route", "ES", supervisor.GetRealtimeRoutes(PriceRoute).Any(x => x.Destination == ItiMailbox),
+                    "Current realtime routing table must contain the thin ITI Daily-command consumer.");
+            else
+                checks.Add(new("ITI route", "ES", "Unknown", "ITI realtime router attachment is unverified.", now));
+
+            var iti = itiTelemetry.GetSnapshot();
+            var lastMarketTrade = market.TryGetLastTickPrice(es.ContractId, out var itiPrice)
+                ? itiPrice.Trade?.EventTimestamp.UtcDateTime
+                : null;
+            var ingressBehind = lastMarketTrade is { } marketProgress
+                && iti.LastEligibleEsTradeUtc is { } itiProgress
+                && marketProgress - itiProgress > TimeSpan.FromMinutes(1);
+            var ingressStatus = ingressBehind || iti.LastOutcome is FuturesItiRuntimeOutcome.Failed
+                or FuturesItiRuntimeOutcome.InputUnavailable ? "Degraded" : "Healthy";
+            checks.Add(iti.EligibleEsTradeEvents == 0
+                ? new("ITI ingress", "ES", "Unknown", "No eligible current ES trade event has been observed.", now)
+                : new("ITI ingress", "ES", ingressStatus,
+                    $"Outcome={iti.LastOutcome}; Received={iti.MarketPriceEvents}; EligibleES={iti.EligibleEsTradeEvents}; Filtered={iti.FilteredEvents}; Commands={iti.CommandRequests}; Accepted={iti.AcceptedCommands}; NoChange={iti.NoChangeCommands}; Reason={iti.LastReason}",
+                    now, iti.LastCommandAcceptedUtc ?? iti.LastEligibleEsTradeUtc));
+
+            var pendingProjection = iti.CommittedEvents > iti.ProjectionCompletions
+                && iti.LastEventCommittedUtc is { } committedAt
+                && now - committedAt > TimeSpan.FromMinutes(1);
+            checks.Add(new("ITI durable completion", "ES", pendingProjection ? "Degraded" : "Healthy",
+                $"Committed={iti.CommittedEvents}; Projected={iti.ProjectionCompletions}; Handled={iti.HandledCompletions}; Workflows={iti.WorkflowRequests}",
+                now, iti.LastCompletionHandledUtc ?? iti.LastProjectionCompletedUtc ?? iti.LastEventCommittedUtc,
+                Required: false));
+
             foreach (var activation in FuturesIntradaySignalActivationProfile.Create(es.ContractId, date))
             {
                 Add("Analytics attachments", "RSI/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot().Contains(activation.Rsi), "Expected RSI bar consumer attachment.");
@@ -204,8 +224,10 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
                 : checks.Any(x => x.Required && x.Status == "Unknown") ? "Unknown" : "Healthy", checks);
     }
 
-    static readonly ActorTypeId PriceRoute = new(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+    static readonly ActorTypeId PriceRoute = new(ActorType.Realtime,
+        FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
     static readonly ActorMailboxId ItiMailbox = new(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
+
     public async Task HardResetAsync(LivePipelineHealthSnapshot unhealthySnapshot, CancellationToken token)
     {
         if (unhealthySnapshot.ValueDate is not { } valueDate
@@ -257,6 +279,10 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
 
         switch (unhealthyCheck.Component)
         {
+            case "ITI route":
+            case "ITI ingress":
+                await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
+                return;
             case "Bar timer":
                 await EnsureChartBarsAsync(valueDate, restart: false, token).ConfigureAwait(false);
                 return;
@@ -270,10 +296,6 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
             case "Analytics processing":
                 await EnsureIntradayAnalyticsAsync(unhealthyCheck.Scope, valueDate, restart: true, token)
                     .ConfigureAwait(false);
-                return;
-            case "ITI route":
-            case "ITI":
-                await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
                 return;
             case "Market Outlook inputs":
             case "Market Outlook publication":

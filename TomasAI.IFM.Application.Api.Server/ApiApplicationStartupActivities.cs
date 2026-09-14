@@ -49,9 +49,10 @@ public sealed class ApiApplicationStartupActivities(
 
     public async ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
     {
-        if(parameterRuntime is not {Enabled:true})return ApplicationStartupActivityOutcome.AlreadySatisfied;
         if(parameterSetsApi is null)throw new InvalidOperationException("Parameter Sets API is unavailable.");
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(options.ParticipantTimeout);
+        await ParameterSets.FuturesItiSignalDefaultParameterSet.EnsureAsync(parameterSetsApi,deadline.Token);
+        if(parameterRuntime is not {Enabled:true})return ApplicationStartupActivityOutcome.AlreadySatisfied;
         var applied=await parameterSetsApi.ApplyStartupAsync(new(){CommandId=context.ProcessBootId,RunId=context.ProcessBootId},deadline.Token);
         if(!applied.Success)throw new InvalidOperationException(applied.ErrorMessage);
         var runs=await parameterSetsApi.StartupRunsAsync(deadline.Token);

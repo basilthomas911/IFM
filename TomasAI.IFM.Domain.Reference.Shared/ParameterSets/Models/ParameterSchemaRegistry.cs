@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesItiSignal;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
@@ -18,7 +19,9 @@ public sealed record ParameterSchemaDefinition(
 public sealed class ParameterSchemaRegistry
 {
     public const string RegimeComponent = "strategy-workflow.regime-discovery";
+    public const string FuturesItiSignalComponent = "market-data-analytics.futures-iti-signal";
     public const int CurrentRegimeSchemaVersion = 5;
+    public const int CurrentFuturesItiSignalSchemaVersion = 1;
     static readonly System.Collections.Concurrent.ConcurrentDictionary<PropertyInfo,NullabilityInfo> Nullability = new();
     public static ParameterSchemaRegistry Default { get; } = CreateDefault();
     readonly Dictionary<(string,int),(Type Type,ParameterSchemaDefinition Definition)> schemas = new();
@@ -30,6 +33,10 @@ public sealed class ParameterSchemaRegistry
             Enumerable.Range(1,3).Select(version => (RegimeComponent,version,typeof(RegimeDiscoveryParameterSet))));
         registry.RegisterStrict(RegimeComponent,4,typeof(RegimeDiscoveryParameterSet));
         registry.RegisterStrict(RegimeComponent,CurrentRegimeSchemaVersion,typeof(RegimeDiscoveryParameterSet));
+        registry.RegisterStrict(
+            FuturesItiSignalComponent,
+            CurrentFuturesItiSignalSchemaVersion,
+            typeof(FuturesItiSignalParameterSet));
         return registry;
     }
 

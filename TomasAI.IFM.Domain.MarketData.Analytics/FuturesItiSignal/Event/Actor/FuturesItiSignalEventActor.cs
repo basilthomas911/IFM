@@ -7,8 +7,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
-
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
@@ -29,13 +29,17 @@ public class FuturesItiSignalEventActor(
         IsArgumentNull.Set(Context as IFuturesItiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesItiSignalEvent";
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, FuturesItiSignalRuntimeTelemetry, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, FuturesItiSignalRuntimeTelemetry, ValueTask<bool>>>()
     {
-        [typeof(FuturesItiSignalGeneratedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesItiSignalGeneratedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger, telemetry) =>
         {
             var e = (evt as FuturesItiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
-        }
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger, telemetry);
+        },
+        [typeof(FuturesItiSignalHoldTradeSetCompleteEvent)] = static (evt, context, _, logger, _) =>
+            ((FuturesItiSignalHoldTradeSetCompleteEvent)evt).ExecuteAsync(context, logger),
+        [typeof(FuturesItiSignalHoldTradeClearedCompleteEvent)] = static (evt, context, _, logger, _) =>
+            ((FuturesItiSignalHoldTradeClearedCompleteEvent)evt).ExecuteAsync(context, logger)
     };
 
     /// <summary>
@@ -79,7 +83,11 @@ public class FuturesItiSignalEventActor(
     /// </summary>
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
-        [FuturesItiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!
+        [FuturesItiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!,
+        [FuturesItiSignalHoldTradeSetCompleteEvent.Verb] =
+            msg => msg.AsEvent<FuturesItiSignalHoldTradeSetCompleteEvent>()!,
+        [FuturesItiSignalHoldTradeClearedCompleteEvent.Verb] =
+            msg => msg.AsEvent<FuturesItiSignalHoldTradeClearedCompleteEvent>()!
     };
 
     /// <summary>
@@ -96,7 +104,8 @@ public class FuturesItiSignalEventActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
+        _ = await receiveFunc.Invoke(
+            @event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger, ActorContext.Telemetry);
     }
 
     /// <summary>
@@ -112,6 +121,7 @@ public class FuturesItiSignalEventActor(
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesItiSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
+        ActorContext.Telemetry.RecordFailure(ex.Message);
         try
         {
             IsArgumentNull.Check(context);

@@ -1,15 +1,9 @@
 using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
@@ -22,6 +16,8 @@ public interface IFuturesItiSignalEventContext : IEventActorContext<FuturesItiSi
     IStatusConsoleWriter StatusConsoleWriter { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<FuturesItiSignalEventActor> Logger { get; }
+    /// <summary>Gets bounded Futures ITI runtime telemetry.</summary>
+    FuturesItiSignalRuntimeTelemetry Telemetry { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="FuturesItiSignalEventActor"/>.</summary>
@@ -31,12 +27,14 @@ public sealed class FuturesItiSignalEventContext : EventActorContext, IEventActo
     public FuturesItiSignalEventContext(
         IActorSupervisor supervisor,
         IStatusConsoleWriter statusConsoleWriter,
-        ILogger<FuturesItiSignalEventActor> logger)
+        ILogger<FuturesItiSignalEventActor> logger,
+        FuturesItiSignalRuntimeTelemetry? telemetry = null)
         : base(supervisor, new ActorMailboxId(ActorType.Event, FuturesItiSignalEventActor.Actor))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
         Logger = IsArgumentNull.Set(logger);
+        Telemetry = telemetry ?? new FuturesItiSignalRuntimeTelemetry(TimeProvider.System);
     }
 
     /// <inheritdoc/>
@@ -45,4 +43,6 @@ public sealed class FuturesItiSignalEventContext : EventActorContext, IEventActo
     public IStatusConsoleWriter StatusConsoleWriter { get; }
     /// <inheritdoc/>
     public ILogger<FuturesItiSignalEventActor> Logger { get; }
+    /// <inheritdoc/>
+    public FuturesItiSignalRuntimeTelemetry Telemetry { get; }
 }

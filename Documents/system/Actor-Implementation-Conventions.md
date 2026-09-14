@@ -318,6 +318,43 @@ The current default is:
 
 Logging must not accidentally convert a retryable exception into a successful actor acknowledgement.
 
+Performance-sensitive structured logs use dedicated `static partial` logging
+classes and compile-time `[LoggerMessage]` declarations with fixed event IDs,
+levels, and templates. The logging class contains declarations only. Actor,
+context, handler, and model classes do not become partial to support logging.
+Hot-path Trace/Debug calls pass typed values directly and must not build a
+property dictionary, formatted message, array, or logging scope while that
+level is disabled. Exceptions are supplied to the generated method so the
+owning actor boundary records the full exception once.
+
+#### 6.4.1 Realtime and Event handler failure invariant
+
+Every actual failure that occurs while a Realtime or Event extension handler owns a
+message must produce exactly one Error log. A failure must not disappear because the
+handler converts an exception into a failed result, publishes a typed fail event,
+returns `false`, or starts asynchronous work that completes after the receive method
+returns.
+
+The extension handler owns the Error log for failures in its domain processing. It
+must include the exception object when one exists and the available structured
+identity of the failed operation: handler or event family, message/event identifier,
+actor thread or entity identifier, correlation or causation identifier, and stable
+error code or failure type when those values exist. The handler then preserves the
+defined propagation, acknowledgement, and retry behavior. Actor-level parsing and
+dispatch failures remain owned by the actor execution boundary. The same failure must
+not be logged again at both boundaries.
+
+An asynchronous operation started and owned by a handler must be observed. Its failure
+path catches and logs the exception before completing, and its lifecycle state is
+released in `finally`. Unobserved fire-and-forget failures are prohibited.
+
+Expected realtime decisions are not failures. Eligibility rejection, a busy gate,
+duplicate or stale input, no material change, and another documented no-op outcome use
+metrics or health state when visibility is required; they do not produce Error logs.
+For the Futures ITI realtime ingress, the normal hot path therefore logs only the
+successful creation of a Daily generation command, while a rejected command result or
+an exception during that operation is always logged as an Error.
+
 ### 6.5 Method documentation
 
 Every method created in a handler extension class must have XML documentation, including private helper methods.
@@ -502,15 +539,19 @@ The primary actor has exactly one parse-map entry and one receive-map entry, bot
 
 The primary actor does not register a route to itself. Signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
 
-`FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns `Realtime.FuturesItiSignal`, receives the routed market-price update plus its private realtime calculation lifecycle events, and uses the same explicit parse-map and receive-map structure. Its market-price handler:
-
-1. accepts only the startup-validated current ES contract;
-2. lazily acquires explicit ES and VX stream registrations owned by `FuturesItiSignal/CurrentContracts/ES` and `FuturesItiSignal/CurrentContracts/VX`;
-3. requires both owned workflow streams to be active;
-4. obtains a fresh VX price through the hot-cache-backed market-data API; and
-5. sends a Daily `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
-
-Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress command creation without treating the realtime message as a durable failure. Contract-identity mismatches and missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent` trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation workflow from being triggered by both EOD and realtime paths.
+Futures ITI uses a thin `FuturesItiSignalRealtimeActor` as a routed consumer of
+the normalized market-price event. Its single `FuturesMarketPriceUpdated`
+extension handler filters for the current on-the-run ES trade, reads current VX
+from the shared hot cache, and requests only a Daily
+`GenerateFuturesItiSignalCommand` through the standard Command actor. It owns
+no signal state, hydration, database, stream lease, or realtime projector. The
+durable projector writes the read model and sends
+`FuturesItiSignalGeneratedCompleteEvent` to `FuturesItiSignalEventActor`.
+That completion handler requests Weekly and Monthly generation only when the
+completed timeframe is Daily, and directly sends the Strategy Workflow
+admission command for every completed timeframe. Set Hold and Clear Hold have
+their own source, complete, and fail contracts and are handled by the same Event
+actor without timeframe fan-out or workflow admission.
 
 #### 9.4.1 RealtimeActor structural map convention
 
@@ -534,7 +575,8 @@ Actor construction deliberately precedes hosted market-data startup, so stream a
 The ITI period contract is:
 
 ```text
-Core Realtime ES update
+Current ES trade realtime event
+  -> thin ITI realtime actor
   -> Generate Daily ITI command
   -> durable Daily Generated event and projection
   -> Daily GeneratedComplete handler
@@ -542,7 +584,7 @@ Core Realtime ES update
        -> Generate Monthly ITI command
 ```
 
-Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. `FuturesItiSignalGeneratedEvent` and its completed event carry the exact source VX futures price and an explicit derivation marker as additive MessagePack fields. The marker is set only by a Daily Generate command; hold-set and hold-clear mutations reuse the event family but must not derive periods. This makes durable period derivation deterministic and replay-safe without rereading a mutable hot cache or substituting an EOD VX observation. Derived command identifiers are stable hashes of the source completion identity and target period, so redelivery addresses the same command identity. Only a marked Daily completion may derive longer periods; Weekly and Monthly completions never generate ITI commands, preventing recursive fan-out. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
+Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. `FuturesItiSignalGeneratedEvent` and its completed event carry the exact source VX futures price. The retained derivation marker is wire compatibility only and is always false. The completed event's timeframe alone controls fan-out. Hold-set and hold-clear mutations use dedicated event families and never derive periods. Derived command identifiers are stable hashes of the source completion identity and target period, so redelivery addresses the same command identity. Weekly and Monthly completions never generate ITI commands. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
 
 #### 9.4.2 Normalized last-price cache
 
@@ -558,7 +600,13 @@ Every accepted quote atomically replaces the quote portion of the contract's cac
 
 The hot-cache read returns `false` when the contract is unknown or no quote or trade has yet been observed. Per-contract stream stop does not erase the cache, so an inactive contract can still return its last observation; clients requiring live data must first check `IsTickDataStreamActive` and should also inspect the snapshot timestamps. Stream activity becoming true does not imply that the first price has arrived. A value-date transition discards the previous combined snapshot before accepting data for the new date. Core publication failure increments TickAggregation publication-failure metrics but does not stop ingestion or invalidate the newer cached value; loss and recovery remain consistent with the explicitly non-durable realtime contract.
 
-Realtime ITI processing consumes the snapshot carried by `FuturesMarketPriceUpdatedRealtimeEvent`. Timer-derived RSI, ATR, ADX, and MACD processing checks stream activity and samples `TryGetLastTickPrice` only when its time event fires, then sends a durable generation command. TDI and trade-signal workflows consume their upstream durable signal events rather than reading the raw feed or subscribing directly to market-price updates.
+Futures ITI consumes the accepted ES trade publication and samples the current
+VX trade through `TryGetLastTickPrice` before requesting its Daily durable
+command. Timer-derived RSI, ATR, ADX, and MACD processing checks stream activity
+and samples `TryGetLastTickPrice` only when its time event fires, then sends a
+durable generation command. TDI and trade-signal workflows consume their
+upstream durable signal events rather than reading the raw feed or subscribing
+directly to market-price updates.
 
 ## 10. EventActor testing convention
 
@@ -623,6 +671,9 @@ Use this checklist when creating or refactoring an EventActor. Future CommandAct
 - [ ] `LogSourceType` contains the corresponding main event-family name.
 - [ ] Every handler and private helper has XML documentation.
 - [ ] Caught handler exceptions and fail lifecycle events use `LogErrorEvent` and the family `ServiceId`.
+- [ ] Every actual Realtime/Event handler failure is logged exactly once, including converted failed results and failures in handler-owned asynchronous work.
+- [ ] Expected filtering, busy, duplicate, stale, and no-op outcomes are not logged as errors.
+- [ ] Handler-owned asynchronous work is observed, logs failures, and releases lifecycle state in `finally`.
 - [ ] Successful main and complete handlers do not log informational messages by default.
 - [ ] Async sends, requests, and writes are awaited.
 - [ ] Existing exception and retry semantics are preserved.
@@ -1403,6 +1454,7 @@ This rule applies immediately to new or modified receive handlers. Existing acto
 
 | Date | Revision |
 | --- | --- |
+| 2026-09-14 | Required every actual Realtime/Event extension-handler failure to produce exactly one structured Error log, including converted failures and handler-owned asynchronous work; distinguished expected realtime no-op outcomes from failures. |
 | 2026-09-13 | Required every concrete FunctionActor to inherit the framework FunctionActor base directly, retain its own five frozen maps, and delegate shared behavior through Models or static helpers; removed the strategy-exit intermediate actor bases. |
 | 2026-09-13 | Required Command extension handlers to expose ordered state-dependent business rules before explicit event construction and state update; prohibited generic wrappers for simple transitions and transient, non-rehydratable deduplication state. |
 | 2026-09-13 | Established the system-wide one-message-per-extension-handler convention for Command, Query, Event, Realtime, and Function receive maps; required role-folder placement and message-suffix-based class and filename naming; and recorded `FuturesRealtimeActor` as the first scoped migration. |
@@ -1414,6 +1466,8 @@ This rule applies immediately to new or modified receive handlers. Existing acto
 | 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |
 | 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |
 | 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |
+| 2026-09-14 | Retired the Futures ITI realtime actor, tick handler, route, stream ownership, and realtime projector. Daily generation remains event sourced; its durable completion requests Weekly and Monthly generation and directly admits each completed timeframe to Strategy Workflow. |
+| 2026-09-14 | Restored Futures ITI as a thin market-price RealtimeActor that requests only Daily generation. The former realtime signal state, hydration, stream ownership, and projector remain retired; durable completion still owns longer timeframes and workflow admission. Added compile-time structured logging as the hot-path logging convention. |
 | 2026-08-25 | Recorded `readonly record struct` as a convention preference for eligible entity IDs and required a separate system-wide identity inventory, compatibility assessment, classification, and approved domain-gated plan before converting existing types. |
 | 2026-08-26 | Added the CommandActor convention: explicit parse/validation/receive maps, switch-free mapped dispatch, synchronous and asynchronous command-extension contracts, event-sourced state/repository/projector boundaries, actor-owned calculation models, durable failure handling, and benchmark qualification for thread-pool parallel calculation. |
 | 2026-08-28 | Defined command-only ingress validation: base mapped parsing, pre-audit `CommandId` rejection, read-only exact-type validation maps, visible `CommandId`/`EntityId`/payload ordering, FluentValidation for structured payloads, aggregate errors, identity cross-checks, and no synthetic payload identifiers. |

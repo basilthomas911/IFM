@@ -39,12 +39,22 @@ public class FuturesItiSignalCommandState
         return domainEvent switch
         {
             FuturesItiSignalGeneratedEvent e => On(e),
+            FuturesItiSignalHoldTradeSetEvent e => OnSignal(e.FuturesItiSignal),
+            FuturesItiSignalHoldTradeClearedEvent e => OnSignal(e.FuturesItiSignal),
             _ => false
         };
 
         bool On(FuturesItiSignalGeneratedEvent e)
         {
             _futuresItiSignal = e.FuturesItiSignal;
+            return true;
+        }
+
+        bool OnSignal(FuturesItiSignalV2ReadModel? signal)
+        {
+            if (signal is null)
+                return false;
+            _futuresItiSignal = signal;
             return true;
         }
     }

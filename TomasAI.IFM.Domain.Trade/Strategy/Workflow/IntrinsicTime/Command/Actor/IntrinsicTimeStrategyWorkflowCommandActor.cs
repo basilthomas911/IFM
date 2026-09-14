@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
+using System.Diagnostics;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Logging;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -328,13 +330,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         ActorThreadId threadId,
         IActorState state,
         ICommand command)
-        => await ActorContext.StateRepository.SaveStateAsync(
-            context,
-            (IntrinsicTimeStrategyWorkflowCommandState)state,
-            command).ConfigureAwait(false);
+    {
+        var workflowState = (IntrinsicTimeStrategyWorkflowCommandState)state;
+        await ActorContext.StateRepository.SaveStateAsync(context, workflowState, command).ConfigureAwait(false);
+        if (workflowState.CurrentView is { } view)
+            IntrinsicTimeStrategyWorkflowLogging.StateCommitted(
+                ActorContext.Logger, command.CommandId, view.WorkflowId.ToString(), view.EntityId.Format(),
+                view.WorkflowRevision, view.CurrentStage.ToString(), view.Status.ToString(), view.Outcome.ToString());
+    }
 
     /// <inheritdoc />
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         IActorState actorState,
         ICommand command)
@@ -342,9 +348,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(actorState);
         ArgumentNullException.ThrowIfNull(command);
+        var started = Stopwatch.GetTimestamp();
+        var entityId = command.Subject.EntityId;
+        IntrinsicTimeStrategyWorkflowLogging.CommandReceived(
+            ActorContext.Logger, command.CommandId, entityId, command.CommandName);
         var state = (IntrinsicTimeStrategyWorkflowCommandState)actorState;
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
-        return receive(command, context, state);
+        var result = await receive(command, context, state).ConfigureAwait(false);
+        IntrinsicTimeStrategyWorkflowLogging.CommandHandled(
+            ActorContext.Logger, command.CommandId, entityId, command.CommandName,
+            result.Success, result.ErrorCode, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        return result;
     }
 
     /// <inheritdoc />
@@ -353,8 +367,14 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         ActorThreadId threadId,
         ICommand command,
         Exception ex)
-        => ValueTask.FromResult<ServiceResult<GuidResult>>(
+    {
+        IntrinsicTimeStrategyWorkflowLogging.CommandFailed(
+            ActorContext.Logger, ex, command?.CommandId ?? Guid.Empty,
+            command?.Subject.EntityId ?? threadId.ToString(), command?.CommandName ?? "Unknown",
+            ex.GetType().Name, ex.Message);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceResult<GuidResult>(command?.ErrorCode ?? 21000, ex.Message));
+    }
 
     static void ValidateCommand(ICommand command)
     {

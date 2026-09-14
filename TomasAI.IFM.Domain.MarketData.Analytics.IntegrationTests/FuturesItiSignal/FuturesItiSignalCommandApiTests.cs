@@ -130,9 +130,11 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
     {
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
-        FuturesItiSignalGeneratedEvent futuresItiSignalGeneratedEvent = default!;
         FuturesItiSignalGeneratedCompleteEvent futuresItiSignalGeneratedCompleteEvent = default!;
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
+        FuturesItiSignalHoldTradeSetEvent holdTradeSetEvent = default!;
+        FuturesItiSignalHoldTradeSetCompleteEvent holdTradeSetCompleteEvent = default!;
+        FuturesItiSignalHoldTradeSetFailEvent holdTradeSetFailEvent = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
@@ -143,7 +145,10 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 [
                     FuturesItiSignalGeneratedEvent.Verb,
                     FuturesItiSignalGeneratedCompleteEvent.Verb,
-                    FuturesItiSignalGeneratedFailEvent.Verb
+                    FuturesItiSignalGeneratedFailEvent.Verb,
+                    FuturesItiSignalHoldTradeSetEvent.Verb,
+                    FuturesItiSignalHoldTradeSetCompleteEvent.Verb,
+                    FuturesItiSignalHoldTradeSetFailEvent.Verb
                 ]
             },
             EventHandlerAsync
@@ -175,7 +180,6 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         futuresItiSignalGeneratedCompleteEvent.Should().NotBeNull();
         futuresItiSignalGeneratedFailEvent.Should().BeNull();
 
-        futuresItiSignalGeneratedEvent = default!;
         futuresItiSignalGeneratedCompleteEvent = default!;
         futuresItiSignalGeneratedFailEvent = default!;
         terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -190,14 +194,14 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
-        futuresItiSignalGeneratedEvent.Should().NotBeNull();
-        futuresItiSignalGeneratedCompleteEvent.Should().NotBeNull();
-        futuresItiSignalGeneratedFailEvent.Should().BeNull();
-
-        futuresItiSignalGeneratedEvent.FuturesItiSignal.Should().NotBeNull();
-        futuresItiSignalGeneratedEvent.FuturesItiSignal!.ContractId.Should().Be(contractId);
-        futuresItiSignalGeneratedEvent.FuturesItiSignal.ValueDate.Should().Be(valueDate);
-        futuresItiSignalGeneratedEvent.FuturesItiSignal.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
+        holdTradeSetEvent.Should().NotBeNull();
+        holdTradeSetCompleteEvent.Should().NotBeNull();
+        holdTradeSetFailEvent.Should().BeNull();
+        holdTradeSetEvent.FuturesItiSignal.Should().NotBeNull();
+        holdTradeSetEvent.FuturesItiSignal!.ContractId.Should().Be(contractId);
+        holdTradeSetEvent.FuturesItiSignal.ValueDate.Should().Be(valueDate);
+        holdTradeSetEvent.FuturesItiSignal.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
+        holdTradeSetCompleteEvent.FuturesItiSignal.Should().BeEquivalentTo(holdTradeSetEvent.FuturesItiSignal);
 
         await eventListener.StopAsync();
 
@@ -208,14 +212,15 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 _ when eventVerb == FuturesItiSignalGeneratedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedEvent>()!),
                 _ when eventVerb == FuturesItiSignalGeneratedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!),
                 _ when eventVerb == FuturesItiSignalGeneratedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedFailEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeSetEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeSetEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeSetCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeSetCompleteEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeSetFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeSetFailEvent>()!),
                 _ => default!
             };
             await ValueTask.CompletedTask;
 
             IEvent SetEvent(IEvent @event)
             {
-                if (@event is FuturesItiSignalGeneratedEvent generated)
-                    futuresItiSignalGeneratedEvent = generated;
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
                 {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;
@@ -224,6 +229,18 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 if (@event is FuturesItiSignalGeneratedFailEvent generatedFail)
                 {
                     futuresItiSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesItiSignalHoldTradeSetEvent set)
+                    holdTradeSetEvent = set;
+                if (@event is FuturesItiSignalHoldTradeSetCompleteEvent setComplete)
+                {
+                    holdTradeSetCompleteEvent = setComplete;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesItiSignalHoldTradeSetFailEvent setFail)
+                {
+                    holdTradeSetFailEvent = setFail;
                     terminalEventReceived.TrySetResult();
                 }
                 return @event;
@@ -236,10 +253,14 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
     {
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
-        FuturesItiSignalGeneratedEvent futuresItiSignalGeneratedEvent = default!;
         FuturesItiSignalGeneratedCompleteEvent futuresItiSignalGeneratedCompleteEvent = default!;
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
-        var generatedEvents = new System.Collections.Concurrent.ConcurrentDictionary<Guid, FuturesItiSignalGeneratedEvent>();
+        FuturesItiSignalHoldTradeSetEvent holdTradeSetEvent = default!;
+        FuturesItiSignalHoldTradeSetCompleteEvent holdTradeSetCompleteEvent = default!;
+        FuturesItiSignalHoldTradeSetFailEvent holdTradeSetFailEvent = default!;
+        FuturesItiSignalHoldTradeClearedEvent holdTradeClearedEvent = default!;
+        FuturesItiSignalHoldTradeClearedCompleteEvent holdTradeClearedCompleteEvent = default!;
+        FuturesItiSignalHoldTradeClearedFailEvent holdTradeClearedFailEvent = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
@@ -250,7 +271,13 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 [
                     FuturesItiSignalGeneratedEvent.Verb,
                     FuturesItiSignalGeneratedCompleteEvent.Verb,
-                    FuturesItiSignalGeneratedFailEvent.Verb
+                    FuturesItiSignalGeneratedFailEvent.Verb,
+                    FuturesItiSignalHoldTradeSetEvent.Verb,
+                    FuturesItiSignalHoldTradeSetCompleteEvent.Verb,
+                    FuturesItiSignalHoldTradeSetFailEvent.Verb,
+                    FuturesItiSignalHoldTradeClearedEvent.Verb,
+                    FuturesItiSignalHoldTradeClearedCompleteEvent.Verb,
+                    FuturesItiSignalHoldTradeClearedFailEvent.Verb
                 ]
             },
             EventHandlerAsync
@@ -293,48 +320,34 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         var setResponse = await marketDataAnalyticsApi.SetFuturesItiSignalHoldTradeAsync(itiSignalId);
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        futuresItiSignalGeneratedEvent = await WaitForGeneratedAsync(setResponse.Value);
 
         setResponse.Success.Should().BeTrue();
-        futuresItiSignalGeneratedEvent.FuturesItiSignal!.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
+        holdTradeSetEvent.Should().NotBeNull();
+        holdTradeSetCompleteEvent.Should().NotBeNull();
+        holdTradeSetFailEvent.Should().BeNull();
+        holdTradeSetEvent.FuturesItiSignal!.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
 
-        futuresItiSignalGeneratedEvent = default!;
-        futuresItiSignalGeneratedCompleteEvent = default!;
-        futuresItiSignalGeneratedFailEvent = default!;
         terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // act...
         var response = await marketDataAnalyticsApi.ClearFuturesItiSignalHoldTradeAsync(itiSignalId);
 
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        futuresItiSignalGeneratedEvent = await WaitForGeneratedAsync(response.Value);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
-        futuresItiSignalGeneratedEvent.Should().NotBeNull();
-        futuresItiSignalGeneratedCompleteEvent.Should().NotBeNull();
-        futuresItiSignalGeneratedFailEvent.Should().BeNull();
-
-        futuresItiSignalGeneratedEvent.FuturesItiSignal.Should().NotBeNull();
-        futuresItiSignalGeneratedEvent.FuturesItiSignal!.ContractId.Should().Be(contractId);
-        futuresItiSignalGeneratedEvent.FuturesItiSignal.ValueDate.Should().Be(valueDate);
-        futuresItiSignalGeneratedEvent.FuturesItiSignal.TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
+        holdTradeClearedEvent.Should().NotBeNull();
+        holdTradeClearedCompleteEvent.Should().NotBeNull();
+        holdTradeClearedFailEvent.Should().BeNull();
+        holdTradeClearedEvent.FuturesItiSignal.Should().NotBeNull();
+        holdTradeClearedEvent.FuturesItiSignal!.ContractId.Should().Be(contractId);
+        holdTradeClearedEvent.FuturesItiSignal.ValueDate.Should().Be(valueDate);
+        holdTradeClearedEvent.FuturesItiSignal.TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
+        holdTradeClearedCompleteEvent.FuturesItiSignal.Should().BeEquivalentTo(holdTradeClearedEvent.FuturesItiSignal);
 
         await eventListener.StopAsync();
-
-        async Task<FuturesItiSignalGeneratedEvent> WaitForGeneratedAsync(Guid commandId)
-        {
-            var timeoutAt = DateTime.UtcNow.AddSeconds(10);
-            while (DateTime.UtcNow < timeoutAt)
-            {
-                if (generatedEvents.TryGetValue(commandId, out var generated))
-                    return generated;
-                await Task.Delay(20);
-            }
-            throw new TimeoutException($"No FuturesItiSignalGeneratedEvent arrived for command {commandId}.");
-        }
 
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
         {
@@ -343,17 +356,18 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 _ when eventVerb == FuturesItiSignalGeneratedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedEvent>()!),
                 _ when eventVerb == FuturesItiSignalGeneratedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!),
                 _ when eventVerb == FuturesItiSignalGeneratedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedFailEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeSetEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeSetEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeSetCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeSetCompleteEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeSetFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeSetFailEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeClearedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeClearedEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeClearedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeClearedCompleteEvent>()!),
+                _ when eventVerb == FuturesItiSignalHoldTradeClearedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesItiSignalHoldTradeClearedFailEvent>()!),
                 _ => default!
             };
             await ValueTask.CompletedTask;
 
             IEvent SetEvent(IEvent @event)
             {
-                if (@event is FuturesItiSignalGeneratedEvent generated)
-                {
-                    futuresItiSignalGeneratedEvent = generated;
-                    generatedEvents[generated.CommandId] = generated;
-                }
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
                 {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;
@@ -362,6 +376,30 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 if (@event is FuturesItiSignalGeneratedFailEvent generatedFail)
                 {
                     futuresItiSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesItiSignalHoldTradeSetEvent set)
+                    holdTradeSetEvent = set;
+                if (@event is FuturesItiSignalHoldTradeSetCompleteEvent setComplete)
+                {
+                    holdTradeSetCompleteEvent = setComplete;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesItiSignalHoldTradeSetFailEvent setFail)
+                {
+                    holdTradeSetFailEvent = setFail;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesItiSignalHoldTradeClearedEvent cleared)
+                    holdTradeClearedEvent = cleared;
+                if (@event is FuturesItiSignalHoldTradeClearedCompleteEvent clearedComplete)
+                {
+                    holdTradeClearedCompleteEvent = clearedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesItiSignalHoldTradeClearedFailEvent clearedFail)
+                {
+                    holdTradeClearedFailEvent = clearedFail;
                     terminalEventReceived.TrySetResult();
                 }
                 return @event;

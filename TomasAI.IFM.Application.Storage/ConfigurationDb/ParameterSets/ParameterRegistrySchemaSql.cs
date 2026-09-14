@@ -16,8 +16,12 @@ public static class ParameterRegistrySchemaSql
  PRIMARY KEY(component_code,schema_version));
  INSERT INTO reference_configuration.parameter_area(area_id,code,name)
  VALUES(md5('parameter-area:strategy-workflow')::uuid,'strategy-workflow','Strategy Workflow') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_area(area_id,code,name)
+ VALUES(md5('parameter-area:market-data-analytics')::uuid,'market-data-analytics','Market Data Analytics') ON CONFLICT DO NOTHING;
  INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
  VALUES(md5('parameter-component:strategy-workflow.regime-discovery')::uuid,'strategy-workflow.regime-discovery',md5('parameter-area:strategy-workflow')::uuid,'Regime Discovery','regime-discovery') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
+ VALUES(md5('parameter-component:market-data-analytics.futures-iti-signal')::uuid,'market-data-analytics.futures-iti-signal',md5('parameter-area:market-data-analytics')::uuid,'Future ITI Signal','scalar-properties') ON CONFLICT DO NOTHING;
  CREATE OR REPLACE FUNCTION reference_configuration.guard_parameter_schema() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'PARAM.SCHEMA_IMMUTABLE'; END; $$;
  DROP TRIGGER IF EXISTS parameter_schema_guard ON reference_configuration.parameter_schema_version;

@@ -17,7 +17,7 @@ The API owns `LivePipelineMonitor`. It audits immediately and then every minute.
 | Tick persistence | Successful durable tick projection compared with durable publication progress |
 | Chart bars | Process-local timer registration/liveness; current-contract, current-date latest durable bar read; 45-second bar freshness |
 | Analytics | Configured RSI/ATR/ADX/MACD attachments for every activation timeframe; consumed closed-observation watermarks; enabled analytics/output telemetry |
-| ITI | Eligible trade evaluation, missing VX prerequisite, projection failures, successful daily/weekly/monthly evaluation including no-signal results |
+| ITI | Eligible trade evaluation, busy-skipped ticks, missing VX prerequisite, projection failures, successful daily/weekly/monthly evaluation including no-signal results |
 | Market Outlook | Processor readiness/pending work, required input completeness, publication versus ES trade progress, latest snapshot persistence |
 | UI | Server-timed heartbeat, value date and contract agreement, received and rendered output timestamps for ES, VX and Outlook |
 | Health monitor | Audit timestamp, timeout/failure evidence, disagreement between watchdog and feed runtime |
@@ -91,7 +91,7 @@ Connected clients report through `POST /api/market-data/live-health/ui`. The rep
 - Only one audit/recovery runs at a time, with a 40-second deadline.
 - Definite upstream faults take precedence. The existing serialized watchdog owns feed recovery.
 - Missing/faulted chart timers are rearmed through the actor command API. Timer ownership remains idempotent.
-- Missing analytics attachments are restored through their typed start commands. A missing ITI route is restored through the supervisor's deduplicated routing table.
+- Missing analytics attachments are restored through their typed start commands. A missing or stalled Futures ITI ingress route restarts only the thin Futures ITI realtime actor. Durable command and projector recovery remains owned by the standard event-sourced path.
 - Recovery has at most three attempts per continuously failing component/scope, with one- and two-minute backoff between attempts. Successful progress resets the incident budget.
 - An accepted restart command never turns a component green. A later observation must confirm recovery.
 - Other failures remain explicit operator-required incidents; the audit does not invent replay semantics or restart shared storage. Existing persistence retries continue to own storage recovery.
@@ -206,6 +206,6 @@ queryable when the target actor cannot process messages.
 
 `TomasAI.IFM.LivePipeline.IntegrationTests` exercises the real minute coordinator, real HTTP endpoints and UI HTTP client, real bar timer, and real probe with controlled feed/storage dependencies. It covers missing timers behind healthy feeds, stale bars, storage failure isolation, UI receipt versus rendering, invalid reports, stale audits, bounded retries, non-overlapping minute scheduling, and the already-running startup regression.
 
-Additional regression suites cover existing chart/tick handlers, shell/operations-health presentation, and the Scylla/NATS-backed ITI realtime pipeline. Tests use separate output directories and integration test keyspaces. They do not replace the running desktop/API processes.
+Additional regression suites cover existing chart/tick handlers, shell/operations-health presentation, and the PostgreSQL event-log/Scylla-backed ITI command and completion pipeline. Tests use separate output directories and integration test keyspaces. They do not replace the running desktop/API processes.
 
 Activation requires rebuilding and restarting the API and desktop together. A backend cannot prove UI rendering when an older desktop does not send acknowledgements; that evidence remains unverified.

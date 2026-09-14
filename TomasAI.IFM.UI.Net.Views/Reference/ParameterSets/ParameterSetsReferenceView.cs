@@ -48,7 +48,7 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
  public bool CanAdd=>!busy&&!IsEditing&&components.SelectedItem is ParameterComponentSummary{CanEdit:true};
  public bool CanChange=>!busy&&!IsEditing&&editor.Selected is not null&&editor.CanEdit;
  public bool CanRemove=>!busy&&!IsEditing&&editor.Selected is {Status:ParameterVersionStatus.Published};
- public bool CanSave=>!busy&&IsEditing&&editor.IsEditing&&editor.Parameters is not null&&!string.IsNullOrWhiteSpace(name.Text);
+ public bool CanSave=>!busy&&IsEditing&&editor.IsEditing&&editor.HasPayload&&!string.IsNullOrWhiteSpace(name.Text);
  public bool CanChangeRemove=>CanChange;
  public bool CanImport=>false;
 
@@ -228,8 +228,9 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
  {
   if(components.SelectedItem is ParameterComponentSummary component&&!component.CanEdit)throw new InvalidOperationException("No editor is registered for this component.");
   if(editor.IsEditing&&MessageBox.Show(this,"Discard the working copy?","Parameter Sets",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
-  var result=await api.PreviewAsync(Guid.NewGuid(),lifetime.Token,(int)(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)horizon.SelectedItem!);if(!result.Success||result.Value is null)throw new InvalidOperationException(result.ErrorMessage);
-  versions.ClearSelected();editor.New(result.Value);Bind();
+  if(components.SelectedItem is not ParameterComponentSummary selected)throw new InvalidOperationException("Select a parameter component first.");
+  var result=await api.PreviewAsync(Guid.NewGuid(),lifetime.Token,(int)(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)horizon.SelectedItem!,componentCode:selected.ComponentCode);if(!result.Success||result.Value is null)throw new InvalidOperationException(result.ErrorMessage);
+  versions.ClearSelected();editor.New(result.Value,selected.ComponentCode,selected.Name);Bind();
  }
  async Task LegacyAsync()
  {
@@ -325,8 +326,9 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
  }
  async Task SchemaAsync()
  {
-  var schemaVersion=editor.Selected?.SchemaVersion??editor.Parameters?.SchemaVersion??throw new InvalidOperationException("Select a parameter set first.");
-  var result=await api.SchemaAsync(schemaVersion,lifetime.Token);
+  var schemaVersion=editor.SchemaVersion;
+  if(schemaVersion<=0||string.IsNullOrWhiteSpace(editor.ComponentCode))throw new InvalidOperationException("Select a parameter set first.");
+  var result=await api.SchemaAsync(schemaVersion,lifetime.Token,editor.ComponentCode);
   if(!result.Success||result.Value is null)throw new InvalidOperationException(result.ErrorMessage);
   using var dialog=new DarkTradingForm{Text=$"Parameter schema {result.Value.Version} ({result.Value.Codec})",Width=850,Height=700,StartPosition=FormStartPosition.CenterParent};
   using var document=JsonDocument.Parse(result.Value.JsonSchema);
@@ -351,16 +353,17 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
   table.DataError+=(_,e)=>{e.ThrowException=false;dialog.DialogResult=DialogResult.None;};
   if(dialog.ShowDialog(this)!=DialogResult.OK)return;
   var source=editor.Parameters with {Horizon=editor.Parameters.Horizon with {TimeFrames=intervals.Select(x=>new RegimeDiscoveryTimeFrameConfiguration{TimeFrame=x.TimeFrame,Weight=x.Weight,MaximumAgeSeconds=x.MaximumAgeSeconds,IsRequired=true}).ToArray()}};
-  var preview=await api.PreviewAsync(editor.SetId,lifetime.Token,(int)source.TargetHorizon,JsonSerializer.Serialize(source),true);
+  var preview=await api.PreviewAsync(editor.SetId,lifetime.Token,(int)source.TargetHorizon,JsonSerializer.Serialize(source),true,editor.ComponentCode);
   if(!preview.Success||preview.Value is null)throw new InvalidOperationException(preview.ErrorMessage);
   editor.BeginEdit(preview.Value);Bind();
   status.Text="Intervals applied to the working copy. Review included signals and validate before publication.";
  }
  async Task EditAsync()
  {
-  if(editor.Parameters is null)throw new InvalidOperationException("Select a version first.");
+  if(!editor.HasPayload)throw new InvalidOperationException("Select a version first.");
   if(editor.IsEditing)throw new InvalidOperationException("The working copy is already open.");
-  var preview=await api.PreviewAsync(editor.SetId,lifetime.Token,(int)editor.Parameters.TargetHorizon,editor.Payload());
+  var targetHorizon=(int)(editor.Parameters?.TargetHorizon??TimeFrameType.Daily);
+  var preview=await api.PreviewAsync(editor.SetId,lifetime.Token,targetHorizon,editor.Payload(),componentCode:editor.ComponentCode);
   if(!preview.Success||preview.Value is null)throw new InvalidOperationException(preview.ErrorMessage);
   editor.BeginEdit(preview.Value);Bind();
   status.Text="Working copy uses explicit membership. Review intervals and newly included calculation dependencies before publication.";
@@ -380,11 +383,13 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
   observationGrid.DataSource=observationRows;observationGrid.ReadOnly=!editor.IsEditing;
   grid.AllowUserToAddRows=grid.AllowUserToDeleteRows=editor.IsEditing;
   observationGrid.AllowUserToAddRows=observationGrid.AllowUserToDeleteRows=editor.IsEditing;
-  fields=new BindingList<FieldRow>(editor.Parameters is null?[]:ParameterFieldEditorModel.Read(editor.Payload()).Select(x=>new FieldRow(x)).ToList());
+  fields=new BindingList<FieldRow>(!editor.HasPayload?[]:ParameterFieldEditorModel.Read(editor.Payload()).Select(x=>new FieldRow(x)).ToList());
   BindParameterGroups();parametersGrid.ReadOnly=!editor.IsEditing;
   detailTitle.Text=components.SelectedItem is ParameterComponentSummary component?component.Name:string.Empty;
   if(!editor.CanEdit){status.Text="Unsupported schema or fields. Exact payload is available for inspection; editing is disabled to preserve its contents.";return;}
-  status.Text=$"{rows.Count} signals; {rows.Count(x=>x.Enabled)} included. {observationRows.Count} observations; {observationRows.Count(x=>x.Enabled)} included. "+(editor.IsEditing?"Working copy; Save commits a new version.":"Saved version is read-only.");
+  status.Text=parameters is null
+   ?$"{fields.Count} calculation parameters. "+(editor.IsEditing?"Working copy; Save commits a new version.":"Saved version is read-only.")
+   :$"{rows.Count} signals; {rows.Count(x=>x.Enabled)} included. {observationRows.Count} observations; {observationRows.Count(x=>x.Enabled)} included. "+(editor.IsEditing?"Working copy; Save commits a new version.":"Saved version is read-only.");
   StateChanged?.Invoke(this,EventArgs.Empty);
  }
  void BindParameterGroups()
@@ -412,12 +417,12 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
  } string Capture()
  {
   grid.EndEdit();BindingContext[rows]?.EndCurrentEdit();observationGrid.EndEdit();BindingContext[observationRows]?.EndCurrentEdit();parametersGrid.EndEdit();if(parametersGrid.DataSource is not null)BindingContext[parametersGrid.DataSource]?.EndCurrentEdit();
-  if(editor.IsEditing){editor.SetFields(fields.Select(x=>x.Field()));editor.Name=name.Text;editor.SetMetrics(rows.Select(x=>x.Value()).ToArray(),observationRows.Select(x=>x.Value()).ToArray());}
+  if(editor.IsEditing){editor.SetFields(fields.Select(x=>x.Field()));editor.Name=name.Text;if(editor.Parameters is not null)editor.SetMetrics(rows.Select(x=>x.Value()).ToArray(),observationRows.Select(x=>x.Value()).ToArray());}
   return editor.Payload();
  }
  async Task ValidateAsync()
  {
-  var result=await api.ValidateAsync(Capture(),editor.Parameters!.SchemaVersion,lifetime.Token);
+  var result=await api.ValidateAsync(Capture(),editor.SchemaVersion,lifetime.Token,editor.ComponentCode);
   if(!result.Success||result.Value is null)throw new InvalidOperationException(result.ErrorMessage);
   validationGrid.DataSource=result.Value.Issues;detailTabs.SelectedTab=validationTab;
   status.Text=result.Value.IsValid?"Configuration is valid. Live availability is checked separately.":$"{result.Value.Issues.Length} validation issues. See the Validation tab.";
@@ -427,8 +432,8 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
   if(!editor.IsEditing)throw new InvalidOperationException("Choose Edit as new draft first.");
   var json=Capture();var id=Guid.NewGuid();
   var result=editor.Selected is null
-   ?await api.CreateAsync(new(){CommandId=id,EntityId=new(editor.SetId),Name=editor.Name,Description=editor.Description,PayloadJson=json,SchemaVersion=editor.Parameters!.SchemaVersion},lifetime.Token)
-   :await api.SaveAsync(new(){CommandId=id,EntityId=new(editor.SetId),ExpectedRevision=editor.ExpectedRevision,Name=editor.Name,Description=editor.Description,PayloadJson=json,SchemaVersion=editor.Parameters!.SchemaVersion},lifetime.Token);
+   ?await api.CreateAsync(new(){CommandId=id,EntityId=new(editor.SetId),ComponentCode=editor.ComponentCode,Name=editor.Name,Description=editor.Description,PayloadJson=json,SchemaVersion=editor.SchemaVersion},lifetime.Token)
+   :await api.SaveAsync(new(){CommandId=id,EntityId=new(editor.SetId),ExpectedRevision=editor.ExpectedRevision,ComponentCode=editor.ComponentCode,Name=editor.Name,Description=editor.Description,PayloadJson=json,SchemaVersion=editor.SchemaVersion},lifetime.Token);
   if(!result.Success)throw new InvalidOperationException(result.ErrorMessage);
   editor.AcknowledgeSave();Bind();
   await LoadCommittedAsync(editor.SetId,id);
@@ -438,7 +443,7 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
  {
   if(editor.IsEditing||editor.Selected is not {Status:ParameterVersionStatus.Draft} selected)throw new InvalidOperationException("Select a saved draft first.");
   var operationId=Guid.NewGuid();
-  var result=await api.PublishAsync(new(){CommandId=operationId,EntityId=new(selected.Reference.SetId),Version=selected.Reference.Version,ExpectedRevision=editor.ExpectedRevision},lifetime.Token);
+  var result=await api.PublishAsync(new(){CommandId=operationId,EntityId=new(selected.Reference.SetId),Version=selected.Reference.Version,ExpectedRevision=editor.ExpectedRevision,ComponentCode=selected.Reference.ComponentCode},lifetime.Token);
   if(!result.Success)throw new InvalidOperationException(result.ErrorMessage);
   await LoadCommittedAsync(selected.Reference.SetId,operationId);
   status.Text="Publication committed. This does not change the running assignment.";
@@ -469,9 +474,9 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
  }
  async Task RetireAsync()
  {
-  if(editor.Parameters is null||editor.IsEditing||editor.Selected is not {Status:ParameterVersionStatus.Published} selected)throw new InvalidOperationException("Select a published version to retire.");
+  if(!editor.HasPayload||editor.IsEditing||editor.Selected is not {Status:ParameterVersionStatus.Published} selected)throw new InvalidOperationException("Select a published version to retire.");
   if(MessageBox.Show(this,$"Retire {selected.Name}, version {selected.Reference.Version}?","Parameter Sets",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
-  var id=Guid.NewGuid();var result=await api.RetireAsync(new(){CommandId=id,EntityId=new(selected.Reference.SetId),Version=selected.Reference.Version,ExpectedRevision=editor.ExpectedRevision},lifetime.Token);
+  var id=Guid.NewGuid();var result=await api.RetireAsync(new(){CommandId=id,EntityId=new(selected.Reference.SetId),Version=selected.Reference.Version,ExpectedRevision=editor.ExpectedRevision,ComponentCode=selected.Reference.ComponentCode},lifetime.Token);
   if(!result.Success)throw new InvalidOperationException(result.ErrorMessage);
   await LoadCommittedAsync(selected.Reference.SetId,id);status.Text="Version retired. Its saved payload is retained.";
  }
@@ -511,7 +516,7 @@ public sealed class ParameterSetsReferenceView:DarkTradingView,IControlCommand
   buttons.Controls.Add(save);buttons.Controls.Add(cancel);fields.Controls.Add(buttons,1,2);dialog.Controls.Add(fields);dialog.AcceptButton=save;dialog.CancelButton=cancel;
   if(dialog.ShowDialog(this)!=DialogResult.OK)return;
   var operationId=Guid.NewGuid();
-  var result=await api.RenameAsync(new(){CommandId=operationId,EntityId=new(selected.Reference.SetId),Version=selected.Reference.Version,ExpectedRevision=editor.ExpectedRevision,Name=title.Text,Description=description.Text},lifetime.Token);
+  var result=await api.RenameAsync(new(){CommandId=operationId,EntityId=new(selected.Reference.SetId),Version=selected.Reference.Version,ExpectedRevision=editor.ExpectedRevision,ComponentCode=selected.Reference.ComponentCode,Name=title.Text,Description=description.Text},lifetime.Token);
   if(!result.Success)throw new InvalidOperationException(result.ErrorMessage);
   await LoadCommittedAsync(selected.Reference.SetId,operationId);status.Text="Set metadata updated; version payloads are unchanged.";
  }

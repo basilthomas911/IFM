@@ -24,10 +24,12 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.R
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using System.Diagnostics;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Logging;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
-/// <summary>Requests workflows from eligible ITI triggers and executes only committed Started pipeline snapshots.</summary>
+/// <summary>Executes pipeline work only from committed Strategy Workflow state snapshots.</summary>
 /// <remarks>
 /// This stateless actor consumes committed notifications, including explicit workflow redispatch. For Regime Discovery it owns the direct Function
 /// request and translates the typed terminal reply into a Strategy Workflow complete or fail command.
@@ -38,11 +40,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
 {
     static readonly TimeSpan FunctionReplyGrace = TimeSpan.FromSeconds(5);
 
-    static readonly ActorTypeId TriggerRoute = new(
-        ActorType.Realtime,
-        FuturesItiSignalGeneratedEvent.RealtimeActor,
-        FuturesItiSignalGeneratedEvent.Verb);
-
     /// <summary>Gets the workflow Realtime actor name.</summary>
     public const string ActorName = "IntrinsicTimeStrategyWorkflowRealtime";
 
@@ -51,8 +48,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
-            [FuturesItiSignalGeneratedEvent.Verb] =
-                message => message.AsEvent<FuturesItiSignalGeneratedEvent>()!,
             [WorkflowStrategyStateUpdatedEvent.Verb] =
                 message => message.AsEvent<WorkflowStrategyStateUpdatedEvent>()!
         };
@@ -68,16 +63,26 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             IEvent,
             ValueTask>>
         {
-            [typeof(FuturesItiSignalGeneratedEvent)] = static (actor, context, @event) =>
-                actor.ExecuteWorkflowAsync(context, (FuturesItiSignalGeneratedEvent)@event),
             [typeof(WorkflowStrategyStateUpdatedEvent)] = static async (actor, context, @event) =>
             {
                 var snapshot = (WorkflowStrategyStateUpdatedEvent)@event;
+                var logger = RequireEventContext(context).Logger;
+                IntrinsicTimeStrategyWorkflowLogging.RealtimeStateReceived(
+                    logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
+                    snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString());
                 if (snapshot.State.RiskExecution is not null && snapshot.State.TerminalAtUtc is not null)
                 {
-                    var elapsed = RiskManager.Model.RiskLatency.RecordWorkflow(snapshot.State);
-                    RequireEventContext(context).Logger.LogInformation("Workflow latency observation trace {TraceId} for {WorkflowId}: {WorkflowMilliseconds} ms, outcome {Outcome}, financial phase {FinancialPhase}",
-                        System.Diagnostics.Activity.Current?.TraceId.ToString(), snapshot.WorkflowId, elapsed, snapshot.State.Status, snapshot.State.FinancialHandoff?.Phase);
+                    _ = RiskManager.Model.RiskLatency.RecordWorkflow(snapshot.State);
+                }
+                if (snapshot.State.TerminalAtUtc is not null)
+                {
+                    var stage = CurrentStageState(snapshot.State);
+                    IntrinsicTimeStrategyWorkflowLogging.TerminalResult(
+                        logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
+                        snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString(),
+                        snapshot.State.Outcome.ToString(), stage.ContinuationDecision.ToString(), stage.ParameterSetId,
+                        stage.ParameterSetVersion,
+                        (snapshot.State.TerminalAtUtc.Value - snapshot.State.StartedAtUtc).TotalMilliseconds);
                 }
                 if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })
                     await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
@@ -105,21 +110,14 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
     {
-        if (!ActorContext.Options.Enabled)
-        {
-            ActorContext.Logger.LogInformation(
-                "Intrinsic Time Strategy workflow live routing is disabled; no realtime routes were registered");
-            return ValueTask.CompletedTask;
-        }
-        context.AddRealtimeRouter(TriggerRoute, Id);
+        _ = context;
         return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
     protected override ValueTask OnShutdown(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
     {
-        if (ActorContext.Options.Enabled)
-            context.RemoveRealtimeRouter(TriggerRoute, Id);
+        _ = context;
         return ValueTask.CompletedTask;
     }
 
@@ -146,38 +144,15 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         IEvent domainEvent,
         Exception exception)
     {
-        ActorContext.Logger.LogError(exception,
-            "One-way workflow realtime handling failed for {EventName} on {ThreadId}",
-            domainEvent?.EventName ?? "Unknown",
-            threadId);
+        var snapshot = domainEvent as WorkflowStrategyStateUpdatedEvent;
+        IntrinsicTimeStrategyWorkflowLogging.StageHandlerFailed(
+            ActorContext.Logger, exception, domainEvent?.Id ?? Guid.Empty,
+            snapshot?.WorkflowId.ToString() ?? string.Empty,
+            snapshot?.EntityId.Format() ?? threadId.ToString(), snapshot?.WorkflowRevision ?? 0,
+            snapshot?.State.CurrentStage.ToString() ?? "Unknown",
+            snapshot is null ? domainEvent?.EventName ?? "Unknown" : HandlerName(snapshot.State.CurrentStage),
+            exception.GetType().Name, exception.Message);
         return ValueTask.CompletedTask;
-    }
-
-    async ValueTask ExecuteWorkflowAsync(
-        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
-        FuturesItiSignalGeneratedEvent trigger)
-    {
-        var workflowId = StrategyWorkflowId.New(ActorContext.TimeProvider);
-        var entityId = IntrinsicTimeStrategyWorkflowEntityId.Create(trigger.EntityId);
-        var triggerId = trigger.Id == Guid.Empty ? trigger.CommandId : trigger.Id;
-        var requestedAtUtc = ActorContext.TimeProvider.GetUtcNow().UtcDateTime;
-        var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
-        {
-            CommandId = triggerId == Guid.Empty
-                ? Guid.CreateVersion7(ActorContext.TimeProvider.GetUtcNow())
-                : triggerId,
-            Subject = CommandSubject(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, entityId),
-            EntityId = entityId,
-            ProposedWorkflowId = workflowId,
-            TriggerEventId = triggerId,
-            TriggerEvent = trigger,
-            CorrelationId = trigger.CommandId == Guid.Empty ? triggerId : trigger.CommandId,
-            CausationId = triggerId,
-            RequestedAtUtc = requestedAtUtc,
-            WorkflowDefinitionVersion = 1
-        };
-        await context.SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
-            IntrinsicTimeStrategyWorkflowEntityId>(command, entityId).ConfigureAwait(false);
     }
 
     static async ValueTask DispatchCommittedStateAsync(
@@ -201,8 +176,38 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         if (!_pipelineExecutionMap.TryGetValue(view.CurrentStage, out var execute))
             throw new InvalidOperationException(
                 $"No pipeline execution handler is registered for workflow stage {view.CurrentStage}.");
+        var logger = RequireEventContext(context).Logger;
+        var handlerName = HandlerName(view.CurrentStage);
+        IntrinsicTimeStrategyWorkflowLogging.StageDispatched(
+            logger, snapshot.Id, view.WorkflowId.ToString(), view.EntityId.Format(), view.WorkflowRevision,
+            view.CurrentStage.ToString(), handlerName);
+        var started = Stopwatch.GetTimestamp();
         await execute(context, snapshot).ConfigureAwait(false);
+        IntrinsicTimeStrategyWorkflowLogging.StageHandlerCompleted(
+            logger, snapshot.Id, view.WorkflowId.ToString(), view.EntityId.Format(), view.WorkflowRevision,
+            view.CurrentStage.ToString(), handlerName, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
+
+    static string HandlerName(StrategyWorkflowStage stage) => stage switch
+    {
+        StrategyWorkflowStage.RegimeDiscovery => "RegimeDiscovery",
+        StrategyWorkflowStage.MarketCondition => "MarketCondition",
+        StrategyWorkflowStage.TradeSelection => "TradeSelection",
+        StrategyWorkflowStage.OrderComposition => "OrderComposition",
+        StrategyWorkflowStage.RiskManagement => "RiskManagement",
+        _ => "Unknown"
+    };
+
+    static StrategyWorkflowStageState CurrentStageState(IntrinsicTimeStrategyWorkflowView view) =>
+        view.CurrentStage switch
+        {
+            StrategyWorkflowStage.RegimeDiscovery => view.RegimeDiscovery,
+            StrategyWorkflowStage.MarketCondition => view.MarketCondition,
+            StrategyWorkflowStage.TradeSelection => view.TradeSelection,
+            StrategyWorkflowStage.OrderComposition => view.OrderComposition,
+            StrategyWorkflowStage.RiskManagement => view.RiskManagement,
+            _ => new StrategyWorkflowStageState()
+        };
 
     internal static bool IsCurrentSelectionNotification(IntrinsicTimeStrategyWorkflowView notification, IntrinsicTimeStrategyWorkflowView? current)
         => current is { Status: WorkflowStrategyMachineStatus.Started }

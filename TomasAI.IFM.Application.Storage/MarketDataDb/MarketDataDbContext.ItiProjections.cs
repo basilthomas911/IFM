@@ -160,8 +160,8 @@ public partial class MarketDataDbContext
             e.DownTrendTrigger,
             e.TradeState.ToStringFast(),
             e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice,
-            e.BandPercentage == 0 ? 0.10 : e.BandPercentage,
-            e.BandSize == 0 ? e.Threshold * 0.10 : e.BandSize,
+            e.BandPercentage == 0 ? 0.15 : e.BandPercentage,
+            e.BandSize == 0 ? e.Threshold * 0.15 : e.BandSize,
             e.BandLevel,
             e.ReversalLevel);
 

@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
@@ -24,6 +25,7 @@ public record FuturesItiSignalHoldTradeClearedEvent : IEvent<FuturesItiSignalEnt
 
     [Key(8)] public DateTime CreatedOn { get; init; }
     [Key(9)] public string CreatedBy { get; init; }
+    [Key(10)] public FuturesItiSignalV2ReadModel? FuturesItiSignal { get; init; }
 
     [IgnoreMember] public string UserName => CachedUserName;
     [IgnoreMember] public string EventName => nameof(FuturesItiSignalHoldTradeClearedEvent);
@@ -42,7 +44,8 @@ public record FuturesItiSignalHoldTradeClearedEvent : IEvent<FuturesItiSignalEnt
         string eventSource,
         DateTime receivedOn,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        FuturesItiSignalV2ReadModel? futuresItiSignal)
     {
         Subject = subject;
         Id = id;
@@ -54,6 +57,7 @@ public record FuturesItiSignalHoldTradeClearedEvent : IEvent<FuturesItiSignalEnt
         ReceivedOn = receivedOn;
         CreatedOn = createdOn;
         CreatedBy = createdBy;
+        FuturesItiSignal = futuresItiSignal;
     }
 
     public ICompleteEvent<TEntityId> ToCompleteEvent<TComplete, TEntityId>()
@@ -74,7 +78,8 @@ public record FuturesItiSignalHoldTradeClearedEvent : IEvent<FuturesItiSignalEnt
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
             CreatedOn = this.CreatedOn,
-            CreatedBy = this.CreatedBy
+            CreatedBy = this.CreatedBy,
+            FuturesItiSignal = this.FuturesItiSignal
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -126,6 +131,7 @@ public record FuturesItiSignalHoldTradeClearedCompleteEvent : ICompleteEvent<Fut
 
     [Key(8)] public DateTime CreatedOn { get; init; }
     [Key(9)] public string CreatedBy { get; init; }
+    [Key(10)] public FuturesItiSignalV2ReadModel? FuturesItiSignal { get; init; }
 
     [IgnoreMember] public string UserName => CachedUserName;
     [IgnoreMember] public string EventName => nameof(FuturesItiSignalHoldTradeClearedCompleteEvent);
@@ -144,7 +150,8 @@ public record FuturesItiSignalHoldTradeClearedCompleteEvent : ICompleteEvent<Fut
         string eventSource,
         DateTime receivedOn,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        FuturesItiSignalV2ReadModel? futuresItiSignal)
     {
         Subject = subject;
         EntityId = entityId;
@@ -156,6 +163,7 @@ public record FuturesItiSignalHoldTradeClearedCompleteEvent : ICompleteEvent<Fut
         ReceivedOn = receivedOn;
         CreatedOn = createdOn;
         CreatedBy = createdBy;
+        FuturesItiSignal = futuresItiSignal;
     }
 }
 

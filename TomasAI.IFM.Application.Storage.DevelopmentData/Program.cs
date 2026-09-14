@@ -235,8 +235,8 @@ internal static class Program
                 tradingDays: period switch
                 {
                     TimeFrameType.Daily => 1,
-                    TimeFrameType.Weekly => 5,
-                    _ => 20
+                    TimeFrameType.Weekly => 10,
+                    _ => 30
                 },
                 threshold: threshold,
                 upTrendTrigger: directionPrice + threshold,
@@ -246,8 +246,8 @@ internal static class Program
                     : IntrinsicTimeTradeState.Ready,
                 timeFrameStartValueDate: frameStart,
                 bandAnchorPrice: directionPrice,
-                bandPercentage: 0.1,
-                bandSize: threshold * 0.1,
+                bandPercentage: 0.15,
+                bandSize: threshold * 0.15,
                 bandLevel: bandLevel,
                 reversalLevel: reversalLevel));
         }

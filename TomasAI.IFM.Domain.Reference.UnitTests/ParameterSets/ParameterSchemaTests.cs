@@ -8,13 +8,25 @@ public sealed class ParameterSchemaTests
  [Fact]public void Every_supported_schema_is_registered_and_deterministic()
  {
   var registry=ParameterSchemaRegistry.Default;
-  registry.Definitions.Select(x=>x.Version).Should().Equal(1,2,3,4,5);
+  registry.Definitions.Where(x=>x.ComponentCode==ParameterSchemaRegistry.RegimeComponent)
+   .Select(x=>x.Version).Should().Equal(1,2,3,4,5);
+  registry.Definitions.Where(x=>x.ComponentCode==ParameterSchemaRegistry.FuturesItiSignalComponent)
+   .Select(x=>x.Version).Should().Equal(1);
   foreach(var schema in registry.Definitions)
   {
    using var document=JsonDocument.Parse(schema.JsonSchema);
    document.RootElement.GetProperty("properties").GetProperty("SchemaVersion").GetProperty("const").GetInt32().Should().Be(schema.Version);
    schema.SchemaSha256.Should().HaveLength(64);
   }
+ }
+ [Fact]public void Futures_iti_schema_accepts_the_registered_default_payload()
+ {
+  var id=Guid.NewGuid();
+  var payload=new FuturesItiSignalParameterModel().CreateDraftPayload(id);
+  ParameterSchemaRegistry.Default.ValidateStructure(
+   ParameterSchemaRegistry.FuturesItiSignalComponent,1,payload).Should().BeEmpty();
+  ParameterSchemaRegistry.Default.CanEditLosslessly(
+   ParameterSchemaRegistry.FuturesItiSignalComponent,1,payload).Should().BeTrue();
  }
  [Fact]public void Structural_validation_rejects_bad_types_but_preserves_unknown_fields()
  {

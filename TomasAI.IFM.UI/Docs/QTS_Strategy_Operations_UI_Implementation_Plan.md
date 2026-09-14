@@ -163,7 +163,7 @@ gate.
 
 This is the first executable goal while the remaining Strategy contracts are being defined:
 
-1. Publish `FuturesItiSignalUpdatedNotifyEvent` after each successful durable or realtime ITI projection.
+1. Publish `FuturesItiSignalUpdatedNotifyEvent` after each successful durable ITI projection.
 2. Subscribe through a multi-subscriber `ActorType.Notify` UI boundary and forward every valid ITI mode.
 3. Subscribe before querying the latest Daily, Weekly, and Monthly signals so startup changes are merged without gaps.
 4. Show a bounded, newest-first 500-row ITI list in the default Strategy tab, with selected authoritative detail.

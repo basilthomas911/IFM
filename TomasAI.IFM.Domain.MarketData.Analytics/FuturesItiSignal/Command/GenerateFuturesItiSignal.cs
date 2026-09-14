@@ -6,6 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Logging;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command;
 
@@ -17,13 +20,33 @@ public static class GenerateFuturesItiSignal
     /// <param name="e">The generate ITI signal command to execute.</param>
     /// <param name="state">The current actor command state.</param>
     /// <returns>A <see cref="ServiceResult{GuidResult}"/> indicating whether the state was successfully updated.</returns>
-    public static ServiceResult<GuidResult> Execute(this GenerateFuturesItiSignalCommand e, FuturesItiSignalCommandState state)
+    public static ServiceResult<GuidResult> Execute(
+        this GenerateFuturesItiSignalCommand e,
+        FuturesItiSignalCommandState state,
+        FuturesItiSignalRuntimeTelemetry? telemetry = null,
+        ILogger? logger = null)
     {
+        if (logger is not null)
+            FuturesItiSignalCommandLogging.Evaluating(
+                logger, e.CommandId, e.EntityId.Format(), e.ContractId, e.ValueDate, e.TimePeriod);
         _ = e.Compute(state, out var model);
         if (!model.TryCompute(out var computed))
+        {
+            telemetry?.RecordNoChange();
+            if (logger is not null)
+                FuturesItiSignalCommandLogging.NoChange(
+                    logger, e.CommandId, e.EntityId.Format(), e.ContractId, e.ValueDate, e.TimePeriod);
             return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+        }
 
         var updated = state.Update(e.CreateFuturesItiSignalGeneratedEvent(computed), e);
+        if (updated)
+        {
+            telemetry?.RecordSignalChanged();
+            if (logger is not null)
+                FuturesItiSignalCommandLogging.SignalChanged(
+                    logger, e.CommandId, e.EntityId.Format(), e.ContractId, e.ValueDate, e.TimePeriod);
+        }
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
             : e.UpdateFailed($"{e.CommandName}: unable to apply generated ITI signal event");

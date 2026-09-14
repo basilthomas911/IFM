@@ -43,7 +43,7 @@ public sealed class EventProjectorDescriptorTests
                 Substitute.For<ILogger<MarketOutlookSnapshotEventProjector>>())
         ];
 
-        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(23);
+        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(25);
         foreach (var projector in projectors)
         {
             projector.ProjectionDescriptors.Select(descriptor => descriptor.SourceEventType)
@@ -57,6 +57,24 @@ public sealed class EventProjectorDescriptorTests
                 descriptor.UseDurableReplay.Should().Be(!isLifecycle && !isLatestValueProjection);
             }
         }
+    }
+
+    [Fact]
+    public void Futures_iti_projector_owns_generate_set_and_clear_events()
+    {
+        var projector = new FuturesItiSignalEventProjector(
+            Substitute.For<IDbContextFactory>(),
+            Substitute.For<IDurableReplayQueue>(),
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<ILogger<FuturesItiSignalEventProjector>>());
+
+        projector.ProjectedEventTypes.Should().BeEquivalentTo(
+        [
+            typeof(FuturesItiSignalGeneratedEvent),
+            typeof(FuturesItiSignalHoldTradeSetEvent),
+            typeof(FuturesItiSignalHoldTradeClearedEvent)
+        ]);
     }
 
     [Fact]

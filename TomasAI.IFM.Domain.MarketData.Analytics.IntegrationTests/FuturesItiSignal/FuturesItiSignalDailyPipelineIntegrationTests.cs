@@ -10,6 +10,7 @@ using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -29,7 +30,7 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
         factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
-    public async Task DailyCommand_ProjectsOnlyDailySignalWithoutLongerPeriodFanout()
+    public async Task DailyCommand_ProjectsDailyThenCompletionGeneratesWeeklyAndMonthly()
     {
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
@@ -42,7 +43,8 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
 
         foreach (var period in expectedPeriods)
         {
-            var entityId = new FuturesItiSignalEntityId(contractId, valueDate, period);
+            var frameStart = FuturesItiSignalTimeFrame.GetCalendarBucketStart(valueDate, period);
+            var entityId = new FuturesItiSignalEntityId(contractId, frameStart, period);
             var subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesItiSignalCommand.Actor,
@@ -97,9 +99,9 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
             await pipelineCompleted.Task.WaitAsync(TimeSpan.FromSeconds(20));
             await Task.Delay(500);
 
-            generated.Keys.Should().Equal(TimeFrameType.Daily);
-            completed.Keys.Should().Equal(TimeFrameType.Daily);
-            notifications.Keys.Should().Equal(TimeFrameType.Daily);
+            generated.Keys.Should().BeEquivalentTo(expectedPeriods);
+            completed.Keys.Should().BeEquivalentTo(expectedPeriods);
+            notifications.Keys.Should().BeEquivalentTo(expectedPeriods);
             generated[TimeFrameType.Daily].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
             completed[TimeFrameType.Daily].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
             notifications[TimeFrameType.Daily].FuturesItiSignal.Should()
@@ -107,15 +109,18 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
             notifications[TimeFrameType.Daily].SourceEventId.Should()
                 .Be(completed[TimeFrameType.Daily].Id);
             generated[TimeFrameType.Daily].FuturesItiSignal!.TradingDays.Should().Be(1);
+            generated[TimeFrameType.Weekly].FuturesItiSignal!.TradingDays.Should().Be(10);
+            generated[TimeFrameType.Monthly].FuturesItiSignal!.TradingDays.Should().Be(30);
 
             foreach (var period in expectedPeriods)
             {
-                var entityId = new FuturesItiSignalEntityId(contractId, valueDate, period);
-                var signals = await dbFixture.MarketDataDb.GetFuturesItiSignalsAsync(entityId);
-                if (period == TimeFrameType.Daily)
-                    signals.Should().ContainSingle();
-                else
-                    signals.Should().BeEmpty("longer periods are independent realtime evaluators");
+                var signal = await dbFixture.MarketDataDb.GetFuturesItiTimeFrameStateAsync(
+                    contractId,
+                    period,
+                    FuturesItiSignalTimeFrame.GetCalendarBucketStart(valueDate, period));
+                signal.Should().NotBeNull();
+                signal!.TimePeriod.Should().Be(period);
+                signal.ValueDate.Should().Be(valueDate);
             }
         }
         finally
@@ -160,8 +165,8 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
 
             void TryComplete()
             {
-                if (completed.ContainsKey(TimeFrameType.Daily)
-                    && notifications.ContainsKey(TimeFrameType.Daily))
+                if (expectedPeriods.All(completed.ContainsKey)
+                    && expectedPeriods.All(notifications.ContainsKey))
                 {
                     pipelineCompleted.TrySetResult(true);
                 }
@@ -170,6 +175,6 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
 
         bool Matches(FuturesItiSignalEntityId entityId) =>
             StringComparer.Ordinal.Equals(entityId.ContractId, contractId)
-            && entityId.ValueDate == valueDate;
+            && expectedPeriods.Contains(entityId.TimePeriod);
     }
 }

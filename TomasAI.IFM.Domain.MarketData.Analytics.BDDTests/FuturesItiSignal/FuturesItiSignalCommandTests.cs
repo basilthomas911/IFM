@@ -34,7 +34,14 @@ public class FuturesItiSignalCommandTests
     /// compute model's internal accessors are not visible outside the domain assembly.
     /// </summary>
     static FuturesItiSignalV2ReadModel LastSignal(FuturesItiSignalCommandState state)
-        => ((FuturesItiSignalGeneratedEvent)state.Events[^1]).FuturesItiSignal!;
+        => state.Events[^1] switch
+        {
+            FuturesItiSignalGeneratedEvent generated => generated.FuturesItiSignal!,
+            FuturesItiSignalHoldTradeSetEvent set => set.FuturesItiSignal!,
+            FuturesItiSignalHoldTradeClearedEvent cleared => cleared.FuturesItiSignal!,
+            var @event => throw new InvalidOperationException(
+                $"Unsupported ITI event {@event.GetType().Name}.")
+        };
 
     static FuturesItiSignalCommandState GivenStartOfDayState(TimeFrameType timePeriod, double? futuresPrice = null)
     {
@@ -71,7 +78,7 @@ public class FuturesItiSignalCommandTests
         signal.IntrinsicTimeGroupId.Should().Be(0);
         signal.TimeFrameStartValueDate.Should().Be(command.TimeFrameStartValueDate);
         signal.TradingDays.Should().Be(ExpectedTradingDays(timePeriod));
-        signal.BandPercentage.Should().Be(0.10);
+        signal.BandPercentage.Should().Be(0.15);
         signal.BandSize.Should().Be(signal.Threshold * signal.BandPercentage);
         signal.BandLevel.Should().Be(0);
         signal.ReversalLevel.Should().Be(0);
@@ -229,7 +236,7 @@ public class FuturesItiSignalCommandTests
         var downTrendSignal = LastSignal(state);
         downTrendSignal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
 
-        var lowerPrice = downTrendSignal.TrendExtreme - 5;
+        var lowerPrice = downTrendSignal.TrendExtreme - downTrendSignal.BandSize - 0.01;
         var command = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = lowerPrice };
 
         // When
@@ -370,8 +377,13 @@ public class FuturesItiSignalCommandTests
 
         // Then
         var signals = state.Events
-            .Cast<FuturesItiSignalGeneratedEvent>()
-            .Select(@event => @event.FuturesItiSignal!)
+            .Select(@event => @event switch
+            {
+                FuturesItiSignalGeneratedEvent generated => generated.FuturesItiSignal!,
+                FuturesItiSignalHoldTradeSetEvent set => set.FuturesItiSignal!,
+                FuturesItiSignalHoldTradeClearedEvent cleared => cleared.FuturesItiSignal!,
+                _ => throw new InvalidOperationException()
+            })
             .ToArray();
 
         signals.Select(signal => signal.IntrinsicTimeMode).Should().Equal(
@@ -409,7 +421,7 @@ public class FuturesItiSignalCommandTests
         signals.Should().OnlyContain(signal =>
             signal.TimePeriod == timePeriod
             && signal.TimeFrameStartValueDate == SampleData.ValueDate
-            && signal.BandPercentage == 0.10
+            && signal.BandPercentage == 0.15
             && signal.BandSize > 0
             && signal.Threshold > 0);
         foreach (var signal in signals)
@@ -474,6 +486,7 @@ public class FuturesItiSignalCommandTests
         signal.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.HoldTradeChanged);
         AssertAnalyticalStatePreserved(before, signal);
+        state.Events[^1].Should().BeOfType<FuturesItiSignalHoldTradeSetEvent>();
     }
 
     [Theory]
@@ -537,6 +550,7 @@ public class FuturesItiSignalCommandTests
         signal.TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.HoldTradeChanged);
         AssertAnalyticalStatePreserved(before, signal);
+        state.Events[^1].Should().BeOfType<FuturesItiSignalHoldTradeClearedEvent>();
     }
 
     [Theory]
@@ -646,8 +660,8 @@ public class FuturesItiSignalCommandTests
         => timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 5,
-            TimeFrameType.Monthly => 20,
+            TimeFrameType.Weekly => 10,
+            TimeFrameType.Monthly => 30,
             _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
         };
 }

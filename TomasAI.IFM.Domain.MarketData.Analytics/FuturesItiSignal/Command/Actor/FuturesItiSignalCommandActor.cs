@@ -13,6 +13,8 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
 
@@ -101,7 +103,11 @@ public class FuturesItiSignalCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesItiSignalCommandActor>, FuturesItiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesItiSignalCommandActor>, FuturesItiSignalCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(GenerateFuturesItiSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesItiSignalCommand)!.Execute(state),
+        [typeof(GenerateFuturesItiSignalCommand)] = (cmd, context, state) =>
+        {
+            var typed = context as IFuturesItiSignalCommandContext;
+            return ((GenerateFuturesItiSignalCommand)cmd).Execute(state, typed?.Telemetry, typed?.Logger);
+        },
         [typeof(ClearFuturesItiSignalHoldTradeCommand)] = (cmd, context, state) => (cmd as ClearFuturesItiSignalHoldTradeCommand)!.Execute(state),
         [typeof(SetFuturesItiSignalHoldTradeCommand)] = (cmd, context, state) => (cmd as SetFuturesItiSignalHoldTradeCommand)!.Execute(state)
     };
@@ -213,10 +219,26 @@ public class FuturesItiSignalCommandActor(
         => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
 
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.SaveStateAsync(context, (FuturesItiSignalCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+    {
+        var itiState = (FuturesItiSignalCommandState)state;
+        var generated = cmd is GenerateFuturesItiSignalCommand &&
+            itiState.Events.Any(static item => item is FuturesItiSignalGeneratedEvent);
+        await _repo.SaveStateAsync(context, itiState, cmd, cancellationToken).ConfigureAwait(false);
+        if (generated && cmd is GenerateFuturesItiSignalCommand command)
+        {
+            ActorContext.Telemetry.RecordEventCommitted();
+            FuturesItiSignalCommandLogging.EventCommitted(
+                ActorContext.Logger, command.CommandId, command.EntityId.Format(), command.ContractId,
+                command.ValueDate, command.TimePeriod);
+        }
+    }
 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        (context as IFuturesItiSignalCommandContext)?.Telemetry?.RecordFailure(ex.Message);
+        FuturesItiSignalCommandLogging.CommandFailed(
+            ActorContext.Logger, ex, command?.CommandId ?? Guid.Empty, threadId.ToString(),
+            command?.CommandName ?? "Unknown", ex.GetType().Name);
         try
         {
             IsArgumentNull.Check(context);

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -15,7 +12,7 @@ public static class ClearFuturesItiSignalHoldTrade
 {
     /// <summary>
     /// Handle a <see cref="ClearFuturesItiSignalHoldTradeCommand"/> by clearing the hold-trade state
-    /// and producing the corresponding <see cref="FuturesItiSignalGeneratedEvent"/>.
+    /// and producing the corresponding <see cref="FuturesItiSignalHoldTradeClearedEvent"/>.
     /// </summary>
     /// <param name="e">The clear hold-trade command to execute.</param>
     /// <param name="state">The current actor command state.</param>
@@ -31,15 +28,22 @@ public static class ClearFuturesItiSignalHoldTrade
     /// <summary>
     /// Creates a futures ITI signal generated event for clearing hold-trade state.
     /// </summary>
-    internal static FuturesItiSignalGeneratedEvent CreateClearHoldTradeEvent(this ClearFuturesItiSignalHoldTradeCommand e, FuturesItiSignalCommandState state)
-        => e.EntityId.CreateHoldTradeEvent( 
-            e.ContractId,
-            e.ValueDate,
-            e.Timestamp,
-            state,
-            IntrinsicTimeTradeState.Ready,
-            e.OriginatedOn,
-            e.OriginatedBy);
+    internal static FuturesItiSignalHoldTradeClearedEvent CreateClearHoldTradeEvent(
+        this ClearFuturesItiSignalHoldTradeCommand command,
+        FuturesItiSignalCommandState state) => new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesItiSignalHoldTradeClearedEvent.Actor,
+                FuturesItiSignalHoldTradeClearedEvent.Verb,
+                command.EntityId.Format()),
+            EntityId = command.EntityId,
+            FuturesItiSignal = command.CreateHoldTradeSignal(
+                state,
+                IntrinsicTimeTradeState.Ready),
+            CreatedOn = command.OriginatedOn,
+            CreatedBy = command.OriginatedBy
+        };
 
     /// <summary>
     /// 
@@ -53,31 +57,19 @@ public static class ClearFuturesItiSignalHoldTrade
     /// <param name="createdOn"></param>
     /// <param name="createdBy"></param>
     /// <returns></returns>
-    public static FuturesItiSignalGeneratedEvent CreateHoldTradeEvent(
-        this FuturesItiSignalEntityId entityId,
-        string contractId,
-        DateOnly valueDate,
-        DateTime timestamp,
+    internal static FuturesItiSignalV2ReadModel CreateHoldTradeSignal(
+        this ClearFuturesItiSignalHoldTradeCommand command,
         FuturesItiSignalCommandState state,
-        IntrinsicTimeTradeState tradeState,
-        DateTime createdOn,
-        string createdBy)
-        => new()
-        {
-            Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor, FuturesItiSignalGeneratedEvent.Verb, entityId.Format()),
-            EntityId = entityId,
-            FuturesItiSignal = state.CurrentSignal! with
+        IntrinsicTimeTradeState tradeState) =>
+        state.CurrentSignal! with
             {
-                ContractId = contractId,
-                ValueDate = valueDate,
+                ContractId = command.ContractId,
+                ValueDate = command.ValueDate,
                 SequenceId = 0,
-                IntrinsicTime = timestamp,
+                IntrinsicTime = command.Timestamp,
                 IntrinsicTimeLength = 0,
                 IntrinsicTimeMode = IntrinsicTimeModeType.HoldTradeChanged,
                 TradeState = tradeState
-            },
-            CreatedOn = createdOn,
-            CreatedBy = createdBy
-        };
+            };
 
 }

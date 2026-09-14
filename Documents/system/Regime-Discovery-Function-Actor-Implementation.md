@@ -434,7 +434,7 @@ authorization to continue the strategy.
 
 ## Workflow-start correction delivered 2026-09-10
 
-- The ITI realtime route now sends the workflow admission command immediately. It performs no
+- The durable ITI Generate completion now sends the workflow admission command immediately. It performs no
   Regime configuration, warm-signal, Market Condition, activation, portfolio, or selection check.
 - Workflow command validation is limited to the start envelope and routing identities. Revision 1
   is persisted as `Started / RegimeDiscovery / Processing` before any pipeline initialization.

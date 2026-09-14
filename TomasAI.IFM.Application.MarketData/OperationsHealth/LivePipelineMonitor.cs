@@ -342,7 +342,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             check.Scope.Split('/', 2)[0] is "RSI" or "ATR" or "ADX" or "MACD"
                 ? check.Scope
                 : null,
-        "ITI route" or "ITI" => "ITI",
+        "ITI route" or "ITI ingress" or "ITI durable completion" => "ITI",
         "Market Outlook inputs" or "Market Outlook publication" or "Market Outlook storage" => "Market Outlook",
         _ => null
     };

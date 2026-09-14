@@ -18,6 +18,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Logging;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector;
 
@@ -96,6 +97,9 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
         ProjectionExecutionContext context)
     {
         var cancellationToken = context.CancellationToken;
+        IntrinsicTimeStrategyWorkflowLogging.ProjectionStarted(
+            _actorContext.Logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
+            snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString());
         using var trace = WorkflowTrace.Start("workflow.project", snapshot.State);
         var entityKey = snapshot.EntityId.Format();
         var entityLock = _entityLocks.GetOrAdd(entityKey, static _ => new SemaphoreSlim(1, 1));
@@ -181,6 +185,10 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
             // deserialize event_log and therefore add no database polling to the workflow command path.
             await _riskProjection.ProjectCommittedAsync(snapshot, cancellationToken).ConfigureAwait(false);
             await _subscriptionProjection.ProjectCommittedAsync(snapshot, context).ConfigureAwait(false);
+            IntrinsicTimeStrategyWorkflowLogging.ProjectionCompleted(
+                _actorContext.Logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
+                snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString(),
+                snapshot.State.Outcome.ToString());
         }
         finally
         {

@@ -611,6 +611,7 @@ public static class Startup
             services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
                 provider.GetRequiredService<MarketOutlookHotCache>());
             services.AddSingleton(_ => new TomasAI.IFM.Application.MarketData.OperationsHealth.LivePipelineEvidence(TimeProvider.System));
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.OperationsHealth.FuturesItiSignalRuntimeTelemetry>();
             services.AddSingleton<MarketOutlookProcessorMetrics>();
             services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
                 provider.GetRequiredService<MarketOutlookProcessorMetrics>());

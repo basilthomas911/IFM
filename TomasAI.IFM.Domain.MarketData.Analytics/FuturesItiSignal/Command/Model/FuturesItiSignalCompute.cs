@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model
 /// </summary>
 public sealed class FuturesItiSignalCompute
 {
-    internal const double DefaultBandPercentage = 0.10;
+    internal const double DefaultBandPercentage = 0.15;
     const double FuturesPriceTick = 0.25;
 
     readonly GenerateFuturesItiSignalCommand _command;
@@ -317,8 +317,8 @@ public sealed class FuturesItiSignalCompute
         => timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 5,
-            TimeFrameType.Monthly => 20,
+            TimeFrameType.Weekly => 10,
+            TimeFrameType.Monthly => 30,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(timePeriod),
                 $"Unsupported ITI time period: {timePeriod}")

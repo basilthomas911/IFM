@@ -17,8 +17,7 @@ public static class ParameterMutationModel
         IReadOnlyDictionary<int,ParameterSetVersion> versions,DateTime now,bool? versionAssigned=null)
     {
         if(command.ExpectedRevision!=revision) throw new InvalidOperationException("PARAM.REVISION_CONFLICT");
-        var descriptor=new RegimeDiscoveryParameterModel();
-        if(command.ComponentCode!=descriptor.Summary.ComponentCode) throw new ArgumentException("PARAM.COMPONENT_UNSUPPORTED");
+        var descriptor=ParameterComponentModelRegistry.Get(command.ComponentCode);
         if(command is CreateParameterSetCommand or SaveParameterDraftCommand)
         {
             if(command is CreateParameterSetCommand && versions.Count!=0) throw new InvalidOperationException("PARAM.ALREADY_EXISTS");

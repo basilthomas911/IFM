@@ -118,6 +118,72 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         parsedEvent.EntityId.ContractId.Should().Be(SampleData.ContractId);
     }
 
+    [Fact]
+    public void ParseMessage_WithHoldTradeSetCompleteEvent_ShouldReturnEventWithSnapshot()
+    {
+        var actor = _fixture.CreateActor();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
+        var generated = SampleData.CreateItiSignalGeneratedCompleteEvent();
+        var @event = new FuturesItiSignalHoldTradeSetCompleteEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesItiSignalHoldTradeSetCompleteEvent.Actor,
+                FuturesItiSignalHoldTradeSetCompleteEvent.Verb,
+                generated.EntityId.Format()),
+            EntityId = generated.EntityId,
+            Id = generated.Id,
+            CommandId = generated.CommandId,
+            FuturesItiSignal = generated.FuturesItiSignal! with
+            {
+                TradeState = IntrinsicTimeTradeState.Hold
+            }
+        };
+        var message = new NatsMsg<byte[]>
+        {
+            Subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalHoldTradeSetCompleteEvent.Verb}.{generated.EntityId.Format()}",
+            Data = _fixture.DataSerializer.Serialize(@event)
+        };
+
+        var result = actor.InvokeParseMessage(context, message);
+
+        result.Should().BeOfType<FuturesItiSignalHoldTradeSetCompleteEvent>()
+            .Which.FuturesItiSignal!.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
+    }
+
+    [Fact]
+    public void ParseMessage_WithHoldTradeClearedCompleteEvent_ShouldReturnEventWithSnapshot()
+    {
+        var actor = _fixture.CreateActor();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
+        var generated = SampleData.CreateItiSignalGeneratedCompleteEvent();
+        var @event = new FuturesItiSignalHoldTradeClearedCompleteEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesItiSignalHoldTradeClearedCompleteEvent.Actor,
+                FuturesItiSignalHoldTradeClearedCompleteEvent.Verb,
+                generated.EntityId.Format()),
+            EntityId = generated.EntityId,
+            Id = generated.Id,
+            CommandId = generated.CommandId,
+            FuturesItiSignal = generated.FuturesItiSignal! with
+            {
+                TradeState = IntrinsicTimeTradeState.Ready
+            }
+        };
+        var message = new NatsMsg<byte[]>
+        {
+            Subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalHoldTradeClearedCompleteEvent.Verb}.{generated.EntityId.Format()}",
+            Data = _fixture.DataSerializer.Serialize(@event)
+        };
+
+        var result = actor.InvokeParseMessage(context, message);
+
+        result.Should().BeOfType<FuturesItiSignalHoldTradeClearedCompleteEvent>()
+            .Which.FuturesItiSignal!.TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
+    }
+
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void ParseMessage_WithItiSignalGeneratedCompleteEvent_AcrossTimePeriods_ShouldReturnEvent(TimeFrameType timePeriod)

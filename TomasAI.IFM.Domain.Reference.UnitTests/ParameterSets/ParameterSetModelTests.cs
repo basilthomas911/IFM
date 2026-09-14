@@ -4,10 +4,35 @@ using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesItiSignal;
 namespace TomasAI.IFM.Domain.Reference.UnitTests.ParameterSets;
 
 public sealed class ParameterSetModelTests
 {
+    [Fact] public void Futures_iti_default_set_contains_daily_weekly_and_monthly_trading_days()
+    {
+        var id=Guid.NewGuid();
+        var descriptor=new FuturesItiSignalParameterModel();
+        var command=new CreateParameterSetCommand
+        {
+            EntityId=new(id),
+            ComponentCode=FuturesItiSignalParameterModel.ComponentCode,
+            Name="Future ITI Signal",
+            SchemaVersion=1,
+            PayloadJson=descriptor.CreateDraftPayload(id)
+        };
+
+        var version=ParameterMutationModel.Decide(
+            command,0,new Dictionary<int,ParameterSetVersion>(),DateTime.UtcNow);
+        var payload=JsonSerializer.Deserialize<FuturesItiSignalParameterSet>(version.PayloadJson)!;
+
+        version.Reference.ComponentCode.Should().Be(ParameterSchemaRegistry.FuturesItiSignalComponent);
+        version.Reference.Version.Should().Be(1);
+        payload.ParameterSetId.Should().Be(id);
+        payload.Version.Should().Be(1);
+        payload.DefaultTradingDays.Should().BeEquivalentTo(new {Daily=1,Weekly=10,Monthly=30});
+        descriptor.Validate(version.PayloadJson,version.SchemaVersion).Should().BeEmpty();
+    }
     [Fact] public void Seed_contains_69_unique_rows_and_preserves_dependency_defaults()
     {
         var seed=RegimeDiscoveryParameterModel.CreateSeed(Guid.NewGuid());

@@ -895,6 +895,7 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService<MarketDataOperationsHealthObserver>();
             services.AddSingleton<LivePipelineEvidence>();
+            services.AddSingleton<FuturesItiSignalRuntimeTelemetry>();
             services.AddSingleton<MarketDataRuntimeHealthCheck>();
             services.AddSingleton<ActorRuntimeHealthCheck>();
             services.AddSingleton((config.GetSection("MarketDataRecovery:LivePipeline")

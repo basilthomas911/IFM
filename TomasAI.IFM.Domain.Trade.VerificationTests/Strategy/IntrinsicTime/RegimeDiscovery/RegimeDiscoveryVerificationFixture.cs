@@ -153,8 +153,8 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
         var trigger = new FuturesItiSignalGeneratedEvent
         {
             Subject = new ActorSubject(
-                ActorType.Realtime,
-                FuturesItiSignalGeneratedEvent.RealtimeActor,
+                ActorType.Event,
+                FuturesItiSignalGeneratedEvent.Actor,
                 FuturesItiSignalGeneratedEvent.Verb,
                 signalId.Format()),
             Id = Guid.NewGuid(),
@@ -184,9 +184,30 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
             CreatedBy = "regime-discovery-verification",
             VixFuturesPrice = (double)(scenario?.Value(RegimeDiscoverySignalMetric.VxFrontLevel) ?? 18m)
         };
-        await publisher.SendAsync<FuturesItiSignalGeneratedEvent, FuturesItiSignalEntityId>(
-            trigger.Subject,
-            trigger);
+        var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
+        {
+            Subject = new ActorSubject(
+                ActorType.Command,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb,
+                entityId.Format()),
+            CommandId = trigger.Id,
+            EntityId = entityId,
+            ProposedWorkflowId = StrategyWorkflowId.New(TimeProvider.System),
+            TriggerEventId = trigger.Id,
+            TriggerEvent = trigger,
+            CorrelationId = trigger.CommandId,
+            CausationId = trigger.Id,
+            RequestedAtUtc = now,
+            WorkflowDefinitionVersion = 1
+        };
+        var result = await publisher.RequestAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
+            IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(
+            command.Subject,
+            command,
+            entityId);
+        if (result is ServiceFailed<GuidResult> failed)
+            throw new InvalidOperationException(failed.ErrorMessage);
         return trigger;
     }
 

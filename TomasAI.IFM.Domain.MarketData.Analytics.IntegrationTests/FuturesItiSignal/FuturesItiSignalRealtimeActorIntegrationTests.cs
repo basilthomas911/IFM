@@ -1,16 +1,13 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
-using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -19,25 +16,23 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
+/// <summary>Verifies Core NATS routing into the thin event-sourced Daily ITI command boundary.</summary>
 [Trait("Category", "Integration")]
 [Collection(ItiPipelineIntegrationCollection.Name)]
 public sealed class FuturesItiSignalRealtimeActorIntegrationTests
 {
-    const string EsContractId = "ES20260918";
-    const string VxContractId = "VX20260916";
-    static readonly DateOnly ValueDate = new(2026, 8, 14);
-    static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
-    readonly string _url =
-        Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+    const string EsContractId = "ES-ITI-INGRESS-INTEGRATION";
+    const string VxContractId = "VX-ITI-INGRESS-INTEGRATION";
+    static readonly DateOnly ValueDate = new(2026, 9, 14);
+    readonly string url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
 
     [Fact]
-    public async Task CoreNatsMarketPrice_RoutesToItiActor_AndProjectsAllThreePeriodsRealtime()
+    public async Task CoreNatsCurrentEsTradeRoutesToExactlyOneDailyCommand()
     {
-        var projectionObserved = new TaskCompletionSource<bool>(
+        var commandObserved = new TaskCompletionSource<GenerateFuturesItiSignalCommand>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var queues = Substitute.For<IActorThreadQueues>();
         var mailbox = Substitute.For<IActorMailbox>();
@@ -46,210 +41,137 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         producer.StartAsync(Arg.Any<ActorMailboxId>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.CompletedTask);
         producer.StopAsync().Returns(ValueTask.CompletedTask);
+        producer.RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId, GuidResult>(
+                Arg.Any<ActorSubject>(), Arg.Any<GenerateFuturesItiSignalCommand>(),
+                Arg.Any<FuturesItiSignalEntityId>())
+            .Returns(call =>
+            {
+                var command = call.ArgAt<GenerateFuturesItiSignalCommand>(1);
+                commandObserved.TrySetResult(command);
+                return ValueTask.FromResult<ServiceResult<GuidResult>>(
+                    new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
+            });
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
         supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
-
-        var projected = new List<FuturesItiSignalGeneratedEvent>();
-        var projector = Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>();
-        projector.ProcessRealtimeEventAsync(
-                Arg.Any<IEvent>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                lock (projected)
-                {
-                    projected.Add((FuturesItiSignalGeneratedEvent)call.ArgAt<IEvent>(0));
-                    if (projected.Count == 3)
-                        projectionObserved.TrySetResult(true);
-                }
-                return ValueTask.FromResult(true);
-            });
-        var marketDataApi = CreateReadyMarketDataApi();
-        var primaryActor = new FuturesMarketPriceRealtimeActor(new FuturesMarketPriceRealtimeContext(
-            supervisor,
-            Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>()));
-        var itiActor = new FuturesItiSignalRealtimeActor(new FuturesItiSignalRealtimeContext(
-            supervisor,
-            projector,
-            marketDataApi,
-            CreateDbFactory(),
-            Substitute.For<IStatusConsoleWriter>(),
+        var primary = new FuturesMarketPriceRealtimeActor(new FuturesMarketPriceRealtimeContext(
+            supervisor, Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>()));
+        var telemetry = new FuturesItiSignalRuntimeTelemetry(TimeProvider.System);
+        var iti = new FuturesItiSignalRealtimeActor(new FuturesItiSignalRealtimeContext(
+            supervisor, MarketData(), new LivePipelineEvidence(TimeProvider.System), telemetry,
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()));
-        supervisor.ActorExists(primaryActor.Id).Returns(true);
+        supervisor.ActorExists(primary.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
-            .Returns(ImmutableArray.Create(new RealtimeActorRoute(itiActor.Id)));
+            .Returns(ImmutableArray.Create(new RealtimeActorRoute(iti.Id)));
         supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor>
         {
-            [primaryActor.Id] = primaryActor,
-            [itiActor.Id] = itiActor
+            [primary.Id] = primary,
+            [iti.Id] = iti
         });
-        queues.TryAdmitAsync(
-                Arg.Any<IActorMessage>(),
-                Arg.Any<ActorSubject>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call => AdmitAsync(primaryActor, itiActor, call));
-
-        var consumer = new NatsActorConsumer(
-            new NatsConsumerOptions
+        queues.TryAdmitAsync(Arg.Any<IActorMessage>(), Arg.Any<ActorSubject>(), Arg.Any<CancellationToken>())
+            .Returns(call => AdmitAsync(primary, iti, call));
+        var consumer = new NatsActorConsumer(new NatsConsumerOptions
+        {
+            Url = url,
+            DispatcherCount = 1,
+            DispatcherCapacity = 16,
+            SubscriptionCapacity = 16,
+            FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass>
             {
-                Url = _url,
-                DispatcherCount = 1,
-                DispatcherCapacity = 16,
-                SubscriptionCapacity = 16,
-                FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass>
-                {
-                    [ActorType.Realtime] = CoreNatsTrafficClass.Optional
-                }
-            },
-            Substitute.For<ILogger>());
-        var publisher = new NatsActorProducer(
-            new NatsProducerOptions { Url = _url },
-            Substitute.For<ILogger>());
-        var @event = CreateEvent();
+                [ActorType.Realtime] = CoreNatsTrafficClass.Optional
+            }
+        }, Substitute.For<ILogger>());
+        var publisher = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger>());
+        var @event = Event();
 
         try
         {
-            await primaryActor.StartAsync(supervisor);
-            await itiActor.StartAsync(supervisor);
-            await consumer.StartAsync(
-                supervisor,
-                ActorType.Realtime,
-                $"futures-iti-realtime-{Guid.NewGuid():N}");
+            await primary.StartAsync(supervisor);
+            await iti.StartAsync(supervisor);
+            await consumer.StartAsync(supervisor, ActorType.Realtime, $"iti-ingress-{Guid.NewGuid():N}");
             await Task.Delay(250);
 
             await publisher.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
-                @event.Subject,
-                @event);
+                @event.Subject, @event);
 
-            (await projectionObserved.Task.WaitAsync(TestTimeout)).Should().BeTrue();
-            lock (projected)
-            {
-                projected.Select(item => item.EntityId.TimePeriod)
-                    .Should().BeEquivalentTo([
-                        TimeFrameType.Daily,
-                        TimeFrameType.Weekly,
-                        TimeFrameType.Monthly]);
-                projected.Should().OnlyContain(item =>
-                    item.Subject.ActorType == ActorType.Realtime
-                    && item.FuturesItiSignal != null
-                    && item.FuturesItiSignal.IntrinsicPrice == 5450.25
-                    && item.VixFuturesPrice == 22.75);
-            }
+            var command = await commandObserved.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            command.TimePeriod.Should().Be(TimeFrameType.Daily);
+            command.CommandId.Should().Be(@event.Id);
+            command.FuturesPrice.Should().Be(5450.25);
+            command.VixFuturesPrice.Should().Be(22.75);
+            telemetry.GetSnapshot().CommandRequests.Should().Be(1);
+            await producer.Received(1)
+                .RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId, GuidResult>(
+                    Arg.Any<ActorSubject>(), Arg.Any<GenerateFuturesItiSignalCommand>(),
+                    Arg.Any<FuturesItiSignalEntityId>());
         }
         finally
         {
             await publisher.StopAsync();
             await consumer.StopAsync();
-            await itiActor.StopAsync();
-            await primaryActor.StopAsync();
+            await iti.StopAsync();
+            await primary.StopAsync();
         }
     }
 
     static async ValueTask<ActorAdmissionResult> AdmitAsync(
-        FuturesMarketPriceRealtimeActor primaryActor,
-        FuturesItiSignalRealtimeActor itiActor,
+        FuturesMarketPriceRealtimeActor primary,
+        FuturesItiSignalRealtimeActor iti,
         NSubstitute.Core.CallInfo call)
     {
         var message = call.Arg<IActorMessage>();
         var subject = call.Arg<ActorSubject>();
-        if (subject.ActorId == primaryActor.Id)
-            await primaryActor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
-        else if (subject.ActorId == itiActor.Id)
-            await itiActor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
+        if (subject.ActorId == primary.Id)
+            await primary.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
+        else if (subject.ActorId == iti.Id)
+            await iti.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
         else
             return ActorAdmissionResult.Rejected(ActorAdmissionReason.MailboxRetired);
         return ActorAdmissionResult.AcceptedResult;
     }
 
-    static IMarketDataApi CreateReadyMarketDataApi()
+    static IMarketDataApi MarketData()
     {
         var api = Substitute.For<IMarketDataApi>();
         var es = Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
         var vx = Contract("VX", VxContractId, "VXU6", new DateOnly(2026, 9, 16));
         api.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>()!)
-            .Returns(call =>
-            {
-                call[1] = es;
-                return true;
-            });
+            .Returns(call => { call[1] = es; return true; });
         api.TryGetOnTheRunFuturesContract("VX", out Arg.Any<FuturesContractV3ReadModel>()!)
-            .Returns(call =>
-            {
-                call[1] = vx;
-                return true;
-            });
-        api.IsTickDataStreamActive(EsContractId).Returns(true);
-        api.IsTickDataStreamActive(VxContractId).Returns(true);
-        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult<decimal?>(22.75m));
+            .Returns(call => { call[1] = vx; return true; });
+        api.TryGetLastTickPrice(VxContractId, out Arg.Any<FuturesMarketPriceSnapshot>())
+            .Returns(call => { call[1] = Price(VxContractId, 22.75m); return true; });
         return api;
     }
 
-    static IDbContextFactory CreateDbFactory()
+    static FuturesMarketPriceUpdatedRealtimeEvent Event()
     {
-        var marketDataDb = Substitute.For<IMarketDataDbContext>();
-        marketDataDb.GetFuturesItiTimeFrameStateAsync(
-                Arg.Any<string>(),
-                Arg.Any<TimeFrameType>(),
-                Arg.Any<DateOnly>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(null));
-        marketDataDb.GetFuturesItiSignalsForContractAsync(
-                Arg.Any<string>(),
-                Arg.Any<DateOnly>(),
-                Arg.Any<DateOnly>())
-            .Returns(Task.FromResult<ICollection<FuturesItiSignalV2ReadModel>>([]));
-        var factory = Substitute.For<IDbContextFactory>();
-        factory.MarketDataDb.Returns(marketDataDb);
-        return factory;
-    }
-
-    static FuturesMarketPriceUpdatedRealtimeEvent CreateEvent()
-    {
-        var entityId = new TickDataEntityId(EsContractId, ValueDate, AssetTypeId.Futures);
+        var entity = new TickDataEntityId(EsContractId, ValueDate, AssetTypeId.Futures);
         var timestamp = DateTimeOffset.UtcNow;
-        return new FuturesMarketPriceUpdatedRealtimeEvent
+        return new()
         {
-            Subject = new ActorSubject(
-                ActorType.Realtime,
-                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
-                FuturesMarketPriceUpdatedRealtimeEvent.Verb,
-                entityId.Format()),
+            Subject = new(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb, entity.Format()),
             Id = Guid.NewGuid(),
-            EntityId = entityId,
+            EntityId = entity,
             CommandId = Guid.NewGuid(),
-            AggregateId = entityId.Format(),
+            AggregateId = entity.Format(),
             EventSource = "integration-test",
             ReceivedOn = timestamp.UtcDateTime,
-            Price = new FuturesMarketPriceSnapshot(
-                EsContractId,
-                42,
-                7,
-                AssetTypeId.Futures,
-                ValueDate,
-                null,
-                new FuturesMarketTradeSnapshot(
-                    5450.25m,
-                    5,
-                    101,
-                    timestamp,
-                    timestamp))
+            Price = Price(EsContractId, 5450.25m),
+            UpdateSource = FuturesMarketPriceUpdateSource.Trade
         };
     }
 
-    static FuturesContractV3ReadModel Contract(
-        string symbol,
-        string contractId,
-        string localSymbol,
-        DateOnly maturity) => new(
-            contractId,
-            $"{symbol} future",
-            symbol,
-            localSymbol,
-            "FUT",
-            "USD",
-            symbol == "VX" ? "CFE" : "CME",
-            symbol == "VX" ? "1000" : "50",
-            maturity,
-            true);
+    static FuturesMarketPriceSnapshot Price(string contractId, decimal value)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        return new(contractId, 42, 7, AssetTypeId.Futures, ValueDate, null,
+            new(value, 5, 101, timestamp, timestamp, NormalizedTradeAction.New,
+                NormalizedTradeSide.Buy, NormalizedTradeConditionFlags.None, Guid.NewGuid(), 77));
+    }
+
+    static FuturesContractV3ReadModel Contract(string symbol, string contractId, string localSymbol, DateOnly maturity)
+        => new(contractId, $"{symbol} future", symbol, localSymbol, "FUT", "USD",
+            symbol == "VX" ? "CFE" : "CME", symbol == "VX" ? "1000" : "50", maturity, true);
 }

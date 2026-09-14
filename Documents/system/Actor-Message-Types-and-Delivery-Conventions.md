@@ -236,9 +236,9 @@ Realtime routing follows these rules:
 
 If downstream delivery must depend on successful primary processing or requires a transformed contract, the primary actor emits a distinct message after processing instead of relying on realtime fan-out ordering.
 
-For futures market prices, TickAggregation first atomically stores the normalized `FuturesMarketPriceSnapshot` in its stream-independent hot cache and then publishes `FuturesMarketPriceUpdatedRealtimeEvent` containing that same snapshot. Trade observations trigger the realtime publication; quote observations refresh only the cached quote side until a dedicated observer contract is designed. Realtime ITI actors use the event payload directly. Slower timer-derived signal workflows check `IsTickDataStreamActive` when live data is required and then sample `TryGetLastTickPrice` at their time boundary. Futures-option consumers use the equivalent `TryGetLastOptionTickPrice` hot-cache operation. Price reads never acquire ownership or extend stream lifetime.
+For futures market prices, TickAggregation first atomically stores the normalized `FuturesMarketPriceSnapshot` in its stream-independent hot cache and then publishes `FuturesMarketPriceUpdatedRealtimeEvent` containing that same snapshot. Trade observations trigger the realtime publication; quote observations refresh only the cached quote side until a dedicated observer contract is designed. Slower timer-derived signal workflows check `IsTickDataStreamActive` when live data is required and then sample `TryGetLastTickPrice` at their time boundary. Futures-option consumers use the equivalent `TryGetLastOptionTickPrice` hot-cache operation. Price reads never acquire ownership or extend stream lifetime.
 
-`FuturesItiSignalRealtimeActor` explicitly owns stable ES and VX stream registrations. Because actor mailboxes start before the hosted market-data epoch, it acquires them idempotently on its first eligible routed update and releases them at shutdown. Every accepted ES trade evaluates independent Daily, Weekly, and Monthly hot states. A realtime ITI source/storage/complete-or-fail projection is attempted only for a timeframe that starts, crosses its 10%-of-threshold publication band, or crosses a direction trigger. Generated-complete handlers never derive another ITI period. The retained `DeriveLongerPeriods` MessagePack field is compatibility-only and new generated events set it to `false`.
+Futures ITI has no realtime actor, market-price route, hot timeframe state, or stream ownership. Its existing event-sourced origin submits the Daily Generate command. The durable Daily completion handler requests Weekly and Monthly Generate commands through the standard command actor. Weekly and Monthly completions terminate without recursive fan-out. Every Generate completion directly sends the Strategy Workflow admission command; Set Hold and Clear Hold use dedicated source and completion contracts and never start a workflow. The retained `DeriveLongerPeriods` MessagePack field is compatibility-only and new generated events set it to `false`.
 
 The Phase 1 live-feed spine is entirely Core NATS between its active actors:
 
@@ -249,10 +249,14 @@ Databento normalized trade/quote
   -> routed trade branches
        -> rolling futures/VX EOD realtime projection
        -> futures-option hot-quote merge and UI Notify
-       -> FuturesMarketPrice hot snapshot
-            -> Daily/Weekly/Monthly ITI realtime projection
-            -> temporary Futures Trade Signal realtime projection
-            -> UI Notify
+       -> FuturesMarketPrice hot snapshot consumers
+
+Existing event-sourced Daily ITI origin
+  -> Daily Generate command and durable projection
+  -> Daily completion
+       -> Weekly and Monthly Generate commands
+       -> Strategy Workflow admission command
+       -> UI Notify
 ```
 
 Durable Event actors remain responsible for explicit command lifecycles such as stream start/stop and manual imports; they do not subscribe to the live tick routes. Corresponding production implementations reside in `Realtime` folders, while retained `Event` folders describe only genuinely durable behavior.

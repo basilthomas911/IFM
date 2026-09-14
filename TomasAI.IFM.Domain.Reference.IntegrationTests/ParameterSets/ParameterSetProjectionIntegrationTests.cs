@@ -24,7 +24,13 @@ public sealed class ParameterSetProjectionIntegrationTests
   var store=new ConfigurationDbContext(settings,factory,logger);factory.ConfigurationDb.Returns(store);
   await new ConfigurationSchemaDb(settings,logger).CreateAllAsync();
   var components=await store.ReadParameterComponentsAsync();
-  components.Should().Contain(x=>x.ComponentCode==RegimeDiscoveryParameterModel.ComponentCode&&x.SchemaVersions.SequenceEqual(new[]{1,2,3,4}));
+  components.Should().Contain(x=>x.ComponentCode==RegimeDiscoveryParameterModel.ComponentCode&&x.SchemaVersions.SequenceEqual(new[]{1,2,3,4,5}));
+  components.Should().Contain(x=>
+   x.AreaCode=="market-data-analytics"&&
+   x.AreaName=="Market Data Analytics"&&
+   x.ComponentCode==FuturesItiSignalParameterModel.ComponentCode&&
+   x.Name=="Future ITI Signal"&&
+   x.SchemaVersions.SequenceEqual(new[]{1}));
   var schema=await store.ReadParameterSchemaAsync(RegimeDiscoveryParameterModel.ComponentCode,3);
   schema.Should().NotBeNull();schema!.SchemaSha256.Should().Be(ParameterSchemaRegistry.Default.Get(RegimeDiscoveryParameterModel.ComponentCode,3).SchemaSha256);
   var id=Guid.NewGuid();var json=new RegimeDiscoveryParameterModel().CreateDraftPayload(id);

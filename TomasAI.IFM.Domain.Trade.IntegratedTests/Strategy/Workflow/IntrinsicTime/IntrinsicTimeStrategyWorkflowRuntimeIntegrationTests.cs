@@ -235,15 +235,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             .Enabled.Should().BeTrue("the integration host enables live workflow routing");
 
         await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
-        var workflowMailbox = new ActorMailboxId(
-            ActorType.Realtime,
-            IntrinsicTimeStrategyWorkflowRealtimeActor.ActorName);
-        supervisor.GetRealtimeRoutes(new ActorTypeId(
-                ActorType.Realtime,
-                FuturesItiSignalGeneratedEvent.RealtimeActor,
-                FuturesItiSignalGeneratedEvent.Verb))
-            .Select(route => route.Destination).Should().Contain(workflowMailbox);
-
         var publisher = factory.Services.GetRequiredService<IActorProducer>();
         await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswRuntimeTestPublisher"));
         try
@@ -809,8 +800,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         var trigger = new FuturesItiSignalGeneratedEvent
         {
             Subject = new ActorSubject(
-                ActorType.Realtime,
-                FuturesItiSignalGeneratedEvent.RealtimeActor,
+                ActorType.Event,
+                FuturesItiSignalGeneratedEvent.Actor,
                 FuturesItiSignalGeneratedEvent.Verb,
                 signalId.Format()),
             Id = Guid.NewGuid(),
@@ -836,9 +827,30 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             CreatedBy = "itsw-runtime-integration",
             VixFuturesPrice = 18d
         };
-        await publisher.SendAsync<FuturesItiSignalGeneratedEvent, FuturesItiSignalEntityId>(
-            trigger.Subject,
-            trigger);
+        var workflowEntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(signalId);
+        var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
+        {
+            Subject = new ActorSubject(
+                ActorType.Command,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb,
+                workflowEntityId.Format()),
+            CommandId = trigger.Id,
+            EntityId = workflowEntityId,
+            ProposedWorkflowId = StrategyWorkflowId.New(TimeProvider.System),
+            TriggerEventId = trigger.Id,
+            TriggerEvent = trigger,
+            CorrelationId = trigger.CommandId,
+            CausationId = trigger.Id,
+            RequestedAtUtc = now,
+            WorkflowDefinitionVersion = 1
+        };
+        var result = await publisher.RequestAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
+            IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(
+            command.Subject,
+            command,
+            workflowEntityId);
+        result.Success.Should().BeTrue();
         return trigger;
     }
 

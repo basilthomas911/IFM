@@ -18,7 +18,7 @@ This document converts the Intrinsic Time Strategy Workflow design into a reposi
 The implementation began as a workflow skeleton and now provides:
 
 - workflow Command, Realtime, and Query actors, with no workflow or pipeline Event actors in this version;
-- a `FuturesItiSignalGeneratedEvent` trigger routed through the existing realtime router;
+- admission from the Analytics `FuturesItiSignalGeneratedCompleteEvent` handler after durable ITI projection;
 - one active workflow execution per workflow entity;
 - immutable workflow snapshots passed to strategy pipeline actors;
 - opaque, versioned pipeline result envelopes;
@@ -62,9 +62,8 @@ The implementation now calculates Regime Discovery and Market Condition through 
 The runtime flow is:
 
 ```text
-FuturesItiSignalGeneratedEvent
-    -> realtime router
-    -> IntrinsicTimeStrategyWorkflowRealtimeActor
+FuturesItiSignalGeneratedCompleteEvent
+    -> FuturesItiSignalEventActor completion handler
     -> ExecuteIntrinsicTimeStrategyWorkflowCommand
     -> IntrinsicTimeStrategyWorkflowCommandActor
     -> load authoritative snapshot
@@ -118,7 +117,7 @@ Pipeline actors never address or invoke one another.
 
 ## 3. Fixed v1 Decisions
 
-1. `FuturesItiSignalGeneratedEvent` is the only initial workflow trigger.
+1. A durably projected `FuturesItiSignalGeneratedCompleteEvent` is the only initial workflow trigger; its handler sends `ExecuteIntrinsicTimeStrategyWorkflowCommand` directly.
 2. Only `Daily`, `Weekly`, and `Monthly` ITI timeframes are eligible.
 3. The workflow routing entity is the workflow definition plus the complete `FuturesItiSignalEntityId`.
 4. The unique UUIDv7 `StrategyWorkflowId` identifies an execution but is not the actor routing boundary.
@@ -127,7 +126,7 @@ Pipeline actors never address or invoke one another.
 7. Duplicate delivery of the same trigger event is a no-op, not another start attempt.
 8. The workflow Command actor is the sole workflow-state writer, pipeline-selection authority, and continuation authority. Workflow Realtime performs pipeline execution only from a projector-sent `WorkflowStrategyStateUpdatedEvent` containing a committed Started state and `CurrentStage`.
 9. Workflow and pipeline Event actors are not applicable in this version. The Workflow Command actor reconstructs only the latest authoritative state-update snapshot from PostgreSQL.
-10. Workflow Realtime consumes only the ITI trigger and committed workflow state-update notification. Regime execution itself uses direct Function request/reply.
+10. Workflow Realtime consumes only committed workflow state-update notifications. ITI admission reaches the Workflow Command actor directly from the durable Analytics completion handler. Regime execution itself uses direct Function request/reply.
 11. The workflow Query actor is side-effect free.
 12. Each pipeline Execute request carries a readonly workflow snapshot and the original ITI event.
 13. Regime Discovery retains completed-only Function state; pipeline-private state is never part of workflow state.
@@ -628,8 +627,9 @@ A rejected start does not change `WorkflowRevision`.
 ## 9. Historical skeleton Trigger and Realtime Router Lifecycle
 
 > The route inventory in this section records the original ITSW skeleton. The
-> implemented RD/Market Condition Function workflow actor now parses only the ITI trigger and
-> `WorkflowStrategyStateUpdatedEvent`. Regime Discovery and Market Condition completion/failure
+> implemented RD/Market Condition Function workflow actor now parses only
+> `WorkflowStrategyStateUpdatedEvent`. ITI admission is a direct command from the durable
+> Generate completion handler. Regime Discovery and Market Condition completion/failure
 > are returned by Function request/reply and are never realtime routes. The inventory below is
 > retained only as the original skeleton record.
 
@@ -1846,7 +1846,7 @@ Actors:
 
 Realtime routing:
 
-- startup registers the ITI route, two workflow dispatch-lifecycle routes, and fifteen pipeline lifecycle/result routes exactly once;
+- startup registers no ITI route; committed workflow state notifications are addressed directly to Workflow Realtime;
 - shutdown removes the exact routes;
 - route removal preserves other destinations;
 - unsupported ITI timeframes are ignored;
@@ -1869,7 +1869,7 @@ Event-actor exclusion:
 - no workflow or pipeline-worker `ActorType.Event` actor is registered;
 - the conventional EventProjector updates ScyllaDB without an Event actor or durable message subscription;
 - Command-state reconstruction replays the ACID PostgreSQL event log directly; and
-- all live ITI and pipeline-result events enter only through Realtime actors.
+- ITI admission enters through the Workflow Command actor and committed workflow state enters Workflow Realtime.
 
 Query actor:
 
@@ -1898,7 +1898,7 @@ Query actor:
 ### 30.3 Actor integration tests
 
 - actual NATS subject serialization and routing;
-- ITI realtime fan-out reaches both existing consumers and workflow Realtime actor;
+- durable ITI completion creates a correctly addressed workflow admission command;
 - workflow commands partition by workflow entity mailbox;
 - a successfully persisted/projected Started/Continued transition is followed by Workflow Realtime actor pipeline dispatch;
 - pipeline Processing/Completed/Failed realtime fan-in reaches the workflow;
@@ -2210,7 +2210,7 @@ ITSW-9 therefore introduces no Event actor, Event-actor context, Event extension
 - translate ITI triggers and pipeline Completed/Failed results into workflow commands, observe Processing events, and send pipeline commands from projector-published Started/Continued instructions;
 - verify startup rollback, shutdown release, stateless handling, and no replies.
 
-The current actor registers only the ITI trigger route. The projector addresses committed state-update instructions directly to its mailbox. For Regime Discovery and Market Condition, the actor executes a typed Function request/reply and translates the terminal result directly into workflow commands; no Processing or terminal realtime route exists. Later skeleton stages retain their Start/realtime lifecycle handling. `AppSettings:IntrinsicTimeStrategyWorkflow:Enabled` is `true` only in the production API host after MC-16 qualification.
+The current actor registers no external ITI route. The Analytics durable completion handler sends workflow admission directly to the Command actor, and the projector addresses committed state-update instructions directly to the Realtime mailbox. For Regime Discovery and Market Condition, the actor executes a typed Function request/reply and translates the terminal result directly into workflow commands; no Processing or terminal realtime route exists. Later skeleton stages retain their Start/realtime lifecycle handling. `AppSettings:IntrinsicTimeStrategyWorkflow:Enabled` is `true` only in the production API host after MC-16 qualification.
 
 ### ITSW-11 - Workflow Query actor and APIs
 
@@ -2233,7 +2233,7 @@ Implemented eight MessagePack query contracts, the closed-generic Query context/
 
 Test-only scripted responders exercise the event/reducer boundary without registering fake pipeline actors in production. Dedicated runtime integration tests also attach five test-only dummy Command actors and five realtime source mailboxes dynamically to the production integration host. They drive real NATS routing, the production Workflow Realtime/Command/EventProjector/Query actors, PostgreSQL event persistence and replay, and ScyllaDB projection. Daily, Weekly, and Monthly workflows execute concurrently through Regime Discovery, Market Condition, Trade Selection, Order Composition, and Risk Management to terminal completion; a fourth workflow injects a Trade Selection failure and proves that no downstream pipeline is started. A busy-entity scenario holds Regime Discovery open, submits a second ITI trigger for the same Daily entity, and proves that a durable `StrategyWorkflowStartRejectedEvent` with `ActiveWorkflowExists` is committed and projected without dispatching a second pipeline execution or replacing the active workflow. The harness is removed during test cleanup and is never registered in production DI.
 
-Runtime qualification exposed and corrected three cross-boundary defects: workflow options are now constructor-injected into the closed-generic realtime context; the ITI route uses the actual `FuturesItiSignal` realtime source mailbox rather than the durable event-contract actor name; and opaque result payload bytes now round-trip through the JSON PostgreSQL event log while retaining the readonly `ReadOnlyMemory<byte>` public contract. Exact MessagePack comparison proves PostgreSQL replay and the projected ScyllaDB state are byte-equivalent. Existing reducer scenarios continue to cover timeout identity/deduplication and duplicate trigger eligibility.
+Runtime qualification established constructor-injected workflow options and exact MessagePack/PostgreSQL round trips for opaque result payloads. The later completion-driven ITI migration removed the external ITI realtime route and moved admission to a direct command sent only after durable ITI projection. Existing reducer scenarios continue to cover timeout identity/deduplication and duplicate trigger eligibility.
 
 Qualification evidence:
 

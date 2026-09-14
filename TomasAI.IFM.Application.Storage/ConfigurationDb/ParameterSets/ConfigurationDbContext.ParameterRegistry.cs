@@ -12,7 +12,7 @@ public sealed partial class ConfigurationDbContext
   WHERE a.enabled AND c.enabled GROUP BY a.code,a.name,c.code,c.name ORDER BY a.name,c.name;
   """;
   await using var reader=await command.ExecuteReaderAsync(token);var result=new List<ParameterComponentSummary>();
-  while(await reader.ReadAsync(token))result.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetFieldValue<int[]>(4),reader.GetString(2)==ParameterSchemaRegistry.RegimeComponent));
+  while(await reader.ReadAsync(token))result.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetFieldValue<int[]>(4),ParameterSchemaRegistry.Default.Definitions.Any(definition=>definition.ComponentCode==reader.GetString(2))));
   return result.ToArray();
  }
  public async Task<ParameterSchemaDefinition?> ReadParameterSchemaAsync(string componentCode,int version,CancellationToken token=default)

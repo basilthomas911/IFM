@@ -54,9 +54,9 @@ Market Data Analytics currently contains 28 actor classes:
 | Realtime | 7 |
 | Total | 28 |
 
-It also contains seven Command state repositories and six dedicated realtime
+It also contains seven Command state repositories and five dedicated realtime
 projectors. `MarketOutlookSnapshotRealtimeActor` performs its coordinated snapshot
-upsert directly and therefore is the seventh realtime actor without a matching
+upsert directly and therefore is the sixth realtime actor without a matching
 `BaseRealtimeProjector<TActor>` implementation.
 
 ### 3.2 Actor family matrix
@@ -68,7 +68,7 @@ upsert directly and therefore is the seventh realtime actor without a matching
 | ADX | Yes | Yes | Yes | Yes | Shared period timer sends `FuturesAdxSignalSampledRealtimeEvent` | `FuturesAdxSignalRealtimeProjector` and durable Event projector |
 | MACD | Yes | Yes | Yes | Yes | Shared period timer sends `FuturesMacdSignalSampledRealtimeEvent` | `FuturesMacdSignalRealtimeProjector` and durable Event projector |
 | TDI | Yes | Yes | Yes | Yes | Routed RSI collection event | `FuturesTdiSignalRealtimeProjector` and durable Event projector |
-| ITI | Yes | Yes | Yes | Yes | Routed `FuturesMarketPriceUpdatedRealtimeEvent` | `FuturesItiSignalRealtimeProjector` and durable Event projector |
+| ITI | Yes | Yes | Yes | No | Durable Daily Generate command; Daily completion requests Weekly and Monthly | Command Event projector |
 | Trade Signal | Yes | Yes | Yes | No | Durable ITI/TDI orchestration | Command Event projector |
 | Market Outlook | Insert snapshot | Snapshot inserted (no complete/fail) | Dedicated snapshot query actor | Yes | Valid composed snapshot command | Event-saved custom `market_outlook_snapshot` upsert |
 
@@ -259,12 +259,19 @@ shared OHLCV observation or a complete scheduled Daily pipeline.
 
 ### 6.2 Non-timer realtime routing
 
-- `FuturesItiSignalRealtimeActor` registers and releases the market-price
-  update route during actor startup and shutdown.
 - `FuturesTdiSignalRealtimeActor` registers and releases its RSI collection
   route during actor startup and shutdown.
-- RSI, ATR, ADX, MACD, and ITI realtime projectors start with their realtime
+- RSI, ATR, ADX, and MACD realtime projectors start with their realtime
   actors and perform the existing one-attempt projection contract.
+
+Futures ITI no longer consumes `FuturesMarketPriceUpdatedRealtimeEvent` and has
+no realtime actor. The existing event-sourced Daily Generate command is its
+only initial trigger. After the durable Daily projection emits
+`FuturesItiSignalGeneratedCompleteEvent`, the Futures ITI Event actor requests
+the Weekly and Monthly Generate commands. Their completion events follow the
+same handler and terminate without creating more commands. Generate, Set Hold,
+and Clear Hold each use the standard Command actor, durable Event projector,
+and dedicated complete/fail lifecycle.
 
 ### 6.3 Current lifecycle owner
 
@@ -286,7 +293,7 @@ Existing hot/state surfaces are:
 - timer source-sequence state in the RSI and shared period registries;
 - per-realtime-actor dictionaries for RSI, ATR, ADX, MACD, and TDI calculation
   windows/current values;
-- ITI realtime state and durable timeframe state; and
+- ITI event-sourced command state and durable timeframe projection; and
 - Blackboard EOD current/range caches for UI/application consumption.
 
 These stores have different identities, lifetimes, and consistency semantics.

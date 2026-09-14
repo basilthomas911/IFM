@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -18,16 +19,71 @@ internal static class FuturesItiSignalUpdatedNotification
         IEventActorContext<TActor> context,
         ILogger logger)
         where TActor : IActor
+        => await PublishAsync(
+            source.EntityId,
+            source.Id,
+            source.EventId,
+            source.CommandId,
+            source.AggregateId,
+            source.FuturesItiSignal,
+            source.EventName,
+            context,
+            logger).ConfigureAwait(false);
+
+    /// <summary>Publishes a notification after the Hold state has been persisted.</summary>
+    internal static async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
+        this FuturesItiSignalHoldTradeSetCompleteEvent source,
+        IEventActorContext<TActor> context,
+        ILogger logger)
+        where TActor : IActor
+        => await PublishAsync(
+            source.EntityId,
+            source.Id,
+            source.EventId,
+            source.CommandId,
+            source.AggregateId,
+            source.FuturesItiSignal,
+            source.EventName,
+            context,
+            logger).ConfigureAwait(false);
+
+    /// <summary>Publishes a notification after the Ready state has been persisted.</summary>
+    internal static async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
+        this FuturesItiSignalHoldTradeClearedCompleteEvent source,
+        IEventActorContext<TActor> context,
+        ILogger logger)
+        where TActor : IActor
+        => await PublishAsync(
+            source.EntityId,
+            source.Id,
+            source.EventId,
+            source.CommandId,
+            source.AggregateId,
+            source.FuturesItiSignal,
+            source.EventName,
+            context,
+            logger).ConfigureAwait(false);
+
+    static async ValueTask<bool> PublishAsync<TActor>(
+        FuturesItiSignalEntityId entityId,
+        Guid sourceEventId,
+        long eventId,
+        Guid commandId,
+        string aggregateId,
+        FuturesItiSignalV2ReadModel? signal,
+        string eventSource,
+        IEventActorContext<TActor> context,
+        ILogger logger)
+        where TActor : IActor
     {
-        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);
 
-        if (source.FuturesItiSignal is not { IsValid: true } signal)
+        if (signal is not { IsValid: true })
         {
             logger.LogWarning(
                 "Skipping invalid Futures ITI notification for {EntityId}",
-                source.EntityId);
+                entityId);
             return false;
         }
 
@@ -39,16 +95,16 @@ internal static class FuturesItiSignalUpdatedNotification
                     ActorType.Notify,
                     FuturesItiSignalUpdatedNotifyEvent.Actor,
                     FuturesItiSignalUpdatedNotifyEvent.Verb,
-                    source.EntityId.Format()),
+                    entityId.Format()),
                 Id = Guid.NewGuid(),
-                EntityId = source.EntityId,
-                EventId = source.EventId,
-                CommandId = source.CommandId,
-                AggregateId = source.AggregateId ?? string.Empty,
-                EventSource = nameof(FuturesItiSignalGeneratedCompleteEvent),
+                EntityId = entityId,
+                EventId = eventId,
+                CommandId = commandId,
+                AggregateId = aggregateId ?? string.Empty,
+                EventSource = eventSource,
                 ReceivedOn = DateTime.UtcNow,
                 FuturesItiSignal = signal,
-                SourceEventId = source.Id
+                SourceEventId = sourceEventId
             };
 
             await context.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
@@ -63,7 +119,7 @@ internal static class FuturesItiSignalUpdatedNotification
                 ServiceId,
                 exception,
                 "Unable to publish Futures ITI notification for {EntityId}",
-                source.EntityId);
+                entityId);
             return false;
         }
     }

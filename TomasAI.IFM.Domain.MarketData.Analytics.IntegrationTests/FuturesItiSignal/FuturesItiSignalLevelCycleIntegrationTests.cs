@@ -36,16 +36,16 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
     static readonly DateTime FirstTimestamp = new(2026, 8, 18, 14, 30, 0, DateTimeKind.Utc);
     static readonly double[] ValidationLevels =
     [
-        0.11, 0.22, 0.33, 0.44, 0.55,
-        0.66, 0.77, 0.88, 0.99, 1.10,
-        1.30
+        0.16, 0.32, 0.48, 0.64, 0.80,
+        0.96, 1.12, 1.28, 1.44, 1.60,
+        1.80
     ];
 
     readonly IActorProducer _actorProducer =
         factory.Services.GetRequiredService<IActorProducer>();
 
     /// <summary>
-    /// Runs an up/down/up trend cycle through every ten-percent threshold level and beyond one full threshold.
+    /// Runs an up/down/up trend cycle through every fifteen-percent threshold level and beyond one full threshold.
     /// </summary>
     [Fact]
     public async Task DurablePipeline_UpDownUpCycle_PreservesEveryCalculatedStrategyLevel()
@@ -101,7 +101,7 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
                 return signal;
             }
 
-            // Start the first uptrend and publish every ten-percent validation rung.
+            // Start the first uptrend and publish every fifteen-percent validation rung.
             var upStart = await GenerateAsync(StartPrice);
             AssertDirectionChange(upStart, IntrinsicTimeTrendType.UpTrend, expectedGroup: 0);
             var upExtremes = new List<FuturesItiSignalV2ReadModel>();
@@ -263,9 +263,9 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
         signals.Select(signal => signal.BandLevel).Should().BeInAscendingOrder();
         for (var index = 0; index < 10; index++)
         {
-            var lowerBound = (index + 1) / 10.0;
+            var lowerBound = (index + 1) * 0.15;
             signals[index].BandLevel.Should().BeGreaterThanOrEqualTo(lowerBound);
-            signals[index].BandLevel.Should().BeLessThan(lowerBound + 0.15);
+            signals[index].BandLevel.Should().BeLessThan(lowerBound + 0.18);
         }
     }
 

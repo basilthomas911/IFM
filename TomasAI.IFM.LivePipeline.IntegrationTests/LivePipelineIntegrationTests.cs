@@ -56,7 +56,6 @@ public sealed class LivePipelineIntegrationTests
     [InlineData("Chart storage/query", "ES")]
     [InlineData("Analytics attachments", "RSI/FifteenSeconds")]
     [InlineData("Analytics processing", "MACD/OneMinute")]
-    [InlineData("ITI", "ES")]
     [InlineData("Market Outlook publication", "ES")]
     public async Task Downstream_stage_gets_targeted_recovery_after_one_minute_and_full_reset_after_five(
         string component, string scope)

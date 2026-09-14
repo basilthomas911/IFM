@@ -1,167 +1,270 @@
+using System.Security.Cryptography;
+using System.Text;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
-using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime;
 
-/// <summary>
-    /// Converts eligible current-contract ES market-price updates into realtime ITI projections.
-/// </summary>
+/// <summary>Maps one eligible current ES trade-price update to a Daily Futures ITI Generate command.</summary>
 public static class FuturesMarketPriceUpdated
 {
-    static FuturesMarketPriceUpdated() =>
-        ServiceId = $"{LogSourceType.FuturesMarketPriceUpdated}";
+    const string Scope = "ES";
 
-    static string ServiceId { get; }
-
-    /// <summary>
-    /// Processes a current ES trade update when both ES and VX streams are active
-    /// and a fresh VX last-trade price is available.
-    /// </summary>
+    /// <summary>Processes a normalized market-price update through the minimal Daily ITI ingress boundary.</summary>
     /// <param name="event">The routed normalized futures market-price event.</param>
-    /// <param name="context">The owning realtime actor context.</param>
-    /// <param name="projector">The one-attempt realtime source/storage/complete-or-fail projector.</param>
-    /// <param name="marketDataApi">The provider-neutral current-contract and hot-price API.</param>
-    /// <param name="streamOwnership">The actor-owned ES/VX stream lifecycle.</param>
-    /// <param name="logger">The typed ITI realtime actor logger.</param>
-    /// <returns>
-    /// <see langword="true"/> when the event was handled or intentionally ignored;
-    /// otherwise an exception is propagated to actor error handling.
-    /// </returns>
-    public static async ValueTask<bool> ExecuteAsync(
+    /// <param name="context">The typed realtime actor context.</param>
+    /// <returns><see langword="true"/> when the event was handled or intentionally ignored.</returns>
+    public static ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
-        IEventActorContext context,
-        IRealtimeProjector<FuturesItiSignalRealtimeActor> projector,
-        IMarketDataApi marketDataApi,
-        FuturesItiSignalStreamOwnership streamOwnership,
-        FuturesItiSignalRealtimeState realtimeState,
-        ILogger<FuturesItiSignalRealtimeActor> logger, LivePipelineEvidence? healthEvidence = null)
+        IFuturesItiSignalRealtimeContext context)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(projector);
-        ArgumentNullException.ThrowIfNull(marketDataApi);
-        ArgumentNullException.ThrowIfNull(streamOwnership);
-        ArgumentNullException.ThrowIfNull(realtimeState);
-        ArgumentNullException.ThrowIfNull(logger);
+
+        var telemetry = context.Telemetry;
+        var trade = @event.Price.Trade;
+        var eventTime = trade?.EventTimestamp.UtcDateTime ?? @event.ReceivedOn;
+        telemetry.RecordMarketPriceReceived(eventTime);
+
+        if (context.GenerationGate.IsBusy)
+        {
+            telemetry.RecordBusySkipped();
+            return ValueTask.FromResult(true);
+        }
 
         try
         {
-            if (@event.Price.AssetTypeId != AssetTypeId.Futures
-                || @event.UpdateSource == FuturesMarketPriceUpdateSource.Quote
-                || @event.Price.Trade is not { } esTrade)
-                return true;
-
-            if (!StringComparer.Ordinal.Equals(
-                    @event.EntityId.ContractId,
-                    @event.Price.ContractId)
+            if (!IsUsableTradeEvent(@event, out var esTrade, out var filterReason))
+                return ValueTask.FromResult(Filter(filterReason));
+            if (!StringComparer.Ordinal.Equals(@event.EntityId.ContractId, @event.Price.ContractId)
                 || @event.EntityId.ValueDate != @event.Price.ValueDate
                 || @event.EntityId.AssetTypeId != @event.Price.AssetTypeId)
             {
-                throw new MarketDataContractMappingException(
-                    @event.EntityId.ContractId,
-                    "the realtime event entity and price snapshot identities do not match");
+                return ValueTask.FromResult(
+                    Reject("The market-price event entity and price snapshot identities do not match."));
             }
+            if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("ES", out var esContract)
+                || !StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
+                return ValueTask.FromResult(Filter("Trade is not for the current on-the-run ES contract."));
 
-            FuturesItiSignalStreamContracts contracts;
-            try
+            telemetry.RecordEligibleEsTrade(esTrade.EventTimestamp.UtcDateTime);
+
+            if (!TryGetCurrentVxPrice(context, out var vxPrice, out var unavailableReason))
             {
-                contracts = await streamOwnership.EnsureAsync(marketDataApi).ConfigureAwait(false);
+                _ = telemetry.RecordInputUnavailable(unavailableReason);
+                context.HealthEvidence.Record("ITI", Scope, "Degraded", unavailableReason, eventTime);
+                return ValueTask.FromResult(true);
             }
-            catch (MarketDataApiNotRunningException)
+
+            var commandId = CreateCommandId(@event, esTrade);
+            var sourceEventId = @event.Id;
+            var contractId = @event.Price.ContractId;
+            var valueDate = @event.Price.ValueDate;
+            var futuresPrice = Convert.ToDouble(esTrade.LastPrice);
+            var tradeTimestamp = esTrade.EventTimestamp.UtcDateTime;
+            if (!context.GenerationGate.TryStart(
+                    () =>
+                    {
+                        telemetry.RecordCommandRequested();
+                        FuturesItiSignalRealtimeLogging.CommandGenerated(
+                            context.Logger,
+                            sourceEventId,
+                            commandId,
+                            contractId,
+                            valueDate);
+                    },
+                    () => GenerateAsync(
+                        context,
+                        sourceEventId,
+                        commandId,
+                        contractId,
+                        valueDate,
+                        tradeTimestamp,
+                        futuresPrice,
+                        vxPrice,
+                        eventTime)))
             {
-                // Feed shutdown closes epoch admission before draining already
-                // accepted ticks. Those late realtime notifications are expected
-                // and must not reacquire stream routes or create an error storm.
-                return true;
+                telemetry.RecordBusySkipped();
+                return ValueTask.FromResult(true);
             }
-            var esContract = contracts.Es;
-            if (!StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
-                return true;
-
-            var vxContract = contracts.Vx;
-
-            if (!marketDataApi.IsTickDataStreamActive(esContract.ContractId)
-                || !marketDataApi.IsTickDataStreamActive(vxContract.ContractId))
-                return true;
-
-            var vxPrice = await marketDataApi.GetFuturesPriceAsync(vxContract.ContractId)
-                .ConfigureAwait(false);
-            if (vxPrice is null)
-            {
-                healthEvidence?.Record("ITI", "ES", "Degraded", "Waiting for a fresh VX trade price.");
-                return true;
-            }
-
-            var evaluations = await realtimeState.EvaluateAsync(
-                esContract.ContractId,
-                @event.Price.ValueDate,
-                esTrade.EventTimestamp.UtcDateTime,
-                Convert.ToDouble(esTrade.LastPrice),
-                Convert.ToDouble(vxPrice.Value)).ConfigureAwait(false);
-            foreach (var evaluation in evaluations)
-            {
-                var generated = CreateGeneratedEvent(@event, evaluation);
-                var success = await projector.ProcessRealtimeEventAsync(generated)
-                    .ConfigureAwait(false);
-                if (success)
-                    realtimeState.Confirm(evaluation);
-                else
-                {
-                    healthEvidence?.Record("ITI", "ES", "Unhealthy", "ITI persistence/publication failed.");
-                    return false;
-                }
-            }
-            healthEvidence?.Record("ITI", "ES", "Healthy", "Daily, weekly and monthly evaluations completed; no signal is also a valid result.", esTrade.EventTimestamp.UtcDateTime);
-            return true;
+            return ValueTask.FromResult(true);
         }
         catch (Exception exception)
         {
-            healthEvidence?.Record("ITI", "ES", "Unhealthy", exception.Message);
-            logger.LogErrorEvent(
-                ServiceId,
+            telemetry.RecordFailure(exception.Message);
+            context.HealthEvidence.Record("ITI", Scope, "Unhealthy", exception.Message, eventTime);
+            FuturesItiSignalRealtimeLogging.IngressFailed(
+                context.Logger,
                 exception,
-                "{EventName} for {ContractId}: realtime ITI projection failed",
-                nameof(FuturesMarketPriceUpdatedRealtimeEvent),
-                @event.EntityId.ContractId);
+                @event.Id,
+                @event.CommandId,
+                @event.EntityId.ContractId,
+                nameof(FuturesMarketPriceUpdated),
+                exception.GetType().Name);
             throw;
+        }
+
+        bool Filter(string reason)
+        {
+            telemetry.RecordFiltered(reason);
+            return true;
+        }
+
+
+        bool Reject(string reason)
+        {
+            telemetry.RecordFailure(reason);
+            context.HealthEvidence.Record("ITI", Scope, "Unhealthy", reason, eventTime);
+            FuturesItiSignalRealtimeLogging.IngressRejected(
+                context.Logger,
+                @event.Id,
+                @event.CommandId,
+                @event.EntityId.ContractId,
+                nameof(FuturesMarketPriceUpdated),
+                reason);
+            return false;
         }
     }
 
-    static FuturesItiSignalGeneratedEvent CreateGeneratedEvent(
-        FuturesMarketPriceUpdatedRealtimeEvent source,
-        FuturesItiSignalEvaluation evaluation)
+    static async ValueTask GenerateAsync(
+        IFuturesItiSignalRealtimeContext context,
+        Guid sourceEventId,
+        Guid commandId,
+        string contractId,
+        DateOnly valueDate,
+        DateTime tradeTimestamp,
+        double futuresPrice,
+        double vxPrice,
+        DateTime eventTime)
     {
-        var command = evaluation.Command;
-        var entityId = evaluation.Signal.EntityId;
-        return new FuturesItiSignalGeneratedEvent
+        try
         {
-            Subject = new(
-                ActorType.Realtime,
-                FuturesItiSignalRealtimeActor.ActorName,
-                FuturesItiSignalGeneratedEvent.Verb,
-                entityId.Format()),
-            Id = Guid.NewGuid(),
-            EntityId = entityId,
-            CommandId = source.CommandId,
-            AggregateId = source.AggregateId,
-            EventSource = nameof(FuturesMarketPriceUpdatedRealtimeEvent),
-            ReceivedOn = DateTime.UtcNow,
-            FuturesItiSignal = evaluation.Signal,
-            VixFuturesPrice = command.VixFuturesPrice,
-            DeriveLongerPeriods = false,
-            CreatedOn = DateTime.UtcNow,
-            CreatedBy = source.UserName
-        };
+            var result = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(
+                context,
+                contractId,
+                valueDate,
+                TimeFrameType.Daily,
+                tradeTimestamp,
+                futuresPrice,
+                vxPrice,
+                commandId,
+                valueDate).ConfigureAwait(false);
+
+            if (result is ServiceFailed<GuidResult> failed)
+            {
+                var message = failed.ErrorMessage ?? "Generate command was rejected.";
+                context.Telemetry.RecordFailure(message);
+                context.HealthEvidence.Record("ITI", Scope, "Unhealthy", message, eventTime);
+                FuturesItiSignalRealtimeLogging.CommandFailed(
+                    context.Logger, sourceEventId, commandId, contractId, valueDate,
+                    failed.ErrorCode, message);
+                return;
+            }
+
+            context.Telemetry.RecordCommandAccepted();
+            context.HealthEvidence.Record(
+                "ITI", Scope, "Healthy", "Daily ITI command accepted; no signal change is a valid result.", eventTime);
+        }
+        catch (Exception exception)
+        {
+            context.Telemetry.RecordFailure(exception.Message);
+            context.HealthEvidence.Record("ITI", Scope, "Unhealthy", exception.Message, eventTime);
+            FuturesItiSignalRealtimeLogging.IngressFailed(
+                context.Logger,
+                exception,
+                sourceEventId,
+                commandId,
+                contractId,
+                nameof(FuturesMarketPriceUpdated),
+                exception.GetType().Name);
+        }
+    }
+
+    /// <summary>Applies the allocation-free eligibility checks that do not require market-data lookup.</summary>
+    internal static bool IsUsableTradeEvent(
+        FuturesMarketPriceUpdatedRealtimeEvent @event,
+        out FuturesMarketTradeSnapshot trade,
+        out string reason)
+    {
+        if (@event.Price.AssetTypeId != AssetTypeId.Futures)
+        {
+            trade = default;
+            reason = "Asset is not Futures.";
+            return false;
+        }
+        if (@event.UpdateSource != FuturesMarketPriceUpdateSource.Trade)
+        {
+            trade = default;
+            reason = "Update is not a trade.";
+            return false;
+        }
+        if (@event.Price.Trade is not { } currentTrade)
+        {
+            trade = default;
+            reason = "Trade snapshot is absent.";
+            return false;
+        }
+        if (currentTrade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
+        {
+            trade = default;
+            reason = "Trade action does not provide a usable current price.";
+            return false;
+        }
+        if ((currentTrade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != 0
+            || currentTrade.LastPrice <= 0)
+        {
+            trade = default;
+            reason = "Trade price is undefined or non-positive.";
+            return false;
+        }
+
+        trade = currentTrade;
+        reason = string.Empty;
+        return true;
+    }
+
+    static bool TryGetCurrentVxPrice(
+        IFuturesItiSignalRealtimeContext context,
+        out double price,
+        out string reason)
+    {
+        price = 0;
+        if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("VX", out var vxContract))
+        {
+            reason = "Current on-the-run VX contract is unavailable.";
+            return false;
+        }
+        if (!context.MarketDataApi.TryGetLastTickPrice(vxContract.ContractId, out var snapshot)
+            || snapshot.Trade is not { } trade
+            || trade.LastPrice <= 0
+            || (trade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != 0
+            || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
+        {
+            reason = $"Current VX trade price is unavailable for {vxContract.ContractId}.";
+            return false;
+        }
+
+        price = Convert.ToDouble(trade.LastPrice);
+        reason = string.Empty;
+        return true;
+    }
+
+    internal static Guid CreateCommandId(
+        FuturesMarketPriceUpdatedRealtimeEvent @event,
+        FuturesMarketTradeSnapshot trade)
+    {
+        if (@event.Id != Guid.Empty)
+            return @event.Id;
+
+        var identity = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"FuturesItiSignal|Daily|{@event.Price.ContractId}|{@event.Price.ValueDate:yyyy-MM-dd}|{trade.StreamEpochId:N}|{trade.TradeOrdinal}|{trade.SourceSequence}|{trade.EventTimestamp.UtcTicks}");
+        return new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(identity)).AsSpan(0, 16));
     }
 }

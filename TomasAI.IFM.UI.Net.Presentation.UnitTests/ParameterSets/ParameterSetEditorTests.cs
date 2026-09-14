@@ -3,11 +3,37 @@ using FluentAssertions;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesItiSignal;
 using TomasAI.IFM.UI.Net.ViewModels.Reference.ParameterSets;
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ParameterSets;
 
 public sealed class ParameterSetEditorTests
 {
+    [Fact] public void Generic_futures_iti_payload_exposes_default_trading_days_for_editing()
+    {
+        var id=Guid.NewGuid();
+        var payload=JsonSerializer.Serialize(new FuturesItiSignalParameterSet
+        {
+            ParameterSetId=id,
+            Version=1,
+            DefaultTradingDays=new(){Daily=1,Weekly=10,Monthly=30}
+        });
+        var saved=new ParameterSetVersion(
+            new(id,1,ParameterSchemaRegistry.FuturesItiSignalComponent,new string('b',64)),
+            "Future ITI Signal","",1,ParameterVersionStatus.Draft,payload,DateTime.UtcNow,"test",CatalogRevision:1);
+        var editor=new ParameterSetEditorModel();
+
+        editor.Load(saved,1);
+        editor.BeginEdit();
+        var fields=ParameterFieldEditorModel.Read(editor.Payload());
+        fields.Where(field=>field.Group=="Default Trading Days")
+            .Select(field=>(field.Name,field.Value))
+            .Should().BeEquivalentTo([("Daily","1"),("Weekly","10"),("Monthly","30")]);
+        editor.SetFields(fields.Select(field=>field.Name=="Weekly"?field with {Value="11"}:field));
+
+        JsonSerializer.Deserialize<FuturesItiSignalParameterSet>(editor.Payload())!
+            .DefaultTradingDays.Weekly.Should().Be(11);
+    }
     static ParameterSetVersion Version()
     {
         var id=Guid.NewGuid();

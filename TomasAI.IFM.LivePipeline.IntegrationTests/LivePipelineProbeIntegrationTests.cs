@@ -12,7 +12,6 @@ using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -108,6 +107,27 @@ public sealed class LivePipelineProbeIntegrationTests
     }
 
     [Fact]
+    public async Task Iti_ingress_uses_eligible_es_progress_and_preserves_missing_vx_degradation()
+    {
+        await using var fixture = await Fixture.Create();
+        fixture.ItiTelemetry.RecordMarketPriceReceived(DateTime.UtcNow);
+
+        var filteredOnly = await fixture.Probe.CheckAsync(default);
+
+        Assert.Contains(filteredOnly.Checks, check =>
+            check.Component == "ITI ingress" && check.Status == "Unknown");
+
+        fixture.ItiTelemetry.RecordEligibleEsTrade(DateTime.UtcNow);
+        fixture.ItiTelemetry.RecordInputUnavailable("Current VX trade price is unavailable.");
+        var missingVx = await fixture.Probe.CheckAsync(default);
+
+        Assert.Contains(missingVx.Checks, check =>
+            check.Component == "ITI ingress"
+            && check.Status == "Degraded"
+            && check.Reason.Contains("InputUnavailable", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Actual_probe_observes_timer_and_storage_recovery_without_restarting_feed()
     {
         await using var fixture = await Fixture.Create();
@@ -120,16 +140,6 @@ public sealed class LivePipelineProbeIntegrationTests
     }
 
     [Fact]
-    public async Task Iti_prerequisite_failure_and_successful_no_signal_evaluation_are_distinct()
-    {
-        await using var fixture = await Fixture.Create();
-        fixture.Evidence.Record("ITI", "ES", "Degraded", "Waiting for a fresh VX trade price.");
-        Assert.Contains((await fixture.Probe.CheckAsync(default)).Checks, x => x.Component == "ITI" && x.Status == "Degraded");
-        fixture.Evidence.Record("ITI", "ES", "Healthy", "Evaluated; no signal conditions met.", DateTime.UtcNow);
-        Assert.Contains((await fixture.Probe.CheckAsync(default)).Checks, x => x.Component == "ITI" && x.Status == "Healthy");
-    }
-
-    [Fact]
     public async Task Storage_exception_degrades_component_and_does_not_abort_other_checks()
     {
         await using var fixture = await Fixture.Create();
@@ -137,7 +147,7 @@ public sealed class LivePipelineProbeIntegrationTests
             .Returns<Task<FuturesBarDataReadModel>>(_ => throw new IOException("Injected storage outage"));
         var result = await fixture.Probe.CheckAsync(default);
         Assert.Contains(result.Checks, x => x.Component == "Chart storage/query" && x.Reason.Contains("Injected storage outage"));
-        Assert.Contains(result.Checks, x => x.Component == "ITI");
+        Assert.Contains(result.Checks, x => x.Component == "Databento feed" && x.Status == "Healthy");
     }
 
     [Fact]
@@ -178,19 +188,6 @@ public sealed class LivePipelineProbeIntegrationTests
     }
 
     [Fact]
-    public async Task Targeted_iti_recovery_restarts_only_iti_realtime_actor()
-    {
-        await using var fixture = await Fixture.Create();
-        var iti = new ActorMailboxId(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
-        fixture.Actors.ActorExists(iti).Returns(true);
-        await fixture.Probe.RecoverDownstreamAsync(
-            new("ITI route", "ES", "Degraded", "missing", DateTime.UtcNow),
-            fixture.Date, default);
-        await fixture.Actors.Received(1).StopAsync(iti, Arg.Any<CancellationToken>());
-        await fixture.Actors.Received(1).StartAsync(iti, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task Minute_monitor_uses_real_probe_to_recover_chart_bars_when_ticks_are_healthy()
     {
         await using var fixture = await Fixture.Create();
@@ -221,6 +218,7 @@ public sealed class LivePipelineProbeIntegrationTests
         public IMarketDataFeedCommandApi FeedCommands = Substitute.For<IMarketDataFeedCommandApi>();
         public IMarketDataAnalyticsCommandApi AnalyticsCommands = Substitute.For<IMarketDataAnalyticsCommandApi>();
         public IActorSupervisor Actors = Substitute.For<IActorSupervisor>();
+        public FuturesItiSignalRuntimeTelemetry ItiTelemetry = new(TimeProvider.System);
         DatabentoMarketDataApi market = null!;
         public DatabentoMarketDataApi Market => market;
         public IFuturesMarketSessionAuthority Sessions = null!;
@@ -272,6 +270,7 @@ public sealed class LivePipelineProbeIntegrationTests
             f.Probe = new(new(f.market, session, Substitute.For<IFuturesContractRolloverStore>(), Substitute.For<IFuturesExchangeBusinessCalendar>(), TimeProvider.System),
                 new(actors, actorRegistry), f.market, session, f.Timer, f.FeedCommands, f.AnalyticsCommands,
                 f.Storage, operations, f.Evidence,
+                f.ItiTelemetry,
                 new DeploymentIdentityMonitor(new(), AppContext.BaseDirectory, false), watchdog, TimeProvider.System,
                 actors, null);
             return f;

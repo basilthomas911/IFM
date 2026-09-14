@@ -73,16 +73,12 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         eventActors.Should().BeEmpty();
     }
 
-    /// <summary>Confirms only the ITI trigger uses global realtime route registration.</summary>
+    /// <summary>Confirms ITI workflow admission no longer depends on a realtime route.</summary>
     [Fact]
-    public void Realtime_actor_declares_only_the_external_trigger_route()
+    public void Realtime_actor_declares_no_external_trigger_route()
     {
-        var route = (ActorTypeId)typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
-            .GetField("TriggerRoute", BindingFlags.NonPublic | BindingFlags.Static)!
-            .GetValue(null)!;
-
-        route.ActorType.Should().Be(ActorType.Realtime);
-        route.Verb.Should().Be("Generated");
+        typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
+            .GetField("TriggerRoute", BindingFlags.NonPublic | BindingFlags.Static).Should().BeNull();
         typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
             .GetField("ExternalRoutes", BindingFlags.NonPublic | BindingFlags.Static).Should().BeNull();
     }
