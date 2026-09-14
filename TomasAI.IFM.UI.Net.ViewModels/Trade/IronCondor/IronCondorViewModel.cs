@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -20,11 +21,22 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
+/// <summary>Captures the risk limit and Fund balance used to render one Iron Condor order.</summary>
+/// <param name="OrderId">The accepted Trade Order identifier.</param>
+/// <param name="TradeLimit">The configured risk and profit limits.</param>
+/// <param name="FundBalance">The owning Fund's balance.</param>
 public sealed record IronCondorTradeLimitSnapshot(
     int OrderId,
     TradeLimitReadModel TradeLimit,
     decimal FundBalance);
 
+/// <summary>Captures the two spread positions and their common monitoring inputs.</summary>
+/// <param name="Key">The legacy projected position identity.</param>
+/// <param name="PutSpread">The current put-spread position.</param>
+/// <param name="CallSpread">The current call-spread position.</param>
+/// <param name="TradeLimit">The configured risk and profit limits.</param>
+/// <param name="OpeningNetSpread">The opening net spread value.</param>
+/// <param name="FundBalance">The owning Fund's balance.</param>
 public sealed record IronCondorPositionSnapshot(
     TradePositionEntityId Key,
     TradePositionReadModel PutSpread,
@@ -38,6 +50,9 @@ public sealed record IronCondorPositionSnapshot(
 /// </summary>
 /// <param name="FuturesEod">Metrics for the latest-value futures EOD stream.</param>
 /// <param name="TradePosition">Metrics for the latest-value trade-position stream.</param>
+/// <param name="TradePlan">Metrics for the ordered Trade Plan stream.</param>
+/// <param name="FuturesOptionTicks">Metrics keyed by option contract for the latest-value tick streams.</param>
+/// <param name="SpreadBars">Metrics for the latest-value spread-bar stream.</param>
 public sealed record IronCondorLiveStreamMetricsSnapshot(
     LatestValueChannelMetrics FuturesEod,
     LatestValueChannelMetrics TradePosition,
@@ -48,6 +63,11 @@ public sealed record IronCondorLiveStreamMetricsSnapshot(
 /// <summary>
 /// Describes the WinForms/WPF adapter dispatch and rendering latency observed by the monitor.
 /// </summary>
+/// <param name="DispatchCount">The number of recorded UI dispatches.</param>
+/// <param name="LastDispatchDelay">The most recent delay before UI dispatch.</param>
+/// <param name="MaximumDispatchDelay">The largest observed delay before UI dispatch.</param>
+/// <param name="LastRenderDuration">The most recent render duration.</param>
+/// <param name="MaximumRenderDuration">The largest observed render duration.</param>
 public readonly record struct IronCondorUiDispatchMetricsSnapshot(
     long DispatchCount,
     TimeSpan LastDispatchDelay,
@@ -55,6 +75,7 @@ public readonly record struct IronCondorUiDispatchMetricsSnapshot(
     TimeSpan LastRenderDuration,
     TimeSpan MaximumRenderDuration);
 
+/// <summary>Coordinates current and historical Iron Condor monitoring data for the desktop view.</summary>
 public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     public const int GetTradeInfoErrorCode = 6000;
@@ -64,6 +85,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public const string LiveFeedOff = "LiveFeed OFF";
 
     IAppRoot _appRoot;
+    readonly int _portfolioId;
     Guid _siteId;
     FundReadModel _fund;
     FundOrderReadModel _fundOrder;
@@ -102,6 +124,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     OptionTradeSpreadBarUIViewModel[] _spreadBarData = [];
     TradeHistoryReadModel[] _tradeHistorySnapshot = [];
     TradePlanReadModel[] _tradePlans = [];
+    StrategyTradePlanSnapshot? _strategyTradePlan;
     PresentationError? _lastError;
     bool _isLoading;
     bool _isLoaded;
@@ -123,19 +146,25 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     long _maximumRenderDurationTicks;
 
     /// <summary>
-    /// create iron condor view model
+    /// Creates an Iron Condor monitor for a current or historical trade.
     /// </summary>
-    /// <param name="appRoot"></param>
-    /// <param name="fundOrder"></param>
-    /// <param name="fundOrderTrade"></param>
-    /// <param name="valueDate"></param>
-    /// <param name="baseContracts"></param>
+    /// <param name="appRoot">The application service boundary.</param>
+    /// <param name="fund">The Fund that owns the selected trade.</param>
+    /// <param name="fundOrder">The Fund order containing the selected trade.</param>
+    /// <param name="fundOrderTrade">The selected Iron Condor trade.</param>
+    /// <param name="valueDate">The optional historical value date.</param>
+    /// <param name="baseContracts">The available futures contracts.</param>
+    /// <param name="timeProvider">The optional clock used by live presentation timers.</param>
+    /// <param name="historicalReadOnly">Whether the monitor is restricted to historical display.</param>
+    /// <param name="portfolioId">The Portfolio component of the canonical trade identity.</param>
     public IronCondorViewModel(IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate,
         ICollection<FuturesContractV3ReadModel> baseContracts,
         TimeProvider? timeProvider = null,
-        bool historicalReadOnly = false)
+        bool historicalReadOnly = false,
+        int portfolioId = 0)
     {
         _appRoot = appRoot;
+        _portfolioId = portfolioId;
         _fund = fund;
         _fundOrder = fundOrder;
         _fundOrderTrade = fundOrderTrade;
@@ -165,6 +194,14 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public ICollection<FuturesContractV3ReadModel> BaseContracts => _baseContracts;
     public int OrderId => _fundOrder.OrderId;
     public int TradeId => _fundOrderTrade.TradeId;
+    /// <summary>Gets the Portfolio that owns the canonical trade identity.</summary>
+    public int PortfolioId => _portfolioId;
+    /// <summary>Gets the current material strategy Trade Plan loaded from the strategy-specific Plan actor.</summary>
+    public StrategyTradePlanSnapshot? StrategyTradePlan
+    {
+        get => _strategyTradePlan;
+        private set => SetProperty(ref _strategyTradePlan, value);
+    }
     /// <summary>
     /// Gets whether this instance is a query-only historical viewer. Historical viewers retain the complete
     /// TradeDb presentation while permanently fencing live feeds and TradeDb mutations.
@@ -181,9 +218,21 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public TradeType CallSpreadTradeType => _fundOrderTrade.TradeType == TradeType.ShortIronCondor ? TradeType.CallCreditSpread : TradeType.CallDebitSpread;
     public OptionLegAction ShortOptionLegAction => _fundOrderTrade.TradeType == TradeType.ShortIronCondor ? OptionLegAction.Short : OptionLegAction.Long;
     public OptionLegAction LongOptionLegAction => _fundOrderTrade.TradeType == TradeType.ShortIronCondor ? OptionLegAction.Long : OptionLegAction.Short;
+    /// <summary>Gets the short put action implied by a put spread type.</summary>
+    /// <param name="tradeType">The put spread classification.</param>
+    /// <returns>The action for the short-side put slot.</returns>
     public OptionLegAction GetShortPutOptionLegAction(TradeType tradeType) => tradeType == TradeType.PutCreditSpread ? OptionLegAction.Short : OptionLegAction.Long;
+    /// <summary>Gets the long put action implied by a put spread type.</summary>
+    /// <param name="tradeType">The put spread classification.</param>
+    /// <returns>The action for the long-side put slot.</returns>
     public OptionLegAction GetLongPutOptionLegAction(TradeType tradeType) => tradeType == TradeType.PutCreditSpread ? OptionLegAction.Long : OptionLegAction.Short;
+    /// <summary>Gets the short call action implied by a call spread type.</summary>
+    /// <param name="tradeType">The call spread classification.</param>
+    /// <returns>The action for the short-side call slot.</returns>
     public OptionLegAction GetShortCallOptionLegAction(TradeType tradeType) => tradeType == TradeType.CallCreditSpread ? OptionLegAction.Short : OptionLegAction.Long;
+    /// <summary>Gets the long call action implied by a call spread type.</summary>
+    /// <param name="tradeType">The call spread classification.</param>
+    /// <returns>The action for the long-side call slot.</returns>
     public OptionLegAction GetLongCallOptionLegAction(TradeType tradeType) => tradeType == TradeType.CallCreditSpread ? OptionLegAction.Long : OptionLegAction.Short;
     public OptionTradeReadModel? OptionTrade => _optionTrade;
     public FuturesEodDataV2ReadModel[] FuturesEodHistory
@@ -288,6 +337,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         private set => SetProperty(ref _isLoaded, value);
     }
 
+    /// <summary>Starts the listener that rebuilds live subscriptions after a feed reset.</summary>
+    /// <returns>A task that completes when the listener is active.</returns>
     public async Task EnableMarketDataFeedResetListener()
     {
         if (_historicalReadOnly)
@@ -323,11 +374,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     private Task DeleteOptionTradeSpreadBarData()
     {
         EnsureOperationalMode();
-        return _appRoot.Services.TradeCommands.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Delete Option Trade Spread Bar Data Error"));
-            var optionTradeId = new OptionTradeEntityId(_fundOrderTrade.OrderId, _fundOrderTrade.TradeId);
-            await model.DeleteOptionTradeSpreadBarDataAsync(optionTradeId, _fundOrderTrade.TradeType, _valueDate.HasValue? _valueDate.Value: DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
-        });
+        SpreadBarData = [];
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -441,15 +489,51 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         }
     }
 
-    Task LoadIronCondorTradePlans()
-           => _appRoot.Services.TradePlanQueries.ExecuteAsync(async model => {
-               var valueDate = _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
-               model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Loading Iron Condor Trade Plans Error"));
-               await model.GetTradePlansAsync(_fundOrder.OrderId, _fundOrderTrade.TradeId, valueDate, tradePlans => {
-                   if (tradePlans is not null)
-                       TradePlans = [.. tradePlans];
-               });
-           });
+    async Task LoadIronCondorTradePlans()
+    {
+        var valueDate = _valueDate ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
+        if (!_historicalReadOnly && PortfolioId > 0)
+        {
+            var tradeId = new TradeEntityId(PortfolioId, _fund.FundId, OrderId, TradeId);
+            var positionId = StrategyPositionId.Create(tradeId, TradeStrategyKind.IronCondor);
+            StrategyTradePlan = await _appRoot.Services.StrategyTradePlanQueries.GetCurrentAsync(
+                positionId, TradeStrategyKind.IronCondor, valueDate).ConfigureAwait(false);
+            TradePlans = StrategyTradePlan is null
+                ? []
+                :
+                [
+                    new TradePlanReadModel
+                    {
+                        SequenceId = StrategyTradePlan.PlanRevision,
+                        OrderId = OrderId,
+                        TradeId = TradeId,
+                        ValueDate = valueDate,
+                        ActionDate = StrategyTradePlan.CalculatedAtUtc,
+                        TradeDate = _optionTrade.TradeDate,
+                        MaturityDate = _optionTrade.MaturityDate,
+                        TradeType = _fundOrderTrade.TradeType,
+                        ActionReason = $"{StrategyTradePlan.ReasonCode}: {StrategyTradePlan.Explanation}",
+                        TradePnl = StrategyTradePlan.TotalPnl,
+                        MaxProfit = StrategyTradePlan.Parameters.ProfitTarget,
+                        MaxLoss = -StrategyTradePlan.Parameters.MaximumLoss,
+                        MinProfitTarget = StrategyTradePlan.Parameters.ProfitTarget,
+                        NetPrice = StrategyTradePlan.CurrentValue,
+                        ForwardPrice = StrategyTradePlan.ForwardTradePrice,
+                        CreatedOn = StrategyTradePlan.CalculatedAtUtc,
+                        CreatedBy = "StrategyTradePlan"
+                    }
+                ];
+            return;
+        }
+
+        await _appRoot.Services.TradePlanQueries.ExecuteAsync(async model =>
+        {
+            model.OnError((errorCode, errorMessage) =>
+                PublishError(errorCode, errorMessage, "Loading historical Iron Condor Trade Plans Error"));
+            await model.GetTradePlansAsync(_fundOrder.OrderId, _fundOrderTrade.TradeId, valueDate,
+                tradePlans => TradePlans = tradePlans is null ? [] : [.. tradePlans]);
+        });
+    }
 
     /// <summary>
     /// load trade history from storage
@@ -622,6 +706,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         });
     }
 
+    /// <summary>Loads EOD history for the trade-history row at the supplied index.</summary>
+    /// <param name="index">The selected trade-history row index.</param>
+    /// <returns>A task that completes after the EOD view is updated.</returns>
     public async Task LoadFuturesEodData(int index)
     {
         await _appRoot.Services.MarketDataQueries.ExecuteAsync(async marketDataModel =>
@@ -714,7 +801,11 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         return eodTradePnl + pcsTradePnl + ccsTradePnl;
     }
 
+    /// <summary>Gets the aggregate EOD P&amp;L held by the displayed trade positions.</summary>
+    /// <returns>The aggregate EOD P&amp;L.</returns>
     public decimal GetEodTradePnl() => _optionTrade.TradePositions is not null ? _optionTrade.TradePositions.GetEodTradePnl() : 0;
+    /// <summary>Gets the P&amp;L represented by the loaded trade-history rows.</summary>
+    /// <returns>The aggregate trade-history P&amp;L.</returns>
     public decimal GetTradePnl() => _tradeHistory is null ? 0 : _tradeHistory.Sum(e => e.TradePnl);
 
     /// <summary>
@@ -927,33 +1018,13 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                         updatedBy: Environment.UserName
                     ).SetOptionLeg(optionLeg);
 
-                    var tradeModel = _appRoot.Services.TradeCommands;
                     if (!_optionLegDataMap.TryAdd(optionLeg.ContractId, optionLegData))
                     {
                         if (_optionLegDataMap[optionLeg.ContractId].OptionPrice != optionLegData.OptionPrice)
                         {
                             _optionLegDataMap.Remove(optionLeg.ContractId);
                             _optionLegDataMap.Add(optionLeg.ContractId, optionLegData);
-                            await tradeModel.ChangeOptionLegDataAsync(
-                                orderId: _optionTrade.OrderId,
-                                tradeId: _optionTrade.TradeId,
-                                key: tradePostionKey,
-                                assetPrice: Convert.ToDecimal(optionTickData.UnderlyingPrice),
-                                riskFreeRate: _riskFreeRate,
-                                optionLegData: optionLegData
-                            );
                         }
-                    }
-                    else
-                    {
-                        await tradeModel.ChangeOptionLegDataAsync(
-                            orderId: _optionTrade.OrderId,
-                            tradeId: _optionTrade.TradeId,
-                            key: tradePostionKey,
-                            assetPrice: Convert.ToDecimal(optionTickData.UnderlyingPrice),
-                            riskFreeRate: _riskFreeRate,
-                            optionLegData: optionLegData
-                        );
                     }
                 }
                 catch { }
@@ -1140,15 +1211,15 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                     MarketType.Futures,
                     CurrencyType.USD,
                     value => maxTradingDays = value);
-                await _appRoot.Services.TradeCommands.ExecuteAsync(async tradeModel =>
+                if (maxTradingDays > 0)
                 {
-                    tradeModel.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Updating Trade Limit Daily Profit Target Error"));
-                    await tradeModel.UpdateTradeLimitDailyProfitTargetAsync(
-                        _fundOrder.OrderId,
-                        _fundOrderTrade.TradeId,
-                        tradingDays,
-                        maxTradingDays);
-                });
+                    _tradeLimits = _tradeLimits with
+                    {
+                        DailyProfitTarget = _tradeLimits.MaxProfit /
+                            Math.Max(1, maxTradingDays - tradingDays)
+                    };
+                    TradeLimitSnapshot = new(OrderId, _tradeLimits, _fundBalance);
+                }
             });
 
         Task LoadCurrentTradeHistory()
@@ -1307,15 +1378,21 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         }
     }
 
+    /// <summary>Adds the latest calculated Iron Condor spread point to the local monitor path.</summary>
+    /// <param name="netForwardPrice">The combined forward price for the strategy.</param>
+    /// <param name="e">The put and call spread positions used to calculate the point.</param>
+    /// <returns>A completed task after the local point is queued.</returns>
     public Task InsertOptionTradeSpreadData(decimal netForwardPrice, (TradePositionReadModel PutCreditSpread, TradePositionReadModel CallCreditSpread) e)
     {
        EnsureOperationalMode();
-       return _appRoot.Services.TradeCommands
-            .ExecuteAsync(async model => {
-                model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Insert Option Trade Spread Data Error"));
-                var optionTradeSpreadData = GetOptionTradeSpreadData(netForwardPrice, e);
-                await model.InsertOptionTradeSpreadDataAsync(optionTradeSpreadData);
-            });
+       var spread = GetOptionTradeSpreadData(netForwardPrice, e);
+       _spreadPathQueue.Push(new IronCondorSpreadPathDataModel(
+           spread.ValueDate,
+           Convert.ToDouble(spread.LossLimit),
+           Convert.ToDouble(spread.WinLimit),
+           spread.ForwardSpread,
+           spread.NetSpread));
+       return Task.CompletedTask;
     }
 
     void EnsureOperationalMode()
@@ -1353,9 +1430,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (!IsLiveFeedEnabled)
             return;
 
-        await _appRoot.Services.TradeCommands
-            .ExecuteAsync(async model => await model.SnapshotOptionTradeAsync(_optionTrade.OrderId, _optionTrade.TradeId));
-        await WriteStatusConsole($"SnapshotOptionTrade executed for {_optionTrade.OrderId}:{_optionTrade.TradeId}");
+        await LoadIronCondorTradePlans();
     }
 
     /// <summary>
@@ -1363,30 +1438,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// </summary>
     async Task SpreadBarDataTickAsync()
     {
-        var valueDate = _valueDate ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
-        OptionTradeSpreadsDataModel? spreadData = null;
-        await _appRoot.Services.TradeQueries.ExecuteAsync(async model =>
-            await model.GetOptionTradeSpreadDataAsync(
-                _optionTrade.OrderId,
-                _optionTrade.TradeId,
-                _optionTrade.TradeType,
-                valueDate,
-                value => spreadData = value));
-        if (spreadData is null)
-            return;
-
-        var optionTradeSpreadBarData = new OptionTradeSpreadBarsDataModel(
-            orderId: spreadData.OrderId,
-            tradeId: spreadData.TradeId,
-            tradeType: spreadData.TradeType,
-            valueDate: valueDate,
-            barDate: DateTime.UtcNow,
-            lossLimit: spreadData.LossLimit,
-            winLimit: spreadData.WinLimit,
-            forwardSpread: spreadData.ForwardSpread,
-            netSpread: spreadData.NetSpread);
-        await _appRoot.Services.TradeCommands
-            .ExecuteAsync(async model => await model.InsertOptionTradeSpreadBarDataAsync(optionTradeSpreadBarData));
+        await Task.CompletedTask;
     }
 
     async Task RunPeriodicAsync(CancellationToken cancellationToken)

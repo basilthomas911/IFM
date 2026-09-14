@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -11,7 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public record GetTradeTypeLimitQuery : IQuery<TradeTypeLimitReadModel>
 {
-    [IgnoreMember] public const string Actor = "TradeQuery";
+    [IgnoreMember] public const string Actor = FuturesOptionTradeActorNames.Query;
     [IgnoreMember] public const string Verb = "GetTradeTypeLimit";
     [IgnoreMember] public const int ErrorId = 1022;
 

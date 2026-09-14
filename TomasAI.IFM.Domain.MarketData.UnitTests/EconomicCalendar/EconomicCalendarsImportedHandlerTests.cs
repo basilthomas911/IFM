@@ -93,11 +93,10 @@ public sealed class EconomicCalendarsImportedHandlerTests
             .Returns(Task.FromException(new InvalidOperationException("storage unavailable")));
         var request = Request(date, ["US"], ImportDuplicatePolicy.Overwrite);
 
-        Func<Task> act = async () => await request.ExecuteAsync(
+        var result = await request.ExecuteAsync(
             context, api, dbFactory, NullLogger<EconomicCalendarEventActor>.Instance);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("storage unavailable");
+        result.Should().BeTrue();
         await context.Received(1).SendAsync<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(
             Arg.Is<EconomicCalendarsImportedFailEvent>(value =>
                 value.CommandId == request.CommandId
@@ -122,11 +121,10 @@ public sealed class EconomicCalendarsImportedHandlerTests
             .Returns(Task.FromResult<IReadOnlyList<EconomicCalendarEntry>>([invalid]));
         var request = Request(date, [], ImportDuplicatePolicy.Overwrite);
 
-        Func<Task> act = async () => await request.ExecuteAsync(
+        var result = await request.ExecuteAsync(
             context, api, dbFactory, NullLogger<EconomicCalendarEventActor>.Instance);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithMessage("*CountryCode*");
+        result.Should().BeTrue();
         await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!, default, default);
         await context.Received(1).SendAsync<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(
             Arg.Any<EconomicCalendarsImportedFailEvent>());

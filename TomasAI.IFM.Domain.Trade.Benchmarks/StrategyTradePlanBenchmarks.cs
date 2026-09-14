@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Model;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Benchmarks;
 

@@ -30,6 +30,23 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
             return value is string json ? PortfolioDbFinancialSupport.Decode<FinancialBookConfiguration>(json) : null;
         }, ct);
 
+    public Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(
+        string environment,
+        string executionAccountReference,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(environment);
+        ArgumentException.ThrowIfNullOrWhiteSpace(executionAccountReference);
+        return RequiredTransactions().ExecuteAsync(async (db, cancellation) =>
+        {
+            var value = await db.ScalarAsync(
+                PortfolioDbSql.Financial.ReadActiveBookByExecutionAccount,
+                [environment, executionAccountReference],
+                cancellation).ConfigureAwait(false);
+            return value is string json ? PortfolioDbFinancialSupport.Decode<FinancialBookConfiguration>(json) : null;
+        }, ct);
+    }
+
     internal Task CreateBookAsync(FinancialBookConfiguration book, IReadOnlyList<LedgerAccountDefinition> accounts,
         IReadOnlyList<LedgerPostingRule> rules, DateOnly periodStart, DateOnly periodEnd, CancellationToken ct = default) =>
         RequiredTransactions().ExecuteAsync(async (db, cancellation) =>

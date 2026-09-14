@@ -30,8 +30,9 @@ public sealed class YieldCurveRatesImportedHandlerTests
             : Task.FromResult<IReadOnlyList<TreasuryCurveSnapshot>>([Curve(date) with { Source = "USTreasury" }]));
         if (fails)
         {
-            await Assert.ThrowsAsync<HttpRequestException>(async () => await Request(date, ImportDuplicatePolicy.Overwrite)
-                .ExecuteAsync(context, api, factory, NullLogger<YieldCurveRateEventActor>.Instance));
+            var result = await Request(date, ImportDuplicatePolicy.Overwrite)
+                .ExecuteAsync(context, api, factory, NullLogger<YieldCurveRateEventActor>.Instance);
+            result.Should().BeTrue();
             await context.Received(1).SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
                 Arg.Is<YieldCurveRatesImportedFailEvent>(e => e.DownloadOutcome!.Provider == "USTreasury" && e.DownloadOutcome.DownloadedRecordCount == null));
         }
@@ -102,11 +103,10 @@ public sealed class YieldCurveRatesImportedHandlerTests
                 new InvalidOperationException("provider unavailable")));
         var request = Request(date, ImportDuplicatePolicy.Overwrite);
 
-        Func<Task> act = async () => await request.ExecuteAsync(
+        var result = await request.ExecuteAsync(
             context, api, dbFactory, NullLogger<YieldCurveRateEventActor>.Instance);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("provider unavailable");
+        result.Should().BeTrue();
         await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
         await context.Received(1).SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
             Arg.Is<YieldCurveRatesImportedFailEvent>(value =>
@@ -135,11 +135,10 @@ public sealed class YieldCurveRatesImportedHandlerTests
             ]));
         var request = Request(date, ImportDuplicatePolicy.Overwrite);
 
-        Func<Task> act = async () => await request.ExecuteAsync(
+        var result = await request.ExecuteAsync(
             context, api, dbFactory, NullLogger<YieldCurveRateEventActor>.Instance);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*missing tenor*");
+        result.Should().BeTrue();
         await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
         await context.Received(1).SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
             Arg.Any<YieldCurveRatesImportedFailEvent>());

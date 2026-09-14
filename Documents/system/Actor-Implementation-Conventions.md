@@ -42,11 +42,11 @@ The EventActor sections below record the convention. They do not, by themselves,
 ## 1.3 Domain hierarchy and namespace ownership
 
 The project name establishes the root domain namespace once. A project such as
-`TomasAI.IFM.Domain.Trade` must place common position behavior under `Position` and use the namespace
-`TomasAI.IFM.Domain.Trade.Position`; it must not create a redundant `Trade` child folder or
+`TomasAI.IFM.Domain.Trade` must place common position behavior under `Model/Position` and use the namespace
+`TomasAI.IFM.Domain.Trade.Model.Position`; it must not create a redundant `Trade` child folder or
 `TomasAI.IFM.Domain.Trade.Trade` namespace. Concrete strategy behavior remains beneath its complete
 domain hierarchy, such as `Futures/Option/Position/IronCondor/Plan`. Cross-strategy queries and reusable
-position-workflow support belong under the root `Position` hierarchy and do not create another generic
+position-workflow support belong under the root `Model/Position` hierarchy and do not create another generic
 strategy Plan domain.
 
 An asset class nested beneath another asset class must retain that complete ownership path. Futures

@@ -9,11 +9,12 @@ public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId
 {
     public const string Actor = "DownloadLogCommand";
     public const string Verb = "InsertMarketDataDownloadLog";
+    public const int ErrorId = 6050;
     [Key(0)] public Guid CommandId { get; init; }
     [Key(1)] public ActorSubject Subject { get; init; } = default!;
     [Key(2)] public bool PostEvents { get; init; }
     [Key(3)] public DownloadLogId EntityId { get; init; } = default!;
-    [Key(4)] public int ErrorCode { get; init; } = 6050;
+    [Key(4)] public int ErrorCode { get; init; } = ErrorId;
     [Key(5)] public BoundedContextName RouteTo { get; init; } = BoundedContextName.DownloadLogBoundedContext;
     [Key(6)] public MarketDataDownloadOutcome Outcome { get; init; } = default!;
     [Key(7)] public string PayloadSha256 { get; init; } = "";

@@ -5,6 +5,13 @@ public static class PortfolioDbSql
     public static class Financial
     {
         public const string ReadBook = "SELECT policy_source_versions::text FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;";
+        public const string ReadActiveBookByExecutionAccount = """
+        SELECT a.policy_source_versions::text
+        FROM portfolio_financial.ledger_book b
+        JOIN portfolio_financial.financial_authority a
+          ON a.portfolio_id=b.portfolio_id AND a.book_id=b.book_id
+        WHERE b.environment=$1 AND b.execution_account_ref=$2 AND b.status='Active';
+        """;
 
         public static class AccountingExportStore
         {
@@ -951,6 +958,11 @@ public static class PortfolioDbSql
             removed_active AS (DELETE FROM portfolio.active_fund_by_portfolio_horizon WHERE fund_id=$2 AND source_event_id<=$7 RETURNING 1)
             INSERT INTO portfolio.active_fund_by_portfolio_horizon(portfolio_id,trading_year,decision_horizon,effective_from_utc,fund_id,fund_mandate_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
             SELECT $1,$11,$12,$13,$2,$3,$5,$6,$7,$8,$9,$10 WHERE $4='Active' AND EXISTS(SELECT 1 FROM saved_fund)
+            ON CONFLICT(portfolio_id,trading_year,decision_horizon,effective_from_utc,fund_id)
+            DO UPDATE SET fund_mandate_version=EXCLUDED.fund_mandate_version,schema_version=EXCLUDED.schema_version,
+              aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,
+              updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash
+            WHERE portfolio.active_fund_by_portfolio_horizon.source_event_id<=EXCLUDED.source_event_id
             """;
         public const string UpsertAssignment="INSERT INTO portfolio.fund_template_assignment(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$8) ON CONFLICT(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_template_assignment.source_event_id<=EXCLUDED.source_event_id;";
         public const string UpsertAllocation="INSERT INTO portfolio.fund_allocation(portfolio_id,fund_id,allocation_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6) ON CONFLICT(portfolio_id,fund_id,allocation_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_allocation.source_event_id<=EXCLUDED.source_event_id;";
@@ -983,6 +995,11 @@ public static class PortfolioDbSql
             removed_active AS (DELETE FROM portfolio.active_portfolio_policy WHERE portfolio_id=$3 AND source_event_id<=$7 RETURNING 1)
             INSERT INTO portfolio.active_portfolio_policy(portfolio_id,policy_id,policy_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
             SELECT $3,$1,$2,$5,$6,$7,$8,$9,$10 WHERE $4='Active' AND EXISTS(SELECT 1 FROM saved_policy)
+            ON CONFLICT(portfolio_id) DO UPDATE SET policy_id=EXCLUDED.policy_id,policy_version=EXCLUDED.policy_version,
+              schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,
+              source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,
+              payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash
+            WHERE portfolio.active_portfolio_policy.source_event_id<=EXCLUDED.source_event_id
             """;
         public const string DeleteDraft="""
             WITH tombstone AS (

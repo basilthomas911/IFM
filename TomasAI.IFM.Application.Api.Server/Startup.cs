@@ -353,6 +353,7 @@ public static class Startup
                 .Get<DevelopmentTradingPortfolioOptions>() ?? new DevelopmentTradingPortfolioOptions();
             services.AddSingleton(developmentPortfolio.Validate());
             services.AddSingleton<DevelopmentTradingPortfolioProvisioner>();
+            services.AddSingleton<DevelopmentTradingPortfolioIdentityRecovery>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.ConfigurationDb.MarketConditionAssessmentDefaultProvisioner>();
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
@@ -459,6 +460,12 @@ public static class Startup
                 new TomasAI.IFM.Application.Api.Nats.Client.PortfolioCommandApi(provider.GetRequiredService<SupervisorActorProducer>()));
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFinancialPolicyCommandApi>(provider =>
                 new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialPolicyCommandApi(provider.GetRequiredService<SupervisorActorProducer>()));
+            services.AddSingleton<IStrategyPositionCommandApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.StrategyPositionCommandApi(
+                    provider.GetRequiredService<SupervisorActorProducer>()));
+            services.AddSingleton<ITradeOrderLifecycleApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.TradeOrderLifecycleApi(
+                    provider.GetRequiredService<SupervisorActorProducer>()));
         }
 
         void RegisterEventApiServices()
@@ -496,6 +503,9 @@ public static class Startup
                 new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFundCommandApi(
                     provider.GetRequiredService<SupervisorActorProducer>(),
                     provider.GetRequiredService<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi>()));
+            services.AddSingleton<IStrategyPositionQueryApi>(provider =>
+                new TomasAI.IFM.Application.Api.Nats.Client.StrategyPositionQueryApi(
+                    provider.GetRequiredService<SupervisorActorProducer>()));
         }
 
         void RegisterStorageServices()

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Model;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.Command.State;
 

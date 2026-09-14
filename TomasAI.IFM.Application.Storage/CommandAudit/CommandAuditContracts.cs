@@ -27,7 +27,10 @@ public sealed record CommandAuditEnvelope(
     }
 }
 
-internal readonly record struct CommandAuditWriteResult(bool Accepted, bool LegacyConflict);
+internal readonly record struct CommandAuditWriteResult(
+    bool Accepted,
+    bool LegacyConflict,
+    bool PayloadConflict = false);
 
 internal interface ICommandAuditWriter : IAsyncDisposable
 {

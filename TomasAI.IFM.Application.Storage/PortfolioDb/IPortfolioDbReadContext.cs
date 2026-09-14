@@ -10,6 +10,8 @@ public interface IPortfolioDbReadContext
     Task<T?> ReadOperationAsync<T>(int portfolioId,Guid operationId,string? inputHash=null,CancellationToken cancellationToken=default)
         where T:class,IFinancialCompletedEvent;
     Task<FinancialBookConfiguration?> ReadBookAsync(int portfolioId,CancellationToken cancellationToken=default);
+    Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(string environment,string executionAccountReference,
+        CancellationToken cancellationToken=default);
 
     // Portfolio
     Task<PortfolioReadModel?> GetPortfolioAsync(int portfolioId,CancellationToken cancellationToken=default);

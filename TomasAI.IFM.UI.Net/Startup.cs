@@ -137,7 +137,11 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IApplicationQueryApi, ApplicationQueryApi>();
             _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             _container!.RegisterSingleton<IPortfolioQueryApi, PortfolioQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi, PortfolioFinancialApi>();
+            _container!.RegisterSingleton<PortfolioFinancialApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>(
+                () => _container.GetInstance<PortfolioFinancialApi>());
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioOrderCompositionApi>(
+                () => _container.GetInstance<PortfolioFinancialApi>());
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.IRiskQueryApi, RiskQueryApi>();
             _container!.RegisterSingleton<IPortfolioIdentityApi, PortfolioIdentityApi>();
             _container!.RegisterSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
@@ -152,6 +156,8 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<
                 TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi,
                 StrategyTradePlanQueryApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionQueryApi,
+                StrategyPositionQueryApi>();
             _container!.RegisterSingleton<IDatabaseBackupQueryApi, DatabaseBackupQueryApi>();
         }
 
@@ -163,6 +169,10 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IPortfolioFundCommandApi, PortfolioFundCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
             _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi,
+                StrategyPositionCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeOrderLifecycleApi,
+                TradeOrderLifecycleApi>();
             _container!.RegisterSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
             _container!.RegisterSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
             _container!.RegisterSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
@@ -261,7 +271,6 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IFundUIEventConsumer, FundUIEventConsumer>();
             _container!.RegisterSingleton<IFundOrderUIEventConsumer, FundOrderUIEventConsumer>();
             _container!.RegisterSingleton<IMarketDataUIEventConsumer, MarketDataUIEventConsumer>();
-            _container!.RegisterSingleton<IEndOfDayProcessUIEventConsumer, EndOfDayProcessUIEventConsumer>();
             _container!.RegisterSingleton<IStatusConsoleEventConsumer, StatusConsoleEventConsumer>();
             _container!.RegisterSingleton<ICommandResponseUIEventConsumer, CommandResponseUIEventConsumer>();
             // Calendar dashboard and editor own independent listener lifecycles and may be open concurrently.
@@ -322,10 +331,11 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<TradePlacementEventService>();
             _container.RegisterSingleton<TradePlanQueryService>();
             _container.RegisterSingleton<StrategyTradePlanQueryService>();
+            _container.RegisterSingleton<StrategyPositionService>();
+            _container.RegisterSingleton<PortfolioTradeOrderService>();
             _container.RegisterSingleton<TradePlanEventService>();
             _container.RegisterSingleton<TradePlanActionEventService>();
             _container.RegisterSingleton<TradePositionFeedEventService>();
-            _container.RegisterSingleton<EndOfDayProcessEventService>();
             _container.RegisterSingleton<IUiServiceCatalog, UiServiceCatalog>();
             _container!.Register<IDatabaseBackupService, DatabaseBackupService>(Lifestyle.Transient);
             _container.Register<IReferenceDataService, ReferenceDataService>(Lifestyle.Transient);
@@ -365,6 +375,10 @@ namespace TomasAI.IFM.UI.Net
         public IStatusConsoleWriter GetStatusConsoleWriter()
             => (_container!.GetInstance<IStatusConsoleWriter>()!);
 
+        /// <summary>Executes an asynchronous UI operation through the application root boundary.</summary>
+        /// <param name="operation">The operation to execute.</param>
+        /// <param name="cancellationToken">Cancels the operation before or during execution.</param>
+        /// <returns>The task returned by the operation.</returns>
         public Task ExecuteAsync(
             Func<CancellationToken, Task> operation,
             CancellationToken cancellationToken = default)
@@ -375,22 +389,30 @@ namespace TomasAI.IFM.UI.Net
         }
     }
 
+    /// <summary>Adapts the application logger to the event-channel logging contract.</summary>
+    /// <param name="logger">The application logger that receives event-channel records.</param>
     public class EventChannelLogger(Microsoft.Extensions.Logging.ILogger logger)
         : ILogger<EventChannel>
     {
         readonly Microsoft.Extensions.Logging.ILogger _logger = logger;
 
+        /// <inheritdoc />
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
             => _logger.BeginScope(state);
 
+        /// <inheritdoc />
         public bool IsEnabled(LogLevel logLevel)
             => _logger.IsEnabled(logLevel);
 
+        /// <summary>Writes an event-channel message at the supplied severity.</summary>
+        /// <param name="level">The record severity.</param>
+        /// <param name="message">The formatted event-channel message.</param>
         public void Log(LogLevel level, string message)
         {
             _logger.Log(level, message);
         }
 
+        /// <inheritdoc />
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             _logger.Log(logLevel, eventId, state, exception, formatter);

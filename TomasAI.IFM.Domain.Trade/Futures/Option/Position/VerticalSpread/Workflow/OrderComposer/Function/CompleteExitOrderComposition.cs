@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Function;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.OrderComposer.Function.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;

@@ -35,14 +35,18 @@ internal static class CommandAuditPostgres
             var ordinal = checked((int)reader.GetInt64(0) - 1);
             if ((uint)ordinal >= (uint)results.Length) throw new InvalidDataException("Invalid command audit ordinal.");
             var accepted = reader.GetBoolean(2);
+            var payloadConflict = false;
             if (!accepted && !reader.IsDBNull(3))
             {
                 var storedHash = reader.GetFieldValue<byte[]>(3);
                 if (storedHash.Length != SHA256.HashSizeInBytes ||
                     !CryptographicOperations.FixedTimeEquals(storedHash, envelopes[ordinal].Payload.Sha256))
-                    throw new CommandAuditPayloadConflictException(envelopes[ordinal].CommandId);
+                    payloadConflict = true;
             }
-            results[ordinal] = new CommandAuditWriteResult(accepted, !accepted && reader.IsDBNull(3));
+            results[ordinal] = new CommandAuditWriteResult(
+                accepted,
+                !accepted && reader.IsDBNull(3),
+                payloadConflict);
             count++;
         }
         if (count != envelopes.Count) throw new InvalidDataException("PostgreSQL returned an incomplete command audit result.");

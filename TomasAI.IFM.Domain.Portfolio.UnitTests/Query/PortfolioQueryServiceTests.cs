@@ -2,6 +2,7 @@ using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Query;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Domain.Portfolio.Identity;
@@ -110,6 +111,8 @@ public sealed class PortfolioQueryServiceTests
 
     sealed class ProjectionCatalog : IPortfolioDbReadContext
     {
+        public Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(string environment,string executionAccountReference,CancellationToken cancellationToken=default)
+            => Task.FromResult<FinancialBookConfiguration?>(null);
         public DateTime Now { get; } = new(2026, 8, 30, 19, 0, 0, DateTimeKind.Utc);
         public PortfolioReadModel Portfolio { get; init; } = new();
         public FundMandateReadModel Fund { get; init; } = new();

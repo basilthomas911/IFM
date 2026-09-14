@@ -1,11 +1,14 @@
 ﻿using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using System.Security.Cryptography;
+using System.Text;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
@@ -26,6 +29,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
 /// <summary>Provides per-contract diagnostics for replaceable option-tick order-entry state.</summary>
+/// <param name="FuturesOptionTicks">Metrics keyed by option contract for each latest-value tick stream.</param>
 public sealed record IronCondorTradeOrderLiveStreamMetricsSnapshot(
     IReadOnlyDictionary<string, LatestValueChannelMetrics> FuturesOptionTicks);
 
@@ -48,6 +52,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     readonly object _liveStreamMetricsGate = new();
     readonly Dictionary<string, LatestValueChannelMetrics> _futuresOptionTickMetrics = [];
     IAppRoot _appRoot;
+    readonly int _portfolioId;
     OptionTradeReadModel _ironCondorTrade = null!;
     OptionTradeReadModel _parentTrade = null!;
     DateOnly _valueDate;
@@ -94,6 +99,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// <param name="fundOrder">The fund order view model that this trade order is part of.</param>
     /// <param name="fundOrderTrade">The fund order trade view model specifying the trade details.</param>
     /// <param name="orderActionType">The type of action to be performed on the order, such as buy or sell.</param>
+    /// <param name="referenceDataService">The reference-data service used to resolve contract definitions.</param>
+    /// <param name="timeProvider">The optional clock used by live presentation timers.</param>
+    /// <param name="historicalReadOnly">Whether the editor is restricted to historical display.</param>
+    /// <param name="historicalTrade">The optional historical trade displayed in read-only mode.</param>
+    /// <param name="historicalFundBalance">The historical Fund balance displayed with the trade.</param>
+    /// <param name="portfolioId">The Portfolio authority used to evaluate an opening order composition.</param>
     /// <exception cref="InvalidOperationException">Thrown if the <paramref name="fundOrderTrade"/> has a trade type that is not supported by this view model.</exception>
     public IronCondorTradeOrderViewModel(
         IAppRoot appRoot,
@@ -107,7 +118,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         TimeProvider? timeProvider = null,
         bool historicalReadOnly = false,
         OptionTradeReadModel? historicalTrade = null,
-        decimal historicalFundBalance = 0m)
+        decimal historicalFundBalance = 0m,
+        int portfolioId = 0)
     {
         switch(fundOrderTrade.TradeType)
         {
@@ -132,6 +144,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             ?? throw new ArgumentNullException(nameof(referenceDataService));
         _valueDate = valueDate;
         _fundId = fundId;
+        _portfolioId = portfolioId;
         _baseContract = baseContract;
         _fundOrder = fundOrder;
         _fundOrderTrade = fundOrderTrade;
@@ -154,6 +167,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     public DateOnly MaturityDate => _ironCondorTrade.MaturityDate;
     public TradeType TradeType => _ironCondorTrade?.TradeType ?? TradeType.Unknown;
     public int FundId => _fundId;
+    /// <summary>Gets the Portfolio authority used for order-composition evaluation.</summary>
+    public int PortfolioId => _portfolioId;
     public FuturesContractV3ReadModel BaseContract => _baseContract;
     public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade;
     public DefaultFuturesContractDefinitionsUiModel DefaultFuturesContractDefinitions => _defaultFuturesContractDefinitions;
@@ -418,17 +433,20 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
              await model.StopFundRiskMarginEventConsumerAsync();
          });
 
+    /// <inheritdoc />
     public Task InitializeAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         await _liveFeedLifecycle.StopAsync(cancellationToken);
         await _riskMarginLifecycle.StopAsync(cancellationToken);
     }
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await _liveFeedLifecycle.DisposeAsync();
@@ -513,6 +531,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    /// <summary>Sets the working trade-position status from the requested order action.</summary>
+    /// <param name="orderActionType">The opening or closing order action.</param>
     public void SetTradeStatus(OrderActionType orderActionType)
     {
         var tradeStatus = orderActionType switch
@@ -713,16 +733,22 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     }
 
     /// <summary>
-    /// Submits a trade order for execution and updates the trade state.
+    /// Submits an opening order candidate to Portfolio and dispatches every accepted Trade Order.
     /// </summary>
     /// <remarks>This method updates the trade state to indicate that the order has been placed and handles
     /// the addition of manual trade fills if required. It also ensures that any new futures option contracts are added
-    /// before placing the order.</remarks>
+    /// before Portfolio evaluates the broker-neutral composition.</remarks>
     /// <param name="tradeOrder">The trade order to be submitted, containing details such as fund ID and order quantity.</param>
-    /// <returns>The placed-order command correlation identifier.</returns>
+    /// <returns>The Portfolio completion event that authorized the accepted Trade Orders.</returns>
     public async Task<Guid> SubmitOrder(TradeOrderReadModel tradeOrder)
     {
         ThrowIfHistoricalReadOnly();
+        ArgumentNullException.ThrowIfNull(tradeOrder);
+        if (PortfolioId <= 0)
+            throw new InvalidOperationException("Select a Portfolio before submitting an Iron Condor order.");
+        if (tradeOrder.OrderActionType != OrderActionType.Open)
+            throw new InvalidOperationException(
+                "The Trade Order editor submits opening positions only. Position exits use the strategy exit workflow.");
         // get manual trade fills if not sending to broker for trade fills...
         _ironCondorTrade = _ironCondorTrade with
         {
@@ -740,12 +766,17 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             // populate options contracts if they do not exist...
             await AddNewFuturesOptionContracts();
 
-            // place order...
-            await _appRoot.Services.TradeCommands.ExecuteObservableAsync(
-                async model => commandId = await model.PlaceOrderAsync(tradeOrder, _ironCondorTrade));
+            var candidate = await CreatePortfolioCandidateAsync(tradeOrder).ConfigureAwait(false);
+            var submission = await _appRoot.Services.PortfolioTradeOrders.SubmitOpeningAsync(
+                PortfolioId,
+                candidate,
+                tradeOrder.TradeFillType == TradeFillType.Manual
+                    ? ExecutionChannel.Manual
+                    : ExecutionChannel.Broker).ConfigureAwait(false);
+            commandId = submission.PortfolioEventId;
             return commandId;
         }
-        catch (UiServiceOperationException exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             PublishError(exception, "Submit Order Error");
             throw;
@@ -780,6 +811,87 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     }
 
+    async Task<PortfolioOrderCandidate> CreatePortfolioCandidateAsync(TradeOrderReadModel tradeOrder)
+    {
+        var fund = await _appRoot.Services.PortfolioQueries
+            .GetFundAsync(PortfolioId, FundId).ConfigureAwait(false);
+        if (!fund.Success || fund.Value is null)
+            throw new InvalidOperationException(
+                $"Portfolio Fund {PortfolioId}.{FundId} could not be loaded ({fund.ErrorCode}): {fund.ErrorMessage}");
+        var assignments = await _appRoot.Services.PortfolioQueries.GetAssignmentsAsync(
+            PortfolioId, FundId, fund.Value.FundMandateVersion).ConfigureAwait(false);
+        if (!assignments.Success || assignments.Value is null)
+            throw new InvalidOperationException(
+                $"Portfolio assignments could not be loaded ({assignments.ErrorCode}): {assignments.ErrorMessage}");
+        var now = DateTime.UtcNow;
+        var assignment = assignments.Value
+            .Where(value => value.IsEffectiveAt(now)
+                && value.TradeStrategyFamily?.CatalogDeployment is not null
+                && (value.UnderlyingUniverse.Contains(_baseContract.Symbol, StringComparer.OrdinalIgnoreCase)
+                    || value.UnderlyingUniverse.Contains(_baseContract.ContractId, StringComparer.OrdinalIgnoreCase))
+                && value.TradeFamily.Contains("IronCondor", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(value => value.Priority)
+            .ThenByDescending(value => value.AssignmentVersion)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"No effective Iron Condor deployment is assigned to Portfolio Fund {PortfolioId}.{FundId} for {_baseContract.Symbol}.");
+        var deployment = assignment.TradeStrategyFamily!.CatalogDeployment!;
+        var quantity = Math.Max(1, Math.Abs(tradeOrder.OrderQuantity));
+        var legs = _ironCondorTrade.OptionLegs.Select(leg => new TradeLegDefinition
+        {
+            TradeLegId = Guid.NewGuid(),
+            AssetFamily = TradeAssetFamily.FuturesOption,
+            SignedQuantity = (leg.OptionLegAction == OptionLegAction.Long ? 1 : -1) * quantity,
+            ContractId = leg.ContractId,
+            ContractKey = leg.ContractId,
+            Expiry = _ironCondorTrade.MaturityDate,
+            Strike = leg.StrikePrice,
+            PutCall = leg.OptionLegType == OptionType.Call ? (byte)1 : (byte)2
+        }).ToArray();
+        if (legs.Length != 4 || legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId)))
+            throw new InvalidOperationException("An Iron Condor order requires four broker-neutral option contract IDs.");
+        var componentId = Guid.NewGuid();
+        var compositionId = Guid.NewGuid();
+        var risk = Math.Abs(_ironCondorTrade.TradeLimit?.RiskMargin ?? tradeOrder.TotalAmount);
+        var maximumLoss = Math.Abs(_ironCondorTrade.TradeLimit?.MaxLoss ?? tradeOrder.TotalAmount);
+        var evidence = string.Join('|', PortfolioId, FundId, compositionId, componentId,
+            _baseContract.ContractId, tradeOrder.ValueDate, tradeOrder.TotalAmount,
+            string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
+        var evidenceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
+        return new PortfolioOrderCandidate
+        {
+            CompositionId = compositionId,
+            WorkflowId = Guid.NewGuid(),
+            DecisionHorizon = assignment.DecisionHorizon,
+            StrategyKind = TradeStrategyKind.IronCondor,
+            ValueDate = tradeOrder.ValueDate,
+            ValidUntilUtc = now.AddMinutes(5),
+            Origin = "DesktopTradeOrder",
+            Components =
+            [
+                new TradeOrderComponentDefinition
+                {
+                    ComponentId = componentId,
+                    StrategyKind = TradeStrategyKind.IronCondor,
+                    Legs = legs,
+                    PermitBalancedPartialAcceptance = false
+                }
+            ],
+            RequiredCapital = risk,
+            EvidenceHash = evidenceHash,
+            DeploymentKey = deployment,
+            MaximumLoss = maximumLoss,
+            StressLoss = maximumLoss,
+            Notional = Math.Abs(tradeOrder.TotalAmount),
+            ProductSymbol = _baseContract.Symbol,
+            ProductExchange = _baseContract.Exchange,
+            ProductCurrency = _baseContract.Currency,
+            PositionType = TradeOrderPositionType.Opening
+        };
+    }
+
+    /// <summary>Starts all live market-data subscriptions owned by the order editor.</summary>
+    /// <returns>A task that completes when the subscriptions are active.</returns>
     public async Task TurnLiveFeedOn()
     {
         ThrowIfHistoricalReadOnly();
@@ -992,6 +1104,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    /// <summary>Stops all live market-data subscriptions owned by the order editor.</summary>
+    /// <returns>A task that completes when the subscriptions have stopped.</returns>
     public async Task TurnLiveFeedOff()
     {
         try
@@ -1035,6 +1149,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    /// <summary>Recalculates option Greeks, commissions, and P&amp;L for both working spreads.</summary>
     public void CalculateTradeValues()
     {
         // update put spread trade values...
@@ -1104,12 +1219,14 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         _ironCondorTrade?.TradePositions?.Set(ccs);
     }
 
+    /// <summary>Rebuilds the option-leg lookup from the current Iron Condor definition.</summary>
     public void UpdateOptionLegMap()
     {
         foreach (var e in _ironCondorTrade.OptionLegs!)
             SetOptionLeg(e.OptionLegAction, e.OptionLegType, e);
     }
 
+    /// <summary>Recalculates the put-spread values from the most recent option quotes.</summary>
     public void UpdatePutCreditSpreadLiveFeedValues()
     {
         var tradeType = PutSpreadTradeType;
@@ -1144,6 +1261,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         CalculateTradeValues();
     }
 
+    /// <summary>Recalculates the call-spread values from the most recent option quotes.</summary>
     public void UpdateCallCreditSpreadLiveFeedValues()
     {
         var tradeType = CallSpreadTradeType;
@@ -1177,6 +1295,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         CalculateTradeValues();
     }
 
+    /// <summary>Recalculates the aggregate Iron Condor risk and profit limits.</summary>
     public void UpdateTradeLimitValues()
     {
         var pcs = GetTradePosition(PutSpreadTradeType, TradeStatus);
@@ -1195,6 +1314,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             dailyProfitTarget: DaysToExpiry <= 0 ? 0m : ((_ironCondorTrade?.TradeLimit?.MaxProfit ?? 0m) / DaysToExpiry) + (2 * TradeCommission));
     }
 
+    /// <summary>Loads the selectable option strikes for the current underlying and maturity.</summary>
+    /// <returns>The ordered strike-price values displayed by the editor.</returns>
     public async Task<object[]> LoadStrikePrices()
     {
         var definition = (await _referenceDataService.GetFuturesOptionStrikePriceDefinitionsAsync())
@@ -1277,9 +1398,17 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             throw new InvalidOperationException("Historical trade orders are read-only.");
     }
 
+    /// <summary>Gets a working option leg by action and put/call type.</summary>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <returns>The mapped leg, or the default value when none has been mapped.</returns>
     public OptionTradeLegReadModel GetOptionLeg(OptionLegAction optionLegAction, OptionType optionType)
         => _optionLegMap!.ContainsKey((optionLegAction, optionType)) ? _optionLegMap[(optionLegAction, optionType)] : default!;
 
+    /// <summary>Replaces a mapped working option leg.</summary>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <param name="optionLeg">The replacement leg.</param>
     public void SetOptionLeg(OptionLegAction optionLegAction, OptionType optionType, OptionTradeLegReadModel optionLeg)
     {
         if (_optionLegMap.ContainsKey((optionLegAction, optionType)))
@@ -1289,9 +1418,19 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    /// <summary>Gets a corresponding leg from the parent trade used by a closing editor.</summary>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <returns>The corresponding parent leg.</returns>
     public OptionTradeLegReadModel GetParentOptionLeg(OptionLegAction optionLegAction, OptionType optionType)
         => _parentTrade?.OptionLegs?.Get(optionLegAction, optionType)!;
 
+    /// <summary>Gets one parent-trade leg valuation by spread, status, action, and type.</summary>
+    /// <param name="tradeType">The spread classification.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <returns>The corresponding parent valuation.</returns>
     public OptionTradeLegDataReadModel GetParentOptionLegData(TradeType tradeType, TradeStatus tradeStatus, OptionLegAction optionLegAction, OptionType optionType)
     {
         var optionLegData = default(OptionTradeLegDataReadModel);
@@ -1301,6 +1440,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         return optionLegData!;
     }
 
+    /// <summary>Gets one working leg valuation by spread, status, action, and type.</summary>
+    /// <param name="tradeType">The spread classification.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <returns>The corresponding working valuation, or the default value when absent.</returns>
     public OptionTradeLegDataReadModel GetOptionLegData(TradeType tradeType, TradeStatus tradeStatus, OptionLegAction optionLegAction, OptionType optionType)
         => _optionLegDataMap.TryGetValue(
             (_valueDate, tradeType, tradeStatus, optionLegAction, optionType),
@@ -1308,6 +1453,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                 ? optionLegData
                 : default!;
 
+    /// <summary>Replaces one working leg valuation and updates its containing spread position.</summary>
+    /// <param name="tradeType">The spread classification.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <param name="optionLegData">The replacement valuation.</param>
     public void SetOptionLegData(TradeType tradeType, TradeStatus tradeStatus, OptionLegAction optionLegAction, OptionType optionType, OptionTradeLegDataReadModel optionLegData)
     {
         if (_optionLegDataMap.ContainsKey((_valueDate, tradeType, tradeStatus, optionLegAction, optionType)))
@@ -1323,6 +1474,10 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    /// <summary>Replaces the cached spread position for the current value date.</summary>
+    /// <param name="tradeType">The spread classification.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <param name="tradePosition">The replacement spread position.</param>
     public void SetTradePositionMap(TradeType tradeType, TradeStatus tradeStatus, TradePositionReadModel tradePosition)
     {
         if (_tradePositionMap.ContainsKey((_valueDate, tradeType, tradeStatus)))
@@ -1332,15 +1487,27 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    /// <summary>Gets the cached spread position for the current value date.</summary>
+    /// <param name="tradeType">The spread classification.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <returns>The cached position, or <see langword="null"/> when absent.</returns>
     public TradePositionReadModel? GetTradePosition(TradeType tradeType, TradeStatus tradeStatus)
         => _tradePositionMap.ContainsKey((_valueDate, tradeType, tradeStatus)) ? _tradePositionMap[(_valueDate, tradeType, tradeStatus)] : null;
 
+    /// <summary>Determines whether a strike has been selected for a working leg.</summary>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <returns><see langword="true"/> when a strike is mapped.</returns>
     public bool StrikePriceMapped(OptionLegAction optionLegAction, OptionType optionType)
     {
         if (_optionPriceMap == null || _optionPriceMap.Count == 0) return false;
         return _optionPriceMap.ContainsKey((optionLegAction, optionType));
     }
 
+    /// <summary>Gets the selected or current strike price for a working leg.</summary>
+    /// <param name="optionLegAction">The long or short leg action.</param>
+    /// <param name="optionType">The put or call type.</param>
+    /// <returns>The mapped strike price, or zero when the leg is unavailable.</returns>
     public decimal GetStrikePrice(OptionLegAction optionLegAction, OptionType optionType)
     {
         if (_optionPriceMap == null || _optionPriceMap.Count == 0 || !_optionPriceMap.ContainsKey((optionLegAction, optionType)))
@@ -1597,6 +1764,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     void PublishError(UiServiceOperationException exception, string caption)
         => PublishError(exception.ErrorCode, exception.Message, caption);
+
+    void PublishError(Exception exception, string caption)
+        => PublishError(
+            exception is UiServiceOperationException serviceFailure ? serviceFailure.ErrorCode : 0,
+            exception.Message,
+            caption);
 
     void PublishFuturesOptionTickMetrics(string contractId, LatestValueChannelMetrics metrics)
     {

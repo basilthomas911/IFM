@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-12  
 **Version:** 1.0  
-**Status:** Implemented and qualified; external-service soak deferred
+**Status:** Implemented and qualified, including canonical desktop submission and EOD migration; external-service soak deferred
 **Design authority:** `Trade-Order-Execution-Trade-Position-Backend-Schema-Design-v1.2.md`  
 **Actor convention:** `Documents/system/Actor-Implementation-Conventions.md`
 
@@ -14,7 +14,7 @@ Implement the broker-neutral backend lifecycle:
 TradeOrder -> OrderExecution -> OptionTrade | FuturesTrade -> StrategyPosition
 ```
 
-The lifecycle carries Portfolio and Fund ownership from the approved order to the live position. Position-opened, position-closed, and correction events provide the future Portfolio integration boundary. Portfolio mutation, the IBKR adapter, the IBKR emulator, and the legacy Trade Order UI are outside this increment.
+The lifecycle carries Portfolio and Fund ownership from the approved order to the live position. Position-opened, position-closed, and correction events provide the future Portfolio integration boundary. The desktop Trade Order editor now submits an opening composition to Portfolio and dispatches accepted orders through this lifecycle. The retained EOD screen addresses the current strategy Position actor. The IBKR adapter and IBKR emulator remain outside this increment.
 
 ## 2. Non-negotiable boundaries
 

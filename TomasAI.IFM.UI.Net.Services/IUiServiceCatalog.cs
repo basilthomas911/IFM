@@ -6,6 +6,8 @@ using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
 using TomasAI.IFM.UI.Net.Services.Trade;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.UI.Net.Services;
 
@@ -21,6 +23,10 @@ public interface IUiServiceCatalog
     TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.IRiskQueryApi RiskQueries { get; }
     IPortfolioIdentityApi PortfolioIdentities { get; }
     IPortfolioFinancialPolicyCommandApi PortfolioPolicyCommands { get; }
+    /// <summary>Gets the Portfolio-owned atomic order-composition boundary.</summary>
+    IPortfolioOrderCompositionApi PortfolioOrderCompositions { get; }
+    /// <summary>Gets the canonical accepted Trade Order actor lifecycle boundary.</summary>
+    ITradeOrderLifecycleApi TradeOrderLifecycle { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; }
     /// <summary>Gets the shared command-response event service.</summary>
@@ -97,6 +103,11 @@ public interface IUiServiceCatalog
     /// <summary>Gets the strategy-position Trade Plan query service.</summary>
     StrategyTradePlanQueryService StrategyTradePlanQueries { get; }
 
+    /// <summary>Gets current-position queries and explicit strategy-position commands.</summary>
+    StrategyPositionService StrategyPositions { get; }
+    /// <summary>Gets the desktop Portfolio acceptance and Trade Order dispatch service.</summary>
+    PortfolioTradeOrderService PortfolioTradeOrders { get; }
+
     /// <summary>Gets the Trade Plan event service.</summary>
     TradePlanEventService TradePlanEvents { get; }
 
@@ -106,6 +117,4 @@ public interface IUiServiceCatalog
     /// <summary>Gets the Trade Position event service.</summary>
     TradePositionFeedEventService TradePositionEvents { get; }
 
-    /// <summary>Gets the end-of-day event service.</summary>
-    EndOfDayProcessEventService EndOfDayEvents { get; }
 }

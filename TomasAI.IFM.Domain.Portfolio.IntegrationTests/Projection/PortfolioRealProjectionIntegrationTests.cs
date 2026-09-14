@@ -117,10 +117,14 @@ public sealed class PortfolioRealProjectionIntegrationTests(
         await projections.ResetAsync();
         var firstReport = await rebuilder.RebuildAsync(request);
         var firstHash = await CatalogHashAsync(projections.Db, portfolio, policy, fund, reservation);
+        var idempotentReport = await rebuilder.RebuildAsync(request);
+        var idempotentHash = await CatalogHashAsync(projections.Db, portfolio, policy, fund, reservation);
         await projections.ResetAsync();
         var secondReport = await rebuilder.RebuildAsync(request);
         var secondHash = await CatalogHashAsync(projections.Db, portfolio, policy, fund, reservation);
 
+        idempotentReport.Should().BeEquivalentTo(firstReport);
+        idempotentHash.Should().Be(firstHash);
         firstReport.Should().BeEquivalentTo(secondReport);
         firstReport.EventCount.Should().Be(9);
         firstHash.Should().Be(secondHash);

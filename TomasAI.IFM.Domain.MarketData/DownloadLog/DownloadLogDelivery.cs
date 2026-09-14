@@ -40,7 +40,23 @@ public static class DownloadLogDelivery
                 throw new ArgumentException("Import terminal and download outcome disagree.");
             var command = new InsertMarketDataDownloadLogCommand(outcome);
             var result = await context.RequestAsync<InsertMarketDataDownloadLogCommand, DownloadLogId>(command);
-            if (!result.Success) throw new InvalidOperationException($"DownloadLog command rejected: {result.ErrorCode}: {result.ErrorMessage}");
+            if (!result.Success)
+            {
+                if (IsCommittedOutcomeConflict(result))
+                {
+                    logger.LogError(
+                        "DownloadLog rejected a conflicting terminal outcome for import {ImportCommandId}; " +
+                        "the first immutable outcome remains committed and this terminal delivery will not be retried. " +
+                        "ErrorCode={ErrorCode}; Error={ErrorMessage}",
+                        outcome.ImportCommandId,
+                        result.ErrorCode,
+                        result.ErrorMessage);
+                    return true;
+                }
+
+                throw new InvalidOperationException(
+                    $"DownloadLog command rejected: {result.ErrorCode}: {result.ErrorMessage}");
+            }
             return true;
         }
         catch (Exception exception)
@@ -53,4 +69,13 @@ public static class DownloadLogDelivery
             throw new DownloadLogDeliveryException(outcome, exception);
         }
     }
+
+    static bool IsCommittedOutcomeConflict(ServiceResult<GuidResult> result)
+        => result.ErrorCode == InsertMarketDataDownloadLogCommand.ErrorId
+           && (result.ErrorMessage.Contains(
+                   "already associated with a different command payload",
+                   StringComparison.Ordinal)
+               || result.ErrorMessage.Contains(
+                   "A different terminal outcome is already committed",
+                   StringComparison.Ordinal));
 }

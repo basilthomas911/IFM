@@ -50,7 +50,17 @@ public sealed class FuturesOptionTradeQueryActor(
             [GetTradePlanActionQuery.Verb] = message =>
                 message.AsQuery<GetTradePlanActionQuery, TradePlanActionReadModel[]>()!,
             [GetIronCondorMDILimitQuery.Verb] = message =>
-                message.AsQuery<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>()!
+                message.AsQuery<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>()!,
+            [GetTradeHistoryQuery.Verb] = message =>
+                message.AsQuery<GetTradeHistoryQuery, TradeHistoryReadModel[]>()!,
+            [GetTradeLimitQuery.Verb] = message =>
+                message.AsQuery<GetTradeLimitQuery, TradeLimitReadModel>()!,
+            [GetTradePositionQuery.Verb] = message =>
+                message.AsQuery<GetTradePositionQuery, TradePositionReadModel>()!,
+            [GetTradeQuantityQuery.Verb] = message =>
+                message.AsQuery<GetTradeQuantityQuery, ScalarReadModel<int>>()!,
+            [GetTradeTypeLimitQuery.Verb] = message =>
+                message.AsQuery<GetTradeTypeLimitQuery, TradeTypeLimitReadModel>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
@@ -85,7 +95,17 @@ public sealed class FuturesOptionTradeQueryActor(
             [typeof(GetTradePlanActionQuery)] = static (queryContext, query, token) =>
                 ((GetTradePlanActionQuery)query).ExecuteAsync(queryContext, token),
             [typeof(GetIronCondorMDILimitQuery)] = static (queryContext, query, token) =>
-                ((GetIronCondorMDILimitQuery)query).ExecuteAsync(queryContext, token)
+                ((GetIronCondorMDILimitQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradeHistoryQuery)] = static (queryContext, query, token) =>
+                ((GetTradeHistoryQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradeLimitQuery)] = static (queryContext, query, token) =>
+                ((GetTradeLimitQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradePositionQuery)] = static (queryContext, query, token) =>
+                ((GetTradePositionQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradeQuantityQuery)] = static (queryContext, query, token) =>
+                ((GetTradeQuantityQuery)query).ExecuteAsync(queryContext, token),
+            [typeof(GetTradeTypeLimitQuery)] = static (queryContext, query, token) =>
+                ((GetTradeTypeLimitQuery)query).ExecuteAsync(queryContext, token)
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =

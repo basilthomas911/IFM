@@ -42,6 +42,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
     IPortfolioFinancialPolicyCommandApi policies,
     IPortfolioQueryApi queries,
     IPortfolioFinancialApi financial,
+    DevelopmentTradingPortfolioIdentityRecovery identityRecovery,
     IntrinsicTimeStrategyWorkflowOptions workflow,
     ILogger<DevelopmentTradingPortfolioProvisioner> logger)
 {
@@ -74,7 +75,9 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         foreach (var definition in catalog.Definitions)
             await EnsureCatalogAsync(definition, now, token).ConfigureAwait(false);
 
-        var existing = await FindPortfolioAsync(token).ConfigureAwait(false);
+        var financialOwner = await identityRecovery.ResolveAsync(
+            "Emulator", options.ExecutionAccountReference, token).ConfigureAwait(false);
+        var existing = financialOwner ?? await FindPortfolioAsync(token).ConfigureAwait(false);
         var created = existing is null;
         var portfolioId = existing?.PortfolioId ?? (await identities.AllocatePortfolioIdAsync(token).ConfigureAwait(false)).Id;
         var portfolio = existing ?? await CreatePortfolioAsync(portfolioId, token).ConfigureAwait(false);

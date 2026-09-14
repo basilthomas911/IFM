@@ -55,6 +55,12 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     private long _lastErrorSequence;
     private int _statusLogsRenderPending;
 
+    /// <summary>Creates the main application window and its domain navigation surfaces.</summary>
+    /// <param name="appRoot">The application service boundary.</param>
+    /// <param name="navigator">The form navigation service.</param>
+    /// <param name="referenceDataService">The reference-data service used by the shell.</param>
+    /// <param name="economicCalendarService">The economic-calendar service used by the dashboard.</param>
+    /// <param name="pipelineHealth">The optional market-data operations health service.</param>
     public IFMAppView(
         IAppRoot appRoot,
         IViewNavigator navigator,
@@ -501,7 +507,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                                 dlg.FundOrder,
                                 dlg.FundOrderTrade,
                                 _viewModel.ValueDate,
-                                [.. _viewModel.BaseContracts]);
+                                [.. _viewModel.BaseContracts],
+                                portfolioId: dlg.PortfolioId);
                             if (_tradeBlotter is not null)
                             {
                                 DashboardTypography.ApplyFamilyAndSize(_tradeBlotter);
@@ -767,6 +774,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
 
     }
 
+    /// <summary>Implements the legacy form-control open contract.</summary>
+    /// <exception cref="NotImplementedException">The application window is opened by the WinForms host.</exception>
     public void Open()
     {
         throw new NotImplementedException();

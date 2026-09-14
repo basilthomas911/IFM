@@ -11,6 +11,8 @@ internal sealed class PortfolioDbReadTestContext(PortfolioFinancialStore financi
     public Task<T?> ReadOperationAsync<T>(int portfolioId,Guid operationId,string? inputHash=null,CancellationToken token=default)
         where T:class,IFinancialCompletedEvent=>financial.ReadOperationAsync<T>(portfolioId,operationId,inputHash,token);
     public Task<FinancialBookConfiguration?> ReadBookAsync(int portfolioId,CancellationToken token=default)=>financial.ReadBookAsync(portfolioId,token);
+    public Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(string environment,string executionAccountReference,CancellationToken token=default)
+        =>Unsupported<FinancialBookConfiguration?>();
     public Task<PortfolioReadModel?> GetPortfolioAsync(int id,CancellationToken token=default)=>Unsupported<PortfolioReadModel?>();
     public Task<PortfolioProjectionRevision?> GetPortfolioRevisionAsync(int id,CancellationToken token=default)=>Unsupported<PortfolioProjectionRevision?>();
     public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState state,int bucket,int after,int size,CancellationToken token=default)=>Unsupported<IReadOnlyList<PortfolioReadModel>>();

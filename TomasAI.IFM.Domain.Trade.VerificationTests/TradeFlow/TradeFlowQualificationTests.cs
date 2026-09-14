@@ -254,32 +254,32 @@ public sealed class TradeFlowQualificationTests
         AssertDirectBase(typeof(IronCondorExitOrderCompositionFunctionActor),
             typeof(BaseEventSourceFunctionActor<IronCondorExitOrderCompositionFunctionActor,
                 ComposeExitOrderCommand, ExitPositionWorkflowId, ExitPositionWorkflowId,
-                TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State.ExitOrderCompositionFunctionState,
+                TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State.ExitOrderCompositionFunctionState,
                 ExitOrderCompositionCompletedEvent, ExitPositionWorkflowFailedEvent>));
         AssertDirectBase(typeof(IronCondorPositionExitRiskFunctionActor),
             typeof(BaseEventSourceFunctionActor<IronCondorPositionExitRiskFunctionActor,
                 EvaluatePositionExitRiskCommand, ExitPositionWorkflowId, ExitPositionWorkflowId,
-                TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State.PositionExitRiskFunctionState,
+                TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State.PositionExitRiskFunctionState,
                 PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>));
         AssertDirectBase(typeof(VerticalSpreadExitOrderCompositionFunctionActor),
             typeof(BaseEventSourceFunctionActor<VerticalSpreadExitOrderCompositionFunctionActor,
                 ComposeExitOrderCommand, ExitPositionWorkflowId, ExitPositionWorkflowId,
-                TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State.ExitOrderCompositionFunctionState,
+                TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State.ExitOrderCompositionFunctionState,
                 ExitOrderCompositionCompletedEvent, ExitPositionWorkflowFailedEvent>));
         AssertDirectBase(typeof(VerticalSpreadPositionExitRiskFunctionActor),
             typeof(BaseEventSourceFunctionActor<VerticalSpreadPositionExitRiskFunctionActor,
                 EvaluatePositionExitRiskCommand, ExitPositionWorkflowId, ExitPositionWorkflowId,
-                TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State.PositionExitRiskFunctionState,
+                TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State.PositionExitRiskFunctionState,
                 PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>));
         AssertDirectBase(typeof(FuturesExitOrderCompositionFunctionActor),
             typeof(BaseEventSourceFunctionActor<FuturesExitOrderCompositionFunctionActor,
                 ComposeExitOrderCommand, ExitPositionWorkflowId, ExitPositionWorkflowId,
-                TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State.ExitOrderCompositionFunctionState,
+                TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State.ExitOrderCompositionFunctionState,
                 ExitOrderCompositionCompletedEvent, ExitPositionWorkflowFailedEvent>));
         AssertDirectBase(typeof(FuturesPositionExitRiskFunctionActor),
             typeof(BaseEventSourceFunctionActor<FuturesPositionExitRiskFunctionActor,
                 EvaluatePositionExitRiskCommand, ExitPositionWorkflowId, ExitPositionWorkflowId,
-                TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State.PositionExitRiskFunctionState,
+                TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State.PositionExitRiskFunctionState,
                 PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>));
     }
 

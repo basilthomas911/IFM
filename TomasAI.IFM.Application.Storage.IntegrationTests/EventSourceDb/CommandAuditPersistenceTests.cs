@@ -11,6 +11,7 @@ using TomasAI.IFM.Application.Storage.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Storage;
@@ -81,7 +82,7 @@ public sealed class CommandAuditPersistenceTests
                 await writer.ReserveAsync(CommandAuditEnvelope.Create(TestCommand.Create(commandId, 8), codec));
             await conflicting.Should().ThrowAsync<CommandAuditPayloadConflictException>();
 
-            await using var connection = new NpgsqlConnection(ConnectionString);
+            await using var connection = CreateConnection();
             await connection.OpenAsync();
             await using var read = new NpgsqlCommand(
                 "SELECT commanddata, commandpayload, commandpayloadformat, commandpayloadversion, commandpayloadsha256 FROM command_log WHERE commandid=$1",
@@ -107,7 +108,7 @@ public sealed class CommandAuditPersistenceTests
     {
         await EnsureSchemaAsync();
         var commandId = Guid.NewGuid();
-        await using var connection = new NpgsqlConnection(ConnectionString);
+        await using var connection = CreateConnection();
         await connection.OpenAsync();
         try
         {
@@ -146,7 +147,7 @@ public sealed class CommandAuditPersistenceTests
 
         try
         {
-            await using var connection = new NpgsqlConnection(ConnectionString);
+            await using var connection = CreateConnection();
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
             var results = await CommandAuditPostgres.ReserveAsync(
@@ -164,7 +165,7 @@ public sealed class CommandAuditPersistenceTests
 
     [Fact]
     [Trait("Category", "PostgresIntegration")]
-    public async Task Conflicting_payloads_for_one_command_id_roll_back_the_database_window()
+    public async Task Conflicting_payloads_for_one_command_id_preserve_the_first_reservation()
     {
         await EnsureSchemaAsync();
         var commandId = Guid.NewGuid();
@@ -172,19 +173,92 @@ public sealed class CommandAuditPersistenceTests
         var first = CommandAuditEnvelope.Create(TestCommand.Create(commandId, 12), codec);
         var conflicting = CommandAuditEnvelope.Create(TestCommand.Create(commandId, 13), codec);
 
-        await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        await using (var transaction = await connection.BeginTransactionAsync())
+        try
         {
-            var reserve = async () => await CommandAuditPostgres.ReserveAsync(
-                connection, transaction, new[] { first, conflicting }, CancellationToken.None);
-            await reserve.Should().ThrowAsync<CommandAuditPayloadConflictException>();
-            await transaction.RollbackAsync();
-        }
+            await using var connection = CreateConnection();
+            await connection.OpenAsync();
+            await using (var transaction = await connection.BeginTransactionAsync())
+            {
+                var results = await CommandAuditPostgres.ReserveAsync(
+                    connection, transaction, new[] { first, conflicting }, CancellationToken.None);
+                await transaction.CommitAsync();
 
-        await using var read = new NpgsqlCommand("SELECT count(*) FROM command_log WHERE commandid=$1", connection);
-        read.Parameters.AddWithValue(commandId);
-        Convert.ToInt64(await read.ExecuteScalarAsync()).Should().Be(0);
+                results[0].Accepted.Should().BeTrue();
+                results[0].PayloadConflict.Should().BeFalse();
+                results[1].Accepted.Should().BeFalse();
+                results[1].PayloadConflict.Should().BeTrue();
+            }
+
+            await using var read = new NpgsqlCommand("SELECT count(*) FROM command_log WHERE commandid=$1", connection);
+            read.Parameters.AddWithValue(commandId);
+            Convert.ToInt64(await read.ExecuteScalarAsync()).Should().Be(1);
+        }
+        finally
+        {
+            await DeleteAsync(commandId);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [Trait("Category", "PostgresIntegration")]
+    public async Task Conflicting_command_does_not_fail_an_unrelated_command_in_the_same_writer_window(
+        bool conflictFirst)
+    {
+        await EnsureSchemaAsync();
+        var conflictingCommandId = Guid.NewGuid();
+        var validCommandId = Guid.NewGuid();
+        var codec = new CommandAuditMessagePackCodec();
+        var options = new CommandAuditPersistenceOptions
+        {
+            WriteMode = CommandAuditWriteMode.WindowedMessagePack,
+            MaximumCommandsPerBatch = 64,
+            MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(100)
+        };
+
+        try
+        {
+            await using (var seedWriter = new PostgresCommandAuditWriter(BaseConnectionString(), options))
+            {
+                var seeded = await seedWriter.ReserveAsync(
+                    CommandAuditEnvelope.Create(TestCommand.Create(conflictingCommandId, 1), codec));
+                seeded.Accepted.Should().BeTrue();
+            }
+
+            await using var writer = new PostgresCommandAuditWriter(BaseConnectionString(), options);
+            var conflictingEnvelope = CommandAuditEnvelope.Create(
+                TestCommand.Create(conflictingCommandId, 2), codec);
+            var validEnvelope = CommandAuditEnvelope.Create(TestCommand.Create(validCommandId, 3), codec);
+            Task<CommandAuditWriteResult> conflict;
+            Task<CommandAuditWriteResult> valid;
+            if (conflictFirst)
+            {
+                conflict = writer.ReserveAsync(conflictingEnvelope).AsTask();
+                valid = writer.ReserveAsync(validEnvelope).AsTask();
+            }
+            else
+            {
+                valid = writer.ReserveAsync(validEnvelope).AsTask();
+                conflict = writer.ReserveAsync(conflictingEnvelope).AsTask();
+            }
+
+            await FluentActions.Awaiting(() => conflict)
+                .Should().ThrowAsync<CommandAuditPayloadConflictException>();
+            (await valid).Accepted.Should().BeTrue();
+
+            await using var connection = CreateConnection();
+            await connection.OpenAsync();
+            await using var read = new NpgsqlCommand(
+                "SELECT count(*) FROM command_log WHERE commandid = ANY($1)", connection);
+            read.Parameters.AddWithValue(new[] { conflictingCommandId, validCommandId });
+            Convert.ToInt64(await read.ExecuteScalarAsync()).Should().Be(2);
+        }
+        finally
+        {
+            await DeleteAsync(conflictingCommandId);
+            await DeleteAsync(validCommandId);
+        }
     }
 
     static async Task EnsureSchemaAsync()
@@ -204,9 +278,12 @@ public sealed class CommandAuditPersistenceTests
         return builder.ConnectionString;
     }
 
+    static NpgsqlConnection CreateConnection()
+        => new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(BaseConnectionString());
+
     static async Task DeleteAsync(Guid commandId)
     {
-        await using var connection = new NpgsqlConnection(ConnectionString);
+        await using var connection = CreateConnection();
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand("DELETE FROM command_log WHERE commandid=$1", connection);
         command.Parameters.AddWithValue(commandId);

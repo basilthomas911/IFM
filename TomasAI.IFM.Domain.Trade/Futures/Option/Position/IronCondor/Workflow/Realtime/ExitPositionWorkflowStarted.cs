@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Realtime;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Realtime;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Realtime;
 

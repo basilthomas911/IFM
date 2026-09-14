@@ -58,10 +58,9 @@ public partial class TradeOrderEditorForm
     Control? _embeddedLegacyTradeEditor;
     long _legacyViewerGeneration;
 
-    /// <summary>
-    /// create trade order form
-    /// </summary>
-    /// <param name="appRoot"></param>
+    /// <summary>Creates the Portfolio-aware Trade Order editor.</summary>
+    /// <param name="appRoot">The application service boundary.</param>
+    /// <param name="referenceDataService">The reference-data service used to resolve contract definitions.</param>
     public TradeOrderEditorForm(
         IAppRoot appRoot,
         IReferenceDataService referenceDataService)
@@ -84,6 +83,9 @@ public partial class TradeOrderEditorForm
 
     public FundOrderTradeReadModel FundOrderTrade => _viewModel?.SelectedFundOrderTrade!;
 
+    /// <summary>Gets the currently selected canonical Portfolio identifier.</summary>
+    public int PortfolioId => _viewModel?.SelectedPortfolio?.PortfolioId ?? 0;
+
     /// <summary>Gets the read-only historical trade accepted for the main-screen legacy tab.</summary>
     public LegacyFundTradeHistoryReadModel? LegacyTradeHistory { get; private set; }
 
@@ -93,10 +95,8 @@ public partial class TradeOrderEditorForm
     /// <summary>Gets the source legacy FundOrder selected with <see cref="LegacyTradeHistory"/>.</summary>
     public FundOrderReadModel? LegacyFundOrder { get; private set; }
 
-    /// <summary>
-    /// load view model
-    /// </summary>
-    /// <param name="viewModel"></param>
+    /// <summary>Loads the editor view model and begins observing its presentation state.</summary>
+    /// <param name="viewModel">The Trade Order editor state.</param>
     public void LoadViewModel(TradeOrderEditorViewModel viewModel)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
@@ -409,14 +409,20 @@ public partial class TradeOrderEditorForm
         }
     }
 
+    /// <summary>Selects the order action displayed by the editor.</summary>
+    /// <param name="orderActionType">The opening or closing action.</param>
     public void SetOrderAction(OrderActionType orderActionType)
     {
         ddlOrderActionType.SelectedItem = $"{orderActionType}";
     }
 
+    /// <summary>Sets the trade date displayed by the editor.</summary>
+    /// <param name="tradeDate">The trade date.</param>
     public void SetTradeDate(DateOnly tradeDate)
         => dtpTradeDate.Value = tradeDate.ToDateTime(TimeOnly.MinValue);
 
+    /// <summary>Calculates and displays days to expiry from the current trade date.</summary>
+    /// <param name="maturityDate">The option maturity date.</param>
     public void SetDaysToExpiry(DateOnly maturityDate)
         => txtDaysToExpiry.Text = $"{maturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber}";
 
@@ -658,7 +664,9 @@ public partial class TradeOrderEditorForm
         btnRemoveTrade.Enabled = !readOnlyHistory && _viewModel.CanRemoveTrade;
         btnChangeTradeState.Enabled = !readOnlyHistory && _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
         ddlTradeState.Enabled = !readOnlyHistory && _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
-        btnEndOfDay.Enabled = false;
+        btnEndOfDay.Enabled = !readOnlyHistory
+            && _viewModel.SelectedPortfolio is not null
+            && _viewModel.SelectedFundOrderTrade is not null;
         btnSubmitOrder.Enabled = !readOnlyHistory && _viewModel.CanSubmitOrder;
         cbLiveFeed.Enabled = !readOnlyHistory && _viewModel.CanUseLiveFeed;
         btnOpenTrade.Enabled = _legacyOrderSelected && lstTrades.SelectedItems.Count > 0;
@@ -698,7 +706,8 @@ public partial class TradeOrderEditorForm
                        fundOrder!,
                        fundOrderTrade,
                        orderActionType,
-                       _referenceDataService);
+                       _referenceDataService,
+                       portfolioId: _viewModel.SelectedPortfolio?.PortfolioId ?? 0);
                    tradeControl = new IronCondorTradeOrderView(this, viewModel);
                    break;
             }
@@ -1130,7 +1139,48 @@ public partial class TradeOrderEditorForm
         tradeOrderControl?.SetNearestStrikePrices();
     }
 
-    void btnEndOfDay_Click(object sender, EventArgs e) { }
+    void btnEndOfDay_Click(object sender, EventArgs e)
+    {
+        var portfolio = _viewModel.SelectedPortfolio;
+        var trade = _viewModel.SelectedFundOrderTrade;
+        if (portfolio is null || trade is null)
+            return;
+        var baseContract = _viewModel.BaseContracts.FirstOrDefault(value =>
+            string.Equals(value.Symbol, trade.BaseContractSymbol, StringComparison.OrdinalIgnoreCase));
+        if (baseContract is null)
+        {
+            this.ShowErrorMessage(
+                $"The base contract for {trade.BaseContractSymbol} is unavailable.",
+                "End Of Day Process");
+            return;
+        }
+        var strategyKind = trade.TradeType switch
+        {
+            TradeType.ShortIronCondor or TradeType.LongIronCondor => TradeStrategyKind.IronCondor,
+            TradeType.PutCreditSpread or TradeType.PutDebitSpread or
+                TradeType.CallCreditSpread or TradeType.CallDebitSpread => TradeStrategyKind.VerticalSpread,
+            _ => TradeStrategyKind.Unknown
+        };
+        if (strategyKind == TradeStrategyKind.Unknown)
+        {
+            this.ShowErrorMessage(
+                $"End-of-day processing is not available for {trade.TradeType}.",
+                "End Of Day Process");
+            return;
+        }
+        using var dialog = new TradeEndOfDayForm(_appRoot, new TradeEndOfDayParameter
+        {
+            PortfolioId = portfolio.PortfolioId,
+            FundId = trade.FundId,
+            OrderId = trade.OrderId,
+            TradeId = trade.TradeId,
+            TradeType = trade.TradeType,
+            StrategyKind = strategyKind,
+            BaseContractId = baseContract.ContractId,
+            ValueDate = DateOnly.FromDateTime(dtpTradeDate.Value)
+        });
+        dialog.ShowDialog(this);
+    }
 
     async void btnChangeTradeState_Click(object sender, EventArgs e)
     {
@@ -1221,6 +1271,8 @@ public partial class TradeOrderEditorForm
 
     }
 
+    /// <summary>Implements the legacy form-control open contract.</summary>
+    /// <exception cref="NotImplementedException">This form is opened through its normal WinForms lifecycle.</exception>
     public void Open()
     {
         throw new NotImplementedException();

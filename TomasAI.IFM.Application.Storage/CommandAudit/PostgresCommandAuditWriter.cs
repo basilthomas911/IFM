@@ -119,7 +119,16 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
                     .ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 for (var index = 0; index < batch.Count; index++)
+                {
+                    if (results[index].PayloadConflict)
+                    {
+                        batch[index].Completion.TrySetException(
+                            new CommandAuditPayloadConflictException(batch[index].Envelope.CommandId));
+                        continue;
+                    }
+
                     batch[index].Completion.TrySetResult(results[index]);
+                }
             }
             catch
             {

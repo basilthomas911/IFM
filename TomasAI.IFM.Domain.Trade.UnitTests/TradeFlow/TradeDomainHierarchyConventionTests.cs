@@ -41,7 +41,12 @@ public sealed class TradeDomainHierarchyConventionTests
             GetTradePositionsQuery.Actor,
             GetTradePositionTradeTypesQuery.Actor,
             GetTradePlanActionQuery.Actor,
-            GetIronCondorMDILimitQuery.Actor
+            GetIronCondorMDILimitQuery.Actor,
+            GetTradeHistoryQuery.Actor,
+            GetTradeLimitQuery.Actor,
+            GetTradePositionQuery.Actor,
+            GetTradeQuantityQuery.Actor,
+            GetTradeTypeLimitQuery.Actor
         ];
 
         routes.Should().OnlyContain(route =>

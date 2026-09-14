@@ -2,21 +2,18 @@ using FluentAssertions;
 using NSubstitute;
 using System.ComponentModel;
 using System.Reflection;
-using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
@@ -35,7 +32,7 @@ public class EndOfDayAndConfirmationViewModelTests
         await subject.ViewModel.LoadOperation.ExecuteAsync();
 
         subject.ViewModel.Snapshot.Should().Be(new EndOfDayProcessSnapshot(
-            6400m, 6420m, 6380m, 6410m, 1200, 0m, 100_000m));
+            6400m, 6420m, 6380m, 6410m, 1200, 25m, 100_025m));
         subject.ViewModel.CanRun.Should().BeTrue();
         subject.ViewModel.SetValueDate(ValueDate.AddDays(1));
         subject.ViewModel.Snapshot.Should().BeNull();
@@ -44,40 +41,15 @@ public class EndOfDayAndConfirmationViewModelTests
     }
 
     [Fact]
-    public async Task RunOperation_IgnoresUnrelatedEventAndAwaitsCorrelatedCompletion()
+    public async Task RunOperation_UsesStrategyPositionCommandAndObservesEndOfDayState()
     {
         var commandId = Guid.NewGuid();
         var subject = CreateSubject(commandId);
-        await subject.ViewModel.InitializeAsync(CancellationToken.None);
-        await subject.ViewModel.LoadOperation.ExecuteAsync();
-
-        var operation = subject.ViewModel.RunOperation.ExecuteAsync();
-        await WaitForCommandAsync(subject.ViewModel, commandId);
-        await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedCompleteEvent
-        {
-            CommandId = Guid.NewGuid(),
-            CorrelationId = Guid.NewGuid()
-        });
-        operation.IsCompleted.Should().BeFalse();
-        await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedCompleteEvent
-        {
-            CommandId = Guid.NewGuid(),
-            CorrelationId = commandId
-        });
-        await operation;
-
-        subject.ViewModel.IsCompleted.Should().BeTrue();
-        subject.ViewModel.CommandId.Should().BeEmpty();
-        subject.ViewModel.LastStatusMessage.Should().Contain("completed");
-        await subject.ViewModel.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task CompletionBeforeCommandResponse_IsBuffered()
-    {
-        var commandId = Guid.NewGuid();
-        var subject = CreateSubject();
-        ConfigureCommand(subject.CommandApi, PublishEarlyAsync);
+        subject.PositionQuery.GetCurrentAsync(
+                Arg.Any<StrategyPositionId>(), TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>())
+            .Returns(
+                new ServiceOk<StrategyPositionSnapshot>(Position(StrategyPositionPhase.MarkToMarket)),
+                new ServiceOk<StrategyPositionSnapshot>(Position(StrategyPositionPhase.EndOfDay)));
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         await subject.ViewModel.LoadOperation.ExecuteAsync();
 
@@ -85,72 +57,59 @@ public class EndOfDayAndConfirmationViewModelTests
 
         subject.ViewModel.IsCompleted.Should().BeTrue();
         subject.ViewModel.CommandId.Should().BeEmpty();
+        subject.ViewModel.LastStatusMessage.Should().Contain("completed");
+        await subject.PositionCommand.Received(1).EndOfDayAsync(
+            subject.ViewModel.PositionId,
+            TradeStrategyKind.IronCondor,
+            Arg.Is<DateTime>(value => value.Kind == DateTimeKind.Utc),
+            Arg.Any<CancellationToken>());
         await subject.ViewModel.DisposeAsync();
-
-        async Task<ServiceResult<Guid>> PublishEarlyAsync()
-        {
-            await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedCompleteEvent
-            {
-                CommandId = Guid.NewGuid(),
-                CorrelationId = commandId
-            });
-            return new ServiceOk<Guid>(commandId);
-        }
     }
 
     [Fact]
-    public async Task TerminalFailure_PreservesCodeAndAllowsRetry()
+    public async Task PositionCommandFailure_IsReportedAndAllowsRetry()
     {
-        var commandId = Guid.NewGuid();
-        var subject = CreateSubject(commandId);
+        var subject = CreateSubject();
+        subject.PositionCommand.EndOfDayAsync(
+                Arg.Any<StrategyPositionId>(), Arg.Any<TradeStrategyKind>(),
+                Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceFailed<Guid>(731, "position projection failed"));
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         await subject.ViewModel.LoadOperation.ExecuteAsync();
 
-        var operation = subject.ViewModel.RunOperation.ExecuteAsync();
-        await WaitForCommandAsync(subject.ViewModel, commandId);
-        await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedFailEvent
-        {
-            CommandId = Guid.NewGuid(),
-            CorrelationId = commandId,
-            ErrorCode = 731,
-            ErrorMessage = "position projection failed"
-        });
+        await FluentActions.Awaiting(() => subject.ViewModel.RunOperation.ExecuteAsync())
+            .Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*731*position projection failed*");
 
-        var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<UiServiceOperationException>();
-        exception.Which.ErrorCode.Should().Be(731);
-        subject.ViewModel.LastError!.ErrorCode.Should().Be(731);
+        subject.ViewModel.LastError!.Message.Should().Contain("731");
         subject.ViewModel.CommandId.Should().BeEmpty();
         subject.ViewModel.RunOperation.CanExecute.Should().BeTrue();
         await subject.ViewModel.DisposeAsync();
     }
 
     [Fact]
-    public async Task LoadFailure_PublishesCodedErrorAndLeavesNoPartialSnapshot()
+    public async Task LoadFailure_LeavesNoPartialSnapshot()
     {
         var subject = CreateSubject();
         subject.FundApi.GetFundsAsync().Returns(
             new ServiceFailed<FundReadModel[]>(744, "fund query unavailable"));
 
-        var exception = await FluentActions.Awaiting(
-                () => subject.ViewModel.LoadOperation.ExecuteAsync())
+        await FluentActions.Awaiting(() => subject.ViewModel.LoadOperation.ExecuteAsync())
             .Should().ThrowAsync<UiServiceOperationException>();
 
-        exception.Which.ErrorCode.Should().Be(744);
         subject.ViewModel.LastError!.ErrorCode.Should().Be(744);
         subject.ViewModel.Snapshot.Should().BeNull();
         await subject.ViewModel.DisposeAsync();
     }
 
     [Fact]
-    public async Task LifecycleOwnsListenerAndViewModelHasNoCallbacks()
+    public async Task LifecycleIsObservableAndDoesNotOwnALegacyEventListener()
     {
         var subject = CreateSubject();
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
-        subject.Events.IsStarted.Should().BeTrue();
+        subject.ViewModel.CanRun.Should().BeFalse();
         await subject.ViewModel.StopAsync(CancellationToken.None);
-        subject.Events.IsStarted.Should().BeFalse();
 
         AssertObservableWithoutCallbacks<EndOfDayProcessViewModel>();
         await subject.ViewModel.DisposeAsync();
@@ -177,91 +136,53 @@ public class EndOfDayAndConfirmationViewModelTests
         var fundApi = Substitute.For<IFundQueryApi>();
         fundApi.GetFundsAsync().Returns(new ServiceOk<FundReadModel[]>(
             [new FundReadModel(17, "Paper", "Paper trading", 100_000m, false, DateTime.UtcNow, "test")]));
-        var tradeApi = Substitute.For<ITradeQueryApi>();
-        tradeApi.GetOptionTradeAsync(101, 7).Returns(new ServiceOk<OptionTradeReadModel>(OptionTrade()));
         var marketDataApi = Substitute.For<IMarketDataFeedQueryApi>();
         marketDataApi.GetFuturesEodDataAsync("ESZ26", ValueDate)
             .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(Eod()));
-        var commandApi = Substitute.For<ITradeCommandApi>();
-        if (commandId is not null)
-            ConfigureCommand(commandApi, () => Task.FromResult<ServiceResult<Guid>>(new ServiceOk<Guid>(commandId.Value)));
-        var events = new EventHarness();
+        var positionCommand = Substitute.For<IStrategyPositionCommandApi>();
+        positionCommand.EndOfDayAsync(
+                Arg.Any<StrategyPositionId>(), Arg.Any<TradeStrategyKind>(),
+                Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<Guid>(commandId ?? Guid.NewGuid()));
+        var positionQuery = Substitute.For<IStrategyPositionQueryApi>();
+        positionQuery.GetCurrentAsync(
+                Arg.Any<StrategyPositionId>(), TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<StrategyPositionSnapshot>(Position(StrategyPositionPhase.MarkToMarket)));
         var appRoot = Substitute.For<IAppRoot>();
         appRoot.Services.FundQueries.Returns(new FundQueryService(fundApi));
-        appRoot.Services.TradeQueries.Returns(new TradeQueryService(tradeApi));
         appRoot.Services.FeedQueries.Returns(new MarketDataFeedQueryService(marketDataApi));
-        appRoot.Services.TradeCommands.Returns(new TradeCommandService(commandApi));
-        appRoot.Services.EndOfDayEvents.Returns(new EndOfDayProcessEventService(events.Consumer));
+        appRoot.Services.StrategyPositions.Returns(new StrategyPositionService(positionCommand, positionQuery));
         var parameter = new TradeEndOfDayParameter
         {
+            PortfolioId = 11,
             FundId = 17,
             OrderId = 101,
             TradeId = 7,
             TradeType = TradeType.ShortIronCondor,
+            StrategyKind = TradeStrategyKind.IronCondor,
             BaseContractId = "ESZ26",
             ValueDate = ValueDate
         };
-        return new Subject(new EndOfDayProcessViewModel(appRoot, parameter), fundApi, commandApi, events);
+        return new(new EndOfDayProcessViewModel(appRoot, parameter), fundApi, positionCommand, positionQuery);
     }
 
-    static void ConfigureCommand(
-        ITradeCommandApi commandApi,
-        Func<Task<ServiceResult<Guid>>> result)
-        => commandApi.ProcessEndOfDayAsync(
-                Arg.Any<int>(),
-                Arg.Any<int>(),
-                Arg.Any<int>(),
-                Arg.Any<TradeType>(),
-                Arg.Any<DateOnly>(),
-                Arg.Any<TradeStatus>(),
-                Arg.Any<decimal>(),
-                Arg.Any<decimal>(),
-                Arg.Any<decimal>(),
-                Arg.Any<decimal>(),
-                Arg.Any<long>(),
-                Arg.Any<string>())
-            .Returns(_ => result());
-
-    static OptionTradeReadModel OptionTrade()
-        => new(
-            101,
-            7,
-            "Iron Condor",
-            ValueDate,
-            new DateOnly(2026, 9, 18),
-            TradeType.ShortIronCondor,
-            TradeState.OrderFilled,
-            TradeAction.Sell,
-            "ESZ26",
-            AssetType.Futures,
-            true,
-            false,
-            DateTime.UtcNow,
-            "test",
-            DateTime.UtcNow,
-            "test");
-
-    static FuturesEodDataV2ReadModel Eod()
-        => new(
-            "ESZ26",
-            ValueDate,
-            "ES",
-            6400m,
-            6420m,
-            6380m,
-            6410m,
-            1200,
-            marketDirection: MarketDirectionType.Up,
-            marketVolatility: MarketVolatilityType.High,
-            priceDirection: PriceDirectionType.Rising,
-            priceVolatility: PriceVolatilityType.Rising);
-
-    static async Task WaitForCommandAsync(EndOfDayProcessViewModel viewModel, Guid commandId)
+    static StrategyPositionSnapshot Position(StrategyPositionPhase phase) => new()
     {
-        for (var attempt = 0; attempt < 100 && viewModel.CommandId != commandId; attempt++)
-            await Task.Delay(5);
-        viewModel.CommandId.Should().Be(commandId);
-    }
+        Id = StrategyPositionId.Create(new TradeEntityId(11, 17, 101, 7), TradeStrategyKind.IronCondor),
+        StrategyKind = TradeStrategyKind.IronCondor,
+        Phase = phase,
+        IsOpen = true,
+        UnrealizedPnl = 20m,
+        RealizedPnl = 5m,
+        AsOfUtc = DateTime.UtcNow
+    };
+
+    static FuturesEodDataV2ReadModel Eod() => new(
+        "ESZ26", ValueDate, "ES", 6400m, 6420m, 6380m, 6410m, 1200,
+        marketDirection: MarketDirectionType.Up,
+        marketVolatility: MarketVolatilityType.High,
+        priceDirection: PriceDirectionType.Rising,
+        priceVolatility: PriceVolatilityType.Rising);
 
     static void AssertObservableWithoutCallbacks<T>()
     {
@@ -279,27 +200,6 @@ public class EndOfDayAndConfirmationViewModelTests
     sealed record Subject(
         EndOfDayProcessViewModel ViewModel,
         IFundQueryApi FundApi,
-        ITradeCommandApi CommandApi,
-        EventHarness Events);
-
-    sealed class EventHarness
-    {
-        Func<IEvent, ValueTask>? _listener;
-
-        public EventHarness()
-        {
-            Consumer = Substitute.For<IEndOfDayProcessUIEventConsumer>();
-            Consumer.StartAsync(Arg.Do<Func<IEvent, ValueTask>>(listener => _listener = listener))
-                .Returns(ValueTask.CompletedTask);
-            Consumer.StopAsync().Returns(_ =>
-            {
-                _listener = null;
-                return ValueTask.CompletedTask;
-            });
-        }
-
-        public IEndOfDayProcessUIEventConsumer Consumer { get; }
-        public bool IsStarted => _listener is not null;
-        public ValueTask PublishAsync(IEvent @event) => _listener!(@event);
-    }
+        IStrategyPositionCommandApi PositionCommand,
+        IStrategyPositionQueryApi PositionQuery);
 }

@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -10,7 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public record GetTradeHistoryQuery : IQuery<TradeHistoryReadModel[]>
 {
-    [IgnoreMember] public const string Actor = "TradeQuery";
+    [IgnoreMember] public const string Actor = FuturesOptionTradeActorNames.Query;
     [IgnoreMember] public const string Verb = "GetTradeHistory";
     [IgnoreMember] public const int ErrorId = 1021;
 

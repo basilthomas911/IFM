@@ -1,7 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
-using TomasAI.IFM.Domain.Trade.Position.Query;
+using TomasAI.IFM.Domain.Trade.Model.Position.Query;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Query;
 

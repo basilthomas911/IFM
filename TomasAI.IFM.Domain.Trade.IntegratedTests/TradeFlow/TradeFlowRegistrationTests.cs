@@ -40,9 +40,9 @@ using TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Function.State;
-using TomasAI.IFM.Domain.Trade.Position.Query.Actor;
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State;
+using TomasAI.IFM.Domain.Trade.Model.Position.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Query.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.TradeFlow;

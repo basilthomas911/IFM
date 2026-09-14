@@ -1976,7 +1976,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         var orderFixture = G2OrderTradeFixture.Create(configuration);
         var openingReference = $"{configuration.RunPrefix}-EOD-Opening";
         var eodReference = $"{configuration.RunPrefix}-EOD";
-        var optionTradeOpened = false;
         var orderRemoved = false;
         var backupRootRemoved = false;
         var explicitShutdownCompleted = false;
@@ -2223,19 +2222,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                             OptionType.Call,
                             longLegAction)
                     ]);
-                    var openCommandId = RequireCommandId(
-                        await querySession.TradeCommands.OpenOptionTradeAsync(tradeOrder)
-                            .WaitAsync(process.ReadinessTimeout, token),
-                        "G2 EOD option-trade fixture open");
-                    _ = await WaitForOptionTradeAsync(
-                        querySession,
-                        durableOrder.OrderId,
-                        durableTrade.TradeId,
-                        true,
-                        process.ReadinessTimeout,
-                        token);
-                    optionTradeOpened = true;
-
                     var openingTransaction = FundTransactionReadModel.AsOpeningTradeTransaction(
                         designatedFund.FundId,
                         durableOrder.OrderId,
@@ -2313,7 +2299,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         JsonSerializer.Serialize(new
                         {
                             MarketData = marketData,
-                            OpenOptionTradeCommandId = openCommandId,
                             OpeningTransactionCommandId = openingCommandId,
                             OrderTransition = orderTransition,
                             TradeTransition = tradeTransition,
@@ -2481,22 +2466,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     tradeWindow = await ui.WaitForWindowAsync(
                         "Trade Orders", process.ReadinessTimeout, token);
                     var window = tradeWindow;
-
-                    if (optionTradeOpened)
-                    {
-                        _ = RequireCommandId(
-                            await querySession.TradeCommands.DeleteAsync(durableOrder.OrderId, durableTrade.TradeId)
-                                .WaitAsync(process.ReadinessTimeout, token),
-                            "G2 EOD option-trade cleanup");
-                        _ = await WaitForOptionTradeAsync(
-                            querySession,
-                            durableOrder.OrderId,
-                            durableTrade.TradeId,
-                            false,
-                            process.ReadinessTimeout,
-                            token);
-                        optionTradeOpened = false;
-                    }
 
                     var childTransition = await ExecuteFundOrderMutationAsync(
                         observer,
@@ -2714,14 +2683,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             {
                 try
                 {
-                    if (optionTradeOpened && order is not null && trade is not null)
-                    {
-                        _ = await queries.TradeCommands.DeleteAsync(order.OrderId, trade.TradeId)
-                            .WaitAsync(process.ReadinessTimeout);
-                        _ = await WaitForOptionTradeAsync(
-                            queries, order.OrderId, trade.TradeId, false, process.ReadinessTimeout, CancellationToken.None);
-                        optionTradeOpened = false;
-                    }
                     var orders = RequireQueryValue(
                             await queries.Fund.GetFundOrdersAsync().WaitAsync(process.ReadinessTimeout),
                             "G2 final fallback orders")
@@ -2854,7 +2815,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 {
                     ExplicitShutdownCompleted = explicitShutdownCompleted,
                     OrderRemoved = orderRemoved,
-                    OptionTradeRemoved = !optionTradeOpened,
                     BackupRootRemoved = backupRootRemoved,
                     Succeeded = run.CleanupSucceeded,
                     Failures = cleanupFailures
@@ -2948,29 +2908,6 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             source,
             terminal,
             uiState);
-    }
-
-    static async Task<OptionTradeReadModel?> WaitForOptionTradeAsync(
-        G0QuerySession queries,
-        int orderId,
-        int tradeId,
-        bool present,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(timeout);
-        while (!timeoutSource.IsCancellationRequested)
-        {
-            var result = await queries.Trade.GetOptionTradeAsync(orderId, tradeId).ConfigureAwait(false);
-            if (present && result.Success && result.Value is { } trade)
-                return trade;
-            if (!present && (!result.Success || result.Value is null))
-                return null;
-            await DelayForProjectionAsync(timeoutSource.Token, cancellationToken).ConfigureAwait(false);
-        }
-        throw new TimeoutException(
-            $"Option trade {orderId}:{tradeId} did not become {(present ? "durable" : "absent")} within {timeout}.");
     }
 
     static IReadOnlyDictionary<string, string?> CreateBackupHostEnvironment(

@@ -44,7 +44,6 @@ public static class EconomicCalendarsImported
         var terminalId = Guid.NewGuid();
         EconomicCalendarsImportedCompleteEvent? complete = null;
         EconomicCalendarsImportedFailEvent? failed = null;
-        Exception? processingError = null;
         try
         {
             var importDate = DateOnly.FromDateTime(@event.ImportedDate);
@@ -63,7 +62,6 @@ public static class EconomicCalendarsImported
         catch (Exception exception)
         {
             stopwatch.Stop();
-            processingError = exception;
             logger.LogErrorEvent(ServiceId, exception, "Import processing failed for command {CommandId}", @event.CommandId);
             failed = (EconomicCalendarsImportedFailEvent)@event.ToFailEvent<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(exception);
             failed = failed with { Id = terminalId, DownloadOutcome = Outcome(MarketDataDownloadStatus.Failed, exception) };
@@ -83,7 +81,8 @@ public static class EconomicCalendarsImported
             logger.LogError(deliveryError, "Import terminal publication failed. Recovery outcome: {DownloadOutcome}", System.Text.Json.JsonSerializer.Serialize(outcome));
             throw new DownloadLogDeliveryException(outcome, deliveryError);
         }
-        if (processingError is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(processingError).Throw();
+        // A published failure event is terminal for this acquisition attempt. Acknowledging the
+        // source event prevents provider or storage failures from creating a second terminal identity.
         return true;
 
         MarketDataDownloadOutcome Outcome(MarketDataDownloadStatus status, Exception? error) => new()

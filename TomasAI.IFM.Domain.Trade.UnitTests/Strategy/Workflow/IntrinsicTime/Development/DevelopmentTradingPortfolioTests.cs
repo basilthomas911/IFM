@@ -3,11 +3,15 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Identity;
+using TomasAI.IFM.Domain.Portfolio.Projection;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
@@ -52,6 +56,9 @@ public sealed class DevelopmentTradingPortfolioTests
             market, Substitute.For<IPortfolioBusinessIdAllocator>(), Substitute.For<IPortfolioCommandApi>(),
             Substitute.For<IPortfolioFundCommandApi>(), Substitute.For<IPortfolioFinancialPolicyCommandApi>(),
             Substitute.For<IPortfolioQueryApi>(), Substitute.For<IPortfolioFinancialApi>(),
+            new DevelopmentTradingPortfolioIdentityRecovery(
+                Substitute.For<IPortfolioDbReadContext>(), Substitute.For<IPortfolioProjectionRebuilder>(),
+                Substitute.For<ILogger<DevelopmentTradingPortfolioIdentityRecovery>>()),
             new IntrinsicTimeStrategyWorkflowOptions(), Substitute.For<ILogger<DevelopmentTradingPortfolioProvisioner>>());
 
         await sut.Invoking(x => x.EnsureAsync()).Should().ThrowAsync<InvalidOperationException>()
@@ -59,6 +66,90 @@ public sealed class DevelopmentTradingPortfolioTests
         await market.DidNotReceiveWithAnyArgs().GetTradeStrategySymbolsAsync(default);
         await configuration.DidNotReceiveWithAnyArgs().GetTradeSelectionVersionAsync(default, default);
     }
+
+    [Fact]
+    public async Task Identity_recovery_returns_the_existing_financial_owner_without_replaying_history()
+    {
+        var database = Substitute.For<IPortfolioDbReadContext>();
+        var rebuilder = Substitute.For<IPortfolioProjectionRebuilder>();
+        var book = Book(1201);
+        var portfolio = Portfolio(1201);
+        database.ReadActiveBookByExecutionAccountAsync("Emulator", "IFM-EMULATOR-PAPER", Arg.Any<CancellationToken>())
+            .Returns(book);
+        database.GetPortfolioAsync(1201, Arg.Any<CancellationToken>()).Returns(portfolio);
+        foreach (var fund in book.Funds)
+            database.GetFundAsync(fund.FundId, Arg.Any<CancellationToken>())
+                .Returns(new FundMandateReadModel { PortfolioId = 1201, FundId = fund.FundId });
+        database.GetPolicyAsync(1001, null, Arg.Any<CancellationToken>())
+            .Returns(new PortfolioFinancialPolicyReadModel { PortfolioId = 1201, PolicyId = 1001 });
+        var sut = new DevelopmentTradingPortfolioIdentityRecovery(
+            database, rebuilder, Substitute.For<ILogger<DevelopmentTradingPortfolioIdentityRecovery>>());
+
+        var result = await sut.ResolveAsync("Emulator", "IFM-EMULATOR-PAPER");
+
+        result.Should().BeSameAs(portfolio);
+        await rebuilder.DidNotReceiveWithAnyArgs().RebuildAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Identity_recovery_rebuilds_only_the_authoritative_owner_streams_when_its_projection_is_missing()
+    {
+        var database = Substitute.For<IPortfolioDbReadContext>();
+        var rebuilder = Substitute.For<IPortfolioProjectionRebuilder>();
+        var book = Book(1201);
+        var portfolio = Portfolio(1201);
+        database.ReadActiveBookByExecutionAccountAsync("Emulator", "IFM-EMULATOR-PAPER", Arg.Any<CancellationToken>())
+            .Returns(book);
+        database.GetPortfolioAsync(1201, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<PortfolioReadModel?>(null), Task.FromResult<PortfolioReadModel?>(portfolio));
+        foreach (var fund in book.Funds)
+            database.GetFundAsync(fund.FundId, Arg.Any<CancellationToken>())
+                .Returns(new FundMandateReadModel { PortfolioId = 1201, FundId = fund.FundId });
+        database.GetPolicyAsync(1001, null, Arg.Any<CancellationToken>())
+            .Returns(new PortfolioFinancialPolicyReadModel { PortfolioId = 1201, PolicyId = 1001 });
+        rebuilder.RebuildAsync(Arg.Any<PortfolioProjectionRebuildRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PortfolioProjectionRebuildResult(27, 9001, new('a', 64)));
+        var sut = new DevelopmentTradingPortfolioIdentityRecovery(
+            database, rebuilder, Substitute.For<ILogger<DevelopmentTradingPortfolioIdentityRecovery>>());
+
+        var result = await sut.ResolveAsync("Emulator", "IFM-EMULATOR-PAPER");
+
+        result.Should().BeSameAs(portfolio);
+        await rebuilder.Received(1).RebuildAsync(
+            Arg.Is<PortfolioProjectionRebuildRequest>(request =>
+                request.Portfolios.SequenceEqual(new[] { new PortfolioId(1201) })
+                && request.Funds.Select(x => x.Format()).SequenceEqual(new[] { "1201.5401", "1201.5501", "1201.5502" })
+                && request.Policies!.SequenceEqual(new[] { new PortfolioFinancialPolicyId(1201, 1001) })),
+            Arg.Any<CancellationToken>());
+    }
+
+    static FinancialBookConfiguration Book(int portfolioId) => new()
+    {
+        BookId = 1,
+        PortfolioId = portfolioId,
+        Environment = "Emulator",
+        ExecutionAccountReference = "IFM-EMULATOR-PAPER",
+        Funds =
+        [
+            Authority(5401),
+            Authority(5501),
+            Authority(5502),
+        ],
+    };
+
+    static FinancialFundAuthority Authority(int fundId) => new()
+    {
+        FundId = fundId,
+        Reference = new() { PolicyId = 1001 },
+    };
+
+    static PortfolioReadModel Portfolio(int portfolioId) => new()
+    {
+        PortfolioId = portfolioId,
+        Name = "IFM Development Paper Portfolio",
+        BaseCurrency = "USD",
+        BrokerAccountRefs = ["IFM-EMULATOR-PAPER"],
+    };
 }
 
 static class DevelopmentPolicyTestExtensions

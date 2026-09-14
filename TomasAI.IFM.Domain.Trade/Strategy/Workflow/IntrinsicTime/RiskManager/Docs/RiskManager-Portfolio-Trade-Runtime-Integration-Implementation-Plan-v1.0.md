@@ -2,7 +2,7 @@
 
 | Item | Value |
 | --- | --- |
-| Status | Implemented and qualified for the approved backend boundary; live-market soak deferred to the approved Monday window |
+| Status | Implemented, including desktop Trade Order, Iron Condor monitor, and retained EOD screen migration; live-market soak deferred to the approved Monday window |
 | Created | 2026-09-13 |
 | Primary owner | Intrinsic Time Strategy Workflow RiskManager |
 | Affected domains | Trade Strategy Workflow, Portfolio, Trade Order, Order Execution, Futures Trade Position, Futures Option Trade Position, Market Data Feed |
@@ -11,7 +11,7 @@
 
 ## Implementation outcome
 
-The approved backend boundary is implemented. It ends at the durable Order Execution start request and includes the Contract-ID Trade Position routing foundation. The IBKR adapter, IBKR emulator, execution fills, established-Trade materialization from fills, Portfolio capacity lifecycle transitions after execution, and the legacy Trade Order UI are separate later implementations. They were explicitly excluded from this implementation.
+The approved backend boundary is implemented. It ends at the durable Order Execution start request and includes the Contract-ID Trade Position routing foundation. The desktop Trade Order submission now sends broker-neutral opening candidates to Portfolio, dispatches all accepted orders through the canonical Trade Order actor lifecycle, and no longer depends on the removed legacy `TradeCommandService`. The Iron Condor monitor reads current strategy Trade Plans, while its historical mode retains read-only access to legacy projections. The retained EOD screen now queries and commands the strategy-specific Position actor. The IBKR adapter, IBKR emulator, and live-market execution fills remain later implementations.
 
 The active schema-2 workflow path is Portfolio/Fund neutral through Order Composition. RiskManager maps the one selected opportunity to one immutable Portfolio request. Portfolio evaluates all eligible Funds under its PostgreSQL financial-authority lock, allocates business identities only for accepted Fund orders, applies accepted capacity to `working`, and commits decisions, orders, legs, capacity evidence, financial revision, receipt, and completed event in the EventSource-enlisted transaction. RiskManager then performs the deterministic Create, Approve, Ready, and Bind transitions. The existing Trade Order event projector emits the Order Execution start command after Bind commits.
 
@@ -21,18 +21,30 @@ The position router now uses an actor-owned, ordinal `ContractId -> PortfolioFun
 
 | Gate | Result |
 | --- | --- |
-| Trade unit | 1,093 passed |
+| Trade unit | 1,121 passed |
 | Portfolio unit | 220 passed |
-| Trade BDD | 42 passed |
-| Focused Trade actor/NATS integration | 14 passed across TradeFlow registration/recovery and RiskManager/Portfolio handoff/replay |
+| Trade BDD | 45 passed |
+| Focused TradeFlow integration | 10 passed across registration, serialization, and recovery |
 | Portfolio PostgreSQL and typed NATS integration | 7 passed, including atomic capacity evidence and injected rollback |
 | Trade storage integration | 1 passed |
-| Focused TradeFlow verification | 8 passed |
+| Focused TradeFlow verification | 12 passed |
 | API Server build | Passed with 0 warnings and 0 errors |
 | Actor integration host build | Passed with 0 warnings and 0 errors |
+| Full solution build | Passed with 0 warnings and 0 errors using Visual Studio 2026 Community native build tools |
 | Contract-ID lookup benchmark | 40.58 ns unrouted, 36.14 ns one route, 103.91 ns sixty-four routes; 0 B allocated in every case |
+| Desktop presentation unit | 387 passed, including EOD position flow and Portfolio order dispatch happy/no-trade/failure/inconsistent-receipt paths |
+| Focused Trade desktop system tests | 16 passed for Trade Order and Iron Condor first-display/navigation behavior |
 
-The full Trade verification project currently reports 49 passes and 18 failures in the previously deferred Regime Discovery calculation/transition suite. Those failures show incomplete Regime inputs and old MarketCondition probe assumptions; the focused TradeFlow verification gate passes. The solution-wide build also retains two unrelated repository issues: the intentionally deferred legacy Trade Order UI references a removed `TradeCommandService`, and the Databento native build can fail under restricted execution when Visual Studio's `FileTracker` cannot access the generated native build tree. Neither issue is in the implemented RiskManager-to-Portfolio backend path.
+The full Trade verification project previously reported 49 passes and 18 failures in the deferred Regime Discovery calculation/transition suite. The complete desktop system-test assembly builds and runs; 202 tests pass, while seven unrelated environment/baseline tests require reference-dialog signature updates, dark-theme migration of `StrategyWorkflowDetailsAccordion`, or pre-generated Market Condition evidence. The API Server, desktop application, and complete solution build pass with zero warnings and errors.
+
+### Desktop migration addendum
+
+- `PortfolioTradeOrderService` creates a fully hashed `EvaluatePortfolioOrderCompositionCommand` under the explicit single-user development policy and dispatches each accepted order through Create, Approve, Ready, and Bind.
+- `StrategyPositionCommandApi` and `StrategyPositionQueryApi` route Iron Condor, Vertical Spread, and Futures commands and queries to their strategy-specific actors.
+- `StrategyPositionId.Create` centralizes the deterministic position identity already used by established-Trade projectors.
+- `EndOfDayProcessViewModel` uses current Strategy Position P&amp;L and sends the strategy-specific EOD command. The form and operator flow remain available.
+- The obsolete EOD UI event consumer and service were removed because the screen now obtains the terminal result through request/reply APIs.
+- All public methods introduced or touched by this desktop migration have XML documentation.
 
 ## 1. Purpose
 

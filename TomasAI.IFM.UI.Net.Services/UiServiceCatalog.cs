@@ -6,6 +6,8 @@ using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
 using TomasAI.IFM.UI.Net.Services.Trade;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.UI.Net.Services;
 
@@ -16,6 +18,8 @@ public sealed class UiServiceCatalog(
     IPortfolioQueryApi portfolioQueries,
     IPortfolioIdentityApi portfolioIdentities,
     IPortfolioFinancialPolicyCommandApi portfolioPolicyCommands,
+    IPortfolioOrderCompositionApi portfolioOrderCompositions,
+    ITradeOrderLifecycleApi tradeOrderLifecycle,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi referenceQueries,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi referenceCommands,
     CommandResponseEventService commandResponses,
@@ -43,10 +47,11 @@ public sealed class UiServiceCatalog(
     TradePlacementEventService tradePlacementEvents,
     TradePlanQueryService tradePlanQueries,
     StrategyTradePlanQueryService strategyTradePlanQueries,
+    StrategyPositionService strategyPositions,
+    PortfolioTradeOrderService portfolioTradeOrders,
     TradePlanEventService tradePlanEvents,
     TradePlanActionEventService tradePlanActionEvents,
     TradePositionFeedEventService tradePositionEvents,
-    EndOfDayProcessEventService endOfDayEvents,
     TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi portfolioFinancial, TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.IRiskQueryApi riskQueries) : IUiServiceCatalog
 {
     public IPortfolioCommandApi PortfolioCommands { get; } = portfolioCommands;
@@ -56,6 +61,10 @@ public sealed class UiServiceCatalog(
     public TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi PortfolioFinancial { get; } = portfolioFinancial;
     public IPortfolioIdentityApi PortfolioIdentities { get; } = portfolioIdentities;
     public IPortfolioFinancialPolicyCommandApi PortfolioPolicyCommands { get; } = portfolioPolicyCommands;
+    /// <inheritdoc />
+    public IPortfolioOrderCompositionApi PortfolioOrderCompositions { get; } = portfolioOrderCompositions;
+    /// <inheritdoc />
+    public ITradeOrderLifecycleApi TradeOrderLifecycle { get; } = tradeOrderLifecycle;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; } = referenceQueries;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; } = referenceCommands;
     /// <inheritdoc />
@@ -109,11 +118,13 @@ public sealed class UiServiceCatalog(
     /// <inheritdoc />
     public StrategyTradePlanQueryService StrategyTradePlanQueries { get; } = strategyTradePlanQueries;
     /// <inheritdoc />
+    public StrategyPositionService StrategyPositions { get; } = strategyPositions;
+    /// <inheritdoc />
+    public PortfolioTradeOrderService PortfolioTradeOrders { get; } = portfolioTradeOrders;
+    /// <inheritdoc />
     public TradePlanEventService TradePlanEvents { get; } = tradePlanEvents;
     /// <inheritdoc />
     public TradePlanActionEventService TradePlanActionEvents { get; } = tradePlanActionEvents;
     /// <inheritdoc />
     public TradePositionFeedEventService TradePositionEvents { get; } = tradePositionEvents;
-    /// <inheritdoc />
-    public EndOfDayProcessEventService EndOfDayEvents { get; } = endOfDayEvents;
 }

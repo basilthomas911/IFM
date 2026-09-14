@@ -4,7 +4,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Realtime;
-using TomasAI.IFM.Domain.Trade.Position.Workflow.Model;
+using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
