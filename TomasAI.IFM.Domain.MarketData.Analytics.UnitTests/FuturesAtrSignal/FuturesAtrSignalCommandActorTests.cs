@@ -62,6 +62,24 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         };
     }
 
+    private static GenerateFuturesAtrDailySignalCommand CreateAtrDailyCommand(Guid? commandId = null)
+    {
+        var atrSignalId = SampleData.AtrSignalId with { TimePeriod = TimeFrameType.Daily };
+        var observation = SampleData.AtrObservation with { TimeFrame = TimeFrameType.Daily };
+        return new GenerateFuturesAtrDailySignalCommand(
+            atrSignalId,
+            observation.Close,
+            observation)
+        {
+            CommandId = commandId ?? Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                GenerateFuturesAtrDailySignalCommand.Actor,
+                GenerateFuturesAtrDailySignalCommand.Verb,
+                atrSignalId.ToDailyEntityId().Format())
+        };
+    }
+
     #region ParseMessage Happy Path Tests
 
     [Fact]
@@ -113,12 +131,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
-        var atrSignalId = SampleData.AtrSignalId;
-        var command = new GenerateFuturesAtrDailySignalCommand(atrSignalId, (decimal)SampleData.FuturesPrice) with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrDailySignalCommand.Actor, GenerateFuturesAtrDailySignalCommand.Verb, atrSignalId.ToDailyEntityId().Format())
-        };
+        var command = CreateAtrDailyCommand();
 
         var payload = ActorExtensions.DataSerializer.Serialize(command);
         var subject = command.Subject.ToString();
@@ -384,12 +397,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
-        var atrSignalId = SampleData.AtrSignalId;
-        var cmd = new GenerateFuturesAtrDailySignalCommand(atrSignalId, (decimal)SampleData.FuturesPrice) with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrDailySignalCommand.Actor, GenerateFuturesAtrDailySignalCommand.Verb, atrSignalId.ToDailyEntityId().Format())
-        };
+        var cmd = CreateAtrDailyCommand();
         var state = new FuturesAtrSignalCommandState { Id = cmd.Subject.ThreadId };
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
@@ -530,12 +538,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
-        var atrSignalId = SampleData.AtrSignalId;
-        var cmd = new GenerateFuturesAtrDailySignalCommand(atrSignalId, (decimal)SampleData.FuturesPrice) with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrDailySignalCommand.Actor, GenerateFuturesAtrDailySignalCommand.Verb, atrSignalId.ToDailyEntityId().Format())
-        };
+        var cmd = CreateAtrDailyCommand();
         var threadId = cmd.Subject.ThreadId;
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
@@ -578,12 +581,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
-        var atrSignalId = SampleData.AtrSignalId;
-        var cmd = new GenerateFuturesAtrDailySignalCommand(atrSignalId, (decimal)SampleData.FuturesPrice) with
-        {
-            CommandId = Guid.Empty,
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrDailySignalCommand.Actor, GenerateFuturesAtrDailySignalCommand.Verb, atrSignalId.ToDailyEntityId().Format())
-        };
+        var cmd = CreateAtrDailyCommand(Guid.Empty);
         var threadId = cmd.Subject.ThreadId;
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 

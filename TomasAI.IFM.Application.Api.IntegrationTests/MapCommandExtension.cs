@@ -39,7 +39,6 @@ public static class MapCommandExtension
         app.MapPost(MarketDataAnalyticsUriPath.SetFuturesItiSignalHoldTrade, async (HttpResponse resp) => await MarketDataAnalyticsCommandApiResult.FromSetFuturesItiSignalHoldTradeAsync(resp));
         app.MapPost(MarketDataAnalyticsUriPath.ClearFuturesItiSignalHoldTrade, async (HttpResponse resp) => await MarketDataAnalyticsCommandApiResult.FromClearFuturesItiSignalHoldTradeAsync(resp));
         app.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesAtrSignal, async (HttpResponse resp) => await MarketDataAnalyticsCommandApiResult.FromGenerateFuturesAtrSignalAsync(resp));
-        app.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesAtrSignalFromIntraDayData, async (HttpResponse resp) => await MarketDataAnalyticsCommandApiResult.FromGenerateFuturesAtrSignalFromIntraDayDataAsync(resp));
         app.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesAdxSignal, async (HttpResponse resp) => await MarketDataAnalyticsCommandApiResult.FromGenerateFuturesAdxSignalAsync(resp));
 
         // market data command api paths...

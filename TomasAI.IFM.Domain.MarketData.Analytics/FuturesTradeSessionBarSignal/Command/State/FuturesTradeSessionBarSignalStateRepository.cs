@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -22,15 +23,17 @@ public sealed class FuturesTradeSessionBarSignalStateRepository(
     readonly IEventProjector<FuturesTradeSessionBarSignalCommandActor> eventProjector =
         eventProjector ?? throw new ArgumentNullException(nameof(eventProjector));
 
-    /// <summary>Reconstructs the publisher state for the command entity stream.</summary>
+    /// <summary>Reconstructs publisher state from the latest completed-bar snapshot.</summary>
     public ValueTask<FuturesTradeSessionBarSignalCommandState> LoadStateAsync(ICommand command)
         => LoadStateAsync(command, CancellationToken.None);
 
-    /// <summary>Reconstructs the publisher state for the command entity stream.</summary>
+    /// <summary>Reconstructs publisher state from the latest completed-bar snapshot.</summary>
     public async ValueTask<FuturesTradeSessionBarSignalCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateAsync<FuturesTradeSessionBarSignalCommandState>(command, cancellationToken)
+        => await LoadStateFromSnapshotAsync<
+                FuturesTradeSessionBarSignalCommandState,
+                FuturesTradeSessionBarPublishedEvent>(command, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Commits pending publisher events and queues their projections.</summary>

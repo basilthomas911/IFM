@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 public class PeriodRangeStateRepositoryTests
 {
     [Fact]
-    public async Task PeriodBasedRepositoriesUseTypedIntradayAndDailyRanges()
+    public async Task PeriodBasedRepositoriesUseSnapshotsWhereEventsContainCompleteState()
     {
         const long streamId = 73;
         var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
@@ -78,18 +78,18 @@ public class PeriodRangeStateRepositoryTests
         await atrRepository.LoadStateAsync(atr);
         await atrRepository.LoadStateAsync(atrDaily);
 
-        await ReceivedSnapshotRange<FuturesMacdSignalCommandState, FuturesMacdSignalStartedEvent, FuturesMacdSignalGeneratedEvent>(
-            eventDb, streamId, macd.EntityId.SlowEmaPeriod);
-        await ReceivedRange<FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent>(
-            eventDb, streamId, macdDaily.EntityId.SlowEmaPeriod);
+        await ReceivedSnapshot<FuturesMacdSignalCommandState, FuturesMacdSignalGeneratedEvent>(
+            eventDb, streamId);
+        await ReceivedSnapshot<FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent>(
+            eventDb, streamId);
         await ReceivedSnapshotRange<FuturesAdxSignalCommandState, FuturesAdxSignalStartedEvent, FuturesAdxSignalGeneratedEvent>(
             eventDb, streamId, adx.EntityId.PeriodLength);
         await ReceivedRange<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(
             eventDb, streamId, adxDaily.EntityId.PeriodLength);
-        await ReceivedSnapshotRange<FuturesAtrSignalCommandState, FuturesAtrSignalStartedEvent, FuturesAtrSignalGeneratedEvent>(
-            eventDb, streamId, atr.EntityId.PeriodLength);
-        await ReceivedRange<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
-            eventDb, streamId, atrDaily.EntityId.PeriodLength);
+        await ReceivedSnapshot<FuturesAtrSignalCommandState, FuturesAtrSignalGeneratedEvent>(
+            eventDb, streamId);
+        await ReceivedSnapshot<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
+            eventDb, streamId);
     }
 
     [Fact]
@@ -169,6 +169,15 @@ public class PeriodRangeStateRepositoryTests
         => await eventDb.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
             streamId,
             periodLength,
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+
+    static async ValueTask ReceivedSnapshot<TState, TEvent>(
+        IEventSourceActorDbContext eventDb,
+        long streamId)
+        where TState : IActorState<TState>
+        where TEvent : IEvent
+        => await eventDb.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
+            streamId,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
 
     static async ValueTask ReceivedSnapshotRange<TState, TSnapshot, TEvent>(

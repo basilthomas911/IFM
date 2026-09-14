@@ -95,7 +95,6 @@ public class MarketDataAnalyticsUriPath
     public const string SetFuturesItiSignalHoldTrade = "/api/marketdata/Analytics/Futures/ItiSignal/HoldTrade/Set";
     public const string ClearFuturesItiSignalHoldTrade = "/api/marketdata/Analytics/Futures/ItiSignal/HoldTrade/Clear";
     public const string GenerateFuturesAtrSignal = "/api/marketdata/Analytics/Futures/AtrSignal/Generate";
-    public const string GenerateFuturesAtrSignalFromIntraDayData = "/api/marketdata/Analytics/Futures/AtrSignal/IntraDayData/Generate";
     public const string GenerateFuturesAdxSignal = "/api/marketdata/Analytics/Futures/AdxSignal/Generate";
     public const string GenerateFuturesMacdSignal = "/api/marketdata/Analytics/Futures/MacdSignal/Generate";
 }

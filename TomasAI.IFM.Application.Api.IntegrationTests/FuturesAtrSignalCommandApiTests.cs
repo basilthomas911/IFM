@@ -4,9 +4,7 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 
@@ -27,50 +25,16 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
             TimeFrameType.FifteenSeconds,
             14,
             TimeOnly.FromDateTime(DateTime.Now));
-        var itiSignals = new[] {
-            new FuturesItiSignalV2ReadModel(
-                contractId: "CONTRACT1",
-                valueDate: DateOnly.FromDateTime(DateTime.Now),
-                timePeriod: TimeFrameType.FifteenSeconds,
-                sequenceId: 1,
-                intrinsicTime: DateTime.Now,
-                intrinsicTimeGroupId: 1,
-                intrinsicTimeLength: 1,
-                intrinsicPrice: 100,
-                intrinsicTimeTrend: IntrinsicTimeTrendType.UpTrend,
-                intrinsicTimeMode: IntrinsicTimeModeType.TrendDirectionChanged,
-                trendPrice: 100,
-                trendExtreme: 101,
-                trendReversal: 99,
-                lambda: 0.5,
-                tradingDays: 0,
-                threshold: 0,
-                targetDelta: 1,
-                trendDelta: 1,
-                upTrendTrigger: 1,
-                downTrendTrigger: 1,
-                tradeState: IntrinsicTimeTradeState.Ready)
+        var observation = new FuturesTradeSessionBarReadModel
+        {
+            ContractId = atrSignalId.ContractId,
+            ValueDate = atrSignalId.ValueDate,
+            TimeFrame = atrSignalId.TimePeriod,
+            Close = 100m,
+            IsComplete = true,
+            IsValid = true
         };
-        var response = await api.GenerateFuturesAtrSignalAsync(atrSignalId, itiSignals);
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
-    }
-
-    [Fact]
-    public async Task GenerateFuturesAtrSignalFromIntraDayData_Ok()
-    {
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var api = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var atrSignalId = new FuturesAtrSignalId(
-            "CONTRACT1",
-            DateOnly.FromDateTime(DateTime.Now),
-            TimeFrameType.FifteenSeconds,
-            14,
-            TimeOnly.FromDateTime(DateTime.Now));
-        var intraDayData = new[] {
-            new FuturesIntraDayDataReadModel()
-        };
-        var response = await api.GenerateFuturesAtrSignalFromIntraDayDataAsync(atrSignalId, intraDayData);
+        var response = await api.GenerateFuturesAtrSignalAsync(atrSignalId, observation);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }

@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
@@ -408,54 +409,24 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// generate futures atr signal
     /// </summary>
     /// <param name="futuresAtrSignalId"></param>
-    /// <param name="futuresItiSignals"></param>
+    /// <param name="observation">Completed trade-session bar used to advance the ATR checkpoint.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalAsync(FuturesAtrSignalId futuresAtrSignalId, FuturesItiSignalV2ReadModel[] futuresItiSignals)
+    public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalAsync(
+        FuturesAtrSignalId futuresAtrSignalId,
+        FuturesTradeSessionBarReadModel observation)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
             var entityId = futuresAtrSignalId.ToEntityId();
-            var futuresPrice = futuresItiSignals.Length > 0
-                ? (decimal)futuresItiSignals[^1].IntrinsicPrice
-                : 0m;
-            var cmd = new GenerateFuturesAtrSignalCommand(futuresAtrSignalId, futuresPrice)
+            var cmd = new GenerateFuturesAtrSignalCommand(futuresAtrSignalId, observation.Close, observation)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
             };
             serviceResult = await RequestCommandAsync(cmd, entityId);
-        }
-        catch (Exception ex)
-        {
-            serviceResult = OnError(ex, cmdId, GenerateFuturesAtrSignalCommand.ErrorId);
-        }
-        return serviceResult;
-    }
-
-    /// <summary>
-    /// generate futures atr signal from intra-day data
-    /// </summary>
-    /// <param name="futuresAtrSignalId"></param>
-    /// <param name="futuresIntraDayData"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalFromIntraDayDataAsync(FuturesAtrSignalId futuresAtrSignalId, FuturesIntraDayDataReadModel[] futuresIntraDayData)
-    {
-        Guid cmdId = Guid.NewGuid();
-        ServiceResult<Guid> serviceResult;
-        try
-        {
-            var entityId = futuresAtrSignalId.ToEntityId();
-            var futuresPrice = futuresIntraDayData.Length > 0 ? futuresIntraDayData[^1].ClosePrice : 0m;
-            GenerateFuturesAtrSignalCommand cmd = new (futuresAtrSignalId, futuresPrice)
-            {
-                CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format()),
-                ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
-            };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {

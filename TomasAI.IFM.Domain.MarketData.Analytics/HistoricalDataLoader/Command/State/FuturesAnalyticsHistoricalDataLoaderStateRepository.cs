@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -29,20 +30,22 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderStateRepository(
     readonly IEventProjector<FuturesAnalyticsHistoricalDataLoaderCommandActor> _eventProjector =
         eventProjector ?? throw new ArgumentNullException(nameof(eventProjector));
 
-    /// <summary>Reconstructs data load command state by replaying its complete entity stream.</summary>
+    /// <summary>Reconstructs data-load command state from its accepted-request snapshot.</summary>
     /// <param name="command">Command whose identity selects the event stream.</param>
     /// <returns>The reconstructed command state.</returns>
     public ValueTask<FuturesAnalyticsHistoricalDataLoaderCommandState> LoadStateAsync(ICommand command)
         => LoadStateAsync(command, CancellationToken.None);
 
-    /// <summary>Reconstructs data load command state by replaying its complete entity stream.</summary>
+    /// <summary>Reconstructs data-load command state from its accepted-request snapshot.</summary>
     /// <param name="command">Command whose identity selects the event stream.</param>
     /// <param name="cancellationToken">Cancellation token honored while reading the event stream.</param>
     /// <returns>The reconstructed command state.</returns>
     public async ValueTask<FuturesAnalyticsHistoricalDataLoaderCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateAsync<FuturesAnalyticsHistoricalDataLoaderCommandState>(command, cancellationToken)
+        => await LoadStateFromSnapshotAsync<
+                FuturesAnalyticsHistoricalDataLoaderCommandState,
+                FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(command, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Commits pending data load-request events and dispatches them after persistence.</summary>

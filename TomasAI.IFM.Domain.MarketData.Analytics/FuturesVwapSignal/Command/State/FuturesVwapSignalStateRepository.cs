@@ -25,9 +25,9 @@ public sealed class FuturesVwapSignalStateRepository(
     /// <inheritdoc />
     public async ValueTask<FuturesVwapSignalCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken) =>
-        await LoadStateFromSnapshotLastNRangeAsync<FuturesVwapSignalCommandState,
-            FuturesVwapSignalUpdatedEvent, FuturesVwapSignalUpdatedEvent>(
-                command, 256, cancellationToken);
+        await LoadStateFromSnapshotAsync<FuturesVwapSignalCommandState, FuturesVwapSignalUpdatedEvent>(
+            command,
+            cancellationToken);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context,
         FuturesVwapSignalCommandState state, ICommand command) =>

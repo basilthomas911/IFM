@@ -1130,8 +1130,10 @@ public static class MarketDataAnalyticsCommands
         endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesAtrSignal, async (IActorService e, GenerateFuturesAtrSignalParameter cp)
             => {
                 var entityId = cp.FuturesAtrSignalId.ToEntityId();
-                var futuresPrice = cp.FuturesItiSignals.Length > 0 ? (decimal)cp.FuturesItiSignals[^1].IntrinsicPrice : 0m;
-                GenerateFuturesAtrSignalCommand cmd = new(cp.FuturesAtrSignalId, futuresPrice)
+                GenerateFuturesAtrSignalCommand cmd = new(
+                    cp.FuturesAtrSignalId,
+                    cp.Observation.Close,
+                    cp.Observation)
                 {
                     CommandId = Guid.NewGuid(),
                     Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format()),

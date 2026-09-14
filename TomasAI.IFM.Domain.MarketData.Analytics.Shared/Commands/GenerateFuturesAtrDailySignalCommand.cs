@@ -58,14 +58,15 @@ public record GenerateFuturesAtrDailySignalCommand : ICommand<FuturesAtrDailySig
     public GenerateFuturesAtrDailySignalCommand() { }
 
     /// <summary>
-    /// Creates a new ATR signal generation command for the specified contract/date and RSI signal set.
+    /// Creates a new ATR signal generation command for a completed daily observation.
     /// </summary>
     /// <param name="futuresAtrSignalId">Target ATR signal identifier (contract + value date + timestamp context).</param>
-    /// <param name="futuresPrice">Input RSI signal series (cannot be null).</param>
+    /// <param name="futuresPrice">Closing price carried by the completed observation.</param>
+    /// <param name="observation">Completed daily trade-session bar used by the Wilder calculation.</param>
     public GenerateFuturesAtrDailySignalCommand(
         FuturesAtrSignalId futuresAtrSignalId,
         decimal futuresPrice,
-        FuturesTradeSessionBarReadModel? observation = null)
+        FuturesTradeSessionBarReadModel observation)
     {
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;

@@ -25,9 +25,8 @@ public sealed class FuturesVxTermStructureSignalStateRepository(
     /// <inheritdoc />
     public async ValueTask<FuturesVxTermStructureSignalCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken) =>
-        await LoadStateFromSnapshotLastNRangeAsync<FuturesVxTermStructureSignalCommandState,
-            FuturesVxTermStructureSignalUpdatedEvent, FuturesVxTermStructureSignalUpdatedEvent>(
-                command, 256, cancellationToken);
+        await LoadStateFromSnapshotAsync<FuturesVxTermStructureSignalCommandState,
+            FuturesVxTermStructureSignalUpdatedEvent>(command, cancellationToken);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context,
         FuturesVxTermStructureSignalCommandState state, ICommand command) =>

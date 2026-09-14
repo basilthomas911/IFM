@@ -59,18 +59,17 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
     public GenerateFuturesAtrSignalCommand() { }
 
     /// <summary>
-    /// Initializes a new instance of the GenerateFuturesAtrSignalFromIntraDayDataCommand class using the specified ATR
-    /// signal identifier and intra-day data.
+    /// Initializes a command from the ATR identity and the completed trade-session bar that advances its checkpoint.
     /// </summary>
     /// <remarks>This constructor sets the EntityId based on the provided futuresAtrSignalId and routes the
     /// command to the FuturesAtrSignal bounded context.</remarks>
     /// <param name="futuresAtrSignalId">The identifier for the futures ATR signal, including contract ID, value date, and time period.</param>
-    /// <param name="futuresIntraDayData">An array of intra-day data used to generate the futures ATR signal. Cannot be null.</param>
-    /// <exception cref="ArgumentNullException">Thrown when the futuresIntraDayData parameter is null.</exception>
+    /// <param name="futuresPrice">Closing price carried by the completed observation.</param>
+    /// <param name="observation">Completed trade-session bar used by the Wilder calculation.</param>
     public GenerateFuturesAtrSignalCommand(
         FuturesAtrSignalId futuresAtrSignalId,
         decimal futuresPrice,
-        FuturesTradeSessionBarReadModel? observation = null)
+        FuturesTradeSessionBarReadModel observation)
     {
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;

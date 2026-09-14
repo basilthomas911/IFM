@@ -13,6 +13,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesAtrSignal;
 
@@ -32,9 +34,38 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesAtrSignalGeneratedFailEvent futuresAtrSignalGeneratedFailEvent = default!;
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
-        var atrSignalId = SampleData.AtrSignalId;
-        var futuresItiSignals = SampleData.CreateItiSignalsForAtr();
-        var entityId = SampleData.AtrEntityId;
+        var atrSignalId = SampleData.AtrSignalId with { TimePeriod = TimeFrameType.FifteenSeconds };
+        var entityId = atrSignalId.ToEntityId();
+        var series = MarketSeriesIdentity.ForContract(contractId);
+        var intervalEnd = new DateTimeOffset(2026, 9, 14, 14, 0, 15, TimeSpan.Zero);
+        var observation = new FuturesTradeSessionBarReadModel
+        {
+            MarketSeriesIdentity = series,
+            ObservationId = FuturesTradeSessionBarId.Create(series, atrSignalId.TimePeriod, intervalEnd, 1),
+            ContractId = contractId,
+            ValueDate = valueDate,
+            TimeFrame = atrSignalId.TimePeriod,
+            IntervalStartUtc = intervalEnd.AddSeconds(-15),
+            IntervalEndUtc = intervalEnd,
+            Open = 100m,
+            High = 101m,
+            Low = 99m,
+            Close = 100m,
+            Volume = 100m,
+            TradeCount = 10,
+            PriceVolumeSum = 10_000m,
+            FirstSourceSequence = 1,
+            LastSourceSequence = 1,
+            FirstMarketEventUtc = intervalEnd.AddSeconds(-10),
+            LastMarketEventUtc = intervalEnd,
+            CalculatedAtUtc = intervalEnd,
+            SchemaVersion = 1,
+            CalculationVersion = "integration-v1",
+            IsComplete = true,
+            IsValid = true,
+            ValidationIssues = [],
+            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+        };
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -58,7 +89,7 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         // act...
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
-        var response = await marketDataAnalyticsApi.GenerateFuturesAtrSignalAsync(atrSignalId, futuresItiSignals);
+        var response = await marketDataAnalyticsApi.GenerateFuturesAtrSignalAsync(atrSignalId, observation);
 
         await Task.Delay(1000);
 

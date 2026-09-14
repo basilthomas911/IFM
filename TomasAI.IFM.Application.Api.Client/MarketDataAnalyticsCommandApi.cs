@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -156,21 +157,16 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
     /// generate futures atr signal
     /// </summary>
     /// <param name="futuresAtrSignalId"></param>
-    /// <param name="futuresItiSignals"></param>
+    /// <param name="observation">Completed trade-session bar used to advance the ATR checkpoint.</param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalAsync(FuturesAtrSignalId futuresAtrSignalId, FuturesItiSignalV2ReadModel[] futuresItiSignals)
-        => await new GenerateFuturesAtrSignalParameter(IsArgumentNull.Set(futuresAtrSignalId), IsArgumentNull.Set(futuresItiSignals), GenerateFuturesAtrSignalCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalAsync(
+        FuturesAtrSignalId futuresAtrSignalId,
+        FuturesTradeSessionBarReadModel observation)
+        => await new GenerateFuturesAtrSignalParameter(
+                IsArgumentNull.Set(futuresAtrSignalId),
+                IsArgumentNull.Set(observation),
+                GenerateFuturesAtrSignalCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.GenerateFuturesAtrSignal, e));
-
-    /// <summary>
-    /// generate futures atr signal from intra-day data
-    /// </summary>
-    /// <param name="futuresAtrSignalId"></param>
-    /// <param name="futuresIntraDayData"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalFromIntraDayDataAsync(FuturesAtrSignalId futuresAtrSignalId, FuturesIntraDayDataReadModel[] futuresIntraDayData)
-        => await new GenerateFuturesAtrSignalFromIntraDayDataParameter(IsArgumentNull.Set(futuresAtrSignalId), IsArgumentNull.Set(futuresIntraDayData), GenerateFuturesAtrSignalCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.GenerateFuturesAtrSignalFromIntraDayData, e));
 
     /// <summary>
     /// generate futures ADX signal

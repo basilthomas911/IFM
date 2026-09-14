@@ -42,15 +42,14 @@ public class FuturesAtrSignalStateRepository(
     public async ValueTask<FuturesAtrSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
         => command switch
         {
-            ICommand<FuturesAtrDailySignalEntityId> dailyCommand
-                => await LoadStateAsync<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
-                    command,
-                    dailyCommand.EntityId.PeriodLength, cancellationToken),
-            ICommand<FuturesAtrSignalEntityId> atrCommand
-                => await LoadStateFromSnapshotLastNRangeAsync<
+            ICommand<FuturesAtrDailySignalEntityId>
+                => await LoadStateFromSnapshotAsync<
                     FuturesAtrSignalCommandState,
-                    FuturesAtrSignalStartedEvent,
-                    FuturesAtrSignalGeneratedEvent>(command, atrCommand.EntityId.PeriodLength, cancellationToken),
+                    FuturesAtrDailySignalGeneratedEvent>(command, cancellationToken),
+            ICommand<FuturesAtrSignalEntityId>
+                => await LoadStateFromSnapshotAsync<
+                    FuturesAtrSignalCommandState,
+                    FuturesAtrSignalGeneratedEvent>(command, cancellationToken),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
 

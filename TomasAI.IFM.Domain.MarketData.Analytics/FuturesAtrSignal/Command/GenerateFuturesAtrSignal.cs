@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -8,7 +5,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
@@ -18,35 +14,21 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command;
 public static class GenerateFuturesAtrSignal
 {
     /// <summary>
-    /// Handles the execution of the GenerateFuturesAtrSignalFromIntraDayDataCommand by computing a new futures ATR signal model based on the provided intraday data and existing ATR signal information. 
-    /// The method evaluates the computed model to determine the appropriate trend direction and updates the command state with a newly created FuturesAtrSignalGeneratedEvent 
-    /// that encapsulates the generated signal information, including subject, entity identifier, and signal details. 
-    /// The method returns true if the state was successfully updated with the new event; otherwise, it returns false.
+    /// Applies a completed intraday trade-session bar to the persisted Wilder accumulator checkpoint and records the
+    /// resulting ATR signal when the observation advances the stream.
     /// </summary>
-    /// <param name="e">The command containing the futures ATR signal identifier and the intra-day price data to process.</param>
-    /// <param name="state">The command state that maintains the current ATR signal and event history. Will be updated with the generated event.</param>
+    /// <param name="e">The command containing the ATR identity and completed trade-session bar.</param>
+    /// <param name="state">The command state containing the latest persisted Wilder accumulator checkpoint.</param>
     /// <returns>
     /// <see langword="true"/> if the signal event was successfully generated and the state was updated;
     /// otherwise, <see langword="false"/>.
     /// </returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAtrSignalCommand e, FuturesAtrSignalCommandState state)
     {
-        if (e.Observation is { } observation)
-            return ExecuteWilder(e, state, observation);
+        if (e.Observation is not { } observation)
+            return e.UpdateFailed($"{e.CommandName}: a completed trade-session bar observation is required");
 
-        var updated = e.Compute(state.AtrSignal, state.AtrSignals, out var model) switch
-        {
-            _ when model.IsSignalInitializing
-                => state.Update(e.CreateFuturesAtrSignalIntraDayGeneratedEvent(FuturesTrendDirectionType.Init, model)),
-            _ when model.IsSignalUpTrending
-                => state.Update(e.CreateFuturesAtrSignalIntraDayGeneratedEvent(FuturesTrendDirectionType.UpTrending, model)),
-            _ when model.IsSignalDownTrending
-                => state.Update(e.CreateFuturesAtrSignalIntraDayGeneratedEvent(FuturesTrendDirectionType.DownTrending, model)),
-            _ => state.Update(e.CreateFuturesAtrSignalIntraDayGeneratedEvent(FuturesTrendDirectionType.TrendReversal, model)),
-        };
-        return updated
-            ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
-            : e.UpdateFailed($"{e.CommandName}: unable to apply generated ATR signal event");
+        return ExecuteWilder(e, state, observation);
     }
 
     static ServiceResult<GuidResult> ExecuteWilder(
@@ -87,58 +69,4 @@ public static class GenerateFuturesAtrSignal
             : command.UpdateFailed($"{command.CommandName}: unable to apply generated Wilder ATR event");
     }
 
-    /// <summary>
-    /// Attempts to compute a new futures ATR signal model based on the provided intraday data and existing ATR signal
-    /// information.
-    /// </summary>
-    /// <param name="e">The command containing the intraday futures data used for computation. Cannot be null.</param>
-    /// <param name="atrSignal">The existing ATR signal read model to use as a basis for computation. Cannot be null.</param>
-    /// <param name="model">When this method returns, contains the computed futures ATR signal model if the operation succeeds; otherwise,
-    /// contains null.</param>
-    /// <returns>true if the computation was successful and the model was created; otherwise, false.</returns>
-    internal static bool Compute(this GenerateFuturesAtrSignalCommand e, FuturesAtrSignalReadModel? atrSignal, IReadOnlyCollection<FuturesAtrSignalReadModel> atrSignals, out FuturesAtrSignalCompute model)
-        => FuturesAtrSignalCompute.Create(e.EntityId.PeriodLength, atrSignal, atrSignals, out model);
-
-    /// <summary>
-    /// Creates a new FuturesAtrSignalGeneratedEvent based on the provided command, trend direction, and computed signal information.
-    /// </summary>
-    /// <param name="e">The command containing the details required to generate the Futures ATR signal, including contract identifier,
-    /// value date, and time period. Cannot be null.</param>
-    /// <param name="trendDirection">The direction of the trend to associate with the generated Futures ATR signal.</param>
-    /// <param name="computed">The computed futures ATR signal information.</param>
-    /// <returns>A FuturesAtrSignalGeneratedEvent that encapsulates the generated signal information, including subject, entity
-    /// identifier, and signal details.</returns>
-    internal static FuturesAtrSignalGeneratedEvent CreateFuturesAtrSignalIntraDayGeneratedEvent(this GenerateFuturesAtrSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesAtrSignalCompute computed)
-    {
-        var entityId = e.FuturesAtrSignalId.ToEntityId();
-        var signal = new FuturesAtrSignalReadModel(
-            e.FuturesAtrSignalId.ContractId,
-            e.FuturesAtrSignalId.ValueDate,
-            e.EntityId.TimePeriod,
-            e.EntityId.PeriodLength,
-            e.FuturesAtrSignalId.Timestamp,
-            e.FuturesPrice,
-            computed.AtrValue,
-            computed.TrueRange,
-            trendDirection,
-            computed.TrendDirectionStrength())
-        {
-            Metadata = e.Observation is { } observation
-                ? MarketAnalyticsSignalMetadataFactory.Create(
-                    observation,
-                    MarketAnalyticsSignalKind.Atr,
-                    $"atr-{e.EntityId.PeriodLength}-legacy-v1",
-                    "atr-legacy-compatible-v1")
-                : null
-        };
-        return new FuturesAtrSignalGeneratedEvent
-        {
-            CommandId = e.CommandId,
-            Subject = new ActorSubject(ActorType.Event, FuturesAtrSignalGeneratedEvent.Actor, FuturesAtrSignalGeneratedEvent.Verb, entityId.Format()),
-            EntityId = entityId,
-            FuturesAtrSignal = signal,
-            CreatedBy = e.OriginatedBy,
-            CreatedOn = e.OriginatedOn
-        };
-    }
 }

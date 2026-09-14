@@ -3,6 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -69,7 +70,16 @@ public class ActorMarketDataAnalyticsCommandApiTests
             6425.25m);
         await api.GenerateFuturesAtrSignalAsync(
             new FuturesAtrSignalId("ESU6", valueDate, TimeFrameType.FifteenSeconds, 14, timestamp),
-            6425.25m);
+            6425.25m,
+            new FuturesTradeSessionBarReadModel
+            {
+                ContractId = "ESU6",
+                ValueDate = valueDate,
+                TimeFrame = TimeFrameType.FifteenSeconds,
+                Close = 6425.25m,
+                IsComplete = true,
+                IsValid = true
+            });
         await api.GenerateFuturesAdxSignalAsync(
             new FuturesAdxSignalId("ESU6", valueDate, TimeFrameType.FifteenSeconds, 14, timestamp),
             6425.25m);

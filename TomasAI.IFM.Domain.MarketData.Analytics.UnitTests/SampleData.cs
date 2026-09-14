@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -270,10 +272,51 @@ public static class SampleData
     // ── ATR Signal ──────────────────────────────────────────────────────
 
     public static FuturesAtrSignalEntityId AtrEntityId
-        => new(ContractId, ValueDate, TimePeriod, PeriodLength);
+        => new(ContractId, ValueDate, TimeFrameType.FifteenSeconds, PeriodLength);
 
     public static FuturesAtrSignalId AtrSignalId
-        => new(ContractId, ValueDate, TimePeriod, PeriodLength, new TimeOnly(10, 0, 0));
+        => new(ContractId, ValueDate, TimeFrameType.FifteenSeconds, PeriodLength, new TimeOnly(10, 0, 0));
+
+    public static FuturesTradeSessionBarReadModel AtrObservation
+    {
+        get
+        {
+            var series = MarketSeriesIdentity.ForContract(ContractId);
+            var intervalEnd = new DateTimeOffset(ValueDate, new TimeOnly(10, 0), TimeSpan.Zero);
+            return new FuturesTradeSessionBarReadModel
+            {
+                MarketSeriesIdentity = series,
+                ObservationId = FuturesTradeSessionBarId.Create(
+                    series,
+                    TimeFrameType.FifteenSeconds,
+                    intervalEnd,
+                    1),
+                ContractId = ContractId,
+                ValueDate = ValueDate,
+                TimeFrame = TimeFrameType.FifteenSeconds,
+                IntervalStartUtc = intervalEnd.AddSeconds(-15),
+                IntervalEndUtc = intervalEnd,
+                Open = (decimal)FuturesPrice,
+                High = (decimal)FuturesPrice + 1m,
+                Low = (decimal)FuturesPrice - 1m,
+                Close = (decimal)FuturesPrice,
+                Volume = 100m,
+                TradeCount = 10,
+                PriceVolumeSum = (decimal)FuturesPrice * 100m,
+                FirstSourceSequence = 1,
+                LastSourceSequence = 1,
+                FirstMarketEventUtc = intervalEnd.AddSeconds(-10),
+                LastMarketEventUtc = intervalEnd,
+                CalculatedAtUtc = intervalEnd,
+                SchemaVersion = 1,
+                CalculationVersion = "unit-test-v1",
+                IsComplete = true,
+                IsValid = true,
+                ValidationIssues = [],
+                CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+            };
+        }
+    }
 
     public static FuturesRsiSignalReadModel[] AtrRsiSignals
         => Enumerable.Range(0, 15).Select(i =>
@@ -320,7 +363,7 @@ public static class SampleData
                 tradeState: IntrinsicTimeTradeState.Ready)).ToArray();
 
     public static GenerateFuturesAtrSignalCommand AtrGenerateCommand
-        => new(AtrSignalId, (decimal)FuturesPrice);
+        => new(AtrSignalId, (decimal)FuturesPrice, AtrObservation);
 
     public static FuturesAtrSignalGeneratedEvent CreateAtrSignalGeneratedEvent(Guid? commandId = null)
         => new()
@@ -403,7 +446,7 @@ public static class SampleData
                 tradeState: IntrinsicTimeTradeState.Ready)).ToArray();
 
     public static GenerateFuturesAtrSignalCommand AtrUpTrendGenerateCommand
-        => new(AtrSignalId, (decimal)FuturesPrice);
+        => new(AtrSignalId, (decimal)FuturesPrice, AtrObservation);
 
     /// <summary>
     /// ITI signals with a small last price change — produces TrueRange &lt; AtrValue (DownTrending).
@@ -436,7 +479,7 @@ public static class SampleData
                 tradeState: IntrinsicTimeTradeState.Ready)).ToArray();
 
     public static GenerateFuturesAtrSignalCommand AtrDownTrendGenerateCommand
-        => new(AtrSignalId, (decimal)FuturesPrice);
+        => new(AtrSignalId, (decimal)FuturesPrice, AtrObservation);
 
     public static FuturesAtrSignalGeneratedEvent CreateAtrSignalDownTrendEvent(Guid? commandId = null)
         => new()

@@ -246,7 +246,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
           this IEventActorContext context,
           FuturesAtrSignalId signalId,
           decimal futuresPrice,
-          FuturesTradeSessionBarReadModel? observation = null)
+          FuturesTradeSessionBarReadModel observation)
     {
         var entityId = signalId.ToEntityId();
           GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice, observation)

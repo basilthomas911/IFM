@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Benchmarks;
@@ -19,8 +21,12 @@ public class AtrIndicatorBenchmarks : IndicatorBenchmarkBase
     [Benchmark]
     public IndicatorResult After()
     {
-        FuturesAtrSignalCompute.Create(Period, null, AtrSignals, out var model);
-        return new IndicatorResult(model.AtrValue, model.TrueRange, 0);
+        FuturesAtrWilderAccumulator.TryApply(
+            AtrObservations[^1],
+            Period,
+            AtrCheckpoint,
+            out var result);
+        return new IndicatorResult((double)result.AtrValue, (double)result.TrueRange, 0);
     }
 }
 
@@ -67,6 +73,8 @@ public abstract class IndicatorBenchmarkBase
 {
     protected const int Period = 14;
     protected FuturesAtrSignalReadModel[] AtrSignals { get; private set; } = null!;
+    protected FuturesTradeSessionBarReadModel[] AtrObservations { get; private set; } = null!;
+    protected FuturesAtrAccumulatorCheckpoint? AtrCheckpoint { get; private set; }
     protected FuturesAdxSignalReadModel[] AdxSignals { get; private set; } = null!;
     protected FuturesMacdSignalReadModel[] MacdSignals { get; private set; } = null!;
 
@@ -77,19 +85,65 @@ public abstract class IndicatorBenchmarkBase
     public void Setup()
     {
         AtrSignals = new FuturesAtrSignalReadModel[Count];
+        AtrObservations = new FuturesTradeSessionBarReadModel[Count];
         AdxSignals = new FuturesAdxSignalReadModel[Count];
         MacdSignals = new FuturesMacdSignalReadModel[Count];
         var valueDate = new DateOnly(2026, 8, 5);
+        var series = MarketSeriesIdentity.ForContract("ESU26");
         for (var index = 0; index < Count; index++)
         {
             var price = 5400m + (decimal)(Math.Sin(index * 0.17) * 20) + index * 0.01m;
             var timestamp = TimeOnly.FromTimeSpan(TimeSpan.FromSeconds(index));
+            var intervalEnd = new DateTimeOffset(valueDate, timestamp, TimeSpan.Zero);
             AtrSignals[index] = new("ESU26", valueDate, TimeFrameType.Daily, Period, timestamp, price, 0, 0,
                 FuturesTrendDirectionType.Init, FuturesTrendDirectionStrengthType.Low);
+            AtrObservations[index] = new FuturesTradeSessionBarReadModel
+            {
+                MarketSeriesIdentity = series,
+                ObservationId = FuturesTradeSessionBarId.Create(
+                    series,
+                    TimeFrameType.OneMinute,
+                    intervalEnd,
+                    index + 1),
+                ContractId = "ESU26",
+                ValueDate = valueDate,
+                TimeFrame = TimeFrameType.OneMinute,
+                IntervalStartUtc = intervalEnd.AddMinutes(-1),
+                IntervalEndUtc = intervalEnd,
+                Open = price,
+                High = price + 1m,
+                Low = price - 1m,
+                Close = price,
+                Volume = 100m,
+                TradeCount = 10,
+                PriceVolumeSum = price * 100m,
+                FirstSourceSequence = index + 1,
+                LastSourceSequence = index + 1,
+                FirstMarketEventUtc = intervalEnd.AddSeconds(-30),
+                LastMarketEventUtc = intervalEnd,
+                CalculatedAtUtc = intervalEnd,
+                SchemaVersion = 1,
+                CalculationVersion = "benchmark-v1",
+                IsComplete = true,
+                IsValid = true,
+                ValidationIssues = [],
+                CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+            };
             AdxSignals[index] = new("ESU26", valueDate, TimeFrameType.Daily, Period, timestamp, price, 0, 0, 0,
                 FuturesTrendDirectionType.Init, FuturesTrendDirectionStrengthType.Low);
             MacdSignals[index] = new("ESU26", valueDate, TimeFrameType.Daily, Period, timestamp, price, 0, 0, 0,
                 FuturesTrendDirectionType.Init, FuturesTrendDirectionStrengthType.Low);
+        }
+
+        AtrCheckpoint = null;
+        for (var index = 0; index < Count - 1; index++)
+        {
+            FuturesAtrWilderAccumulator.TryApply(
+                AtrObservations[index],
+                Period,
+                AtrCheckpoint,
+                out var result);
+            AtrCheckpoint = result.Checkpoint;
         }
     }
 }

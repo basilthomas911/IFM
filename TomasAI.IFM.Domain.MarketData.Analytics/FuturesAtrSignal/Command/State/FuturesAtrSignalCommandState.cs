@@ -15,8 +15,6 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State
 public class FuturesAtrSignalCommandState
     : BaseEventSourceActorState<FuturesAtrSignalCommandState>, IEventSourceActorState<FuturesAtrSignalCommandState>
 {
-    FuturesAtrSignalReadModel? _atrSignal;
-    readonly List<FuturesAtrSignalReadModel> _atrSignals = new(32);
     FuturesAtrAccumulatorCheckpoint? _calculationState;
 
     /// <summary>
@@ -35,15 +33,13 @@ public class FuturesAtrSignalCommandState
         {
             FuturesAtrSignalStartedEvent => true,
             FuturesAtrSignalStoppedEvent => true,
-            FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal, e.CalculationState),
-            FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal, e.CalculationState),
+            FuturesAtrSignalGeneratedEvent e => On(e.CalculationState),
+            FuturesAtrDailySignalGeneratedEvent e => On(e.CalculationState),
             _ => false
         };
 
-        bool On(FuturesAtrSignalReadModel signal, FuturesAtrAccumulatorCheckpoint? calculationState)
+        bool On(FuturesAtrAccumulatorCheckpoint? calculationState)
         {
-            _atrSignal = signal;
-            _atrSignals.Add(signal);
             if (calculationState is not null)
                 _calculationState = calculationState with
                 {
@@ -53,14 +49,6 @@ public class FuturesAtrSignalCommandState
             return true;
         }
     }
-
-    /// <summary>
-    /// Gets the view model that provides ATR (Average True Range) signal data for futures trading analysis.
-    /// </summary>
-    /// <remarks>This property exposes the ATR signal data used to inform trading decisions in futures
-    /// markets. The returned view model should be properly initialized before use.</remarks>
-    internal FuturesAtrSignalReadModel  AtrSignal => _atrSignal!;
-    internal IReadOnlyCollection<FuturesAtrSignalReadModel> AtrSignals => _atrSignals;
 
     /// <summary>Gets the replayed Wilder checkpoint for the current aggregate stream.</summary>
     internal FuturesAtrAccumulatorCheckpoint? CalculationState => _calculationState;

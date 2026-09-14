@@ -1,5 +1,5 @@
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
 
@@ -7,10 +7,10 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
 /// Represents the parameters required to generate a futures ATR signal.
 /// </summary>
 /// <param name="FuturesAtrSignalId">Identifier describing the target futures contract and value date for ATR signal generation.</param>
-/// <param name="FuturesItiSignals">Collection of ITI signals used as input factors for computing the ATR signal.</param>
+/// <param name="Observation">Completed trade-session bar used to advance the Wilder ATR checkpoint.</param>
 /// <param name="ErrorCode">The error code associated with the operation.</param>
 public record GenerateFuturesAtrSignalParameter(
     FuturesAtrSignalId FuturesAtrSignalId,
-    FuturesItiSignalV2ReadModel[] FuturesItiSignals,
+    FuturesTradeSessionBarReadModel Observation,
     int ErrorCode)
     : ICommandParameter;

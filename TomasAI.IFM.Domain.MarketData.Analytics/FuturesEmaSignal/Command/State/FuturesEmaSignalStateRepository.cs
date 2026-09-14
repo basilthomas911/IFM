@@ -24,8 +24,9 @@ public sealed class FuturesEmaSignalStateRepository(
         LoadStateAsync(command, CancellationToken.None);
     /// <inheritdoc />
     public async ValueTask<FuturesEmaSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) =>
-        await LoadStateFromSnapshotLastNRangeAsync<FuturesEmaSignalCommandState,
-            FuturesEmaSignalGeneratedEvent, FuturesEmaSignalGeneratedEvent>(command, 256, cancellationToken);
+        await LoadStateFromSnapshotAsync<FuturesEmaSignalCommandState, FuturesEmaSignalGeneratedEvent>(
+            command,
+            cancellationToken);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, FuturesEmaSignalCommandState state, ICommand command) =>
         SaveStateAsync(context, state, command, CancellationToken.None);

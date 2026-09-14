@@ -39,9 +39,6 @@ public static class MarketDataAnalyticsCommandApiResult
     public static Task FromGenerateFuturesAtrSignalAsync(HttpResponse resp)
         => resp.SetResult();
 
-    public static Task FromGenerateFuturesAtrSignalFromIntraDayDataAsync(HttpResponse resp)
-        => resp.SetResult();
-
     public static Task FromGenerateFuturesAdxSignalAsync(HttpResponse resp)
         => resp.SetResult();
 }
