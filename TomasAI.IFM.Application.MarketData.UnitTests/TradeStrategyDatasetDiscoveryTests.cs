@@ -78,15 +78,15 @@ public sealed class TradeStrategyDatasetDiscoveryTests
     }
 
     [Fact]
-    public async Task Underlying_identity_is_publisher_qualified_and_name_fallback_requires_an_absent_id()
+    public async Task Underlying_identity_uses_instrument_id_and_name_fallback_requires_an_absent_id()
     {
         var factory = Substitute.For<IDatabentoFeedFactory>(); var query = Substitute.For<IDatabentoMarketDataQueries>();
         factory.CreateMarketDataQueries(Arg.Any<DatabentoFeedOptions>()).Returns(query);
         var es = Future("ES", 1);
-        var nq = Future("NQ", 1) with { Instrument = new(2, 1) };
+        var nq = Future("NQ", 2) with { Instrument = new(2, 2) };
         var cl = Future("CL", 3);
         query.GetDatasetDefinitions(Arg.Any<TimeSpan?>()).Returns([es, nq, cl,
-            Option(nq) with { Instrument = new(2, 10001) },
+            Option(nq) with { Instrument = new(5, 10002) },
             Option(cl) with { UnderlyingInstrumentId = 0, Underlying = cl.RawSymbol },
             Option(es) with { UnderlyingInstrumentId = 999, Underlying = es.RawSymbol }]);
         var source = new DatabentoTradeStrategySymbolSource(factory, Settings(), new Clock());

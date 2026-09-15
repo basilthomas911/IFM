@@ -65,9 +65,10 @@ public sealed class InstrumentDefinitionRefreshTests
             .Returns(call => { Assert.Equal(rows.Length, writes); published = call.Arg<IReadOnlyCollection<TradeStrategyProduct>>(); return Task.CompletedTask; });
         var snapshot = await Refresh(provider, store).RefreshAsync();
         Assert.Equal(rows.Length, snapshot.RecordCount);
-        Assert.Equal(2, published!.Count);
+        Assert.Equal(3, published!.Count);
         Assert.Contains(new TradeStrategyProduct(TradeStrategyFamilyType.Futures, "CL", "USD", "XNYM"), published);
         Assert.Contains(new TradeStrategyProduct(TradeStrategyFamilyType.FuturesOption, "CL", "USD", "XNYM"), published);
+        Assert.Contains(new TradeStrategyProduct(TradeStrategyFamilyType.FuturesOption, "CL", "USD", "XCME"), published);
     }
 
     [Fact]

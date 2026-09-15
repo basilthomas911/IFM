@@ -225,9 +225,24 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
     {
         ValidateDataset(dataset);
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-        if (publisherId == 0 || instrumentId == 0 || assetTypeId == AssetTypeId.Unknown)
-            throw new ArgumentOutOfRangeException(nameof(instrumentId), "Publisher, instrument, and asset type must be defined.");
+        if (instrumentId == 0 || assetTypeId == AssetTypeId.Unknown)
+            throw new ArgumentOutOfRangeException(nameof(instrumentId), "Instrument and asset type must be defined.");
         var now = _timeProvider.GetUtcNow();
+        var tickKey = TickInstrumentKey(dataset, definitionDate, instrumentId);
+        var existing = ReadEntry(tickKey);
+        if (existing is not null && !IsSameMapping(
+                existing, dataset, definitionDate, contractId, instrumentId))
+        {
+            BestEffortRemove(tickKey);
+            ThrowConflict(
+                ContractMappingDirection.InstrumentIdToContractId,
+                dataset,
+                definitionDate,
+                contractId,
+                instrumentId,
+                existing,
+                "The live tick mapping conflicts with the dated instrument-ID mapping.");
+        }
         var entry = new DatabentoContractMappingCacheEntry
         {
             Dataset = dataset,
@@ -240,7 +255,7 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
         };
         var remaining = entry.AbsoluteExpirationUtc - now;
         _redisCache.Set(
-            TickInstrumentKey(dataset, definitionDate, publisherId, instrumentId),
+            tickKey,
             _jsonSerializer.Serialize(entry),
             entry.AbsoluteExpirationUtc,
             remaining < SlidingTimeToLive ? remaining : SlidingTimeToLive);
@@ -254,9 +269,8 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
         out TickContractMapping mapping)
     {
         ValidateDataset(dataset);
-        var entry = ReadEntry(TickInstrumentKey(dataset, definitionDate, instrument.PublisherId, instrument.InstrumentId));
-        if (entry is null || entry.PublisherId != instrument.PublisherId ||
-            entry.InstrumentId != instrument.InstrumentId || entry.AssetTypeId == AssetTypeId.Unknown ||
+        var entry = ReadEntry(TickInstrumentKey(dataset, definitionDate, instrument.InstrumentId));
+        if (entry is null || entry.InstrumentId != instrument.InstrumentId || entry.AssetTypeId == AssetTypeId.Unknown ||
             !MatchesPartition(entry, dataset, definitionDate))
         {
             mapping = default;
@@ -525,10 +539,8 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
     private static string TickInstrumentKey(
         string dataset,
         DateOnly definitionDate,
-        ushort publisherId,
         uint instrumentId) =>
         $"{CacheName}:{Uri.EscapeDataString(dataset)}:{definitionDate:yyyyMMdd}:tick-instrument:"
-        + publisherId.ToString(CultureInfo.InvariantCulture) + ":"
         + instrumentId.ToString(CultureInfo.InvariantCulture);
 
     private static void ValidateDataset(string dataset) =>

@@ -13,7 +13,10 @@ public sealed class OptionChainDefinitionTests
             Detail("ESU6 C5000", 5, ContractKind.CallOption, 5_000_000_000_000),
             Detail("ESU6 C-2", 2, ContractKind.CallOption, -2_000_000_000),
             Detail("ESU6 CMAX", 9, ContractKind.CallOption, long.MaxValue),
-            Detail("ESU6 C5000-DUP", 5, ContractKind.CallOption, 5_000_000_000_000),
+            Detail("ESU6 C5000-DUP", 5, ContractKind.CallOption, 5_000_000_000_000) with
+            {
+                Instrument = new InstrumentKey(9, 5)
+            },
             Detail("ESU6 P5000", 6, ContractKind.PutOption, 5_000_000_000_000),
             Detail("ESZ6 C5000", 7, ContractKind.CallOption, 5_000_000_000_000,
                 maturity: new DateOnly(2026, 12, 18)),

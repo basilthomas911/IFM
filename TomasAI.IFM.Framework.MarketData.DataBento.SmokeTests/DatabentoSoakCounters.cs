@@ -23,15 +23,13 @@ internal sealed class DatabentoSoakCounters
 
     internal DatabentoSoakCounters(
         IEnumerable<InstrumentKey> expectedInstruments,
-        DatabentoTickCsvCapture? csvCapture = null,
-        bool allowPublisherAliases = false)
+        DatabentoTickCsvCapture? csvCapture = null)
     {
         _csvCapture = csvCapture;
         foreach (var instrument in expectedInstruments.ToHashSet())
         {
             _ticksByInstrument.Add(instrument, 0);
-            if (allowPublisherAliases
-                && !_canonicalByInstrumentId.TryAdd(
+            if (!_canonicalByInstrumentId.TryAdd(
                     instrument.InstrumentId,
                     instrument))
             {
@@ -107,11 +105,7 @@ internal sealed class DatabentoSoakCounters
                         var instrument = new InstrumentKey(
                             record.Header.PublisherId,
                             record.Header.InstrumentId);
-                        if (_ticksByInstrument.TryGetValue(instrument, out var count))
-                        {
-                            _ticksByInstrument[instrument] = count + 1;
-                        }
-                        else if (_canonicalByInstrumentId.TryGetValue(
+                        if (_canonicalByInstrumentId.TryGetValue(
                                      instrument.InstrumentId,
                                      out var canonical))
                         {

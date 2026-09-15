@@ -23,14 +23,14 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
             HashSet<TradeStrategyProduct> products = [];
             foreach (var dataset in datasets)
             {
-                var latest = new Dictionary<(ushort, string), (ulong Received, ulong Event, bool Deleted, ContractDetail Detail)>();
+                var latest = new Dictionary<uint, (ulong Received, ulong Event, bool Deleted, ContractDetail Detail)>();
                 List<Task> pending = []; long count = 0;
                 try
                 {
                     await foreach (var row in provider.ReadLatestAsync(dataset, cancellationToken).ConfigureAwait(false))
                     {
                         pending.Add(store.InsertAsync(snapshot, count++, row, cancellationToken));
-                        var key = (row.PublisherId, row.RawSymbol);
+                        var key = row.InstrumentId;
                         if (row.Summary.ContractKind is ContractKind.Future or ContractKind.CallOption or ContractKind.PutOption || row.Deleted || latest.ContainsKey(key))
                         {
                             if (!latest.TryGetValue(key, out var old) || row.ReceivedNanoseconds > old.Received ||
@@ -63,8 +63,8 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
             (x.ExpirationTimestampNanoseconds is { } end ? end / 1_000_000_000UL > (ulong)now.ToUnixTimeSeconds() : x.MaturityDate >= DateOnly.FromDateTime(now.UtcDateTime));
         var rows = definitions.Where(Current).ToArray();
         var futures = rows.Where(x => x.ContractKind == ContractKind.Future).ToArray();
-        var byId = futures.ToLookup(x => x.Instrument);
-        var byName = futures.ToLookup(x => (x.Instrument.PublisherId, x.RawSymbol));
+        var byId = futures.ToLookup(x => x.Instrument.InstrumentId);
+        var byName = futures.ToLookup(x => x.RawSymbol, StringComparer.Ordinal);
         HashSet<TradeStrategyProduct> result = [];
         void Add(TradeStrategyFamilyType family, ContractDetail underlying, ContractDetail priced)
         {
@@ -74,8 +74,8 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
         foreach (var row in futures) Add(TradeStrategyFamilyType.Futures, row, row);
         foreach (var row in rows.Where(x => x.ContractKind is ContractKind.CallOption or ContractKind.PutOption))
         {
-            var matches = row.UnderlyingInstrumentId != 0 ? byId[new(row.Instrument.PublisherId, row.UnderlyingInstrumentId)].ToArray()
-                : byName[(row.Instrument.PublisherId, row.Underlying)].ToArray();
+            var matches = row.UnderlyingInstrumentId != 0 ? byId[row.UnderlyingInstrumentId].ToArray()
+                : byName[row.Underlying].ToArray();
             if (matches.Length == 1) Add(TradeStrategyFamilyType.FuturesOption, matches[0], row);
         }
         return result;

@@ -1,6 +1,6 @@
 #include "databento_feed_native.h"
 #include "latest_price_session_guard.hpp"
-#include "publisher_mapping_selector.hpp"
+#include "instrument_mapping_selector.hpp"
 
 #include <algorithm>
 #include <array>
@@ -840,7 +840,7 @@ std::vector<contract_result_entry> fetch_definitions(
         0);
 
     std::vector<contract_result_entry> entries;
-    std::unordered_map<std::string, std::size_t> by_symbol;
+    std::unordered_map<std::uint32_t, std::size_t> by_instrument;
     while (const auto* record = store.NextRecord()) {
         const auto* definition = record->GetIf<databento::InstrumentDefMsg>();
         if (definition == nullptr || contract_kind(
@@ -848,8 +848,8 @@ std::vector<contract_result_entry> fetch_definitions(
             continue;
         }
         auto entry = make_contract_entry(*definition);
-        const auto [position, inserted] = by_symbol.emplace(
-            std::to_string(entry.detail.publisher_id) + ":" + entry.raw_symbol, entries.size());
+        const auto [position, inserted] = by_instrument.emplace(
+            entry.detail.instrument_id, entries.size());
         if (inserted) {
             entries.push_back(std::move(entry));
         } else {
@@ -1326,7 +1326,7 @@ bool publish_statistics_replay_complete(
     std::vector<dbf_market_record64>* startup_records = nullptr) {
     for (const auto& mapping : feed->mappings) {
         if ((mapping.data_kinds & DBF_MARKET_DATA_STATISTICS) == 0
-            || mapping.instrument_id == 0 || mapping.publisher_id == 0) {
+            || mapping.instrument_id == 0) {
             continue;
         }
         dbf_market_record64 record{};
@@ -1347,7 +1347,7 @@ bool publish_trade_replay_complete(
     std::vector<dbf_market_record64>* startup_records = nullptr) {
     for (const auto& mapping : feed->mappings) {
         if ((mapping.data_kinds & DBF_MARKET_DATA_SESSION_VOLUME) == 0
-            || mapping.instrument_id == 0 || mapping.publisher_id == 0) {
+            || mapping.instrument_id == 0) {
             continue;
         }
         dbf_market_record64 record{};
@@ -1388,16 +1388,6 @@ bool resolve_mapping(dbf_feed* feed,
                     + std::to_string(mapping.instrument_id)
                     + ", actual_instrument_id=" + std::to_string(instrument_id));
         }
-        if (mapping.publisher_id != 0 && message.hd.publisher_id != 0
-            && mapping.publisher_id != message.hd.publisher_id) {
-            return fail_live(
-                feed,
-                DBF_SYMBOL_RESOLUTION_FAILED,
-                "A resolved symbol remapped to a different publisher: requested_symbol="
-                    + requested + ", instrument_id=" + std::to_string(instrument_id)
-                    + ", expected_publisher_id=" + std::to_string(mapping.publisher_id)
-                    + ", actual_publisher_id=" + std::to_string(message.hd.publisher_id));
-        }
         mapping.instrument_id = instrument_id;
         if (message.hd.publisher_id != 0) {
             mapping.publisher_id = message.hd.publisher_id;
@@ -1405,7 +1395,7 @@ bool resolve_mapping(dbf_feed* feed,
         mapping.raw_symbol = mapping.input_symbology == 1u
                                  ? requested
                                  : mapping.requested_symbol;
-        mapping.resolved = mapping.publisher_id != 0;
+        mapping.resolved = true;
     }
     if (!found && !allow_new) {
         return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
@@ -1414,26 +1404,23 @@ bool resolve_mapping(dbf_feed* feed,
     return true;
 }
 
-dbf_live::publisher_match_status resolve_mapping_publisher(
-    dbf_feed* feed,
-    const databento::RecordHeader& header) {
-    if (header.instrument_id == 0 || header.publisher_id == 0) {
-        return dbf_live::publisher_match_status::unrelated;
+bool observe_mapping_publisher(dbf_feed* feed,
+                               const databento::RecordHeader& header) {
+    if (header.instrument_id == 0) {
+        return false;
     }
-    dbf_live::publisher_mapping_selector selector{
-        header.instrument_id,
-        header.publisher_id};
-    for (const auto& mapping : feed->mappings) {
-        selector.observe(mapping.instrument_id, mapping.publisher_id);
-    }
+    const dbf_live::instrument_mapping_selector selector{header.instrument_id};
+    auto matched = false;
     for (auto& mapping : feed->mappings) {
-        if (!selector.selects(mapping.instrument_id, mapping.publisher_id)) {
+        if (!selector.selects(mapping.instrument_id)) {
             continue;
         }
-        mapping.publisher_id = header.publisher_id;
-        mapping.resolved = true;
+        matched = true;
+        if (mapping.publisher_id == 0 && header.publisher_id != 0) {
+            mapping.publisher_id = header.publisher_id;
+        }
     }
-    return selector.status();
+    return matched;
 }
 
 bool all_mappings_resolved(const dbf_feed* feed) noexcept {
@@ -1503,22 +1490,19 @@ bool process_live_record(dbf_feed* feed,
         return resolve_mapping(feed, *mapping, initial_mapping);
     }
     if (initial_mapping) {
-        const auto match = resolve_mapping_publisher(feed, source.Header());
-        if (match == dbf_live::publisher_match_status::unrelated
-            || match == dbf_live::publisher_match_status::conflict) {
-            // Databento instrument IDs are publisher-scoped. A record with the
-            // same numeric instrument ID under another publisher belongs to a
-            // different instrument and must not resolve or enter this feed.
+        if (!observe_mapping_publisher(feed, source.Header())) {
+            // Startup can receive records unrelated to this requested symbol set.
+            // Ignore unknown instruments. Publisher identifies the observation
+            // source and does not qualify a known instrument.
             return true;
         }
     }
     const auto trade_replay = trade_replay_pending
         && std::any_of(feed->mappings.begin(), feed->mappings.end(),
-                       [&source](const mapping_entry& mapping) {
-                           return mapping.instrument_id == source.Header().instrument_id
-                               && mapping.publisher_id == source.Header().publisher_id
-                               && (mapping.data_kinds
-                                   & DBF_MARKET_DATA_SESSION_VOLUME) != 0;
+                        [&source](const mapping_entry& mapping) {
+                            return mapping.instrument_id == source.Header().instrument_id
+                                && (mapping.data_kinds
+                                    & DBF_MARKET_DATA_SESSION_VOLUME) != 0;
                        });
     dbf_market_record64 normalized{};
     return !dbf_live::normalize(
@@ -2160,7 +2144,6 @@ dbf_status DBF_CALL dbf_feed_subscribe_option_chain(
                 || (contract.option_right != 1u && contract.option_right != 2u)
                 || contract.reserved8 != 0
                 || contract.instrument_id == 0
-                || contract.publisher_id == 0
                 || !valid_blob_range(contract.raw_symbol_offset,
                                      contract.raw_symbol_length,
                                      utf8_blob_bytes)
@@ -2349,7 +2332,8 @@ dbf_status DBF_CALL dbf_feed_set_consumer_ready(dbf_feed_t* feed,
     std::unique_lock lock(feed->control_mutex);
     const auto predicate = [feed] {
         const auto state = feed->state.load(std::memory_order_acquire);
-        return state == DBF_STATE_RUNNING || state == DBF_STATE_FAULTED
+        return state == DBF_STATE_RUNNING || state == DBF_STATE_STOPPED
+               || state == DBF_STATE_FAULTED
                || feed->stop_requested.load(std::memory_order_acquire);
     };
     const bool ready = timeout_ms == DBF_WAIT_INFINITE

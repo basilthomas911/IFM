@@ -20,8 +20,8 @@ public sealed class DatabentoOptionChainSessionManagerTests
     {
         var aggregation = new FakeAggregation();
         var feed = new FakeChainFeed(
-            Quote(1, 10_000_000_000, 12_000_000_000),
-            Trade(2, 11_000_000_000));
+            Quote(1, 10_000_000_000, 12_000_000_000, publisherId: 9),
+            Trade(2, 11_000_000_000, publisherId: 11));
         var factory = new FakeFactory(feed);
         using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
         var publisher = new CapturingChainPublisher(2);
@@ -172,17 +172,24 @@ public sealed class DatabentoOptionChainSessionManagerTests
         };
     }
 
-    private static MarketRecord64 Quote(uint sequence, long bid, long ask) => new(
+    private static MarketRecord64 Quote(
+        uint sequence,
+        long bid,
+        long ask,
+        ushort? publisherId = null) => new(
         new QuoteRecord64(
             new MarketRecordHeader32(
-                Instrument.InstrumentId, Instrument.PublisherId,
+                Instrument.InstrumentId, publisherId ?? Instrument.PublisherId,
                 MarketRecordKind.Quote, 0, sequence, sequence, sequence),
             bid, ask, 10, 11, 1, 1));
 
-    private static MarketRecord64 Trade(uint sequence, long price) => new(
+    private static MarketRecord64 Trade(
+        uint sequence,
+        long price,
+        ushort? publisherId = null) => new(
         new TradeRecord64(
             new MarketRecordHeader32(
-                Instrument.InstrumentId, Instrument.PublisherId,
+                Instrument.InstrumentId, publisherId ?? Instrument.PublisherId,
                 MarketRecordKind.Trade, 0, sequence, sequence, sequence),
             price, 12, 1, 2, 0));
 

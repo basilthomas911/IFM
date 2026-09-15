@@ -138,8 +138,7 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
         });
 
         var counters = new DatabentoSoakCounters(
-            [registration.Instrument],
-            allowPublisherAliases: true);
+            [registration.Instrument]);
         var consumer = counters.ConsumeAsync(reader);
         Exception? stopFailure = null;
         try

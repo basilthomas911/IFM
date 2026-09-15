@@ -66,7 +66,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 && !scopes.Values.Any(s => s.Leases.ContainsKey(request.LeaseId))) return Failure("LeaseCapacity");
             if (scopes.Any(s => s.Key != request.ScopeId && s.Value.Leases.ContainsKey(request.LeaseId))) return Failure("LeaseIdentityConflict");
             var ids = new HashSet<string>(StringComparer.Ordinal);
-            var instruments = new HashSet<InstrumentKey>();
+            var instrumentIds = new HashSet<uint>();
             string? underlying = null;
             foreach (var option in request.Options)
             {
@@ -75,7 +75,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 if (failure is not null) return new(false, failure);
                 var contract = context.Contract;
                 if (context.GenerationId != generation || contract.Dataset != dataset || option.Strike <= 0
-                    || !ids.Add(contract.ContractId) || !instruments.Add(new(contract.PublisherId, contract.InstrumentId))
+                    || !ids.Add(contract.ContractId) || !instrumentIds.Add(contract.InstrumentId)
                     || underlying is not null && underlying != contract.UnderlyingContractId
                     || DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(contract.ExpirationUtc,
                         TimeZoneInfo.FindSystemTimeZoneById(context.Calendar.TimeZoneId)).DateTime) != request.MaturityDate)
@@ -302,7 +302,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).Select(x => new
         {
             x.Strike, x.IsCall, x.Pricing.Contract.ContractId, x.Pricing.Contract.Dataset,
-            x.Pricing.Contract.PublisherId, x.Pricing.Contract.InstrumentId, x.Pricing.Contract.RawSymbol,
+            x.Pricing.Contract.InstrumentId, x.Pricing.Contract.RawSymbol,
             x.Pricing.Contract.UnderlyingContractId, x.Pricing.Contract.ExpirationUtc,
             x.Pricing.Contract.DefinitionDigest
         }).ToArray());

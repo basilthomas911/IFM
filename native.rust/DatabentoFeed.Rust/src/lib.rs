@@ -409,7 +409,6 @@ mod exports {
                     || !(item.option_right == 1 || item.option_right == 2)
                     || item.reserved8 != 0
                     || item.instrument_id == 0
-                    || item.publisher_id == 0
                     || !valid_range(
                         item.raw_symbol_offset,
                         item.raw_symbol_length,

@@ -2,6 +2,7 @@ using FluentAssertions;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 
@@ -202,6 +203,23 @@ public class DatabentoContractMappingCacheTests
             .Should().BeTrue();
         remaining.Should().Be(12345);
         redis.Count.Should().Be(2);
+    }
+
+    [Fact]
+    public void Tick_mapping_is_qualified_by_definition_date_and_instrument_not_publisher()
+    {
+        var time = new ManualTimeProvider(InitialTime);
+        var redis = new InMemoryRedisCache(time);
+        var sut = CreateCache(redis, time);
+        var date = DateOnly.FromDateTime(InitialTime.UtcDateTime);
+
+        sut.SetTickMapping(Dataset, date, 7, 42, "ESZ6", AssetTypeId.Futures);
+        sut.SetTickMapping(Dataset, date, 9, 42, "ESZ6", AssetTypeId.Futures);
+
+        sut.TryGetMapping(Dataset, date, new InstrumentKey(11, 42), out var mapping)
+            .Should().BeTrue();
+        mapping.ContractId.Should().Be("ESZ6");
+        mapping.PublisherId.Should().Be(9);
     }
 
     private static DatabentoContractMappingCache CreateCache(

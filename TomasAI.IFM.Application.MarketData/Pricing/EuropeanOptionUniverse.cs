@@ -41,7 +41,7 @@ public sealed class EuropeanOptionUniverse(IOptionPricingConventionStore convent
             var mapping = await conventions.GetAsync(candidate.ContractId, candidate.MappingVersion, cancellationToken).ConfigureAwait(false);
             if (mapping is null || mapping.ContractId != candidate.ContractId || mapping.MappingVersion != candidate.MappingVersion
                 || mapping.DefinitionDigest != candidate.DefinitionDigest || mapping.Dataset != definition.Dataset
-                || mapping.PublisherId != definition.Instrument.PublisherId || mapping.InstrumentId != definition.Instrument.InstrumentId
+                || mapping.InstrumentId != definition.Instrument.InstrumentId
                 || mapping.RawSymbol != definition.RawSymbol || mapping.UnderlyingContractId != definition.Underlying || definition.StrikePrice <= 0
                 || definition.Right is not (OptionRightSelection.Call or OptionRightSelection.Put)
                 || definition.ExpirationTimestampNanoseconds is not { } ns || ns == ulong.MaxValue || ns % 100 != 0

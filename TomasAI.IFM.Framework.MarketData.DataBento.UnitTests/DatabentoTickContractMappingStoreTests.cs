@@ -33,6 +33,20 @@ public sealed class DatabentoTickContractMappingStoreTests
     }
 
     [Fact]
+    public void Mapping_accepts_another_publisher_for_the_same_dated_instrument()
+    {
+        var store = new DatabentoTickContractMappingStore();
+        var date = new DateOnly(2026, 9, 14);
+        store.SetTickMapping("GLBX.MDP3", date, 7, 42, "ESZ6", AssetTypeId.Futures);
+        store.SetTickMapping("GLBX.MDP3", date, 9, 42, "ESZ6", AssetTypeId.Futures);
+
+        Assert.True(store.TryGetMapping(
+            "GLBX.MDP3", date, new InstrumentKey(11, 42), out var mapping));
+        Assert.Equal("ESZ6", mapping.ContractId);
+        Assert.Equal((ushort)9, mapping.PublisherId);
+    }
+
+    [Fact]
     public void Live_feed_instrument_is_bound_by_raw_symbol_when_catalog_identity_changed()
     {
         var store = new DatabentoTickContractMappingStore();

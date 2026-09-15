@@ -78,7 +78,6 @@ public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStor
         if (generationId == Guid.Empty || c.GenerationId != generationId)
             return Failed(route, "Recovering", at);
         if (route.Definition.Instrument.InstrumentId != c.Contract.InstrumentId
-            || route.Definition.Instrument.PublisherId != c.Contract.PublisherId
             || route.Definition.Dataset != c.Contract.Dataset || route.Definition.RawSymbol != c.Contract.RawSymbol
             || route.FuturesOptionContractId != c.Contract.ContractId || tick.ContractId != c.Contract.ContractId
             || route.Definition.Right is not (OptionRightSelection.Call or OptionRightSelection.Put)

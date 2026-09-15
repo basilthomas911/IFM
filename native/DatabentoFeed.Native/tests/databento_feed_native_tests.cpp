@@ -1,6 +1,6 @@
 #include "databento_feed_native.h"
 #include "latest_price_session_guard.hpp"
-#include "publisher_mapping_selector.hpp"
+#include "instrument_mapping_selector.hpp"
 
 #include <array>
 #if defined(NDEBUG)
@@ -57,36 +57,21 @@ dbf_feed_config_v1 make_config(std::uint32_t record_count,
     return config;
 }
 
-void require(dbf_status actual, dbf_status expected = DBF_OK) {
+void require(dbf_status actual,
+             dbf_status expected = DBF_OK,
+             std::string_view operation = {}) {
     if (actual != expected) {
-        std::cerr << "Expected status " << expected << " but received " << actual << '\n';
+        std::cerr << operation << (operation.empty() ? "" : ": ")
+                  << "expected status " << expected << " but received " << actual << '\n';
         std::abort();
     }
 }
 
-void test_publisher_mapping_selector_uses_scoped_instrument_identity() {
-    dbf_live::publisher_mapping_selector exact{42, 7};
-    exact.observe(42, 5);
-    exact.observe(42, 7);
-    assert(exact.status() == dbf_live::publisher_match_status::exact);
-    assert(!exact.selects(42, 5));
-    assert(exact.selects(42, 7));
-
-    dbf_live::publisher_mapping_selector unresolved{42, 7};
-    unresolved.observe(42, 5);
-    unresolved.observe(42, 0);
-    assert(unresolved.status() == dbf_live::publisher_match_status::unresolved);
-    assert(!unresolved.selects(42, 5));
-    assert(unresolved.selects(42, 0));
-
-    dbf_live::publisher_mapping_selector conflict{42, 7};
-    conflict.observe(42, 5);
-    assert(conflict.status() == dbf_live::publisher_match_status::conflict);
-    assert(!conflict.selects(42, 5));
-
-    dbf_live::publisher_mapping_selector unrelated{42, 7};
-    unrelated.observe(99, 7);
-    assert(unrelated.status() == dbf_live::publisher_match_status::unrelated);
+void test_instrument_mapping_selector_uses_epoch_instrument_identity() {
+    const dbf_live::instrument_mapping_selector selector{42};
+    assert(selector.selects(42));
+    assert(!selector.selects(0));
+    assert(!selector.selects(99));
 }
 
 dbf_feed_t* create_subscribed_feed(std::uint32_t record_count,
@@ -149,7 +134,7 @@ void test_native_producer_affinity_is_verified() {
         1, 1u << 20, processor_group, logical_processor, true);
     dbf_market_record64* buffer{};
     require(dbf_feed_allocate_read_buffer64(feed, 8, &buffer));
-    require(dbf_feed_start(feed, 2'000));
+    require(dbf_feed_start(feed, 2'000), DBF_OK, "affinity start");
 
     dbf_stats_v1 stats{};
     stats.struct_size = sizeof(stats);
@@ -164,12 +149,12 @@ void test_native_producer_affinity_is_verified() {
     wait.struct_size = sizeof(wait);
     wait.abi_version = DBF_ABI_VERSION;
     require(dbf_feed_wait(feed, 2'000, &wait));
+    require(dbf_feed_stop(feed, 2'000));
     require(dbf_feed_get_stats(feed, &stats));
     assert(stats.producer_processor_sample_count == 1);
     assert(stats.producer_processor_migration_count == 0);
     assert(stats.producer_unique_processor_count == 1);
     assert(stats.producer_off_assignment_count == 0);
-    require(dbf_feed_stop(feed, 2'000));
     require(dbf_feed_free_read_buffer64(feed, buffer));
     require(dbf_feed_destroy(feed));
 }
@@ -327,7 +312,7 @@ void test_option_chain_subscription_preserves_resolved_mappings() {
         contracts[index].struct_size = sizeof(dbf_option_contract_selection_v1);
         contracts[index].abi_version = DBF_ABI_VERSION;
         contracts[index].instrument_id = 101 + index;
-        contracts[index].publisher_id = 1;
+        contracts[index].publisher_id = 0;
         contracts[index].option_right = static_cast<std::uint8_t>(index + 1);
         contracts[index].raw_symbol_offset = index * 10;
         contracts[index].raw_symbol_length = 10;
@@ -354,10 +339,10 @@ void test_option_chain_subscription_preserves_resolved_mappings() {
         feed, mappings.data(), mapping_count, strings.data(), mapping_bytes));
     assert(mappings[0].instrument_id == 101);
     assert(mappings[1].instrument_id == 102);
-    assert(mappings[0].publisher_id == 1);
-    assert(mappings[1].publisher_id == 1);
-    require(dbf_feed_set_consumer_ready(feed, 2'000));
-    require(dbf_feed_stop(feed, 2'000));
+    assert(mappings[0].publisher_id == 0);
+    assert(mappings[1].publisher_id == 0);
+    require(dbf_feed_set_consumer_ready(feed, 2'000), DBF_OK, "option-chain consumer ready");
+    require(dbf_feed_stop(feed, 2'000), DBF_OK, "option-chain stop");
     require(dbf_feed_destroy(feed));
 }
 
@@ -708,8 +693,8 @@ int main() {
 #endif
     std::cout << "test_layouts" << std::endl;
     test_layouts();
-    std::cout << "test_publisher_mapping_selector_uses_scoped_instrument_identity" << std::endl;
-    test_publisher_mapping_selector_uses_scoped_instrument_identity();
+    std::cout << "test_instrument_mapping_selector_uses_epoch_instrument_identity" << std::endl;
+    test_instrument_mapping_selector_uses_epoch_instrument_identity();
     std::cout << "test_latest_price_session_guard_closes_every_path" << std::endl;
     test_latest_price_session_guard_closes_every_path();
 #if !defined(DBF_ENABLE_LIVE)

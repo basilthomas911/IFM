@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DatabentoNativeImplementation Condition="'$(DatabentoNativeImplementation)' == '' and '$(Configuration)' == 'Debug'">Rust</DatabentoNativeImplementation>
     <DatabentoNativeImplementation Condition="'$(DatabentoNativeImplementation)' == ''">Cpp</DatabentoNativeImplementation>
     <DatabentoNativeConfiguration Condition="'$(DatabentoNativeConfiguration)' == ''">Release</DatabentoNativeConfiguration>
   </PropertyGroup>

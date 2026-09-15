@@ -23,7 +23,6 @@ public static class ReviewedEsOptionReference
     {
         if (option.Dataset != "GLBX.MDP3" || future.Dataset != option.Dataset || future.ContractKind != ContractKind.Future
             || future.Ticker != "ES" || option.Underlying != future.RawSymbol || option.UnderlyingInstrumentId != future.Instrument.InstrumentId
-            || option.Instrument.PublisherId != future.Instrument.PublisherId || future.Instrument.PublisherId != 1
             || option.Currency != "USD" || future.Currency != "USD" || option.Exchange != "XCME" || future.Exchange != "XCME"
             || option.SecurityType != "OOF" || option.UnitOfMeasure != "IPNT"
             || !Regex.IsMatch(option.Ticker, "^E[1-5][BD]$", RegexOptions.CultureInvariant)

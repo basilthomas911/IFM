@@ -11,7 +11,7 @@ internal sealed class DatabentoTickCsvCapture : IDisposable
     private const decimal PriceScale = 1_000_000_000m;
     private const int WriterBufferSize = 1024 * 1024;
 
-    private readonly IReadOnlyDictionary<InstrumentKey, string> _symbols;
+    private readonly IReadOnlyDictionary<uint, string> _symbols;
     private readonly FileStream _stream;
     private readonly StreamWriter _writer;
     private readonly StringBuilder _line = new(512);
@@ -23,7 +23,9 @@ internal sealed class DatabentoTickCsvCapture : IDisposable
         IReadOnlyDictionary<InstrumentKey, string> symbols)
     {
         FilePath = filePath;
-        _symbols = symbols;
+        _symbols = symbols.ToDictionary(
+            pair => pair.Key.InstrumentId,
+            pair => pair.Value);
         _stream = new FileStream(
             filePath,
             new FileStreamOptions
@@ -89,13 +91,9 @@ internal sealed class DatabentoTickCsvCapture : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var header = record.Header;
-        var instrument = new InstrumentKey(
-            header.PublisherId,
-            header.InstrumentId);
-
         _line.Clear();
         _line.Append(ordinal).Append(',');
-        AppendCsv(_symbols.GetValueOrDefault(instrument));
+        AppendCsv(_symbols.GetValueOrDefault(header.InstrumentId));
         _line.Append(',').Append(header.PublisherId)
             .Append(',').Append(header.InstrumentId)
             .Append(',').Append(header.RecordKind)

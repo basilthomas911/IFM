@@ -60,8 +60,8 @@ public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory fee
                 ++invalid; return false;
             }
             var currentFutures = definitions.Where(x => x.ContractKind == ContractKind.Future && Current(x)).ToArray();
-            var byId = currentFutures.ToLookup(x => x.Instrument);
-            var byName = currentFutures.ToLookup(x => (x.Instrument.PublisherId, x.RawSymbol));
+            var byId = currentFutures.ToLookup(x => x.Instrument.InstrumentId);
+            var byName = currentFutures.ToLookup(x => x.RawSymbol, StringComparer.Ordinal);
             void Add(HashSet<TradeStrategyProduct> target, TradeStrategyFamilyType productFamily, ContractDetail underlying, ContractDetail priced)
             {
                 var product = new TradeStrategyProduct(productFamily, underlying.Ticker?.Trim() ?? "",
@@ -79,8 +79,8 @@ public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory fee
                 token.ThrowIfCancellationRequested();
                 if (!Current(option)) continue;
                 var matches = option.UnderlyingInstrumentId != 0
-                    ? byId[new(option.Instrument.PublisherId, option.UnderlyingInstrumentId)].ToArray()
-                    : string.IsNullOrWhiteSpace(option.Underlying) ? [] : byName[(option.Instrument.PublisherId, option.Underlying)].ToArray();
+                    ? byId[option.UnderlyingInstrumentId].ToArray()
+                    : string.IsNullOrWhiteSpace(option.Underlying) ? [] : byName[option.Underlying].ToArray();
                 // Options on spreads/non-futures, unresolved IDs and ambiguous links are not
                 // outright-futures products. Never guess an underlying from the option root.
                 if (matches.Length != 1) { ++unresolved; continue; }

@@ -116,9 +116,11 @@ sequence, publisher ID, instrument ID, schema, flags, and payload.
 
 ### 4.2 Ticker identity
 
-The canonical runtime identity is `InstrumentKey(PublisherId, InstrumentId)`.
-Raw symbols are descriptive metadata and must not replace the provider identity
-as the state dictionary key.
+The canonical ticker-routing identity inside one dataset and definition-date feed
+epoch is `InstrumentId`. `PublisherId` identifies the source of an observation and
+is retained as metadata; it does not qualify the instrument or create another
+price state. Raw symbols are also descriptive metadata and must not replace the
+dated provider instrument identity as the state dictionary key.
 
 ### 4.3 Comparable price
 
@@ -137,7 +139,8 @@ The semantic meaning of a comparable price, for example:
 - MBO order price.
 
 Prices with different meanings must not share one comparison state. The state
-key is therefore conceptually `(InstrumentKey, PriceKind)`, called a price lane.
+key is therefore conceptually `(InstrumentId, PriceKind)` within its dataset and
+definition-date epoch, called a price lane.
 The final supported `PriceKind` values are deferred to the message-schema phase.
 
 ### 4.5 Changed tick
@@ -761,7 +764,7 @@ work.
 ### 25.1 Already binding
 
 - [x] Input records are canonical `MarketRecord64` values.
-- [x] Runtime instrument identity is `InstrumentKey`.
+- [x] Runtime ticker identity is instrument ID within its dataset and definition-date epoch.
 - [x] Raw `long` fixed-point prices are used for equality.
 - [x] State is isolated by instrument and price kind.
 - [x] The first valid price emits `TickPriceChanged`.

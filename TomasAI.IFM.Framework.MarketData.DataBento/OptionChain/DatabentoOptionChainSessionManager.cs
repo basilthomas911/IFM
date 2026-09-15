@@ -91,7 +91,7 @@ public sealed class DatabentoOptionChainSessionManager :
                     $"The option-chain session capacity of {_capacity} has been reached.");
 
             var routes = request.Routes.ToDictionary(
-                route => route.Definition.Instrument,
+                route => route.Definition.Instrument.InstrumentId,
                 route => route);
             foreach (var route in request.Routes)
                 _lastPrices.RegisterContract(
@@ -203,11 +203,9 @@ public sealed class DatabentoOptionChainSessionManager :
 
     private async ValueTask ProcessRecordAsync(Session session, MarketRecord64 record)
     {
-        var instrument = new InstrumentKey(
-            record.Header.PublisherId, record.Header.InstrumentId);
-        if (!session.Routes.TryGetValue(instrument, out var route))
+        if (!session.Routes.TryGetValue(record.Header.InstrumentId, out var route))
             throw new InvalidOperationException(
-                $"The option-chain record instrument {instrument} is not mapped.");
+                $"The option-chain record instrument {record.Header.InstrumentId} is not mapped.");
 
         switch (record.Header.RecordKind)
         {
@@ -288,6 +286,9 @@ public sealed class DatabentoOptionChainSessionManager :
         if (request.Routes.Select(route => route.FuturesOptionContractId)
             .Distinct(StringComparer.Ordinal).Count() != request.Routes.Count)
             throw new ArgumentException("Option route domain IDs must be unique.", nameof(request));
+        if (request.Routes.Select(route => route.Definition.Instrument.InstrumentId)
+            .Distinct().Count() != request.Routes.Count)
+            throw new ArgumentException("Option route instrument IDs must be unique.", nameof(request));
         if (request.Routes.Any(route =>
                 route.Definition.MaturityDate != request.Subscription.MaturityDate
                 || !request.Subscription.ResolvedContracts.Contains(route.Definition)))
@@ -311,12 +312,12 @@ public sealed class DatabentoOptionChainSessionManager :
         OptionChainSessionKey key,
         DateOnly valueDate,
         IDatabentoOptionChainFeed feed,
-        Dictionary<InstrumentKey, DatabentoOptionChainRoute> routes)
+        Dictionary<uint, DatabentoOptionChainRoute> routes)
     {
         internal OptionChainSessionKey Key { get; } = key;
         internal DateOnly ValueDate { get; } = valueDate;
         internal IDatabentoOptionChainFeed Feed { get; } = feed;
-        internal Dictionary<InstrumentKey, DatabentoOptionChainRoute> Routes { get; } = routes;
+        internal Dictionary<uint, DatabentoOptionChainRoute> Routes { get; } = routes;
         internal Task? Worker;
         internal bool StopRequested;
 

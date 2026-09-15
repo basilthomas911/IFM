@@ -532,21 +532,12 @@ impl Feed {
                     b"A resolved symbol remapped to a different instrument",
                 ));
             }
-            if mapping.publisher_id != 0
-                && publisher_id != 0
-                && mapping.publisher_id != publisher_id
-            {
-                return Err((
-                    SYMBOL_RESOLUTION_FAILED,
-                    b"A resolved symbol remapped to a different publisher",
-                ));
-            }
             mapping.instrument_id = instrument_id;
             if publisher_id != 0 {
                 mapping.publisher_id = publisher_id;
             }
             mapping.raw_symbol = mapping.requested_symbol.clone();
-            mapping.resolved = mapping.publisher_id != 0;
+            mapping.resolved = true;
         }
         if !found && !allow_new {
             return Err((
@@ -558,28 +549,21 @@ impl Feed {
     }
 
     #[cfg(feature = "live")]
-    pub(crate) fn resolve_mapping_publisher(
-        &self,
-        instrument_id: u32,
-        publisher_id: u16,
-    ) -> Result<(), (Status, &'static [u8])> {
-        if instrument_id == 0 || publisher_id == 0 {
-            return Ok(());
+    pub(crate) fn observe_mapping_publisher(&self, instrument_id: u32, publisher_id: u16) -> bool {
+        if instrument_id == 0 {
+            return false;
         }
+        let mut matched = false;
         for mapping in lock(&self.mappings)
             .iter_mut()
             .filter(|mapping| mapping.instrument_id == instrument_id)
         {
-            if mapping.publisher_id != 0 && mapping.publisher_id != publisher_id {
-                return Err((
-                    SYMBOL_RESOLUTION_FAILED,
-                    b"A resolved instrument produced data from a different publisher",
-                ));
+            matched = true;
+            if mapping.publisher_id == 0 && publisher_id != 0 {
+                mapping.publisher_id = publisher_id;
             }
-            mapping.publisher_id = publisher_id;
-            mapping.resolved = true;
         }
-        Ok(())
+        matched
     }
 
     #[cfg(feature = "live")]
@@ -637,7 +621,7 @@ impl Feed {
         let ready = |_: &mut ()| {
             matches!(
                 self.state.load(Ordering::Acquire),
-                STATE_RUNNING | STATE_FAULTED
+                STATE_RUNNING | STATE_STOPPED | STATE_FAULTED
             ) || self.stop_requested.load(Ordering::Acquire)
         };
         if timeout_ms == WAIT_INFINITE {
@@ -1099,5 +1083,48 @@ fn make_synthetic_record(
                 },
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "live"))]
+mod tests {
+    use super::*;
+
+    fn live_feed_with_unresolved_mapping() -> Box<Feed> {
+        let config = FeedConfigV1 {
+            ring_memory_bytes: 128,
+            ..FeedConfigV1::default()
+        };
+        let feed = Feed::new(config, b"GLBX.MDP3".to_vec()).expect("feed");
+        *lock(&feed.mappings) = vec![Mapping {
+            subscription_index: 0,
+            instrument_id: 0,
+            publisher_id: 0,
+            data_kinds: MARKET_DATA_TRADE,
+            input_symbology: 1,
+            requested_symbol: b"ESZ6".to_vec(),
+            raw_symbol: b"ESZ6".to_vec(),
+            resolved: false,
+        }];
+        feed
+    }
+
+    #[test]
+    fn symbol_resolution_uses_instrument_id_and_accepts_publisher_changes() {
+        let feed = live_feed_with_unresolved_mapping();
+
+        feed.resolve_mapping(b"ESZ6", 42, 0, true)
+            .expect("instrument mapping");
+        assert!(feed.all_mappings_resolved());
+        assert!(feed.observe_mapping_publisher(42, 7));
+        assert!(feed.observe_mapping_publisher(42, 9));
+        assert!(!feed.observe_mapping_publisher(99, 7));
+
+        feed.resolve_mapping(b"ESZ6", 42, 11, false)
+            .expect("publisher metadata update");
+        let mappings = feed.mappings_snapshot();
+        assert_eq!(mappings[0].instrument_id, 42);
+        assert_eq!(mappings[0].publisher_id, 11);
+        assert!(mappings[0].resolved);
     }
 }

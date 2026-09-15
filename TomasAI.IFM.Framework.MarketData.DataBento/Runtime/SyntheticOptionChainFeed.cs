@@ -77,7 +77,7 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         {
             throw new ArgumentException("At least one resolved option contract is required.");
         }
-        var keys = new HashSet<InstrumentKey>();
+        var instrumentIds = new HashSet<uint>();
         var symbols = new HashSet<string>(StringComparer.Ordinal);
         var selections = new OptionContractSelection[subscription.ResolvedContracts.Count];
         for (var index = 0; index < subscription.ResolvedContracts.Count; index++)
@@ -120,7 +120,7 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
                     + $"{contract.StrikePrice}.",
                     nameof(subscription));
             }
-            if (contract.Instrument.PublisherId == 0 || contract.Instrument.InstrumentId == 0)
+            if (contract.Instrument.InstrumentId == 0)
             {
                 throw new ArgumentException(
                     $"Resolved contract '{contract.RawSymbol}' has an invalid provider instrument key.",
@@ -131,7 +131,7 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
                 throw new ArgumentException(
                     "Option symbols cannot exceed 65,535 UTF-8 bytes.");
             }
-            if (!keys.Add(contract.Instrument))
+            if (!instrumentIds.Add(contract.Instrument.InstrumentId))
             {
                 throw new ArgumentException($"Duplicate option instrument {contract.Instrument}.");
             }

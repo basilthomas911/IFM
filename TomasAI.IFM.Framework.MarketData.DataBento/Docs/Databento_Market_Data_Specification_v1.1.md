@@ -1102,15 +1102,16 @@ Databento raw-symbol or instrument-ID input symbology. Parent, continuous, and
 other selectors that can remap to a different actual instrument while the feed is
 running are rejected before connection; a higher-level actor resolves those
 selectors and recreates the feed at a roll boundary. During `Start`, native symbol
-mapping must resolve every requested ticker to exactly one `InstrumentKey` and raw
+mapping must resolve every requested ticker to exactly one nonzero instrument ID and raw
 symbol. Managed code creates every channel and its complete pool partition while
 the feed is still `Starting`; only then may the feed enter `Running`. Duplicate
-requests that resolve to the same key are rejected unless their data-kind sets are
+requests that resolve to the same instrument ID are rejected unless their data-kind sets are
 identical, in which case they are coalesced.
 
 ### 12.2 Routing
 
-The managed drain thread routes by:
+The managed drain thread routes by `InstrumentId` inside the feed's dataset and
+definition-date epoch. `InstrumentKey` remains the ABI-facing registration value:
 
 ```csharp
 public readonly record struct InstrumentKey(
@@ -1118,12 +1119,17 @@ public readonly record struct InstrumentKey(
     uint InstrumentId);
 ```
 
+`PublisherId` is retained as observation-source metadata. Records for the same
+instrument may carry another publisher without changing the channel, invalidating
+the mapping, or failing feed qualification. Ticker and option-chain feeds apply
+this same routing rule.
+
 Symbol mapping and definition control records update an in-memory mapping table. No database lookup occurs per record.
 
 `GetInstruments()` returns a cold-path immutable snapshot of the completed initial
 mapping registry, sorted by requested symbol then instrument key. It is empty
 before resolution and complete before `Start` returns successfully. Callers use
-the returned keys with `GetReader`; an unknown key is rejected synchronously.
+the returned keys with `GetReader`; an unknown instrument ID is rejected synchronously.
 Because V1 admits only stable actual-instrument selectors, any unexpected
 post-start mapping to a new key is a symbol-integrity fault rather than permission
 to allocate another channel or pool.

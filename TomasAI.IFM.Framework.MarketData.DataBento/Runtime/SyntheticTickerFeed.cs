@@ -35,7 +35,6 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private FeedPlacementLease? _placementLease;
     private IReadOnlyList<TickerInstrumentRegistration> _registrations =
         Array.Empty<TickerInstrumentRegistration>();
-    private Dictionary<InstrumentKey, ChannelState> _channels = new();
     private Dictionary<uint, ChannelState> _channelsByInstrumentId = new();
     private ChannelState[] _channelStates = [];
     private bool _started;
@@ -329,7 +328,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             ThrowIfDisposed();
             if (_multiplexedReaderLeased)
                 throw new InvalidOperationException("The multiplexed ticker reader owns the channel consumers.");
-            if (!_channels.TryGetValue(instrument, out var state))
+            if (!_channelsByInstrumentId.TryGetValue(instrument.InstrumentId, out var state))
             {
                 throw new KeyNotFoundException($"No ticker reader exists for {instrument}.");
             }
@@ -745,7 +744,6 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
 
         var registrations = new TickerInstrumentRegistration[mappingCount];
-        var channels = new Dictionary<InstrumentKey, ChannelState>(checked((int)mappingCount));
         var channelsByInstrumentId = new Dictionary<uint, ChannelState>(checked((int)mappingCount));
         var channelSlots = _options.ManagedChannelRecordCapacity
                            / _options.ManagedBatchRecordCapacity;
@@ -782,10 +780,6 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                                         & (MarketDataKinds.Quote
                                            | MarketDataKinds.MboOrderUpdate)) != 0
                 };
-            if (!channels.TryAdd(key, state))
-            {
-                throw new InvalidOperationException($"Duplicate native instrument mapping {key}.");
-            }
             if (channelsByInstrumentId.TryGetValue(key.InstrumentId, out var existingState))
             {
                 if (!ReferenceEquals(existingState, state))
@@ -807,7 +801,6 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 Decode(blob, mapping.RawSymbolOffset, mapping.RawSymbolLength),
                 key);
         }
-        _channels = channels;
         _channelsByInstrumentId = channelsByInstrumentId;
         _channelStates = states;
         Array.Sort(registrations, static (left, right) =>
@@ -1011,8 +1004,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private void RouteRecord(in MarketRecord64 record)
     {
         var key = new InstrumentKey(record.Header.PublisherId, record.Header.InstrumentId);
-        if (!_channels.TryGetValue(key, out var state)
-            && !_channelsByInstrumentId.TryGetValue(key.InstrumentId, out state))
+        if (!_channelsByInstrumentId.TryGetValue(key.InstrumentId, out var state))
         {
             throw new InvalidDataException($"Native record referenced unknown instrument {key}.");
         }

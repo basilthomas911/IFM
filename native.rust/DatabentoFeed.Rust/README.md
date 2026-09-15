@@ -4,6 +4,10 @@ Windows Rust implementation of the frozen `databento_feed_native` C ABI. The C++
 `native/DatabentoFeed.Native/include/databento_feed_native.h` is the canonical interface.
 The managed `NativeMethods` declarations are intentionally unchanged.
 
+The Rust and C++ implementations are one behavioral contract. Any ABI, validation,
+routing, lifecycle, or query change must be applied to both implementations and
+verified by their native tests plus the cross-backend comparison suite.
+
 The crate produces `databento_feed_native.dll` for `x86_64-pc-windows-msvc`. It supports
 the deterministic synthetic feed in the default build and the Databento live feed,
 historical contract definitions, and latest-price session through the pinned official

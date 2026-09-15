@@ -397,8 +397,12 @@ fn process_record(
     }
     if initial_mapping {
         let header = source.header();
-        feed.resolve_mapping_publisher(header.instrument_id, header.publisher_id)
-            .map_err(|(status, message)| failure(status, String::from_utf8_lossy(message)))?;
+        if !feed.observe_mapping_publisher(header.instrument_id, header.publisher_id) {
+            // Startup can receive records unrelated to this requested symbol set.
+            // Ignore unknown instruments. Publisher identifies the observation
+            // source and does not qualify a known instrument.
+            return Ok(());
+        }
     }
     let trade_replay =
         *trade_replay_pending && feed.is_session_volume_instrument(source.header().instrument_id);
@@ -447,9 +451,7 @@ fn publish_statistics_replay_complete(
     mut startup_records: Option<&mut Vec<MarketRecord64>>,
 ) -> Result<(), LiveFailure> {
     for mapping in feed.mappings_snapshot().into_iter().filter(|mapping| {
-        mapping.data_kinds & MARKET_DATA_STATISTICS != 0
-            && mapping.instrument_id != 0
-            && mapping.publisher_id != 0
+        mapping.data_kinds & MARKET_DATA_STATISTICS != 0 && mapping.instrument_id != 0
     }) {
         let record = MarketRecord64 {
             header: RecordHeader32 {
@@ -470,9 +472,7 @@ fn publish_trade_replay_complete(
     mut startup_records: Option<&mut Vec<MarketRecord64>>,
 ) -> Result<(), LiveFailure> {
     for mapping in feed.mappings_snapshot().into_iter().filter(|mapping| {
-        mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0
-            && mapping.instrument_id != 0
-            && mapping.publisher_id != 0
+        mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0 && mapping.instrument_id != 0
     }) {
         let record = MarketRecord64 {
             header: RecordHeader32 {
@@ -739,7 +739,7 @@ async fn query_contracts_async(
         .await
         .map_err(LiveFailure::from)?;
     let mut entries = Vec::<ContractData>::new();
-    let mut positions = std::collections::HashMap::<(u16, Vec<u8>), usize>::new();
+    let mut positions = std::collections::HashMap::<u32, usize>::new();
     while let Some(definition) = decoder
         .decode_record::<InstrumentDefMsg>()
         .await
@@ -748,11 +748,11 @@ async fn query_contracts_async(
         let Some(entry) = contract_data(definition)? else {
             continue;
         };
-        let symbol = (entry.detail.publisher_id, entry.strings[0].clone());
-        if let Some(&position) = positions.get(&symbol) {
+        let instrument_id = entry.detail.instrument_id;
+        if let Some(&position) = positions.get(&instrument_id) {
             entries[position] = entry;
         } else {
-            positions.insert(symbol, entries.len());
+            positions.insert(instrument_id, entries.len());
             entries.push(entry);
         }
     }

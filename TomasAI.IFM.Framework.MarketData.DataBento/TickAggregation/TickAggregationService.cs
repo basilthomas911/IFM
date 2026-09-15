@@ -36,7 +36,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private readonly ILogger<TickAggregationService> _logger;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly CancellationTokenSource _generationStopping = new();
-    private readonly Dictionary<InstrumentKey, TickerState> _states = [];
+    private readonly Dictionary<uint, TickerState> _states = [];
     private FrozenDictionary<string, TickerState> _statesByContractId =
         FrozenDictionary<string, TickerState>.Empty;
     private IMultiplexedTickerBatchReader? _reader;
@@ -449,7 +449,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         _lastPrices?.RegisterContract(
                             mapping.ContractId,
                             mapping.AssetTypeId);
-                        _states.Add(registration.Instrument, new TickerState(mapping));
+                        _states.Add(registration.Instrument.InstrumentId, new TickerState(mapping));
                     }
                     Volatile.Write(
                         ref _statesByContractId,
@@ -566,7 +566,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
                 using (leased)
                 {
-                    var state = _states[leased.Instrument];
+                    var state = _states[leased.Instrument.InstrumentId];
                     for (var index = 0; index < leased.Batch.Count; index++)
                     {
                         var record = leased.Batch.Records[index];

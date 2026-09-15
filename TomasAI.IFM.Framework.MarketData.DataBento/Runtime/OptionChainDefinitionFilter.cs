@@ -10,7 +10,7 @@ internal static class OptionChainDefinitionFilter
         ContractDetail? selectedUnderlying,
         IEnumerable<ContractDetail> details)
     {
-        var instruments = new HashSet<InstrumentKey>();
+        var instrumentIds = new HashSet<uint>();
         var rawSymbols = new HashSet<string>(StringComparer.Ordinal);
         var definitions = new List<OptionContractDefinition>();
         foreach (var detail in details
@@ -25,12 +25,12 @@ internal static class OptionChainDefinitionFilter
             .ThenBy(detail => detail.RawSymbol, StringComparer.Ordinal))
         {
             if (detail.StrikePrice is not { } strikePrice
-                || instruments.Contains(detail.Instrument)
+                || instrumentIds.Contains(detail.Instrument.InstrumentId)
                 || rawSymbols.Contains(detail.RawSymbol))
             {
                 continue;
             }
-            instruments.Add(detail.Instrument);
+            instrumentIds.Add(detail.Instrument.InstrumentId);
             rawSymbols.Add(detail.RawSymbol);
             definitions.Add(new OptionContractDefinition
             {
