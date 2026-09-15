@@ -710,9 +710,17 @@ internal readonly record struct InsertTickTradeData(object?[] Values) : IBindVal
     public object Bind() => Values;
 }
 
-internal readonly record struct InsertTickQuoteData(object?[] Values) : IBindValue
+internal sealed class InsertTickQuoteData(object?[] values) : IBindValue, TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues
 {
-    public object Bind() => Values;
+    private object?[]? _values = values ?? throw new ArgumentNullException(nameof(values));
+
+    /// <summary>Returns this one-time Scylla binding owner to the repository context.</summary>
+    public object Bind() => this;
+
+    /// <summary>Transfers the fresh quote insert values to one prepared-statement bind.</summary>
+    public object?[] TakeValues()
+        => Interlocked.Exchange(ref _values, null)
+            ?? throw new InvalidOperationException("Tick quote parameters have already been bound.");
 }
 
 internal readonly record struct InsertFuturesTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, decimal price, int size) : IBindValue

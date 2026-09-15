@@ -102,6 +102,7 @@ using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Storage;
@@ -316,6 +317,14 @@ public static class Startup
                     select reg.ServiceType)
                     .Distinct()
                     .ToArray();
+                if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") == "true")
+                {
+                    actorTypes = actorTypes
+                        .Where(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor))
+                        .ToArray();
+                    if (actorTypes.Length != 1)
+                        throw new InvalidOperationException("Isolated quote soak requires exactly one TickAggregation realtime actor.");
+                }
                 return new ActorRegistry(actorTypes);
             });
             services.AddSingleton<IActorStateFactoryResolver, ActorStateFactoryResolver>(_ => new ActorStateFactoryResolver(e => GetContainerInstance(e)!));
@@ -624,12 +633,14 @@ public static class Startup
             services.AddSingleton<LatestMarketOutlookSnapshotPublisher>();
             services.AddSingleton<IMarketOutlookSnapshotPublisher>(provider =>
                 provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
-            services.AddHostedService(provider => provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
+            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
+                services.AddHostedService(provider => provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
             services.AddSingleton<MarketOutlookUpdateProcessor>();
             services.AddSingleton<IMarketOutlookOperations>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
-            services.AddHostedService(provider =>
-                provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
+                services.AddHostedService(provider =>
+                    provider.GetRequiredService<MarketOutlookUpdateProcessor>());
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
@@ -639,12 +650,14 @@ public static class Startup
             // trade position hosted service...
             services.AddSingleton<ITradePositionService, TradePositionService>();
             services.AddSingleton<ITradePositionEventConsumer, TradePositionEventConsumer>();
-            services.AddHostedService<TradePositionHostedService>();
+            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
+                services.AddHostedService<TradePositionHostedService>();
 
             // trade plan hosted service...
             services.AddSingleton<ITradePlanService, TradePlanService>();
             services.AddSingleton<ITradePlanEventConsumer, TradePlanEventConsumer>();
-            services.AddHostedService<TradePlanHostedService>();
+            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
+                services.AddHostedService<TradePlanHostedService>();
 
             // trade placement hosted service...
             //services.AddSingleton<ITradePlacementEventService, TradePlacementEventService>();

@@ -160,6 +160,7 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
         {
             if (marketDataApi.ActiveValueDate is { } activeValueDate)
                 await marketDataApi.StopAsync(activeValueDate);
+            await marketDataApi.StartAsync(valueDate);
             await dbFixture.MarketDataDb.DeleteVixFuturesEodDataAsync(
                 ContractId,
                 valueDate);

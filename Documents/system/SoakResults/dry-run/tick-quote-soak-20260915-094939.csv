@@ -1,0 +1,3 @@
+utc,phase,elapsed_s,sent,published,depth,inflight,failed,rejected,expired,outstanding_leases,allocated_Bps,working_set_B,private_B,heap_B,loh_B,gen0_delta,gen1_delta,gen2_delta
+2026-09-15T09:49:49.4713886Z,warmup,10.1,10,10,0,0,0,0,0,0,498219,227401728,104943616,27522928,1301048,0,0,0
+2026-09-15T09:49:59.5083042Z,sustained,20.1,96,96,0,0,0,0,0,0,514393,237203456,113315840,27522928,1301048,0,0,0

@@ -114,11 +114,29 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (parameterValue is null)
             return statement.Bind();
+        if (parameterValue is IScyllaOwnedBindValues owned)
+        {
+            var ownedValues = owned.TakeValues();
+            for (var index = 0; index < ownedValues.Length; index++)
+            {
+                if (ownedValues[index] is IScyllaPreparedBindValue prepared)
+                    ownedValues[index] = prepared.Resolve(session, statement);
+                else if (ownedValues[index] is IScyllaUdtValue udt)
+                    ownedValues[index] = udt.Resolve(session);
+            }
+            return statement.Bind(ownedValues);
+        }
         if (parameterValue is object[] values)
         {
             object?[]? resolved = null;
             for (var index = 0; index < values.Length; index++)
             {
+                if (values[index] is IScyllaPreparedBindValue prepared)
+                {
+                    resolved ??= (object?[])values.Clone();
+                    resolved[index] = prepared.Resolve(session, statement);
+                    continue;
+                }
                 if (values[index] is not IScyllaUdtValue udt) continue;
                 resolved ??= (object?[])values.Clone();
                 resolved[index] = udt.Resolve(session);
