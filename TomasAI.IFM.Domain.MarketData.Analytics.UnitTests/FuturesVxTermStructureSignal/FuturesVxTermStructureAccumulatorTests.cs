@@ -6,6 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
@@ -67,18 +70,49 @@ public sealed class FuturesVxTermStructureAccumulatorTests
     }
 
     [Fact]
-    public void DuplicateOrOlderSequenceInSameEpochIsRejected()
+    public void DuplicateOrOlderSequenceInSameEpochIsIgnoredWithoutChangingCheckpoint()
     {
         var first = FuturesVxTermStructureAccumulator.Apply(
             EntityId, null, Front(20m, 10), Configuration);
 
-        Assert.Throws<InvalidOperationException>(() =>
-            FuturesVxTermStructureAccumulator.Apply(
-                EntityId, first.Checkpoint, Front(20.1m, 10), Configuration));
-        Assert.Throws<InvalidOperationException>(() =>
-            FuturesVxTermStructureAccumulator.Apply(
-                EntityId, first.Checkpoint, Front(20.1m, 9), Configuration));
+        foreach (var sequence in new long[] { 10, 9 })
+        {
+            var result = FuturesVxTermStructureAccumulator.Apply(
+                EntityId, first.Checkpoint, Front(20.1m, sequence), Configuration);
+            Assert.False(result.Changed);
+            Assert.Same(first.Checkpoint, result.Checkpoint);
+            Assert.Null(result.Signal);
+        }
     }
+
+    [Fact]
+    public void DuplicateCommandAcknowledgesWithoutAppendingAnEvent()
+    {
+        var state = new FuturesVxTermStructureSignalCommandState();
+        var first = UpdateCommand(Front(20m, 10));
+        Assert.True(first.Execute(state).Success);
+        state.AcceptChanges();
+        var checkpoint = state.Checkpoint;
+
+        var duplicate = UpdateCommand(Front(21m, 10));
+        Assert.True(duplicate.Execute(state).Success);
+
+        Assert.Same(checkpoint, state.Checkpoint);
+        Assert.Empty(state.Events);
+        Assert.False(state.Updated);
+    }
+
+    static UpdateFuturesVxTermStructureSignalCommand UpdateCommand(
+        FuturesVxTermStructureLegObservation observation) => new()
+    {
+        CommandId = Guid.NewGuid(),
+        Subject = new ActorSubject(ActorType.Command,
+            UpdateFuturesVxTermStructureSignalCommand.Actor,
+            UpdateFuturesVxTermStructureSignalCommand.Verb, EntityId.Format()),
+        EntityId = EntityId,
+        Observation = observation,
+        Configuration = Configuration
+    };
 
     [Fact]
     public void NewStreamEpochMayRestartSourceSequence()

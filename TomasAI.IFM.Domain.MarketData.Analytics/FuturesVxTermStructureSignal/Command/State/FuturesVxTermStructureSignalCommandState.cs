@@ -22,6 +22,7 @@ public sealed class FuturesVxTermStructureSignalCommandState
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not FuturesVxTermStructureSignalUpdatedEvent updated) return false;
+        if (updated.Checkpoint is null) return false;
         Checkpoint = updated.Checkpoint;
         if (updated.Signal is not null) Signal = updated.Signal;
         return true;

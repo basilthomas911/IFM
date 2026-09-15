@@ -16,6 +16,42 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 public sealed class BaseInMemoryEventSourceCommandActorTests
 {
     [Fact]
+    public void Rejected_event_is_not_pending_and_does_not_change_state()
+    {
+        var state = new TestState();
+
+        state.Update(new TestEvent { Accept = false }).Should().BeFalse();
+
+        state.Events.Should().BeEmpty();
+        state.Updated.Should().BeFalse();
+        state.AppliedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Rejected_event_after_a_success_does_not_enter_commit_batch()
+    {
+        var state = new TestState();
+        state.Update(new TestEvent()).Should().BeTrue();
+
+        state.Update(new TestEvent { Accept = false }).Should().BeFalse();
+
+        state.Events.Should().ContainSingle();
+        state.AppliedCount.Should().Be(1);
+        state.Updated.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Replayed_event_changes_state_without_creating_a_pending_event()
+    {
+        var state = new TestState();
+
+        state.Apply(new TestEvent(), addEvent: false).Should().BeTrue();
+
+        state.Events.Should().BeEmpty();
+        state.AppliedCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Resident_command_loads_once_and_accepts_events_after_each_commit()
     {
         var actor = CreateActor();
@@ -205,7 +241,14 @@ public sealed class BaseInMemoryEventSourceCommandActorTests
     public sealed class TestState : BaseEventSourceActorState<TestState>, IEventSourceActorState<TestState>
     {
         public override ActorThreadId Id { get; set; }
-        protected override bool Apply(IEvent domainEvent) => domainEvent is TestEvent;
+        public int AppliedCount { get; private set; }
+        protected override bool Apply(IEvent domainEvent)
+        {
+            if (domainEvent is not TestEvent { Accept: true })
+                return false;
+            AppliedCount++;
+            return true;
+        }
     }
 
     sealed record TestCommand : ICommand
@@ -250,6 +293,7 @@ public sealed class BaseInMemoryEventSourceCommandActorTests
 
     sealed class TestEvent : IEvent
     {
+        public bool Accept { get; init; } = true;
         public ActorSubject Subject { get; init; } = new(ActorType.Event, "Test", "Changed", "one");
         public Guid Id { get; init; } = Guid.NewGuid();
         public Guid CommandId { get; init; }

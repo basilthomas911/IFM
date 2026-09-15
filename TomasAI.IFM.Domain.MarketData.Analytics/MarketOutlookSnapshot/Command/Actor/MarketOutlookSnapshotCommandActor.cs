@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
@@ -64,12 +65,6 @@ public sealed class MarketOutlookSnapshotCommandActor(
         return ValueTask.CompletedTask;
     }
 
-    protected override IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command)
-        => _validationMap.TryGetValue(command.GetType(), out var validate)
-            ? validate(command)
-            : throw new InvalidOperationException(
-                $"Unable to validate {ActorName} commands from message: {command.Subject}");
-
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
@@ -114,7 +109,13 @@ public sealed class MarketOutlookSnapshotCommandActor(
         ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(
+        Exception exception)
+    {
+        DomainContext.Logger.LogError(exception,
+            "Market Outlook snapshot command failed for {ActorThreadId} and {CommandId}",
+            threadId, command?.CommandId);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? InsertMarketOutlookSnapshotCommand.ErrorId,
                 exception.Message));
+    }
 }

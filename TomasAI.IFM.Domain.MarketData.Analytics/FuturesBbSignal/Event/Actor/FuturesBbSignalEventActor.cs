@@ -14,6 +14,8 @@ public sealed class FuturesBbSignalEventActor(IEventActorContext<FuturesBbSignal
 {
     /// <summary>Gets the event mailbox name.</summary>
     public const string ActorName = FuturesBbSignalGeneratedEvent.Actor;
+    readonly Microsoft.Extensions.Logging.ILogger<FuturesBbSignalEventActor> _logger =
+        ((IFuturesBbSignalEventContext)actorContext).Logger;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -22,19 +24,22 @@ public sealed class FuturesBbSignalEventActor(IEventActorContext<FuturesBbSignal
                 message.AsEvent<FuturesBbSignalGeneratedCompleteEvent>()!
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesBbSignalEventActor>, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesBbSignalEventActor>, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesBbSignalEventActor>,
+        Microsoft.Extensions.Logging.ILogger<FuturesBbSignalEventActor>, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesBbSignalEventActor>,
+            Microsoft.Extensions.Logging.ILogger<FuturesBbSignalEventActor>, ValueTask<bool>>>
         {
-            [typeof(FuturesBbSignalGeneratedCompleteEvent)] = static (@event, context) =>
-                context.PublishMarketOutlookComponentAsync((FuturesBbSignalGeneratedCompleteEvent)@event)
+            [typeof(FuturesBbSignalGeneratedCompleteEvent)] = static (@event, context, logger) =>
+                ((FuturesBbSignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger)
         };
 
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesBbSignalEventActor> context, IActorMessage message)
         => ParseMappedEvent(context, message, _parseMap);
     /// <inheritdoc />
-    protected override ValueTask ReceiveAsync(IEventActorContext<FuturesBbSignalEventActor> context, IEvent @event)
-        => ResolveMappedEventHandler(@event, _receiveMap)(@event, context);
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesBbSignalEventActor> context, IEvent @event)
+        => _ = await ResolveMappedEventHandler(@event, _receiveMap)(@event, context, _logger)
+            .ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesBbSignalEventActor> context,
         ActorThreadId threadId, IEvent @event, Exception exception) =>

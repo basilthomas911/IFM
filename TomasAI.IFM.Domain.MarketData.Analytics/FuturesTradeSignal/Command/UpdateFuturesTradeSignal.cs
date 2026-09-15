@@ -17,14 +17,20 @@ public static class UpdateFuturesTradeSignal
     /// <param name="state"></param>
     /// <returns></returns>
     public static ServiceResult<GuidResult> Execute(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCommandState state)
-       => e.Compute(out var model) switch
-       {
-           _ when state.HasFuturesTradeSignalChanged(model.FuturesTradeSignal)
-               => e.UpdateResult(() => state.Update(e.CreateFuturesTradeSignalUpdatedEvent(model), e)),
-           _ when state.HasFuturesItiSignalHoldTradeChanged(model.FuturesTradeSignal)
-               => e.UpdateResult(() => state.Update(e.CreateFuturesItiSignalHoldTradeChangedEvent(model), e)),
-           _ => new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
-       };
+    {
+        if (!e.Compute(out var model))
+            return e.UpdateFailed($"{e.CommandName}: unable to compute trade signal");
+        if (!state.HasFuturesTradeSignalChanged(model.FuturesTradeSignal))
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+
+        // Capture the transition before applying the new trade signal to the state.
+        var holdChanged = state.HasFuturesItiSignalHoldTradeChanged(model.FuturesTradeSignal);
+        if (!state.Update(e.CreateFuturesTradeSignalUpdatedEvent(model), e))
+            return e.UpdateFailed($"{e.CommandName}: unable to apply trade signal update");
+        if (holdChanged && !state.Update(e.CreateFuturesItiSignalHoldTradeChangedEvent(model), e))
+            throw new InvalidOperationException("A validated ITI hold transition was rejected after the trade signal update.");
+        return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+    }
 
     /// <summary>
     /// Attempts to create a new futures trade signal compute model based on the specified command.

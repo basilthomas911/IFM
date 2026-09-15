@@ -26,11 +26,8 @@ public class FuturesTradeSignalEventActor(
     readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
     {
         [typeof(FuturesTradeSignalUpdatedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
-        {
-            var e = (evt as FuturesTradeSignalUpdatedCompleteEvent)!;
-            await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
-        },
+            await ((FuturesTradeSignalUpdatedCompleteEvent)evt)
+                .ExecuteAsync(context, statusConsoleWriter, logger).ConfigureAwait(false),
         [typeof(FuturesItiSignalHoldTradeChangedEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalHoldTradeChangedEvent)!;

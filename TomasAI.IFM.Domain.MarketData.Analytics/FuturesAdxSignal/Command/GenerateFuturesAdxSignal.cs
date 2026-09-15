@@ -20,6 +20,9 @@ public static class GenerateFuturesAdxSignal
     /// <returns></returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAdxSignalCommand e, FuturesAdxSignalCommandState state)
     {
+        if (e.Observation is { } observation
+            && state.AdxSignals.LastOrDefault()?.Metadata?.ObservationId == observation.ObservationId)
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         var updated = e.Compute(state.AdxSignal, state.AdxSignals, out var model) switch
         {
             _ when model.IsSignalInitializing

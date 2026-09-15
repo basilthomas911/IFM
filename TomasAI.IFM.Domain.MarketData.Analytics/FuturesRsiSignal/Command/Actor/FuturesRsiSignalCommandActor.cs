@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
@@ -139,13 +140,11 @@ public class FuturesRsiSignalCommandActor(
             var e = (StartFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiSignalEntityId(e.EntityId);
         },
         [typeof(StopFuturesRsiSignalCommand)] = cmd => {
             var e = (StopFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiSignalEntityId(e.EntityId);
         },
@@ -153,13 +152,13 @@ public class FuturesRsiSignalCommandActor(
             var e = (GenerateFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesRsiSignalEntityId(e.EntityId);
+                .ValidateFuturesRsiSignalEntityId(e.EntityId)
+                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
         },
         [typeof(GenerateFuturesRsiDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesRsiDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiDailySignalEntityId(e.EntityId);
         }

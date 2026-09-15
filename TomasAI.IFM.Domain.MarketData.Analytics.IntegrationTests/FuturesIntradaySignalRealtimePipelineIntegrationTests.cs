@@ -617,10 +617,25 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
                     256))
             .OrderByDescending(state => state.EventId)
             .FirstOrDefault();
+        var rsiDiagnostics = new List<string>();
+        foreach (var activation in profile)
+        {
+            var last = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                contractId, ValueDate, activation.TimeFrame, activation.Rsi.PeriodLength);
+            rsiDiagnostics.Add($"{activation.TimeFrame}:stored={last?.SourceSequence.ToString() ?? "none"}");
+        }
+        var rsiFailed = (await dbFixture.ActorEventSourceDb.GetEventProjectorOperationalStatePageAsync(
+                "FuturesRsiSignalEventProjector", EventProjectorOperationalStatus.Failed, 0, 256))
+            .OrderByDescending(state => state.EventId).FirstOrDefault();
+        var rsiPending = (await dbFixture.ActorEventSourceDb.GetEventProjectorOperationalStatePageAsync(
+                "FuturesRsiSignalEventProjector", EventProjectorOperationalStatus.Pending, 0, 256))
+            .OrderByDescending(state => state.EventId).FirstOrDefault();
         throw new TimeoutException(
             $"Realtime projections were not stored before the deadline for {contractId}: {string.Join(", ", missing)}; "
             + $"ADX diagnostics: {string.Join(", ", adxDiagnostics)}; "
             + $"RSI events: {string.Join(", ", rsiEventTypes.GroupBy(x => x).Select(x => $"{x.Key}={x.Count()}"))}; "
+            + $"RSI stored: {string.Join(", ", rsiDiagnostics)}; "
+            + $"RSI failed: {rsiFailed?.ErrorMessage ?? "none"}; RSI pending: {rsiPending?.EventId.ToString() ?? "none"}; "
             + $"TDI routes: {string.Join(", ", tdiRoutes)}; "
             + $"latest projection failure: {failedProjection?.ErrorMessage ?? "none"}; "
             + $"latest pending projection: {pendingProjection?.EventId.ToString() ?? "none"}; "

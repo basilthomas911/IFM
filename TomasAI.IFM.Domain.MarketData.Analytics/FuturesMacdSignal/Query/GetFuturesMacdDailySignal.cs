@@ -1,3 +1,10 @@
+using Microsoft.Extensions.Logging;
+using NATS.Client.Core;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Query.Actor;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -31,4 +38,18 @@ public static class GetFuturesMacdDailySignal
                 q.FastEmaPeriod,
                 q.SlowEmaPeriod).ConfigureAwait(false);
     
+
+    /// <summary>Reads and replies to the GetFuturesMacdDailySignalQuery message.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetFuturesMacdDailySignalQuery q,
+        IQueryActorContext<FuturesMacdSignalQueryActor> ctx,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken)
+    {
+        var query = (q as GetFuturesMacdDailySignalQuery)!;
+        var result = await query.GetLastFuturesMacdDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var serviceResult = new ServiceResult<FuturesMacdSignalReadModel>(result);
+        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesMacdDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+    }
 }

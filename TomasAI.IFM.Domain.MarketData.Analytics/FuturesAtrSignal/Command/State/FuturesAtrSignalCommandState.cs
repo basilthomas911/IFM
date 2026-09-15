@@ -40,12 +40,13 @@ public class FuturesAtrSignalCommandState
 
         bool On(FuturesAtrAccumulatorCheckpoint? calculationState)
         {
-            if (calculationState is not null)
-                _calculationState = calculationState with
-                {
-                    SeedTrueRanges = [.. calculationState.SeedTrueRanges],
-                    CompletedAtrValues = [.. calculationState.CompletedAtrValues]
-                };
+            if (calculationState is null)
+                return false;
+            _calculationState = calculationState with
+            {
+                SeedTrueRanges = [.. calculationState.SeedTrueRanges],
+                CompletedAtrValues = [.. calculationState.CompletedAtrValues]
+            };
             return true;
         }
     }

@@ -40,14 +40,15 @@ public class FuturesRsiSignalCommandState
             FuturesRsiSignalGeneratedEvent e => On(e),
             FuturesRsiDailySignalGeneratedEvent e => OnDaily(e),
             FuturesRsiSignalsGeneratedEvent => true,
+            FuturesRsiDailySignalsGeneratedEvent => true,
             _ => false
         };
 
         bool On(FuturesRsiSignalGeneratedEvent e)
         {
-            AccumulatorCheckpoint = e.AccumulatorCheckpoint ?? AccumulatorCheckpoint;
             if (e.FuturesRsiSignal is not null)
             {
+                AccumulatorCheckpoint = e.AccumulatorCheckpoint ?? AccumulatorCheckpoint;
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);
                 if (_futuresRsiSignals.Count > MaxSignalHistory)
                     _futuresRsiSignals.RemoveAt(0);

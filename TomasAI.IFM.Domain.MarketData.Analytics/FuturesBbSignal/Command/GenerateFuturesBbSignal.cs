@@ -15,6 +15,9 @@ public static class GenerateFuturesBbSignal
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(state);
+        if (command.Observation is null || command.EmaSignal is null
+            || command.EmaSignal.Metadata?.ObservationId != command.Observation.ObservationId)
+            return command.UpdateFailed("Bollinger EMA and bar observation identities must match.");
         var result = FuturesBbAccumulator.Apply(state.Checkpoint, command.Observation, command.EmaSignal);
         if (!result.IsApplied)
             return new ServiceOk<GuidResult>(new(command.CommandId));

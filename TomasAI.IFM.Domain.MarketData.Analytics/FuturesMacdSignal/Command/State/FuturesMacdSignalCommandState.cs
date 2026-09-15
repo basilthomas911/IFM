@@ -40,6 +40,8 @@ public class FuturesMacdSignalCommandState
 
         bool On(FuturesMacdSignalReadModel signal)
         {
+            if (signal is null)
+                return false;
             _macdSignal = signal;
             _macdSignals.Add(signal);
             return true;

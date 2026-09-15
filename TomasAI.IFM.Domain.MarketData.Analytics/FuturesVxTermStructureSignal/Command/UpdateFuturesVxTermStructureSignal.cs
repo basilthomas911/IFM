@@ -19,6 +19,8 @@ public static class UpdateFuturesVxTermStructureSignal
         ArgumentNullException.ThrowIfNull(state);
         var result = FuturesVxTermStructureAccumulator.Apply(
             command.EntityId, state.Checkpoint, command.Observation, command.Configuration);
+        if (!result.Changed)
+            return new ServiceOk<GuidResult>(new(command.CommandId));
         return state.Update(new FuturesVxTermStructureSignalUpdatedEvent
         {
             Subject = new(ActorType.Event, FuturesVxTermStructureSignalUpdatedEvent.Actor,

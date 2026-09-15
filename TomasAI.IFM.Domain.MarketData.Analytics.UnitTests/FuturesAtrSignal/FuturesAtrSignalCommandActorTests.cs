@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Actor;
 using TomasAI.IFM.Application.Storage;
@@ -65,7 +66,13 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     private static GenerateFuturesAtrDailySignalCommand CreateAtrDailyCommand(Guid? commandId = null)
     {
         var atrSignalId = SampleData.AtrSignalId with { TimePeriod = TimeFrameType.Daily };
-        var observation = SampleData.AtrObservation with { TimeFrame = TimeFrameType.Daily };
+        var source = SampleData.AtrObservation;
+        var observation = source with
+        {
+            TimeFrame = TimeFrameType.Daily,
+            ObservationId = FuturesTradeSessionBarId.Create(source.MarketSeriesIdentity,
+                TimeFrameType.Daily, source.IntervalEndUtc, source.LastSourceSequence)
+        };
         return new GenerateFuturesAtrDailySignalCommand(
             atrSignalId,
             observation.Close,

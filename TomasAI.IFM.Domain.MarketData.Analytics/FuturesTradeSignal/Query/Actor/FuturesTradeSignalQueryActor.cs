@@ -85,30 +85,12 @@ public class FuturesTradeSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
-        {
-            var query = (q as GetFuturesTradeSignalQuery)!;
-            var result = await query.GetFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
-                new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
-        },
-        [typeof(GetLastFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
-        {
-            var query = (q as GetLastFuturesTradeSignalQuery)!;
-            var result = await query.GetLastFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTradeSignalQuery.Verb,
-                new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
-        },
-        [typeof(GetFuturesTradeSignalIdsQuery)] = async (ctx, db, q, cancellationToken) =>
-        {
-            var query = (q as GetFuturesTradeSignalIdsQuery)!;
-            var result = await query.GetFuturesTradeSignalIdsAsync(db, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalIdsQuery.Verb,
-                new ServiceResult<FuturesTradeSignalId[]>(result)).ConfigureAwait(false);
-        }
+        [typeof(GetFuturesTradeSignalQuery)] = static (ctx, db, q, cancellationToken) =>
+            ((GetFuturesTradeSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken),
+        [typeof(GetLastFuturesTradeSignalQuery)] = static (ctx, db, q, cancellationToken) =>
+            ((GetLastFuturesTradeSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken),
+        [typeof(GetFuturesTradeSignalIdsQuery)] = static (ctx, db, q, cancellationToken) =>
+            ((GetFuturesTradeSignalIdsQuery)q).ExecuteAsync(ctx, db, cancellationToken)
     };
 
     /// <summary>

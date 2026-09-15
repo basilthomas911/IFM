@@ -129,9 +129,9 @@ public sealed class FuturesTradeSessionBarReadModelValidationRules
             RuleFor(x => x.LastMarketEventUtc).Must(IsUtc);
             RuleFor(x => x).Must(x => x.LastMarketEventUtc >= x.FirstMarketEventUtc)
                 .WithMessage("LastMarketEventUtc must not precede FirstMarketEventUtc.");
-            RuleFor(x => x.CalculatedAtUtc).Must(IsUtc);
-            RuleFor(x => x).Must(x => x.CalculatedAtUtc >= x.LastMarketEventUtc)
-                .WithMessage("CalculatedAtUtc must not precede LastMarketEventUtc.");
+            // Exchange event time and the host finalization clock are independently sourced.
+            // Preserve both real timestamps; their order cannot establish bar validity.
+            RuleFor(x => x.CalculatedAtUtc).Must(x => x != default && IsUtc(x));
             RuleFor(x => x.SchemaVersion).GreaterThan((ushort)0);
             RuleFor(x => x.CalculationVersion).NotEmpty();
             RuleFor(x => x.CalculationMethod).IsInEnum().NotEqual(MarketSignalCalculationMethod.Unknown);
@@ -139,7 +139,7 @@ public sealed class FuturesTradeSessionBarReadModelValidationRules
                 .When(x => x.SchemaVersion >= 2
                     && x.CalculationMethod == MarketSignalCalculationMethod.ClosedObservation);
             RuleFor(x => x.ValidationIssues).NotNull();
-            RuleFor(x => x).Must(x => !x.IsValid || (x.IsComplete && x.ValidationIssues.Length == 0))
+            RuleFor(x => x).Must(x => !x.IsValid || (x.IsComplete && x.ValidationIssues is { Length: 0 }))
                 .WithMessage("A valid observation must be complete and contain no validation issues.");
         }
 

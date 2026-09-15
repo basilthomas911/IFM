@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
 
@@ -20,12 +22,14 @@ public static class FuturesTradeSignalUpdatedComplete
     /// <summary>
     /// Handles the completion of a trade signal updated event.
     /// </summary>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSignalUpdatedCompleteEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSignalUpdatedCompleteEvent e, IEventActorContext<FuturesTradeSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(e);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(statusConsoleWriter);
         ArgumentNullException.ThrowIfNull(logger);
+
+        await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
 
         try
         {

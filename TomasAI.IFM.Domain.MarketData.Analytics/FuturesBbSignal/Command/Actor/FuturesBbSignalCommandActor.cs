@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -78,7 +79,8 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
             var generate = (GenerateFuturesBbSignalCommand)command;
             return new List<ValidationError>()
                 .ValidateCommandId(generate.CommandId, generate.CommandName)
-                .ValidateEntityId(generate.EntityId, generate.CommandName);
+                .ValidateEntityId(generate.EntityId, generate.CommandName)
+                .ValidateSources(generate);
         }
     };
     /// <inheritdoc />

@@ -222,9 +222,9 @@ public sealed class FuturesTradeSessionBarAccumulator(
             priceVolumeSum += trade.LastPrice * trade.LastSize;
             firstSequence = Math.Min(firstSequence, trade.SourceSequence);
             lastSequence = Math.Max(lastSequence, trade.SourceSequence);
-            firstEvent = firstEvent == DateTimeOffset.MaxValue
-                ? trade.EventTimestamp.ToUniversalTime() : firstEvent;
-            lastEvent = trade.EventTimestamp.ToUniversalTime();
+            var marketEventUtc = trade.EventTimestamp.ToUniversalTime();
+            firstEvent = firstEvent < marketEventUtc ? firstEvent : marketEventUtc;
+            lastEvent = lastEvent > marketEventUtc ? lastEvent : marketEventUtc;
         }
 
         internal FuturesTradeSessionBarReadModel Close(TimeProvider timeProvider)

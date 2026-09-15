@@ -79,34 +79,12 @@ public class FuturesRsiSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesRsiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesRsiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesRsiSignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
-        {
-            var query = (q as GetFuturesRsiSignalQuery)!;
-            var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult).ConfigureAwait(false);
-
-        },
-        [typeof(GetFuturesRsiDailySignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
-        {
-            var query = (q as GetFuturesRsiDailySignalQuery)!;
-            var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
-        },
-        [typeof(GetFuturesTrendDirectionFromRSISignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
-        {
-            var query = (GetFuturesTrendDirectionFromRSISignalQuery)q;
-            var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            var serviceResult = new ServiceResult<FuturesTrendDirectionReadModel>(result);
-            await ctx.ReplyAsync(
-                q.Subject.ThreadId,
-                GetFuturesTrendDirectionFromRSISignalQuery.Verb,
-                serviceResult).ConfigureAwait(false);
-        }
+        [typeof(GetFuturesRsiSignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
+            ((GetFuturesRsiSignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken),
+        [typeof(GetFuturesRsiDailySignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
+            ((GetFuturesRsiDailySignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken),
+        [typeof(GetFuturesTrendDirectionFromRSISignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
+            ((GetFuturesTrendDirectionFromRSISignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken)
     };
 
     /// <summary>

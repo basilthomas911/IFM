@@ -20,6 +20,8 @@ public sealed class MarketOutlookSnapshotCommandState
     {
         if (domainEvent is not MarketOutlookSnapshotInsertedEvent inserted)
             return false;
+        if (inserted.MarketOutlook is null)
+            return false;
         snapshot = inserted.MarketOutlook;
         return true;
     }

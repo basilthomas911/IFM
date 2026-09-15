@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Application.Storage;
@@ -136,26 +137,24 @@ public class FuturesAdxSignalCommandActor(
         [typeof(StartFuturesAdxSignalCommand)] = cmd => {
             var e = (StartFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName);
         },
         [typeof(StopFuturesAdxSignalCommand)] = cmd => {
             var e = (StopFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName);
         },
         [typeof(GenerateFuturesAdxSignalCommand)] = cmd => {
             var e = (GenerateFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName);
+                .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName)
+                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
         },
         [typeof(GenerateFuturesAdxDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesAdxDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName);
         }

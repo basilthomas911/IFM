@@ -21,7 +21,7 @@ public static class FuturesVxTermStructureAccumulator
         if (previousLeg is not null
             && previousLeg.StreamEpochId == observation.StreamEpochId
             && observation.SourceSequence <= previousLeg.SourceSequence)
-            throw new InvalidOperationException("A duplicate or stale VX leg observation cannot advance state.");
+            return new(checkpoint, null, false);
 
         var front = observation.Leg == FuturesVxTermStructureLeg.Front ? observation : checkpoint.Front;
         var back = observation.Leg == FuturesVxTermStructureLeg.Back ? observation : checkpoint.Back;
@@ -97,4 +97,5 @@ public static class FuturesVxTermStructureAccumulator
 /// <summary>Contains one accepted VX state transition and optional paired signal.</summary>
 public sealed record FuturesVxTermStructureAccumulatorResult(
     FuturesVxTermStructureCheckpoint Checkpoint,
-    FuturesVxTermStructureSignalReadModel? Signal);
+    FuturesVxTermStructureSignalReadModel? Signal,
+    bool Changed = true);

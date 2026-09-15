@@ -57,7 +57,8 @@ public static class GenerateFuturesRsiSignal
                 && state.FuturesRsiSignals.CanGenerateFuturesRsiSignals(outputWindow))
             {
                 var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(outputWindow);
-                state.Update(e.CreateFuturesRsiSignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e);
+                if (!state.Update(e.CreateFuturesRsiSignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e))
+                    throw new InvalidOperationException("A validated intraday RSI collection was rejected after its signal event.");
             }
             return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         }

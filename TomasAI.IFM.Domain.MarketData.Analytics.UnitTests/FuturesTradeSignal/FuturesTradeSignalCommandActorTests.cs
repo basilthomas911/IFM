@@ -426,6 +426,38 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         state.Events.Count.Should().Be(eventCountAfterFirst);
     }
 
+    [Fact]
+    public void HoldTransition_AppendsUpdatedSignalAndNotificationAsOneReplayableBatch()
+    {
+        var command = SampleData.CreateTradeSignalUpdateCommand();
+        var state = new FuturesTradeSignalCommandState { Id = command.Subject.ThreadId };
+        command.Execute(state).Success.Should().BeTrue();
+        var computed = state.Events.OfType<FuturesTradeSignalUpdatedEvent>().Single().FuturesTradeSignal;
+        computed.Should().NotBeNull();
+        state.AcceptChanges();
+
+        var priorStatus = computed!.TradeExecuteState == TradeExecuteState.Hold
+            ? TradeExecuteState.Yes : TradeExecuteState.Hold;
+        state.Apply(new FuturesTradeSignalUpdatedEvent
+        {
+            FuturesTradeSignal = computed with { TradeExecuteState = priorStatus }
+        }, addEvent: false).Should().BeTrue();
+
+        var update = SampleData.CreateTradeSignalUpdateCommand();
+        update.Execute(state).Success.Should().BeTrue();
+
+        var facts = state.Events.ToArray();
+        facts.Should().HaveCount(2);
+        facts[0].Should().BeOfType<FuturesTradeSignalUpdatedEvent>();
+        var notification = facts[1].Should().BeOfType<FuturesItiSignalHoldTradeChangedEvent>().Subject;
+        notification.HoldTrade.Should().Be(computed.TradeExecuteState == TradeExecuteState.Hold);
+
+        var restored = new FuturesTradeSignalCommandState();
+        restored.ReplayEvents(facts);
+        restored.FuturesTradeSignal.Should().BeEquivalentTo(state.FuturesTradeSignal);
+        restored.Events.Should().BeEmpty();
+    }
+
     #endregion
 
     #region ReceiveAsync Edge Case Tests

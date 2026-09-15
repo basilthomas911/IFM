@@ -21,6 +21,7 @@ public sealed class FuturesEmaSignalCommandState
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not FuturesEmaSignalGeneratedEvent generated) return false;
+        if (generated.Checkpoint is null || generated.Signal is null) return false;
         Checkpoint = generated.Checkpoint;
         Signal = generated.Signal;
         return true;

@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime;
 /// <summary>Computes TDI from each eligible realtime RSI-13 window.</summary>
 public static class FuturesRsiSignalsGenerated
 {
-    public static async ValueTask<bool> ExecuteRealtimeAsync(
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalsGeneratedEvent source,
         IRealtimeProjector<FuturesTdiSignalRealtimeActor> projector,
         IMarketDataDbReadContext marketDataDb,

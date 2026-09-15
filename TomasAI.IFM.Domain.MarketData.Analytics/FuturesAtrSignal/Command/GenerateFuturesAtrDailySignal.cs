@@ -22,6 +22,8 @@ public static class GenerateFuturesAtrDailySignal
     {
         if (e.Observation is not { } observation)
             return e.UpdateFailed($"{e.CommandName}: a completed daily trade-session bar observation is required");
+        if (!observation.IsComplete || !observation.IsValid)
+            return e.UpdateFailed($"{e.CommandName}: source bar must be valid and completed");
 
         return ExecuteWilder(e, state, observation);
     }
@@ -35,7 +37,7 @@ public static class GenerateFuturesAtrDailySignal
             || observation.TimeFrame != TimeFrameType.Daily
             || !string.Equals(observation.ContractId, command.EntityId.ContractId, StringComparison.Ordinal)
             || observation.ValueDate != command.FuturesAtrSignalId.ValueDate)
-            throw new ArgumentException("The daily observation does not match the day-based ATR identity.");
+            return command.UpdateFailed("The daily observation does not match the day-based ATR identity.");
         if (!FuturesAtrWilderAccumulator.TryApply(
                 observation,
                 command.EntityId.PeriodLength,

@@ -20,6 +20,7 @@ public sealed class FuturesBbSignalCommandState
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not FuturesBbSignalGeneratedEvent generated) return false;
+        if (generated.Checkpoint is null || generated.Signal is null) return false;
         Checkpoint = generated.Checkpoint with
         {
             Closes = [.. generated.Checkpoint.Closes],

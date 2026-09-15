@@ -23,11 +23,11 @@ public sealed class FuturesTradeSessionBarSignalStateRepository(
     readonly IEventProjector<FuturesTradeSessionBarSignalCommandActor> eventProjector =
         eventProjector ?? throw new ArgumentNullException(nameof(eventProjector));
 
-    /// <summary>Reconstructs publisher state from the latest completed-bar snapshot.</summary>
+    /// <summary>Reconstructs publisher state from the last appended Published event.</summary>
     public ValueTask<FuturesTradeSessionBarSignalCommandState> LoadStateAsync(ICommand command)
         => LoadStateAsync(command, CancellationToken.None);
 
-    /// <summary>Reconstructs publisher state from the latest completed-bar snapshot.</summary>
+    /// <summary>Reconstructs publisher state from the last appended Published event.</summary>
     public async ValueTask<FuturesTradeSessionBarSignalCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)

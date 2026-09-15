@@ -12,6 +12,8 @@ public static class InsertMarketOutlookSnapshot
         this InsertMarketOutlookSnapshotCommand command,
         MarketOutlookSnapshotCommandState state)
     {
+        if (Equals(state.Snapshot, command.MarketOutlook))
+            return new ServiceOk<GuidResult>(new(command.CommandId));
         var inserted = new MarketOutlookSnapshotInsertedEvent
         {
             Subject = new(ActorType.Event, MarketOutlookSnapshotInsertedEvent.Actor,

@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;

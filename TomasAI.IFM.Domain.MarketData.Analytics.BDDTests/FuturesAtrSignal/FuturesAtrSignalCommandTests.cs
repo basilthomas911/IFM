@@ -92,10 +92,10 @@ public sealed class FuturesAtrSignalCommandTests
         };
         var state = new FuturesAtrSignalCommandState();
 
-        var act = () => command.Execute(state);
+        var result = command.Execute(state);
 
-        act.Should().Throw<ArgumentException>()
-            .WithMessage("*does not match the intraday ATR identity*");
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("does not match the intraday ATR identity");
         state.Events.Should().BeEmpty();
     }
 

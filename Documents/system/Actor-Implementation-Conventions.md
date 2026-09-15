@@ -1048,7 +1048,25 @@ static ItemChangedEvent CreateItemChangedEvent(
 
 `UpdatedOk` is appropriate when the event update succeeds and the command should return success. `UpdateFailed` alone does not add an event. When a failed command must also reconstruct durable failed state, the extension first applies the private failure event and then returns the failed service result.
 
+`BaseEventSourceActorState.Apply` adds a new event to the pending collection only when the concrete state's `Apply(IEvent)` returns `true`. A `false` result means no state transition and no event to save or project; the concrete state must check all rejection conditions before mutating any field. Replay (`addEvent: false`) reconstructs state without creating pending writes. A command handler should decide routine stale, duplicate, unchanged, or unavailable cases before constructing an event and calling `state.Update`; return a successful no-op or a classified failed result as the domain requires. Do not use an exception for an expected no-op.
+
+Every event a handler creates must be accepted by that aggregate's `Apply` method and must replay to the same state. When a command creates several events, evaluate all business conditions first, then check every `state.Update` result. If a later update is rejected after an earlier one was applied, abort the command rather than return a result that allows the earlier event to be saved alone. A post-preflight rejection is an invariant failure and must be surfaced and logged; it is not a routine business-rule result. Unit and integration coverage must check both the pending-event batch and replay after the final event.
+
 Unexpected exceptions that are not part of the domain's durable failure model flow through the actor's `OnExceptionAsync` convention. Cancellation caused by transport or host shutdown is not silently converted into a business failure unless the domain explicitly defines that transition.
+
+#### 13.1.4.1 Bar-publishing Command actor convention
+
+A Command actor that publishes a completed real-time market bar owns one durable signal observation per accepted command. Validate the bar's structure, series/timeframe routing identity, interval start/end, OHLCV, source lineage, and trade evidence before the receive handler. The handler makes a small state-dependent publication decision before it creates and applies the Published event. A malformed bar or failed persistence remains a classified failure; an acknowledged repeat is an ordinary no-op.
+
+For bar-signal producers, identify a repeat by the *same series/timeframe and same interval start and end* and by durable evidence that the interval was already published. A proven repeat is acknowledged without another Published event, even if recalculation changed prices, lineage, `CalculatedAtUtc`, or the deterministic observation ID. The previously committed event remains authoritative. Command-audit deduplication handles exact transport redelivery by submission `CommandId`; it is separate from interval identity. Do not use a transient-only cache as publication proof.
+
+Publish a structurally valid bar for any distinct interval, including an older, out-of-order, or overlapping interval. The last appended event is not necessarily the newest market interval, and its end time cannot prove that an older interval was published. Do not add a global stale/overlap failure guard merely to enforce monotonic order. Downstream accumulators and readers define their own late/overlap policy per signal. They must not assume event-log append order is market-interval order.
+
+If state loads only the latest appended Published event, it proves only a repeat of *that* interval. An older interval with unknown publication history is published rather than silently discarded. Guaranteed suppression of repeats from any historical interval would need a separate durable per-interval index with transactional consistency; assess its cost and correctness before introducing it. Avoid full-stream replay and database polling on the real-time hot path merely for duplicate checks. Only committed Published events proceed to projection, and only successful projection completion may send the downstream closed-bar event.
+
+`FuturesTradeSessionBarSignalCommandActor` is the first analytics bar publisher following this rule. Its event-sourced state loads the latest appended `FuturesTradeSessionBarPublishedEvent` and its `PublishFuturesTradeSessionBar` handler compares only that event's interval. `FuturesBarDataCommandActor` is also a bar-type Command actor, but its `InsertFuturesBarDataCommand` is the legacy feed-storage insertion lifecycle driven by the hot-cache bar timer and `BarDate`; it does not publish the session-aligned analytics closed-bar signal. Do not impose the analytics interval guard on that lifecycle. If another bar actor begins publishing real-time interval signals, define its interval identity, durable duplicate proof, and downstream late-bar behavior under this convention.
+
+Bar-publisher tests cover first publication, a proven same-interval repeat with changed content and no second event, an older distinct interval, a later overlapping distinct interval, invalid bar ingress, and projection-before-downstream publication. Tests use bars that pass the same validation as actor ingress.
 
 #### 13.1.5 Context and actor-owned models
 
@@ -1454,6 +1472,7 @@ This rule applies immediately to new or modified receive handlers. Existing acto
 
 | Date | Revision |
 | --- | --- |
+| 2026-09-15 | Defined the system-wide bar-publishing Command actor rule: acknowledge only a durably proven interval repeat, publish valid older or overlapping distinct intervals, distinguish latest appended from newest market interval, and qualify each bar actor's separate lifecycle. |
 | 2026-09-14 | Required every actual Realtime/Event extension-handler failure to produce exactly one structured Error log, including converted failures and handler-owned asynchronous work; distinguished expected realtime no-op outcomes from failures. |
 | 2026-09-13 | Required every concrete FunctionActor to inherit the framework FunctionActor base directly, retain its own five frozen maps, and delegate shared behavior through Models or static helpers; removed the strategy-exit intermediate actor bases. |
 | 2026-09-13 | Required Command extension handlers to expose ordered state-dependent business rules before explicit event construction and state update; prohibited generic wrappers for simple transitions and transient, non-rehydratable deduplication state. |

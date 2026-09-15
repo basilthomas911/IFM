@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Validation;
@@ -136,13 +137,11 @@ public class FuturesMacdSignalCommandActor(
             var e = (StartFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
         [typeof(StopFuturesMacdSignalCommand)] = cmd => {
             var e = (StopFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
@@ -150,14 +149,14 @@ public class FuturesMacdSignalCommandActor(
             var e = (GenerateFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
-                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
+                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration)
+                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
         },
         [typeof(GenerateFuturesMacdDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesMacdDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);

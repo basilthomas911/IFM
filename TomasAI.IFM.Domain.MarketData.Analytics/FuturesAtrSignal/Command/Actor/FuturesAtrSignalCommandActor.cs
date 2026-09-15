@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Application.Storage;
@@ -145,12 +146,16 @@ public class FuturesAtrSignalCommandActor(
         [typeof(GenerateFuturesAtrSignalCommand)] = cmd => {
             var e = (GenerateFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
         },
         [typeof(GenerateFuturesAtrDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesAtrDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                    e.FuturesAtrSignalId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
         }
     };
 

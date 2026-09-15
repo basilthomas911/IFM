@@ -31,6 +31,7 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
         FuturesMacdSignalGeneratedCompleteEvent futuresMacdSignalGeneratedCompleteEvent = default!;
         FuturesMacdSignalGeneratedFailEvent futuresMacdSignalGeneratedFailEvent = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entityId = SampleData.MacdEntityId;
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -51,7 +52,6 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
         var macdSignalId = SampleData.MacdSignalId;
         var futuresPrice = (decimal)SampleData.FuturesPrice;
 
-        var entityId = SampleData.MacdEntityId;
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesMacdSignalCommand.Actor, GenerateFuturesMacdSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -104,6 +104,11 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
 
             IEvent SetEvent(IEvent @event)
             {
+                // Other integration tests publish MACD events to the same NATS subject.
+                // Observe only the stream requested by this command.
+                if (@event is IEvent<FuturesMacdSignalEntityId> macdEvent
+                    && macdEvent.EntityId.Format() != entityId.Format())
+                    return @event;
                 if (@event is FuturesMacdSignalGeneratedEvent generated)
                     futuresMacdSignalGeneratedEvent = generated;
                 if (@event is FuturesMacdSignalGeneratedCompleteEvent generatedComplete)

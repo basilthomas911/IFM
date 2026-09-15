@@ -41,6 +41,24 @@ public sealed class CommandActorMapConventionTests
                 $"{commandActor.Name} must validate every parsed command");
             receiveMap.Count.Should().Be(parseMap.Count,
                 $"{commandActor.Name} must receive every parsed command");
+
+            foreach (var commandType in receiveMap.Keys.Cast<Type>())
+            {
+                validationMap.Contains(commandType).Should().BeTrue(
+                    $"{commandActor.Name} must validate {commandType.Name}");
+                var verb = commandType.GetField("Verb", BindingFlags.Public | BindingFlags.Static)
+                    ?.GetRawConstantValue() as string;
+                verb.Should().NotBeNullOrWhiteSpace($"{commandType.Name} must expose its parse verb");
+                parseMap.Contains(verb!).Should().BeTrue(
+                    $"{commandActor.Name} must parse {commandType.Name}");
+
+                var handlerName = commandType.Name.EndsWith("Command", StringComparison.Ordinal)
+                    ? commandType.Name[..^"Command".Length]
+                    : commandType.Name;
+                var handlerNamespace = commandActor.Namespace![..^".Actor".Length];
+                commandActor.Assembly.GetType($"{handlerNamespace}.{handlerName}")
+                    .Should().NotBeNull($"{commandType.Name} must have a dedicated extension handler");
+            }
         }
     }
 

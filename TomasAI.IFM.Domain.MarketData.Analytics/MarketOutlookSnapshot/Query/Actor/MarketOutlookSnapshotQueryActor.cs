@@ -40,7 +40,8 @@ public class MarketOutlookSnapshotQueryActor(
             CancellationToken,
             ValueTask>>
         {
-            [typeof(GetMarketOutlookSnapshotQuery)] = ReceiveSnapshotAsync
+            [typeof(GetMarketOutlookSnapshotQuery)] = static (context, domainContext, query, cancellationToken) =>
+                ((GetMarketOutlookSnapshotQuery)query).ExecuteAsync(context, domainContext, cancellationToken)
         };
 
     protected override IQuery ParseMessage(
@@ -57,19 +58,6 @@ public class MarketOutlookSnapshotQueryActor(
         CancellationToken cancellationToken)
         => ResolveMappedQueryHandler(query, _receiveMap)(
             context, DomainContext, query, cancellationToken);
-
-    static async ValueTask ReceiveSnapshotAsync(
-        IQueryActorContext<MarketOutlookSnapshotQueryActor> context,
-        IMarketOutlookSnapshotQueryContext domainContext,
-        IQuery query,
-        CancellationToken cancellationToken)
-    {
-        var request = (GetMarketOutlookSnapshotQuery)query;
-        var result = await domainContext.GetMarketOutlookSnapshotAsync(
-            request.ContractId, request.ValueDate, cancellationToken).ConfigureAwait(false);
-        await context.ReplyAsync(
-            query.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb, result).ConfigureAwait(false);
-    }
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys);

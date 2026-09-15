@@ -142,7 +142,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
         if (domainEvent is not null and IEvent @event)
         {
             eventApplied = Apply(@event);
-            if (addEvent)
+            if (eventApplied && addEvent)
                 _domainEvents.Add(@event);
         }
         if (eventApplied)

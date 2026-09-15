@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 
 /// <summary>Handles <see cref="FuturesAdxSignalStoppedEvent"/> messages received by the ADX event actor.</summary>
-public static class FuturesAdxSignalStoppedEventHandler
+public static class FuturesAdxSignalStopped
 {
     /// <summary>Detaches the ADX identity from the shared analytics observation stream.</summary>
     /// <param name="e">The ADX signal-stopped event.</param>

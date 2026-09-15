@@ -133,7 +133,6 @@ public class FuturesTradeSignalCommandActor(
             var e = (UpdateFuturesTradeSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesEodData(e.FuturesEodData)
                 .ValidateFuturesRsiSignal(e.FuturesRsiSignal)
                 .ValidateFuturesTdiSignal(e.FuturesTdiSignal)

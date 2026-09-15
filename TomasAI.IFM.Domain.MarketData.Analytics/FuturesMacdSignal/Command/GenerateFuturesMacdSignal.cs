@@ -20,7 +20,11 @@ public static class GenerateFuturesMacdSignal
     /// <param name="state">The current state of the FuturesMacdSignal.</param>
     /// <returns>true if the operation succeeds; otherwise, false.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesMacdSignalCommand e, FuturesMacdSignalCommandState state)
-        => e.Compute(state.MacdSignals, out var model) switch
+    {
+        if (e.Observation is { } observation
+            && state.MacdSignals.LastOrDefault()?.Metadata?.ObservationId == observation.ObservationId)
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+        return e.Compute(state.MacdSignals, out var model) switch
         {
             _ when model.IsSignalInitializing
                 => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Init, model), e)),
@@ -30,6 +34,7 @@ public static class GenerateFuturesMacdSignal
                 => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model), e)),
             _ => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Flat, model), e)),
         };
+    }
 
     /// <summary>
     /// Computes the MACD signal based on the provided FuturesRsiSignals and the current state of the FuturesMacdSignal.

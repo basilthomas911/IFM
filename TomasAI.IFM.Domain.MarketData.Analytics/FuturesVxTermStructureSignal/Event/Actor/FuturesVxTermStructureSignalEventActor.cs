@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

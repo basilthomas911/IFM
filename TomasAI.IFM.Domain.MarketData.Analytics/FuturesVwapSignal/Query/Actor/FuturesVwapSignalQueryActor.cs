@@ -44,29 +44,17 @@ public sealed class FuturesVwapSignalQueryActor(
         IQuery query, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
-        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+        await receive(context, TypedContext, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<FuturesVwapSignalQueryActor,
-        IQueryActorContext<FuturesVwapSignalQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<FuturesVwapSignalQueryActor,
-        IQueryActorContext<FuturesVwapSignalQueryActor>, IQuery, CancellationToken, ValueTask>>()
+    static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesVwapSignalQueryActor>,
+        IFuturesVwapSignalQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesVwapSignalQueryActor>,
+        IFuturesVwapSignalQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetLatestFuturesVwapSignalQuery)] = static async (actor, context, query, cancellationToken) =>
-        {
-            var latest = (GetLatestFuturesVwapSignalQuery)query;
-            var current = await latest.ExecuteAsync(
-                actor.TypedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, latest.Subject.Verb,
-                new ServiceResult<FuturesVwapSignalReadModel?>(current)).ConfigureAwait(false);
-        },
-        [typeof(GetFuturesVwapSignalHistoryQuery)] = static async (actor, context, query, cancellationToken) =>
-        {
-            var history = (GetFuturesVwapSignalHistoryQuery)query;
-            var values = await history.ExecuteAsync(
-                actor.TypedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, history.Subject.Verb,
-                new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);
-        }
+        [typeof(GetLatestFuturesVwapSignalQuery)] = static (context, typedContext, query, cancellationToken) =>
+            ((GetLatestFuturesVwapSignalQuery)query).ExecuteAsync(context, typedContext, cancellationToken),
+        [typeof(GetFuturesVwapSignalHistoryQuery)] = static (context, typedContext, query, cancellationToken) =>
+            ((GetFuturesVwapSignalHistoryQuery)query).ExecuteAsync(context, typedContext, cancellationToken)
     };
 
     /// <inheritdoc />

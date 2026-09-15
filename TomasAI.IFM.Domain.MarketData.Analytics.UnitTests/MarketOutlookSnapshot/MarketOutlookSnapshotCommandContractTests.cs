@@ -52,6 +52,23 @@ public sealed class MarketOutlookSnapshotCommandContractTests(MarketDataAnalytic
     }
 
     [Fact]
+    public void Execute_ExactRepeatAcknowledgesWithoutAddingAnotherSnapshotEvent()
+    {
+        var snapshot = Snapshot();
+        var command = new InsertMarketOutlookSnapshotCommand(snapshot);
+        var state = new MarketOutlookSnapshotCommandState { Id = command.Subject.ThreadId };
+        command.Execute(state).Success.Should().BeTrue();
+        state.AcceptChanges();
+
+        var repeat = new InsertMarketOutlookSnapshotCommand(snapshot);
+        repeat.Execute(state).Success.Should().BeTrue();
+
+        state.Events.Should().BeEmpty();
+        state.Updated.Should().BeFalse();
+        state.Snapshot.Should().BeSameAs(snapshot);
+    }
+
+    [Fact]
     public void UnsupportedStateEvent_DoesNotMutateTheSnapshot()
     {
         var command = new InsertMarketOutlookSnapshotCommand(Snapshot());

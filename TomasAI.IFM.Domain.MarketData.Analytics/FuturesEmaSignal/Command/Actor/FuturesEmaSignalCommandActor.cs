@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -84,7 +85,8 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
             var generate = (GenerateFuturesEmaSignalCommand)command;
             return new List<ValidationError>()
                 .ValidateCommandId(generate.CommandId, generate.CommandName)
-                .ValidateEntityId(generate.EntityId, generate.CommandName);
+                .ValidateEntityId(generate.EntityId, generate.CommandName)
+                .ValidateSourceBar(generate);
         }
     };
 

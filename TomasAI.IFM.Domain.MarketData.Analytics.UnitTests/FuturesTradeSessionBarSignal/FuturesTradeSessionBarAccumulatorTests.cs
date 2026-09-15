@@ -63,6 +63,41 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
     }
 
     [Fact]
+    public void MarketEventClockAheadOfHost_DoesNotInvalidateCompletedBar()
+    {
+        var valueDate = new DateOnly(2026, 8, 25);
+        var start = Calendar.GetSession(valueDate).StartUtc;
+        var marketTime = start.AddSeconds(14).AddMilliseconds(961);
+        var clockTime = start.AddSeconds(14).AddMilliseconds(621);
+        var state = CreateAccumulator(new FixedTimeProvider(clockTime));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, marketTime, Guid.NewGuid(), 1, 100)));
+
+        var bar = Assert.Single(state.CloseThrough(start.AddSeconds(15)),
+            value => value.TimeFrame == TimeFrameType.FifteenSeconds);
+        Assert.True(bar.CalculatedAtUtc < bar.LastMarketEventUtc);
+        Assert.Empty(new FuturesTradeSessionBarReadModelValidationRules().Execute(bar));
+    }
+
+    [Fact]
+    public void IncreasingTradeOrdinalWithRegressingEventTimestamp_PreservesEventTimeRange()
+    {
+        var valueDate = new DateOnly(2026, 8, 25);
+        var start = Calendar.GetSession(valueDate).StartUtc;
+        var epoch = Guid.NewGuid();
+        var state = CreateAccumulator(new FixedTimeProvider(start.AddMinutes(1)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, start.AddSeconds(2), epoch, 1, 100)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, start.AddSeconds(1), epoch, 2, 101)));
+
+        var bar = Assert.Single(state.CloseThrough(start.AddSeconds(15)),
+            value => value.TimeFrame == TimeFrameType.FifteenSeconds);
+        Assert.Equal(start.AddSeconds(1), bar.FirstMarketEventUtc);
+        Assert.Equal(start.AddSeconds(2), bar.LastMarketEventUtc);
+        Assert.Equal(100m, bar.Open);
+        Assert.Equal(101m, bar.Close);
+        Assert.Empty(new FuturesTradeSessionBarReadModelValidationRules().Execute(bar));
+    }
+
+    [Fact]
     public void SourceGapOutOfOrderAndRollNeverPublishAValidLookingPartialInterval()
     {
         var valueDate = new DateOnly(2026, 8, 25);

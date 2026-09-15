@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSessionB
 /// <summary>Verifies bounded event-source reconstruction for trade-session bar publication state.</summary>
 public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
 {
-    /// <summary>Loads the most recent published bar as the state snapshot without requesting a full-stream replay.</summary>
+    /// <summary>Loads the last appended Published event without assuming it is the newest market interval.</summary>
     [Fact]
     public async Task LoadStateUsesLatestPublishedBarSnapshot()
     {
@@ -33,7 +33,7 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
         var entityId = new FuturesTradeSessionBarEntityId(series, TimeFrameType.OneMinute);
         var command = new PublishFuturesTradeSessionBarCommand
         {
-            CommandId = barId.Value,
+            CommandId = Guid.NewGuid(),
             Subject = new(
                 ActorType.Command,
                 PublishFuturesTradeSessionBarCommand.Actor,
@@ -97,7 +97,8 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
 
         Assert.Same(state, loaded);
         Assert.Equal(command.Subject.ThreadId, loaded.Id);
-        Assert.Equal(barId, loaded.LastPublishedBarId);
+        Assert.Equal(barId, loaded.LastAppliedBarId);
+        Assert.Equal(command.Bar, loaded.LastAppliedBar);
         await eventSource.Received(1).MapReduceActorEventStreamAsync<
             FuturesTradeSessionBarSignalCommandState,
             FuturesTradeSessionBarPublishedEvent>(

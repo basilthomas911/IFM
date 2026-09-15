@@ -77,22 +77,10 @@ public class FuturesMacdSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesMacdSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesMacdSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesMacdSignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
-        {
-            var query = (q as GetFuturesMacdSignalQuery)!;
-            var result = await query.GetLastFuturesMacdSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            var serviceResult = new ServiceResult<FuturesMacdSignalReadModel>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesMacdSignalQuery.Verb, serviceResult).ConfigureAwait(false);
-        },
-        [typeof(GetFuturesMacdDailySignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
-        {
-            var query = (q as GetFuturesMacdDailySignalQuery)!;
-            var result = await query.GetLastFuturesMacdDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            var serviceResult = new ServiceResult<FuturesMacdSignalReadModel>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesMacdDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
-        }
+        [typeof(GetFuturesMacdSignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
+            ((GetFuturesMacdSignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken),
+        [typeof(GetFuturesMacdDailySignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
+            ((GetFuturesMacdDailySignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken)
     };
 
     /// <summary>

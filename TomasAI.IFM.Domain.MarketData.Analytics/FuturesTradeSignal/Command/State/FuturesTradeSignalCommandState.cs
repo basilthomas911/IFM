@@ -33,11 +33,14 @@ public class FuturesTradeSignalCommandState
         return domainEvent switch
         {
             FuturesTradeSignalUpdatedEvent e => On(e),
+            FuturesItiSignalHoldTradeChangedEvent => true,
             _ => false
         };
 
         bool On(FuturesTradeSignalUpdatedEvent e)
         {
+            if (e.FuturesTradeSignal is null)
+                return false;
             _futuresTradeSignal = e.FuturesTradeSignal;
             return true;
         }

@@ -17,7 +17,15 @@ public static class FuturesTradeSessionBarSignalBarrier
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);
         foreach (var bar in context.Accumulators.Get(@event.EntityId).CloseThrough(@event.BarrierUtc))
-            _ = await context.PublishFuturesTradeSessionBarAsync(bar).ConfigureAwait(false);
+        {
+            var result = await context.PublishFuturesTradeSessionBarAsync(bar).ConfigureAwait(false);
+            if (!result.Success && result.ErrorMessage?.StartsWith("BAR.EXCEPTION;", StringComparison.Ordinal) != true)
+                logger.LogError(
+                    "Trade-session bar publication failed. ContractId={ContractId} TimeFrame={TimeFrame} ObservationId={ObservationId} IntervalEndUtc={IntervalEndUtc} FirstSourceSequence={FirstSourceSequence} LastSourceSequence={LastSourceSequence} LastMarketEventUtc={LastMarketEventUtc} CalculatedAtUtc={CalculatedAtUtc} StreamEpochId={StreamEpochId} ErrorCode={ErrorCode} Error={Error}",
+                    bar.ContractId, bar.TimeFrame, bar.ObservationId.Value, bar.IntervalEndUtc,
+                    bar.FirstSourceSequence, bar.LastSourceSequence, bar.LastMarketEventUtc,
+                    bar.CalculatedAtUtc, bar.StreamEpochId, result.ErrorCode, result.ErrorMessage);
+        }
         return true;
     }
 }

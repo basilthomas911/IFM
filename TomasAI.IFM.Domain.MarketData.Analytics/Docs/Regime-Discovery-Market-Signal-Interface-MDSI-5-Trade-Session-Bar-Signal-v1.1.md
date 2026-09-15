@@ -81,15 +81,32 @@ remain durable through the Command actor.
 ## 4. Command actor and durable state
 
 `PublishFuturesTradeSessionBarCommand` carries one complete immutable bar. Its
-`CommandId` is the deterministic `FuturesTradeSessionBarId`, making retries use
-the same command identity.
+`ObservationId` is the deterministic `FuturesTradeSessionBarId`. `CommandId`
+identifies one serialized submission attempt for command-audit deduplication.
+Transport redelivery reuses that attempt and payload; a recreated bar can use a
+new attempt ID while the publisher's latest Published snapshot acknowledges
+a repeat of its last applied interval without a second event, even if the
+recalculated bar content differs. This matters because
+`CalculatedAtUtc` is a true host finalization timestamp and can differ after
+restart without changing the observation identity.
 
 `FuturesTradeSessionBarSignalCommandActor` validates routing and bar
 lineage, applies `FuturesTradeSessionBarPublishedEvent`, and commits it to the
 PostgreSQL ACID event log through
 `FuturesTradeSessionBarSignalStateRepository`. Its state records the last
-published deterministic bar identity and is reconstructable through event
-replay.
+applied bar and its deterministic identity, loaded from the latest appended
+Published event rather than the full event stream. That event is not necessarily
+the newest market interval. The publisher acknowledges a proven repeat of that
+interval and keeps the first committed observation authoritative. A valid bar
+for any other interval is published, even if it arrives late or overlaps the
+last applied interval. The one-event snapshot cannot prove that an older
+interval was previously published, so an unknown older repeat is published
+rather than discarded on a stale-time assumption. Downstream consumers apply
+their own late/overlap policies; the bar publisher records the observation.
+This policy does not guarantee all-history interval uniqueness. The Scylla
+bar key includes `ObservationId`, so a historically unknown repeat with changed
+lineage can create another row for the same market interval. Its acceptance
+must be interpreted by readers according to their own interval/lineage rules.
 
 No Realtime or Event actor owns this state.
 
@@ -149,7 +166,9 @@ results.
 
 ## 8. Exit decision
 
-One logical completed interval produces one deterministic bar command and one
-event-sourced publication. ScyllaDB projection precedes downstream Realtime
-publication. The Realtime and Event actors remain stateless, and the only
-durable actor state resides in the Command actor.
+One completed-bar submission carries a deterministic observation identity and
+a separate command-attempt identity. A proven repeat of the last applied
+interval creates no second publication; a valid distinct or historically
+unknown interval creates a Published event. ScyllaDB projection precedes
+downstream Realtime publication. The Realtime and Event actors remain stateless,
+and the only durable actor state resides in the Command actor.

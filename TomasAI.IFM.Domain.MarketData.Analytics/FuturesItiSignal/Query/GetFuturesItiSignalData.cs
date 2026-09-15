@@ -1,3 +1,9 @@
+using Microsoft.Extensions.Logging;
+using NATS.Client.Core;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -44,5 +50,19 @@ public static class GetFuturesItiSignalData
             trendDirectionChange: await trendDirectionTask.ConfigureAwait(false),
             trendExtremeChange: await trendExtremeTask.ConfigureAwait(false),
             trendReversalChange: await trendReversalTask.ConfigureAwait(false));
+    }
+
+    /// <summary>Reads and replies to the GetFuturesItiSignalDataQuery message.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetFuturesItiSignalDataQuery q,
+        IQueryActorContext<FuturesItiSignalQueryActor> ctx,
+        IDbContextFactory db,
+        CancellationToken cancellationToken)
+    {
+        var query = (q as GetFuturesItiSignalDataQuery)!;
+        var result = await query.GetFuturesItiSignalDataAsync(db, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,
+            new ServiceResult<FuturesItiSignalDataReadModel>(result)).ConfigureAwait(false);
     }
 }

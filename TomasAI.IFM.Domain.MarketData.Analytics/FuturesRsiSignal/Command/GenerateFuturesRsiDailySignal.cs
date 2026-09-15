@@ -27,7 +27,8 @@ public static class GenerateFuturesRsiDailySignal
             if (state.FuturesRsiSignals.CanGenerateFuturesRsiSignals(e.EntityId.PeriodLength))
             {
                 var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(e.EntityId.PeriodLength);
-                state.Update(e.CreateFuturesRsiDailySignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e);
+                if (!state.Update(e.CreateFuturesRsiDailySignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e))
+                    throw new InvalidOperationException("A validated daily RSI collection was rejected after its signal event.");
             }
             return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         }

@@ -31,16 +31,7 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
         [typeof(FuturesRsiSignalGeneratedEvent)] = async (@event, context, logger) =>
             await ((FuturesRsiSignalGeneratedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
         [typeof(FuturesRsiSignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
-        {
-            var completed = (FuturesRsiSignalGeneratedCompleteEvent)@event;
-            if (completed.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
-                && completed.FuturesRsiSignal.Metadata is { IsValid: true })
-            {
-                await ((IEventActorContext<FuturesRsiSignalEventActor>)context)
-                    .PublishMarketOutlookComponentAsync(completed).ConfigureAwait(false);
-            }
-            return true;
-        },
+            await ((FuturesRsiSignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
         [typeof(FuturesRsiDailySignalGeneratedEvent)] = async (@event, context, logger) =>
             await ((FuturesRsiDailySignalGeneratedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
         [typeof(FuturesRsiDailySignalGeneratedCompleteEvent)] = async (@event, context, logger) =>

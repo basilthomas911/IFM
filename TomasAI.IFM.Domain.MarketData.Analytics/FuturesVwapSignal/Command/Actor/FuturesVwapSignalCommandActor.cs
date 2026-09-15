@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -84,14 +85,16 @@ public sealed class FuturesVwapSignalCommandActor(
             var update = (UpdateFuturesVwapSignalCommand)command;
             return new List<ValidationError>()
                 .ValidateCommandId(update.CommandId, update.CommandName)
-                .ValidateEntityId(update.EntityId, update.CommandName);
+                .ValidateEntityId(update.EntityId, update.CommandName)
+                .ValidateLiveInputs(update);
         },
         [typeof(RecoverFuturesVwapSignalCommand)] = static command =>
         {
             var recover = (RecoverFuturesVwapSignalCommand)command;
             return new List<ValidationError>()
                 .ValidateCommandId(recover.CommandId, recover.CommandName)
-                .ValidateEntityId(recover.EntityId, recover.CommandName);
+                .ValidateEntityId(recover.EntityId, recover.CommandName)
+                .ValidateRecoveryInputs(recover);
         }
     };
 

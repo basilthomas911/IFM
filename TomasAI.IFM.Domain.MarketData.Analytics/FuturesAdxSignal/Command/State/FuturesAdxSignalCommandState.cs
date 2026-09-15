@@ -40,6 +40,8 @@ public class FuturesAdxSignalCommandState
 
         bool On(FuturesAdxSignalReadModel signal)
         {
+            if (signal is null)
+                return false;
             _adxSignals.Add(signal);
             _adxSignal = signal;
             return true;

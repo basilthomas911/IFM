@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -33,11 +35,11 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
-        [PublishFuturesTradeSessionBarCommand.Verb] = message =>
-            message.AsCommand<PublishFuturesTradeSessionBarCommand>()
-            ?? throw new InvalidOperationException("Unable to deserialize the Publish bar command.")
+        [PublishFuturesTradeSessionBarCommand.Verb] = static message =>
+            message.AsCommand<PublishFuturesTradeSessionBarCommand>()!
     };
 
     /// <inheritdoc />
@@ -50,13 +52,6 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         return ValueTask.CompletedTask;
     }
 
-    /// <inheritdoc />
-    protected override IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) =>
-        _validationMap.TryGetValue(command.GetType(), out var validator)
-            ? validator(command)
-            : throw new InvalidOperationException(
-                $"Unable to validate {ActorName} commands from message: {command.Subject}");
-
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
@@ -65,25 +60,11 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
             var publish = (PublishFuturesTradeSessionBarCommand)command;
             var errors = new List<ValidationError>()
                 .ValidateCommandId(publish.CommandId, publish.CommandName)
-                .ValidateEntityId(publish.EntityId, publish.CommandName);
-            ValidatePublish(errors, publish);
+                .ValidateEntityId(publish.EntityId, publish.CommandName)
+                .ValidatePublishBar(publish);
             return errors;
         }
     };
-
-    static void ValidatePublish(List<ValidationError> errors, PublishFuturesTradeSessionBarCommand value)
-    {
-        if (value.CommandId == Guid.Empty || value.CommandId != value.Bar.ObservationId.Value)
-            errors.Add(new("CommandId must equal the deterministic bar identity."));
-        if (new FuturesTradeSessionBarEntityIdValidationRules().Execute(value.EntityId).Length != 0)
-            errors.Add(new("A valid bar signal entity identity is required."));
-        if (new FuturesTradeSessionBarReadModelValidationRules().Execute(value.Bar).Length != 0)
-            errors.Add(new("A valid completed futures trade-session bar is required."));
-        if (value.EntityId.MarketSeriesIdentity != value.Bar.MarketSeriesIdentity
-            || value.EntityId.TimeFrame != value.Bar.TimeFrame
-            || value.Subject.EntityId != value.EntityId.Format())
-            errors.Add(new("Command routing identity must match the completed bar."));
-    }
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
@@ -91,6 +72,9 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         IActorState state,
         ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(command);
         var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receiveCommand.Invoke(
             command,
@@ -100,9 +84,10 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand,
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor>,
-        FuturesTradeSessionBarSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand,
-        ICommandActorContext<FuturesTradeSessionBarSignalCommandActor>,
-        FuturesTradeSessionBarSignalCommandState, ServiceResult<GuidResult>>>()
+        FuturesTradeSessionBarSignalCommandState, ServiceResult<GuidResult>>> _receiveMap =
+        new Dictionary<Type, Func<ICommand,
+            ICommandActorContext<FuturesTradeSessionBarSignalCommandActor>,
+            FuturesTradeSessionBarSignalCommandState, ServiceResult<GuidResult>>>
     {
         [typeof(PublishFuturesTradeSessionBarCommand)] = static (command, _, state) =>
             ((PublishFuturesTradeSessionBarCommand)command).Execute(state)
@@ -144,7 +129,13 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(
+        Exception exception)
+    {
+        context.Logger.LogError(exception,
+            "Trade-session bar command failed. ThreadId={ThreadId} CommandId={CommandId} ExceptionType={ExceptionType}",
+            threadId, command?.CommandId, exception.GetType().Name);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? PublishFuturesTradeSessionBarCommand.ErrorId,
-                exception.Message));
+                $"BAR.EXCEPTION;ExceptionType={exception.GetType().Name};{exception.Message}"));
+    }
 }

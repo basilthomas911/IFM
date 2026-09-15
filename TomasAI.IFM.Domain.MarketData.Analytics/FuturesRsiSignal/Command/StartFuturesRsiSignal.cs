@@ -32,7 +32,7 @@ public static class StartFuturesRsiSignal
         {
             Subject=new ActorSubject(ActorType.Event,FuturesRsiSignalGeneratedEvent.Actor,FuturesRsiSignalGeneratedEvent.Verb,e.EntityId.Format()),
             EntityId=e.EntityId,FuturesRsiSignal=signal,AccumulatorCheckpoint=checkpoint,CreatedBy=e.OriginatedBy,CreatedOn=e.OriginatedOn
-        },e))return e.UpdateFailed("RSI historical checkpoint could not be applied.");
+        },e))throw new InvalidOperationException("A validated RSI historical checkpoint was rejected after its start event.");
         return new ServiceOk<GuidResult>(new(e.CommandId));
     }
 

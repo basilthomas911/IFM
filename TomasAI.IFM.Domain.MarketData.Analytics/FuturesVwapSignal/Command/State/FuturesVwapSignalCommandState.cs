@@ -22,6 +22,7 @@ public sealed class FuturesVwapSignalCommandState
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not FuturesVwapSignalUpdatedEvent updated) return false;
+        if (updated.Checkpoint is null) return false;
         Checkpoint = updated.Checkpoint;
         Signal = updated.Signal;
         return true;

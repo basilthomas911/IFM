@@ -27,6 +27,8 @@ public static class GenerateFuturesAtrSignal
     {
         if (e.Observation is not { } observation)
             return e.UpdateFailed($"{e.CommandName}: a completed trade-session bar observation is required");
+        if (!observation.IsComplete || !observation.IsValid)
+            return e.UpdateFailed($"{e.CommandName}: source bar must be valid and completed");
 
         return ExecuteWilder(e, state, observation);
     }
@@ -40,7 +42,7 @@ public static class GenerateFuturesAtrSignal
             || observation.TimeFrame != command.EntityId.TimePeriod
             || !string.Equals(observation.ContractId, command.EntityId.ContractId, StringComparison.Ordinal)
             || observation.ValueDate != command.EntityId.ValueDate)
-            throw new ArgumentException("The closed observation does not match the intraday ATR identity.");
+            return command.UpdateFailed("The closed observation does not match the intraday ATR identity.");
         if (!FuturesAtrWilderAccumulator.TryApply(
                 observation,
                 command.EntityId.PeriodLength,

@@ -46,30 +46,8 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
         IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
         IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static async (context, query, cancellationToken) =>
-        {
-            var request = (GetFuturesAnalyticsHistoricalDataLoaderQuery)query;
-            var state = await context.DataLoaderStore.GetAsync(
-                request.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
-            var result = state is null ? null : new FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel
-            {
-                DataLoadAttemptId = state.DataLoadAttemptId,
-                RequestSha256 = state.RequestSha256,
-                Status = state.Status.ToString(),
-                ManifestId = state.Manifest?.ManifestId,
-                LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
-                LastCompletedRecordOrdinal = long.TryParse(state.Checkpoint.SourcePosition, out var ordinal) ? ordinal : -1,
-                ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
-                GapCount = state.Audit?.Gaps.Count ?? 0,
-                RollCount = state.Audit?.Rolls.Count ?? 0,
-                ErrorMessage = state.ErrorMessage,
-                UpdatedAtUtc = state.UpdatedAtUtc
-            };
-            cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId,
-                GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb,
-                new ServiceResult<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?>(result)).ConfigureAwait(false);
-        }
+        [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static (context, query, cancellationToken) =>
+            ((GetFuturesAnalyticsHistoricalDataLoaderQuery)query).ExecuteAsync(context, cancellationToken)
     };
 
     /// <inheritdoc />

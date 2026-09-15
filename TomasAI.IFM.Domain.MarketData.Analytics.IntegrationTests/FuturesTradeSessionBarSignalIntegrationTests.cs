@@ -37,7 +37,10 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
     [Fact]
     public async Task LiveTrade_ProducesDurableProjectedSessionBar()
     {
-        const string contractId = "ES20251010";
+        // The production ES prefix resolves to one continuation stream even
+        // when contract IDs differ. Use a unique non-ES synthetic contract so
+        // repeat test runs cannot replay a new bar into that immutable interval.
+        var contractId = $"TESTES{Guid.NewGuid():N}";
         var calendar = factory.Services.GetRequiredService<IMarketSessionCalendar>();
         var valueDate = calendar.GetValueDate(DateTimeOffset.UtcNow).AddDays(-1);
         while (!calendar.IsTradingDate(valueDate))
@@ -107,7 +110,8 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
             completed.Bar.Close.Should().Be(6500.25m);
             completed.Bar.Volume.Should().Be(3m);
             completed.Bar.TradeCount.Should().Be(1);
-            completed.CommandId.Should().Be(completed.Bar.ObservationId.Value);
+            completed.CommandId.Should().NotBe(Guid.Empty);
+            completed.CommandId.Should().NotBe(completed.Bar.ObservationId.Value);
 
             var commandSubject = new ActorSubject(
                 ActorType.Command,

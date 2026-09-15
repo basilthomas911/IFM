@@ -38,6 +38,8 @@ public class FuturesTdiSignalCommandState
 
         bool On(FuturesTdiSignalGeneratedEvent e)
         {
+            if (e.FuturesTdiSignal is null)
+                return false;
             _tdiSignal = e.FuturesTdiSignal;
             return true;
         }

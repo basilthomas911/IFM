@@ -40,37 +40,22 @@ public class FuturesTdiSignalRealtimeActor(
         IEventActorContext<FuturesTdiSignalRealtimeActor>,
         IFuturesTdiSignalRealtimeContext,
         FuturesTdiSignalRealtimeState,
-        ValueTask>> _receiveMap =
+        ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent,
             IEventActorContext<FuturesTdiSignalRealtimeActor>,
             IFuturesTdiSignalRealtimeContext,
             FuturesTdiSignalRealtimeState,
-            ValueTask>>
+            ValueTask<bool>>>
         {
-            [typeof(FuturesRsiSignalsGeneratedEvent)] = async (@event, eventContext, context, state) =>
-            {
-                _ = await ((FuturesRsiSignalsGeneratedEvent)@event)
-                    .ExecuteRealtimeAsync(
-                        context.Projector,
-                        context.DbFactory.MarketDataDb,
-                        state,
-                        context.Logger).ConfigureAwait(false);
-            },
+            [typeof(FuturesRsiSignalsGeneratedEvent)] = static (@event, eventContext, context, state) =>
+                ((FuturesRsiSignalsGeneratedEvent)@event).ExecuteAsync(
+                    context.Projector, context.DbFactory.MarketDataDb, state, context.Logger),
             [typeof(FuturesTdiSignalGeneratedFailEvent)] = static (@event, eventContext, context, state) =>
-            {
-                var failed = (FuturesTdiSignalGeneratedFailEvent)@event;
-                context.Logger.LogError(
-                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-                    failed.EventName,
-                    failed.EntityId,
-                    failed.ErrorMessage);
-                return ValueTask.CompletedTask;
-            },
-            [typeof(FuturesTdiSignalGeneratedCompleteEvent)] = async (@event, eventContext, context, state) =>
-                await eventContext.PublishMarketOutlookComponentAsync(
-                    (FuturesTdiSignalGeneratedCompleteEvent)@event).ConfigureAwait(false),
-            [typeof(FuturesTdiSignalGeneratedEvent)] = static (
-                @event, eventContext, context, state) => ValueTask.CompletedTask
+                ((FuturesTdiSignalGeneratedFailEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTdiSignalGeneratedCompleteEvent)] = static (@event, eventContext, context, state) =>
+                ((FuturesTdiSignalGeneratedCompleteEvent)@event).ExecuteAsync(eventContext, context),
+            [typeof(FuturesTdiSignalGeneratedEvent)] = static (@event, eventContext, context, state) =>
+                ((FuturesTdiSignalGeneratedEvent)@event).ExecuteAsync(context)
         };
 
     protected override async ValueTask OnStartup(IEventActorContext<FuturesTdiSignalRealtimeActor> context)
@@ -92,7 +77,7 @@ public class FuturesTdiSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        await handler(@event, context, ActorContext, _state).ConfigureAwait(false);
+        _ = await handler(@event, context, ActorContext, _state).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnExceptionAsync(

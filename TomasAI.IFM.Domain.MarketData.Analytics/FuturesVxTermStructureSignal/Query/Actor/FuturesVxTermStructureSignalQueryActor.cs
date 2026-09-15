@@ -42,14 +42,8 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
         IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
         IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetLatestFuturesVxTermStructureSignalQuery)] = static async (context, query, cancellationToken) =>
-        {
-            var latest = (GetLatestFuturesVxTermStructureSignalQuery)query;
-            var result = await latest.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId,
-                GetLatestFuturesVxTermStructureSignalQuery.Verb,
-                new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result)).ConfigureAwait(false);
-        }
+        [typeof(GetLatestFuturesVxTermStructureSignalQuery)] = static (context, query, cancellationToken) =>
+            ((GetLatestFuturesVxTermStructureSignalQuery)query).ExecuteAsync(context, cancellationToken)
     };
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

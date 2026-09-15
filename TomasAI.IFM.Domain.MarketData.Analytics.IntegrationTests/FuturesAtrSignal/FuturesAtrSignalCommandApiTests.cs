@@ -32,6 +32,7 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesAtrSignalGeneratedEvent futuresAtrSignalGeneratedEvent = default!;
         FuturesAtrSignalGeneratedCompleteEvent futuresAtrSignalGeneratedCompleteEvent = default!;
         FuturesAtrSignalGeneratedFailEvent futuresAtrSignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
         var atrSignalId = SampleData.AtrSignalId with { TimePeriod = TimeFrameType.FifteenSeconds };
@@ -91,7 +92,7 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
         var response = await marketDataAnalyticsApi.GenerateFuturesAtrSignalAsync(atrSignalId, observation);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -131,9 +132,15 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
                 if (@event is FuturesAtrSignalGeneratedEvent generated)
                     futuresAtrSignalGeneratedEvent = generated;
                 if (@event is FuturesAtrSignalGeneratedCompleteEvent generatedComplete)
+                {
                     futuresAtrSignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesAtrSignalGeneratedFailEvent generatedFail)
+                {
                     futuresAtrSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

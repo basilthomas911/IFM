@@ -133,7 +133,6 @@ public class FuturesTdiSignalCommandActor(
             var e = (GenerateFuturesTdiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesTdiSignalId(e.FuturesTdiSignalId)
                 .ValidateFuturesRsiSignals(e.FuturesRsiSignals)
                 .ValidateFuturesTdiConfiguration(e.Configuration, e.EntityId, e.FuturesRsiSignals);

@@ -46,6 +46,8 @@ public class FuturesItiSignalCommandState
 
         bool On(FuturesItiSignalGeneratedEvent e)
         {
+            if (e.FuturesItiSignal is null)
+                return false;
             _futuresItiSignal = e.FuturesItiSignal;
             return true;
         }

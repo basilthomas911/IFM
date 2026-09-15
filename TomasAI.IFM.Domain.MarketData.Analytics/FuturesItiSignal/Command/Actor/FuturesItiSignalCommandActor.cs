@@ -141,7 +141,6 @@ public class FuturesItiSignalCommandActor(
             var e = (GenerateFuturesItiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
                 .ValidateValueDate(e.TimeFrameStartValueDate, e.CommandName)
@@ -154,7 +153,6 @@ public class FuturesItiSignalCommandActor(
             var e = (ClearFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
                 .ValidateTimePeriod(e.TimePeriod, e.CommandName)
@@ -163,7 +161,6 @@ public class FuturesItiSignalCommandActor(
         [typeof(SetFuturesItiSignalHoldTradeCommand)] = cmd => {
             var e = (SetFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
