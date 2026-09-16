@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
@@ -837,6 +838,11 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                 $"No effective Iron Condor deployment is assigned to Portfolio Fund {PortfolioId}.{FundId} for {_baseContract.Symbol}.");
         var deployment = assignment.TradeStrategyFamily!.CatalogDeployment!;
         var quantity = Math.Max(1, Math.Abs(tradeOrder.OrderQuantity));
+        if (!decimal.TryParse(_baseContract.Multiplier,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var cashMultiplier) || cashMultiplier <= 0)
+            throw new InvalidOperationException($"A numeric cash multiplier is required for {_baseContract.ContractId}; no broker order was created.");
         var legs = _ironCondorTrade.OptionLegs.Select(leg => new TradeLegDefinition
         {
             TradeLegId = Guid.NewGuid(),
@@ -846,7 +852,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             ContractKey = leg.ContractId,
             Expiry = _ironCondorTrade.MaturityDate,
             Strike = leg.StrikePrice,
-            PutCall = leg.OptionLegType == OptionType.Call ? (byte)1 : (byte)2
+            PutCall = leg.OptionLegType == OptionType.Call ? (byte)1 : (byte)2,
+            CashMultiplier = cashMultiplier
         }).ToArray();
         if (legs.Length != 4 || legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId)))
             throw new InvalidOperationException("An Iron Condor order requires four broker-neutral option contract IDs.");
@@ -855,9 +862,27 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         var risk = Math.Abs(_ironCondorTrade.TradeLimit?.RiskMargin ?? tradeOrder.TotalAmount);
         var maximumLoss = Math.Abs(_ironCondorTrade.TradeLimit?.MaxLoss ?? tradeOrder.TotalAmount);
         var evidence = string.Join('|', PortfolioId, FundId, compositionId, componentId,
-            _baseContract.ContractId, tradeOrder.ValueDate, tradeOrder.TotalAmount,
+            _baseContract.ContractId, tradeOrder.ValueDate, tradeOrder.TotalAmount, tradeOrder.OrderPrice,
             string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
         var evidenceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
+        var accountAlias = "IFM-EMULATOR-PAPER";
+        var approvalReference = string.Empty;
+        if (tradeOrder.TradeFillType == TradeFillType.Broker)
+        {
+            var account = await _appRoot.Services.BrokerAccounts
+                .GetAsync(new BrokerAccountId(accountAlias)).ConfigureAwait(false);
+            if (!account.Success || account.Value is null)
+                throw new InvalidOperationException(
+                    $"The emulator broker account is unavailable ({account.ErrorCode}): {account.ErrorMessage}");
+            if (account.Value.Gate != BrokerAccountOperationalGate.Open ||
+                account.Value.QualificationStatus != BrokerAccountQualificationStatus.Accepted ||
+                account.Value.ApprovalId == Guid.Empty)
+                throw new InvalidOperationException(
+                    $"The emulator broker account is not accepted for opening trades. " +
+                    $"Qualification={account.Value.QualificationStatus}; Gate={account.Value.Gate}; " +
+                    $"Reason={account.Value.Reason}");
+            approvalReference = account.Value.ApprovalId.ToString("N");
+        }
         return new PortfolioOrderCandidate
         {
             CompositionId = compositionId,
@@ -874,7 +899,11 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                     ComponentId = componentId,
                     StrategyKind = TradeStrategyKind.IronCondor,
                     Legs = legs,
-                    PermitBalancedPartialAcceptance = false
+                    PermitBalancedPartialAcceptance = false,
+                    SignedNetDebitLimit = tradeOrder.OrderPrice,
+                    MinimumSignedNetDebitLimit = tradeOrder.OrderPrice,
+                    MaximumSignedNetDebitLimit = tradeOrder.OrderPrice,
+                    TickIncrement = 0.05m
                 }
             ],
             RequiredCapital = risk,
@@ -886,7 +915,13 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             ProductSymbol = _baseContract.Symbol,
             ProductExchange = _baseContract.Exchange,
             ProductCurrency = _baseContract.Currency,
-            PositionType = TradeOrderPositionType.Opening
+            PositionType = TradeOrderPositionType.Opening,
+            BrokerAccountAlias = accountAlias,
+            BrokerEnvironment = BrokerEnvironment.Emulator,
+            MicroExecutionProfileId = "ManualExactLimit",
+            MicroExecutionProfileVersion = 1,
+            MicroExecutionProfileHash = evidenceHash,
+            AccountPromotionApprovalReference = approvalReference
         };
     }
 

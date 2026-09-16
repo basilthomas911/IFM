@@ -1,6 +1,6 @@
 # IBKR Live Adapter: Detailed Implementation Plan v1.0
 
-**Status:** Planned; implementation is **deferred until Emulator qualification is tested and explicitly accepted**<br>
+**Status:** Planned; L0 Emulator acceptance is satisfied for approval `ec68a379-93a0-4f7a-8ef6-48e212e4a6bc` and source hash `D485F7FC37E697BDFF62C5C81FFB0F6395C106A1B46222B4032B4818AB43F531`; implementation has not started<br>
 **Sequence:** Plan 2 of 2; uses the completed [IBKR Emulator plan](Trade-Broker-IBKR-Emulator-Implementation-Plan-v1.0.md) as its baseline<br>
 **Target:** .NET 10, pinned official IBKR C# API, one configured IBKR account and one shared TWS/IB Gateway session per V1 host<br>
 **Environments:** IBKR Paper qualification/acceptance first; IBKR Live only under a separately approved, limited-capital pilot

@@ -1,15 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
-    <Folder Include="Reconcilliation\" />
-    <Folder Include="OrderBook\" />
-    <Folder Include="Portfolio\" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker\TomasAI.IFM.Framework.TradeBroker.csproj" />
   </ItemGroup>
-
 </Project>

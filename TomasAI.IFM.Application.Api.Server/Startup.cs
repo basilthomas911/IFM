@@ -963,6 +963,7 @@ public static class Startup
     {
         logger.LogInformationEvent("ApiServer", "register open generic handlers...");
         _siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
+        RegisterTradeBrokerEmulator(_siContainer, config);
         _siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
         var projectorReliabilityOptions = config
             .GetSection(EventProjectorReliabilityOptions.SectionName)
@@ -996,7 +997,8 @@ public static class Startup
             ReferenceActorAssembly.Current,
             SecuritiesActorAssembly.Current,
             SystemAdminActorAssembly.Current,
-            TradeActorAssembly.Current
+            TradeActorAssembly.Current,
+            TomasAI.IFM.Domain.BrokerAccount.BrokerAccountActorAssembly.Current
         };
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
         assemblies.AddRange(domainAssemblies);
@@ -1069,6 +1071,8 @@ public static class Startup
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialBookPreparation>(Lifestyle.Singleton);
+        _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeAccountingApi,
+            TomasAI.IFM.Domain.Portfolio.GeneralLedger.BrokerExecutionAccountingApi>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.LegacyFinancialRetention>(()=>new(
             (TomasAI.IFM.Application.Storage.FundDb.IFundDbReadContext)_siContainer.GetInstance<TomasAI.IFM.Application.Storage.FundDb.IFundDbContext>(),
             _siContainer.GetInstance<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore>(),
@@ -1084,6 +1088,38 @@ public static class Startup
             Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
         logger.LogInformationEvent("ApiServer", "open generic handlers registered");
+    }
+
+    static void RegisterTradeBrokerEmulator(SimpleInjector.Container container, ConfigurationManager config)
+    {
+        var accountAlias = config["TradeBroker:Emulator:AccountAlias"] ?? "IFM-EMULATOR-PAPER";
+        var startingCash = config.GetValue<decimal?>("TradeBroker:Emulator:StartingCash") ?? 1_000_000m;
+        var scenario = new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorScenario(
+            accountAlias, "USD", startingCash, 0.65m, TimeSpan.FromSeconds(2));
+        container.RegisterInstance(scenario);
+        var ledgerPath = config["TradeBroker:Emulator:LedgerPath"]
+            ?? Path.Combine(AppContext.BaseDirectory, "data", "trade-broker", "emulator-ledger.json");
+        container.RegisterInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorLedgerStore>(
+            new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.FileEmulatorLedgerStore(ledgerPath));
+        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorClock,
+            TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.SystemEmulatorClock>();
+        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorLedger>(() =>
+            new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorLedger(
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorScenario>(),
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorClock>(),
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorLedgerStore>()));
+        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkOrderExecutionBroker,
+            TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.OrderExecution.EmulatedOrderExecutionBroker>();
+        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkBrokerAccount,
+            TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.BrokerAccount.EmulatedBrokerAccount>();
+        container.RegisterSingleton<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker,
+            TomasAI.IFM.Application.TradeBroker.InteractiveBrokersEmulatorTradeBroker>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.BrokerOrderObservationBridge>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.IBrokerOrderReadStore,
+            TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.BrokerOrderReadStore>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore,
+            TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>();
     }
 
     /// <summary>Configures middleware and verifies the completed dependency-injection container.</summary>

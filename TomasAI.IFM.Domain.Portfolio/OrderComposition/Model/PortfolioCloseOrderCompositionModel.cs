@@ -53,7 +53,16 @@ public static class PortfolioCloseOrderCompositionModel
             ValidUntilUtc = candidate.ValidUntilUtc,
             Origin = candidate.Origin,
             Components = [candidate.Component with { Legs = [.. candidate.Component.Legs] }],
-            DefinitionHash = candidate.EvidenceHash
+            DefinitionHash = candidate.EvidenceHash,
+            BrokerAccountAlias = openingOrder.BrokerAccountAlias,
+            BrokerEnvironment = openingOrder.BrokerEnvironment,
+            PortfolioApprovalId = request.OperationId,
+            MicroExecutionProfileId = openingOrder.MicroExecutionProfileId,
+            MicroExecutionProfileVersion = openingOrder.MicroExecutionProfileVersion,
+            MicroExecutionProfileHash = openingOrder.MicroExecutionProfileHash,
+            AccountPromotionApprovalReference = openingOrder.AccountPromotionApprovalReference,
+            RequiredCapital = openingOrder.RequiredCapital,
+            MaximumLoss = openingOrder.MaximumLoss
         };
 
         return new PortfolioCloseOrderCompositionReceipt

@@ -55,11 +55,14 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources,IPortf
         Rule(LedgerTransactionKind.WithdrawalCancelled,"Equity","Cash");
         Rule(LedgerTransactionKind.WithdrawalSettled,"Equity","Cash",true);
         Rule(LedgerTransactionKind.FundTransfer,"Cash","Cash");
+        // A confirmed signed net debit increases Asset and reduces Cash. A signed credit
+        // reverses those sides. Commission and closing realized P&L remain separate facts.
+        Rule(LedgerTransactionKind.TradeSettlement,"Asset","Cash",true);
         Rule(LedgerTransactionKind.Commission,"Expense","Cash",true);
         Rule(LedgerTransactionKind.Valuation,"Asset","UnrealizedPnl");
         Rule(LedgerTransactionKind.RealizedPnl,"Cash","RealizedPnl",true,true);
         Rule(LedgerTransactionKind.Reversal,"Cash","Equity");
-        // Settlement and arbitrary adjustment rules require their own economic mapping; no implicit cash/notional rule.
+        // Arbitrary adjustment remains excluded; it requires an explicit privileged mapping.
         var draft=new LedgerConfigurationRequest { Action=LedgerConfigurationAction.CreateBook,BookId=bookId,
             Book=new() { BookId=bookId,PortfolioId=scope.PortfolioId,AccountingEntityId=Guid.NewGuid(),Environment="Emulator",
                 ExecutionAccountReference=request.ExecutionAccountReference,Funds=fundAuthorities.ToArray(),SourceWatermark=$"DevelopmentSetup:{scope.PortfolioId}:{portfolio.Revision}" },

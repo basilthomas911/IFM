@@ -60,6 +60,7 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         Dock = DockStyle.Fill;
         _parentControl = parentControl;
         _viewModel = viewModel;
+        AddBrokerEvidenceTab();
         _tradePlanStateMap = new Dictionary<ActionState, Color> {
             { ActionState.Normal, Color.LimeGreen },
             { ActionState.Warning, Color.Yellow },
@@ -92,6 +93,20 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
             _closed = true;
             _viewModel.PropertyChanged -= ViewModelPropertyChanged;
         };
+    }
+
+    void AddBrokerEvidenceTab()
+    {
+        var evidence = new BrokerExecutionEvidenceControl(_viewModel.AppRoot,
+            new TradeOrderId(_viewModel.PortfolioId, _viewModel.Fund.FundId, _viewModel.OrderId));
+        var page = new TabPage("Broker Evidence")
+        {
+            Name = "tabBrokerEvidence",
+            BackColor = Color.Black,
+            Padding = Padding.Empty
+        };
+        page.Controls.Add(evidence);
+        _graphTabs.TabPages.Add(page);
     }
 
     protected override CreateParams CreateParams

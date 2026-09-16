@@ -12,7 +12,8 @@ public enum TradeType
     CallCreditSpread,
     CallDebitSpread,
     ShortIronCondor,
-    LongIronCondor
+    LongIronCondor,
+    FuturesOutright
 }
 
 public static class TradeTypeExtensions
@@ -30,6 +31,7 @@ public static class TradeTypeExtensions
         TradeType.CallDebitSpread => nameof(TradeType.CallDebitSpread),
         TradeType.ShortIronCondor => nameof(TradeType.ShortIronCondor),
         TradeType.LongIronCondor => nameof(TradeType.LongIronCondor),
+        TradeType.FuturesOutright => nameof(TradeType.FuturesOutright),
         _ => value.ToString()
     };
 }

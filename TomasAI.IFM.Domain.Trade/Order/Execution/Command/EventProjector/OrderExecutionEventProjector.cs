@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Order.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -13,6 +14,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
+using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
@@ -50,6 +52,13 @@ public sealed class OrderExecutionEventProjector
     {
         await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.State).ConfigureAwait(false);
 
+        if (changed.State.Status == OrderExecutionStatus.Pending &&
+            changed.State.Channel == ExecutionChannel.Broker)
+        {
+            await BeginBrokerExecutionAsync(changed).ConfigureAwait(false);
+            return;
+        }
+
         if (changed.State.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected &&
             changed.State.Fills.Length == 0)
         {
@@ -58,6 +67,13 @@ public sealed class OrderExecutionEventProjector
         }
 
         if (changed.State.Status != OrderExecutionStatus.Filled) return;
+
+        var confirmedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
+            ? changed.ReceivedOn
+            : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
+        Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(
+            changed.State, changed.Id == Guid.Empty ? changed.CommandId : changed.Id,
+            confirmedAtUtc).ConfigureAwait(false));
 
         foreach (var trade in changed.CreatedTrades)
             await EstablishAsync(trade).ConfigureAwait(false);
@@ -81,6 +97,39 @@ public sealed class OrderExecutionEventProjector
             .SendAsync<CompleteTradeOrderCommand, TradeOrderId>(complete, complete.EntityId)
             .ConfigureAwait(false));
     }
+
+    async ValueTask BeginBrokerExecutionAsync(OrderExecutionChangedEvent changed)
+    {
+        foreach (var component in changed.State.Components)
+        {
+            var brokerOrderId = new BrokerOrderId(changed.EntityId, component.ComponentId);
+            var operationId = TradeHandoffIdentity.Create("broker-place-operation", brokerOrderId.Format());
+            var create = new CreateBrokerOrderCommand
+            {
+                CommandId = TradeHandoffIdentity.Create("create-broker-order", brokerOrderId.Format()),
+                Subject = new(ActorType.Command, BrokerOrderCommandActor.ActorName,
+                    CreateBrokerOrderCommand.Verb, brokerOrderId.Format()),
+                EntityId = brokerOrderId,
+                Order = changed.State.Order,
+                OperationId = operationId,
+                EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
+                    ? changed.ReceivedOn
+                    : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
+            };
+            Ensure(await context.ActorService.SendAsync<CreateBrokerOrderCommand, BrokerOrderId>(
+                create, create.EntityId).ConfigureAwait(false));
+        }
+        var submit = new SubmitOrderExecutionCommand
+        {
+            CommandId = TradeHandoffIdentity.Create("submit-order-execution", changed.EntityId.Format()),
+            Subject = new(ActorType.Command, OrderExecutionCommandActor.ActorName,
+                SubmitOrderExecutionCommand.Verb, changed.EntityId.Format()),
+            EntityId = changed.EntityId
+        };
+        Ensure(await context.ActorService.SendAsync<SubmitOrderExecutionCommand, OrderExecutionId>(
+            submit, submit.EntityId).ConfigureAwait(false));
+    }
+
 
     async ValueTask ReleaseTradeOrderAsync(OrderExecutionChangedEvent changed)
     {

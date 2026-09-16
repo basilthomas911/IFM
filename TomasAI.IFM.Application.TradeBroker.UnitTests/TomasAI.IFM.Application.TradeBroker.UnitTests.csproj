@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.BrokerAccount\TomasAI.IFM.Domain.BrokerAccount.csproj" />
+  </ItemGroup>
+</Project>

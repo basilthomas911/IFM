@@ -105,13 +105,16 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         var draft=result.Value!.Draft!;
         draft.Accounts.Should().HaveCount(6);draft.Accounts.Select(x=>x.AccountId).Should().OnlyHaveUniqueItems();
         draft.Book!.MigrationQualified.Should().BeFalse();draft.Book.Funds.Should().OnlyContain(x=>!x.CanSpend);
-        draft.Rules.Should().NotContain(x=>x.Kind==LedgerTransactionKind.TradeSettlement);
+        var settlement=draft.Rules.Should().ContainSingle(x=>x.Kind==LedgerTransactionKind.TradeSettlement).Subject;
+        settlement.RequiresConfirmedMovement.Should().BeTrue();
+        draft.Accounts.Single(x=>x.AccountId==settlement.Debit.AccountId).Category.Should().Be("Asset");
+        draft.Accounts.Single(x=>x.AccountId==settlement.Credit.AccountId).Category.Should().Be("Cash");
         var command=LedgerConfigurationIntegrationTests.Command(draft.Book,0,draft with { Reason="Review and create development configuration" });
         new List<ValidationError>().ValidateLedgerConfiguration(command).Should().BeEmpty();
         await command.ValidateAuthoritySourcesAsync(store,default);
         await new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute);
         var read=await new FinancialQueryStore(Transactions()).ReadAsync(scope,new GetFinancialLedgerConfigurationRequest());
-        read.Value!.OperatingState.Should().Be("Importing");read.Value.Rules.Should().HaveCount(10);
+        read.Value!.OperatingState.Should().Be("Importing");read.Value.Rules.Should().HaveCount(11);
         var journals=await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT count(*) FROM portfolio_financial.ledger_journal WHERE book_id=$1;",[draft.BookId],ct));
         journals.Should().Be(0L);
         await FluentActions.Awaiting(()=>preparation.PrepareAsync(scope,new($"DEV-ACCOUNT-{scope.PortfolioId}",new(2026,1,1),new(2026,12,31)),default))

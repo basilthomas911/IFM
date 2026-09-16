@@ -8,6 +8,9 @@ using TomasAI.IFM.UI.Net.Services.Trade;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
+using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 
 namespace TomasAI.IFM.UI.Net.Services;
 
@@ -20,6 +23,10 @@ public sealed class UiServiceCatalog(
     IPortfolioFinancialPolicyCommandApi portfolioPolicyCommands,
     IPortfolioOrderCompositionApi portfolioOrderCompositions,
     ITradeOrderLifecycleApi tradeOrderLifecycle,
+    IBrokerAccountQueryApi brokerAccounts,
+    IBrokerAccountCommandApi brokerAccountCommands,
+    IBrokerOrderQueryApi brokerOrders,
+    IOrderExecutionQueryApi orderExecutions,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi referenceQueries,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi referenceCommands,
     CommandResponseEventService commandResponses,
@@ -65,6 +72,14 @@ public sealed class UiServiceCatalog(
     public IPortfolioOrderCompositionApi PortfolioOrderCompositions { get; } = portfolioOrderCompositions;
     /// <inheritdoc />
     public ITradeOrderLifecycleApi TradeOrderLifecycle { get; } = tradeOrderLifecycle;
+    /// <inheritdoc />
+    public IBrokerAccountQueryApi BrokerAccounts { get; } = brokerAccounts;
+    /// <inheritdoc />
+    public IBrokerAccountCommandApi BrokerAccountCommands { get; } = brokerAccountCommands;
+    /// <inheritdoc />
+    public IBrokerOrderQueryApi BrokerOrders { get; } = brokerOrders;
+    /// <inheritdoc />
+    public IOrderExecutionQueryApi OrderExecutions { get; } = orderExecutions;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; } = referenceQueries;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; } = referenceCommands;
     /// <inheritdoc />

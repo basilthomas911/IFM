@@ -83,6 +83,10 @@ public enum BoundedContextName
     PortfolioOrderCompositionBoundedContext,
     /// <summary>Routes broker-neutral order-execution lifecycle commands.</summary>
     OrderExecutionBoundedContext,
+    /// <summary>Routes durable logical broker-order mutation and evidence commands.</summary>
+    BrokerOrderBoundedContext,
+    /// <summary>Routes broker account snapshots, gates, holds, and qualification decisions.</summary>
+    BrokerAccountBoundedContext,
     /// <summary>Routes established Futures Trade commands.</summary>
     FuturesTradeBoundedContext,
     /// <summary>Routes resident one-leg Futures position commands.</summary>

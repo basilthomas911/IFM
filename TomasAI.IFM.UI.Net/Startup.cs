@@ -152,6 +152,12 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IReferenceQueryApi, ReferenceQueryApi>();
             _container!.RegisterSingleton<IFundQueryApi, FundQueryApi>();
             _container!.RegisterSingleton<ITradeQueryApi, OptionTradeQueryApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountQueryApi,
+                BrokerAccountQueryApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Broker.IBrokerOrderQueryApi,
+                BrokerOrderQueryApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.IOrderExecutionQueryApi,
+                OrderExecutionQueryApi>();
             _container!.RegisterSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
             _container!.RegisterSingleton<
                 TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi,
@@ -167,6 +173,8 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IPortfolioCommandApi, PortfolioCommandApi>();
             _container!.RegisterSingleton<IPortfolioFinancialPolicyCommandApi, PortfolioFinancialPolicyCommandApi>();
             _container!.RegisterSingleton<IPortfolioFundCommandApi, PortfolioFundCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountCommandApi,
+                BrokerAccountCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
             _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi,

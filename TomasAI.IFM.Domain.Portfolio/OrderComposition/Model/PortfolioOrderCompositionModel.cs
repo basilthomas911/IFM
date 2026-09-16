@@ -95,7 +95,16 @@ public static class PortfolioOrderCompositionModel
                 PositionType = candidate.PositionType,
                 ValidUntilUtc = candidate.ValidUntilUtc, Origin = candidate.Origin,
                 Components = components,
-                DefinitionHash = candidate.EvidenceHash
+                DefinitionHash = candidate.EvidenceHash,
+                BrokerAccountAlias = candidate.BrokerAccountAlias,
+                BrokerEnvironment = candidate.BrokerEnvironment,
+                PortfolioApprovalId = request.OperationId,
+                MicroExecutionProfileId = candidate.MicroExecutionProfileId,
+                MicroExecutionProfileVersion = candidate.MicroExecutionProfileVersion,
+                MicroExecutionProfileHash = candidate.MicroExecutionProfileHash,
+                AccountPromotionApprovalReference = candidate.AccountPromotionApprovalReference,
+                RequiredCapital = candidate.RequiredCapital,
+                MaximumLoss = candidate.MaximumLoss
             });
             effect = effect! with { OrderId = orderId };
             effects.Add(effect);

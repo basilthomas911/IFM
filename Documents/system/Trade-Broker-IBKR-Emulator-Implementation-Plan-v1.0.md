@@ -1,6 +1,6 @@
 # IBKR Trade Broker Emulator: Detailed Implementation Plan v1.0
 
-**Status:** Planned; no implementation in this document<br>
+**Status:** E0-E11 implemented, verified, and accepted for `IFM-EMULATOR-PAPER`; approval `ec68a379-93a0-4f7a-8ef6-48e212e4a6bc` is bound to the [E10 verification manifest](Trade-Broker-IBKR-Emulator-E10-Verification-Manifest-v1.0.md)<br>
 **Sequence:** Plan 1 of 2; complete, test, review and accept before starting the [IBKR Live Adapter plan](Trade-Broker-IBKR-Live-Adapter-Implementation-Plan-v1.0.md)<br>
 **Target:** .NET 10; actor messages use versioned MessagePack; internal event/financial authority is PostgreSQL<br>
 **Account environment:** one active synthetic cash-backed Emulator account; no TWS connection or real/paper broker mutation
@@ -13,7 +13,7 @@ The completed Emulator release must take a Portfolio-approved Opening or Closing
 
 Shared contracts and actors built here are the **same** contracts and actors that the later Live adapter will use. The live plan may add provider-specific framework modules and account qualification but may not fork the business lifecycle, actor maps, financial book or micro-execution policy by broker mode.
 
-The current baseline has shell `Framework.TradeBroker` projects, no Application TradeBroker project or `Trade/Order/Broker` actors, and a local-only OrderExecution state machine. Gate E0 inventories exact solution/project references, existing versions and actor routes before code. This plan makes those gaps explicit and does not treat old manual Trade Order screens as broker execution.
+The E0 inventory found shell TradeBroker projects, no Application facade, no BrokerOrder actors, and a local-only OrderExecution state machine. The implementation now supplies those boundaries while retaining the original inventory as the reason for the gate. Manual UI orders are broker execution only after Portfolio acceptance and durable OrderExecution/BrokerOrder handoff.
 
 ## 2. Project layout and dependency direction
 

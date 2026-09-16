@@ -710,6 +710,25 @@ public partial class TradeOrderEditorForm
                        portfolioId: _viewModel.SelectedPortfolio?.PortfolioId ?? 0);
                    tradeControl = new IronCondorTradeOrderView(this, viewModel);
                    break;
+               case TradeType.FuturesOutright:
+               case TradeType.PutCreditSpread:
+               case TradeType.PutDebitSpread:
+               case TradeType.CallCreditSpread:
+               case TradeType.CallDebitSpread:
+                   var brokerBaseContract = _viewModel.BaseContracts.FirstOrDefault(contract =>
+                       string.Equals(contract.Symbol, fundOrderTrade.BaseContractSymbol,
+                           StringComparison.OrdinalIgnoreCase))
+                       ?? _viewModel.BaseContracts.FirstOrDefault()
+                       ?? throw new InvalidOperationException(
+                           $"No Futures contract is available for {fundOrderTrade.BaseContractSymbol}.");
+                   var brokerViewModel = new BrokerManualTradeOrderViewModel(
+                       _appRoot,
+                       _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
+                       fundOrder!,
+                       fundOrderTrade,
+                       brokerBaseContract);
+                   tradeControl = new BrokerManualTradeOrderView(brokerViewModel);
+                   break;
             }
             if (tradeControl != null)
             {
@@ -980,6 +999,20 @@ public partial class TradeOrderEditorForm
 
         var fund = _viewModel.SelectedFund;
         var order = _selectedLegacyOrder?.Order;
+        if (fund is not null && order is not null && composition.TradeType is
+            (TradeType.FuturesOutright or TradeType.PutCreditSpread or TradeType.PutDebitSpread or
+             TradeType.CallCreditSpread or TradeType.CallDebitSpread))
+        {
+            var brokerViewer = new BrokerTradeBlotterView(
+                _appRoot, fund, order, composition, _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
+                historicalReadOnly: true);
+            _embeddedLegacyTradeEditor = brokerViewer;
+            brokerViewer.Dock = DockStyle.Fill;
+            pnlTradeControl.Controls.Add(brokerViewer);
+            brokerViewer.Open();
+            UpdateButtons();
+            return;
+        }
         if (trade is null || fund is null || order is null)
         {
             ShowTradeEditorUnavailable(

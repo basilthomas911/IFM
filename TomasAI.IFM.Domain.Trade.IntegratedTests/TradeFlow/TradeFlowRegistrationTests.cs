@@ -38,6 +38,8 @@ using TomasAI.IFM.Domain.Trade.Order.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.State;
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State;
@@ -61,6 +63,7 @@ public sealed class TradeFlowRegistrationTests
         var registrations = container.GetCurrentRegistrations();
         AssertExactlyOne<IEventSourceActorStateRepository<TradeOrderCommandState>>(registrations);
         AssertExactlyOne<IEventSourceActorStateRepository<OrderExecutionCommandState>>(registrations);
+        AssertExactlyOne<IEventSourceActorStateRepository<BrokerOrderCommandState>>(registrations);
         AssertExactlyOne<IEventSourceActorStateRepository<FuturesTradeCommandState>>(registrations);
         AssertExactlyOne<IEventSourceActorStateRepository<FuturesOptionTradeCommandState>>(registrations);
         AssertExactlyOne<IResidentEventSourceActorStateRepository<FuturesPositionCommandState>>(registrations);
@@ -68,6 +71,7 @@ public sealed class TradeFlowRegistrationTests
         AssertExactlyOne<IResidentEventSourceActorStateRepository<VerticalSpreadPositionCommandState>>(registrations);
         AssertExactlyOne<IEventProjector<TradeOrderCommandActor>>(registrations);
         AssertExactlyOne<IEventProjector<OrderExecutionCommandActor>>(registrations);
+        AssertExactlyOne<IEventProjector<BrokerOrderCommandActor>>(registrations);
         AssertExactlyOne<IEventProjector<FuturesOptionTradeCommandActor>>(registrations);
         AssertExactlyOne<IEventProjector<FuturesTradeCommandActor>>(registrations);
         AssertExactlyOne<IEventProjector<FuturesTradePositionCommandActor>>(registrations);

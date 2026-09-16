@@ -7,6 +7,16 @@ using NewTradeOrderId = TomasAI.IFM.Domain.Trade.Shared.TradeOrderId;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 
+/// <summary>Reads durable execution evidence for accepted Trade Orders.</summary>
+public interface IOrderExecutionQueryApi
+{
+    /// <summary>Gets one exact execution attempt and its fills, costs, and terminal state.</summary>
+    ValueTask<ServiceResult<OrderExecutionDefinition>> GetAsync(
+        NewTradeOrderId tradeOrderId,
+        Guid executionAttemptId,
+        CancellationToken cancellationToken = default);
+}
+
 [MessagePackObject]
 public sealed record GetOrderExecutionQuery : IQuery<OrderExecutionDefinition>
 {

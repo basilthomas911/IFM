@@ -11,7 +11,10 @@ public sealed class OrderExecutionCommandState : BaseEventSourceActorState<Order
     public OrderExecutionDefinition? Current { get; private set; }
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not OrderExecutionChangedEvent changed) return false;
-        Current=changed.State; return true;
+        if (domainEvent is not OrderExecutionChangedEvent changed || !changed.EntityId.IsValid ||
+            changed.State.Id != changed.EntityId || !changed.State.TradeOrderId.IsValid)
+            return false;
+        Current = changed.State;
+        return true;
     }
 }

@@ -1,6 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Domain.Trade.Futures.Realtime.Model;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Model;
+using TomasAI.IFM.Domain.Trade.Order.Execution.Command;
+using TomasAI.IFM.Domain.Trade.Order.Execution.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
@@ -18,6 +20,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
+using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -172,6 +175,47 @@ public sealed class TradeFlowStateMachineTests
     }
 
     [Fact]
+    public void Duplicate_fill_identity_with_changed_payload_is_rejected()
+    {
+        var order = Fixture.ExecutingOrder();
+        var state = new OrderExecutionActorStateMachine();
+        var attempt = Guid.NewGuid();
+        state.Start(order, attempt, ExecutionChannel.Broker, Now);
+        var fill = Fixture.Fills(order.Components[0], attempt)[0];
+        state.AddFill(fill).Accepted.Should().BeTrue();
+
+        var conflict = state.AddFill(fill with { Price = fill.Price + 1m });
+
+        conflict.Accepted.Should().BeFalse();
+        conflict.Code.Should().Be("OE.FILL_ID_CONFLICT");
+        state.Current!.Fills.Should().ContainSingle().Which.Price.Should().Be(fill.Price);
+    }
+
+    [Fact]
+    public void Commission_updates_the_exact_execution_and_fee_before_fill_is_joined_when_fill_arrives()
+    {
+        var order = Fixture.ExecutingOrder();
+        var state = new OrderExecutionActorStateMachine();
+        var attempt = Guid.NewGuid();
+        state.Start(order, attempt, ExecutionChannel.Broker, Now);
+        var fill = Fixture.Fills(order.Components[0], attempt)[0] with { Commission = 0m };
+        state.AddFill(fill).Accepted.Should().BeTrue();
+
+        state.UpdateFillCost(fill.ExternalExecutionId, 1.25m).Accepted.Should().BeTrue();
+        state.Current!.Fills.Should().ContainSingle().Which.Commission.Should().Be(1.25m);
+        var same = state.Current;
+        state.UpdateFillCost(fill.ExternalExecutionId, 1.25m).Value.Should().BeSameAs(same);
+
+        var feeFirst = new OrderExecutionActorStateMachine();
+        feeFirst.Start(order, attempt, ExecutionChannel.Broker, Now).Accepted.Should().BeTrue();
+        feeFirst.UpdateFillCost(fill.ExternalExecutionId, 2.5m).Accepted.Should().BeTrue();
+        feeFirst.Current!.PendingFillCosts.Should().ContainSingle().Which.Commission.Should().Be(2.5m);
+        feeFirst.AddFill(fill).Accepted.Should().BeTrue();
+        feeFirst.Current.PendingFillCosts.Should().BeEmpty();
+        feeFirst.Current.Fills.Should().ContainSingle().Which.Commission.Should().Be(2.5m);
+    }
+
+    [Fact]
     public void Unbalanced_iron_condor_exposure_is_not_mislabeled_as_a_trade()
     {
         var order = Fixture.ExecutingOrder(permitPartial: true);
@@ -193,6 +237,74 @@ public sealed class TradeFlowStateMachineTests
         foreach (var fill in Fixture.Fills(order.Components[0], attempt, absoluteQuantity: 1)) state.AddFill(fill);
 
         state.Accept(Now.AddSeconds(1)).Accepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Authoritative_late_fill_after_cancel_is_preserved_as_exposure()
+    {
+        var order = Fixture.ExecutingOrder();
+        var state = new OrderExecutionActorStateMachine();
+        var attempt = Guid.NewGuid();
+        state.Start(order, attempt, ExecutionChannel.Broker, Now).Accepted.Should().BeTrue();
+        state.MarkSubmitted().Accepted.Should().BeTrue();
+        state.Cancel().Accepted.Should().BeTrue();
+
+        var lateFill = Fixture.Fills(order.Components[0], attempt)[0];
+        var result = state.AddFill(lateFill);
+
+        result.Accepted.Should().BeTrue();
+        state.Current!.Status.Should().Be(OrderExecutionStatus.PartiallyFilled);
+        state.Current.Fills.Should().ContainSingle().Which.Should().Be(lateFill);
+    }
+
+    [Fact]
+    public void Component_completion_waits_without_an_event_until_every_order_component_has_fill_evidence()
+    {
+        var first = Fixture.Component();
+        var second = first with
+        {
+            ComponentId = Guid.Parse("10000000-0000-0000-0000-000000000002"),
+            ReservedTradeId = 22,
+            Legs = first.Legs.Select((leg, index) => leg with
+            {
+                TradeLegId = Guid.Parse($"30000000-0000-0000-0000-{index + 1:000000000000}"),
+                ContractId = $"SECOND-{index + 1}",
+                ContractKey = $"SECOND-{index + 1}"
+            }).ToArray()
+        };
+        var order = Fixture.ExecutingOrder() with { Components = [first, second] };
+        var attempt = Guid.NewGuid();
+        var executionId = new OrderExecutionId(order.Id, attempt);
+        var subject = new ActorSubject(ActorType.Command, OrderExecutionActorNames.Command,
+            StartOrderExecutionCommand.Verb, executionId.Format());
+        var state = new OrderExecutionCommandState();
+        new StartOrderExecutionCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = executionId, Order = order,
+            ExecutionAttemptId = attempt, Channel = ExecutionChannel.Broker,
+            EffectiveAtUtc = Now, Subject = subject
+        }.Execute(state).Success.Should().BeTrue();
+        state.AcceptChanges();
+        foreach (var fill in Fixture.Fills(first, attempt))
+        {
+            new AddOrderExecutionFillCommand
+            {
+                CommandId = Guid.NewGuid(), EntityId = executionId, Fill = fill,
+                Subject = subject with { Verb = AddOrderExecutionFillCommand.Verb }
+            }.Execute(state).Success.Should().BeTrue();
+            state.AcceptChanges();
+        }
+
+        var wait = new AcceptOrderExecutionCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = executionId,
+            EffectiveAtUtc = Now.AddSeconds(1),
+            Subject = subject with { Verb = AcceptOrderExecutionCommand.Verb }
+        }.Execute(state);
+
+        wait.Success.Should().BeTrue();
+        state.Current!.Status.Should().NotBe(OrderExecutionStatus.Filled);
+        state.Events.Should().BeEmpty();
     }
 
     [Fact]

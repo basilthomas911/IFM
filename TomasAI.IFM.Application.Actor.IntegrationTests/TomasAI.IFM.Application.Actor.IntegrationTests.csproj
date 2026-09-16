@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
     <Content Include="appsettings.Development.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
@@ -64,6 +66,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Reference\TomasAI.IFM.Domain.Reference.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin\TomasAI.IFM.Domain.SystemAdmin.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.BrokerAccount\TomasAI.IFM.Domain.BrokerAccount.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Caching.Redis\TomasAI.IFM.Framework.Caching.Redis.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Caching\TomasAI.IFM.Framework.Caching.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />

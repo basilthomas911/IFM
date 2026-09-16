@@ -10,6 +10,7 @@ public sealed class OrderExecutionActorStateMachine
     readonly List<ExecutionFillEvidence> _fills = [];
     readonly HashSet<Guid> _fillIds = [];
     readonly HashSet<string> _externalIds = new(StringComparer.Ordinal);
+    readonly Dictionary<string, decimal> _pendingCosts = new(StringComparer.Ordinal);
 
     public OrderExecutionDefinition? Current { get; private set; }
 
@@ -32,6 +33,7 @@ public sealed class OrderExecutionActorStateMachine
             Status = OrderExecutionStatus.Pending,
             PositionType = order.PositionType,
             TargetPositionId = order.TargetPositionId,
+            Order = order,
             OrderRevision = order.Revision,
             Components = order.Components,
             StartedAtUtc = startedAtUtc
@@ -45,7 +47,7 @@ public sealed class OrderExecutionActorStateMachine
     public TradeDecision<OrderExecutionDefinition> AddFill(ExecutionFillEvidence fill)
     {
         if (Current is null) return Missing();
-        if (Current.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected or OrderExecutionStatus.Filled)
+        if (Current.Status is OrderExecutionStatus.Rejected or OrderExecutionStatus.Filled)
             return Reject("OE.TERMINAL", $"Cannot add a fill to {Current.Status} execution.");
         if (fill.ExecutionFillId == Guid.Empty || fill.ExecutionAttemptId != Current.ExecutionAttemptId ||
             fill.TradeLegId == Guid.Empty || fill.SignedQuantity == 0 || fill.Price <= 0 ||
@@ -58,14 +60,51 @@ public sealed class OrderExecutionActorStateMachine
             Math.Sign(leg.SignedQuantity) != Math.Sign(fill.SignedQuantity))
             return Reject("OE.FILL_NOT_ALLOCATABLE", "Fill does not match a proposed component leg.");
 
-        if (_fillIds.Contains(fill.ExecutionFillId) ||
-            (!string.IsNullOrWhiteSpace(fill.ExternalExecutionId) && _externalIds.Contains(fill.ExternalExecutionId)))
-            return TradeDecision<OrderExecutionDefinition>.Accept(Current);
+        var existing = _fills.FirstOrDefault(value => value.ExecutionFillId == fill.ExecutionFillId ||
+            !string.IsNullOrWhiteSpace(fill.ExternalExecutionId) && value.ExternalExecutionId == fill.ExternalExecutionId);
+        if (existing is not null)
+            return existing == fill
+                ? TradeDecision<OrderExecutionDefinition>.Accept(Current)
+                : Reject("OE.FILL_ID_CONFLICT", "A fill identity was reused with different evidence.");
 
+        var allocatedQuantity = _fills
+            .Where(value => value.ComponentId == fill.ComponentId && value.TradeLegId == fill.TradeLegId)
+            .Sum(static value => value.SignedQuantity);
+        if (Math.Abs(allocatedQuantity + fill.SignedQuantity) > Math.Abs(leg.SignedQuantity))
+            return Reject("OE.FILL_OVER_ALLOCATED", "Fill quantity exceeds the approved component leg quantity.");
+
+        if (!string.IsNullOrWhiteSpace(fill.ExternalExecutionId) &&
+            _pendingCosts.Remove(fill.ExternalExecutionId, out var pendingCommission))
+            fill = fill with { Commission = pendingCommission };
         _fillIds.Add(fill.ExecutionFillId);
         if (!string.IsNullOrWhiteSpace(fill.ExternalExecutionId)) _externalIds.Add(fill.ExternalExecutionId);
         _fills.Add(fill);
-        Current = Current with { Status = OrderExecutionStatus.PartiallyFilled, Fills = [.. _fills] };
+        Current = Current with
+        {
+            Status = OrderExecutionStatus.PartiallyFilled,
+            Fills = [.. _fills],
+            PendingFillCosts = PendingCosts()
+        };
+        return TradeDecision<OrderExecutionDefinition>.Accept(Current);
+    }
+
+    public TradeDecision<OrderExecutionDefinition> UpdateFillCost(string externalExecutionId, decimal commission)
+    {
+        if (Current is null) return Missing();
+        if (string.IsNullOrWhiteSpace(externalExecutionId) || commission < 0)
+            return Reject("OE.INVALID_FILL_COST", "External execution identity and non-negative commission are required.");
+        var index = _fills.FindIndex(value => value.ExternalExecutionId == externalExecutionId);
+        if (index < 0)
+        {
+            if (_pendingCosts.TryGetValue(externalExecutionId, out var pending) && pending == commission)
+                return TradeDecision<OrderExecutionDefinition>.Accept(Current);
+            _pendingCosts[externalExecutionId] = commission;
+            Current = Current with { PendingFillCosts = PendingCosts() };
+            return TradeDecision<OrderExecutionDefinition>.Accept(Current);
+        }
+        if (_fills[index].Commission == commission) return TradeDecision<OrderExecutionDefinition>.Accept(Current);
+        _fills[index] = _fills[index] with { Commission = commission };
+        Current = Current with { Fills = [.. _fills], PendingFillCosts = PendingCosts() };
         return TradeDecision<OrderExecutionDefinition>.Accept(Current);
     }
 
@@ -150,12 +189,14 @@ public sealed class OrderExecutionActorStateMachine
     public void Replay(OrderExecutionDefinition state)
     {
         Current = state;
-        _fills.Clear(); _fillIds.Clear(); _externalIds.Clear();
+        _fills.Clear(); _fillIds.Clear(); _externalIds.Clear(); _pendingCosts.Clear();
         foreach (var fill in state.Fills)
         {
             _fills.Add(fill); _fillIds.Add(fill.ExecutionFillId);
             if (!string.IsNullOrWhiteSpace(fill.ExternalExecutionId)) _externalIds.Add(fill.ExternalExecutionId);
         }
+        foreach (var cost in state.PendingFillCosts)
+            _pendingCosts[cost.ExternalExecutionId] = cost.Commission;
     }
 
     static bool TryResolveAcceptedScale(
@@ -192,6 +233,14 @@ public sealed class OrderExecutionActorStateMachine
     static TradeDecision<OrderExecutionDefinition> Reject(string code, string detail) =>
         TradeDecision<OrderExecutionDefinition>.Reject(code, detail);
     static TradeDecision<OrderExecutionDefinition> Missing() => Reject("OE.NOT_FOUND", "Execution does not exist.");
+
+    PendingExecutionCostEvidence[] PendingCosts() =>
+        [.. _pendingCosts.OrderBy(static item => item.Key, StringComparer.Ordinal)
+            .Select(static item => new PendingExecutionCostEvidence
+            {
+                ExternalExecutionId = item.Key,
+                Commission = item.Value
+            })];
 }
 
 public sealed record OrderExecutionAcceptance(

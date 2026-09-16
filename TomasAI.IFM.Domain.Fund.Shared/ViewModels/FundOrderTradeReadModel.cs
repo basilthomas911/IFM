@@ -146,6 +146,15 @@ public record FundOrderTradeReadModel
                 case TradeType.LongIronCondor:
                     contractIds.AddRange(ParseIronCondorContractIds());
                     break;
+                case TradeType.PutCreditSpread:
+                case TradeType.PutDebitSpread:
+                case TradeType.CallCreditSpread:
+                case TradeType.CallDebitSpread:
+                    contractIds.AddRange(ParseVerticalSpreadContractIds());
+                    break;
+                case TradeType.FuturesOutright:
+                    contractIds.Add(Reference.Trim());
+                    break;
             }
         }
         return contractIds.ToArray();
@@ -182,6 +191,23 @@ public record FundOrderTradeReadModel
             }
         }
         return contractIds.ToArray();
+    }
+
+    /// <summary>Parses a Pstrike:strike or Cstrike:strike vertical-spread reference.</summary>
+    private string[] ParseVerticalSpreadContractIds()
+    {
+        var value = Reference.Trim().ToUpperInvariant();
+        if (value.Length < 4 || value[0] is not ('P' or 'C'))
+            return [];
+        var optionType = value[0];
+        var strikes = value[1..].Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return strikes.Length == 2
+            ?
+            [
+                $"{BaseContractSymbol.Trim()}{MaturityDate:yyyyMMdd}{optionType}{strikes[0]}",
+                $"{BaseContractSymbol.Trim()}{MaturityDate:yyyyMMdd}{optionType}{strikes[1]}"
+            ]
+            : [];
     }
 }
 

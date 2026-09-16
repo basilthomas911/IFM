@@ -43,6 +43,13 @@ public sealed record PortfolioOrderCandidate
     [Key(18)] public decimal Gamma { get; init; }
     [Key(19)] public decimal Vega { get; init; }
     [Key(20)] public TradeOrderPositionType PositionType { get; init; }
+    [Key(21)] public string BrokerAccountAlias { get; init; } = string.Empty;
+    [Key(22)] public BrokerEnvironment BrokerEnvironment { get; init; }
+    [Key(23)] public Guid PortfolioApprovalId { get; init; }
+    [Key(24)] public string MicroExecutionProfileId { get; init; } = string.Empty;
+    [Key(25)] public int MicroExecutionProfileVersion { get; init; }
+    [Key(26)] public string MicroExecutionProfileHash { get; init; } = string.Empty;
+    [Key(27)] public string AccountPromotionApprovalReference { get; init; } = string.Empty;
 }
 
 [MessagePackObject]

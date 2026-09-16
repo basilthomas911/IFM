@@ -13,5 +13,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
   </ItemGroup>
 </Project>

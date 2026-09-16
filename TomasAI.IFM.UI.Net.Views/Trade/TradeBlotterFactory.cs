@@ -30,6 +30,14 @@ public static class TradeBlotterFactory
                 var viewModel = new IronCondorViewModel(appRoot, fund, fundOrder, fundOrderTrade, valueDate, baseContracts, historicalReadOnly: historicalReadOnly, portfolioId: portfolioId);
                 blotter = new IronCondorView(parentControl, viewModel);
                 break;
+            case TradeType.FuturesOutright:
+            case TradeType.PutCreditSpread:
+            case TradeType.PutDebitSpread:
+            case TradeType.CallCreditSpread:
+            case TradeType.CallDebitSpread:
+                blotter = new BrokerTradeBlotterView(
+                    appRoot, fund, fundOrder, fundOrderTrade, portfolioId, historicalReadOnly);
+                break;
         }
         return blotter;
     }

@@ -9,7 +9,9 @@
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
-	<ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
 		<PackageReference Include="Hazelcast.Net.Caching" Version="5.7.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.10" />
 		<PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.10" />
@@ -43,6 +45,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Reference\TomasAI.IFM.Domain.Reference.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin\TomasAI.IFM.Domain.SystemAdmin.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.BrokerAccount\TomasAI.IFM.Domain.BrokerAccount.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />

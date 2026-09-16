@@ -8,6 +8,9 @@ using TomasAI.IFM.UI.Net.Services.Trade;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
+using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 
 namespace TomasAI.IFM.UI.Net.Services;
 
@@ -27,6 +30,14 @@ public interface IUiServiceCatalog
     IPortfolioOrderCompositionApi PortfolioOrderCompositions { get; }
     /// <summary>Gets the canonical accepted Trade Order actor lifecycle boundary.</summary>
     ITradeOrderLifecycleApi TradeOrderLifecycle { get; }
+    /// <summary>Gets durable broker-account qualification and gate state.</summary>
+    IBrokerAccountQueryApi BrokerAccounts { get; }
+    /// <summary>Gets durable broker-account qualification and operator controls.</summary>
+    IBrokerAccountCommandApi BrokerAccountCommands { get; }
+    /// <summary>Gets durable broker-order execution evidence.</summary>
+    IBrokerOrderQueryApi BrokerOrders { get; }
+    /// <summary>Gets durable order-execution fill and cost evidence.</summary>
+    IOrderExecutionQueryApi OrderExecutions { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; }
     /// <summary>Gets the shared command-response event service.</summary>

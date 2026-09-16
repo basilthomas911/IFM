@@ -37,6 +37,11 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         ddlTradeType.Items.Clear();
         ddlTradeType.Items.Add($"{TradeType.ShortIronCondor}");
         ddlTradeType.Items.Add($"{TradeType.LongIronCondor}");
+        ddlTradeType.Items.Add($"{TradeType.PutCreditSpread}");
+        ddlTradeType.Items.Add($"{TradeType.PutDebitSpread}");
+        ddlTradeType.Items.Add($"{TradeType.CallCreditSpread}");
+        ddlTradeType.Items.Add($"{TradeType.CallDebitSpread}");
+        ddlTradeType.Items.Add($"{TradeType.FuturesOutright}");
         ddlTradeType.SelectedIndex = 0;
         UpdateSelectorAccessibility(ddlTradeType, "Trade type selector");
         ddlTradeType.Enabled = true;
@@ -74,6 +79,11 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             {
                 TradeType.ShortIronCondor => TradeType.LongIronCondor,
                 TradeType.LongIronCondor => TradeType.ShortIronCondor,
+                TradeType.PutCreditSpread => TradeType.PutDebitSpread,
+                TradeType.PutDebitSpread => TradeType.PutCreditSpread,
+                TradeType.CallCreditSpread => TradeType.CallDebitSpread,
+                TradeType.CallDebitSpread => TradeType.CallCreditSpread,
+                TradeType.FuturesOutright => TradeType.FuturesOutright,
                 _ => throw new NotImplementedException()
             };
             for (var index = 0; index < ddlTradeType.Items.Count; index++)
@@ -183,6 +193,8 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         txtTradeAction.Text = tradeType switch {
             TradeType.ShortIronCondor => $"{TradeAction.Sell}",
             TradeType.LongIronCondor => $"{TradeAction.Buy}",
+            TradeType.PutCreditSpread or TradeType.CallCreditSpread => $"{TradeAction.Sell}",
+            TradeType.PutDebitSpread or TradeType.CallDebitSpread or TradeType.FuturesOutright => $"{TradeAction.Buy}",
             _ => throw new NotImplementedException()
         };
     }

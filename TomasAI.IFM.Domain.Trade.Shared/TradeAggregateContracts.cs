@@ -7,6 +7,7 @@ public enum TradeStrategyKind : byte { Unknown, FuturesOutright, VanillaOption, 
 public enum TradeOrderPositionType : byte { Unknown = 0, Opening = 1, Closing = 2 }
 public enum TradeOrderStatus : byte { Draft, Approved, Ready, Executing, Completed, Cancelled, Expired }
 public enum ExecutionChannel : byte { Manual, Broker }
+public enum BrokerEnvironment : byte { Unknown = 0, Emulator = 1, Paper = 2, Live = 3 }
 public enum OrderExecutionStatus : byte { Pending, Submitted, PartiallyFilled, Filled, Cancelled, Rejected, Reconciled }
 public enum EstablishedTradeStatus : byte { Open, Closing, Closed, Corrected }
 public enum StrategyPositionPhase : byte { Open, MarkToMarket, EndOfDay, Close, Correction }
@@ -37,6 +38,7 @@ public sealed record TradeLegDefinition
     [Key(7)] public decimal? Strike { get; init; }
     [Key(8)] public byte? PutCall { get; init; }
     [Key(9)] public string ContractId { get; init; } = string.Empty;
+    [Key(10)] public decimal CashMultiplier { get; init; }
 }
 
 /// <summary>A separately executable component in a generic order.</summary>
@@ -48,13 +50,17 @@ public sealed record TradeOrderComponentDefinition
     [Key(2)] public TradeLegDefinition[] Legs { get; init; } = [];
     [Key(3)] public bool PermitBalancedPartialAcceptance { get; init; }
     [Key(4)] public int ReservedTradeId { get; init; }
+    [Key(5)] public decimal? SignedNetDebitLimit { get; init; }
+    [Key(6)] public decimal? MinimumSignedNetDebitLimit { get; init; }
+    [Key(7)] public decimal? MaximumSignedNetDebitLimit { get; init; }
+    [Key(8)] public decimal? TickIncrement { get; init; }
 }
 
 /// <summary>Broker-neutral approved order intent.</summary>
 [MessagePackObject]
 public sealed record TradeOrderDefinition
 {
-    [Key(0)] public ushort SchemaVersion { get; init; } = 3;
+    [Key(0)] public ushort SchemaVersion { get; init; } = 4;
     [Key(1)] public TradeOrderId Id { get; init; }
     [Key(2)] public int Revision { get; init; }
     [Key(3)] public TradeOrderStatus Status { get; init; }
@@ -68,6 +74,15 @@ public sealed record TradeOrderDefinition
     [Key(11)] public DateTime? ExecutionBoundAtUtc { get; init; }
     [Key(12)] public TradeOrderPositionType PositionType { get; init; }
     [Key(13)] public StrategyPositionId? TargetPositionId { get; init; }
+    [Key(14)] public string BrokerAccountAlias { get; init; } = string.Empty;
+    [Key(15)] public BrokerEnvironment BrokerEnvironment { get; init; }
+    [Key(16)] public Guid PortfolioApprovalId { get; init; }
+    [Key(17)] public string MicroExecutionProfileId { get; init; } = string.Empty;
+    [Key(18)] public int MicroExecutionProfileVersion { get; init; }
+    [Key(19)] public string MicroExecutionProfileHash { get; init; } = string.Empty;
+    [Key(20)] public string AccountPromotionApprovalReference { get; init; } = string.Empty;
+    [Key(21)] public decimal RequiredCapital { get; init; }
+    [Key(22)] public decimal MaximumLoss { get; init; }
 }
 
 /// <summary>Normalized immutable fill evidence accepted by OrderExecution.</summary>
@@ -88,11 +103,19 @@ public sealed record ExecutionFillEvidence
     [Key(10)] public string ContractId { get; init; } = string.Empty;
 }
 
+/// <summary>Commission evidence retained until its external execution arrives.</summary>
+[MessagePackObject]
+public sealed record PendingExecutionCostEvidence
+{
+    [Key(0)] public string ExternalExecutionId { get; init; } = string.Empty;
+    [Key(1)] public decimal Commission { get; init; }
+}
+
 /// <summary>State owned by one broker-neutral execution attempt.</summary>
 [MessagePackObject]
 public sealed record OrderExecutionDefinition
 {
-    [Key(0)] public ushort SchemaVersion { get; init; } = 3;
+    [Key(0)] public ushort SchemaVersion { get; init; } = 5;
     [Key(1)] public TradeOrderId TradeOrderId { get; init; }
     [Key(2)] public Guid ExecutionAttemptId { get; init; }
     [Key(3)] public ExecutionChannel Channel { get; init; }
@@ -104,6 +127,8 @@ public sealed record OrderExecutionDefinition
     [Key(9)] public DateTime? CompletedAtUtc { get; init; }
     [Key(10)] public TradeOrderPositionType PositionType { get; init; }
     [Key(11)] public StrategyPositionId? TargetPositionId { get; init; }
+    [Key(12)] public TradeOrderDefinition Order { get; init; } = new();
+    [Key(13)] public PendingExecutionCostEvidence[] PendingFillCosts { get; init; } = [];
     [IgnoreMember] public OrderExecutionId Id => new(TradeOrderId, ExecutionAttemptId);
 }
 

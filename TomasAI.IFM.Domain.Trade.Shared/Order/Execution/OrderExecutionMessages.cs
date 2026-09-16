@@ -48,6 +48,14 @@ public sealed record AddOrderExecutionFillCommand : OrderExecutionCommand
 }
 
 [MessagePackObject]
+public sealed record UpdateOrderExecutionFillCostCommand : OrderExecutionCommand
+{
+    public const string Verb = "UpdateOrderExecutionFillCost";
+    [Key(4)] public string ExternalExecutionId { get; init; } = string.Empty;
+    [Key(5)] public decimal Commission { get; init; }
+}
+
+[MessagePackObject]
 [Union(0, typeof(AcceptOrderExecutionCommand))]
 public abstract record TimedOrderExecutionCommand : OrderExecutionCommand
 {
@@ -60,6 +68,7 @@ public abstract record TimedOrderExecutionCommand : OrderExecutionCommand
 [Union(2, typeof(CancelOrderExecutionCommand))]
 [Union(3, typeof(RejectOrderExecutionCommand))]
 [Union(4, typeof(AddOrderExecutionFillCommand))]
+[Union(5, typeof(UpdateOrderExecutionFillCostCommand))]
 public abstract record OrderExecutionCommand : ICommand<OrderExecutionId>
 {
     [Key(0)] public Guid CommandId { get; init; }
