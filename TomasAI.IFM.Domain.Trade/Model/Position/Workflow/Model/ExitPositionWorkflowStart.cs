@@ -35,13 +35,14 @@ public static class ExitPositionWorkflowStart
             return new ServiceFailed<GuidResult>(command.ErrorCode,
                 "EXIT.WORKFLOW.INVALID_START; a committed exit-required plan with exact identity is required.");
 
-        state.Update(new ExitPositionWorkflowStartedEvent
+        if (!state.Update(new ExitPositionWorkflowStartedEvent
         {
             EntityId = command.EntityId,
             ExitPlan = plan,
             StrategyKind = strategyKind,
             SourcePlanEventId = sourcePlanEventId
-        }, (ICommand)command);
+        }, (ICommand)command))
+            return new ServiceFailed<GuidResult>(command.ErrorCode, "EXIT.WORKFLOW.STATE.APPLY_FAILED");
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 }

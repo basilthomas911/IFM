@@ -50,35 +50,25 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
     static readonly IReadOnlyDictionary<Type, Func<IEvent, ITickAggregationRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IEvent, ITickAggregationRealtimeContext, ValueTask>>
         {
-            [typeof(FuturesTickTradeDataChangedEvent)] = async (@event, context) =>
-            {
-                var trade = (FuturesTickTradeDataChangedEvent)@event;
-                _ = await context.Projector.ProcessRealtimeEventAsync(trade.ToInsertedEvent())
-                    .ConfigureAwait(false);
-            },
-            [typeof(FuturesTickQuoteDataChangedEvent)] = async (@event, context) =>
-            {
-                var quote = (FuturesTickQuoteDataChangedEvent)@event;
-                _ = await context.Projector.ProcessRealtimeEventAsync(quote.ToInsertedEvent())
-                    .ConfigureAwait(false);
-            },
+            [typeof(FuturesTickTradeDataChangedEvent)] = static (@event, context) =>
+                ((FuturesTickTradeDataChangedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTickQuoteDataChangedEvent)] = static (@event, context) =>
+                ((FuturesTickQuoteDataChangedEvent)@event).ExecuteAsync(context),
             [typeof(FuturesTickTradeDataInsertedFailEvent)] = static (@event, context) =>
-            {
-                LogProjectionFailure((FuturesTickTradeDataInsertedFailEvent)@event, context.Logger);
-                return ValueTask.CompletedTask;
-            },
+                ((FuturesTickTradeDataInsertedFailEvent)@event).ExecuteAsync(context),
             [typeof(FuturesTickQuoteDataInsertedFailEvent)] = static (@event, context) =>
-            {
-                LogProjectionFailure((FuturesTickQuoteDataInsertedFailEvent)@event, context.Logger);
-                return ValueTask.CompletedTask;
-            },
-            [typeof(FuturesTickTradeDataInsertedEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(FuturesTickQuoteDataInsertedEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(FuturesTickTradeDataInsertedCompleteEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(FuturesTickQuoteDataInsertedCompleteEvent)] = static (_, _) => ValueTask.CompletedTask
+                ((FuturesTickQuoteDataInsertedFailEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTickTradeDataInsertedEvent)] = static (@event, context) =>
+                ((FuturesTickTradeDataInsertedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTickQuoteDataInsertedEvent)] = static (@event, context) =>
+                ((FuturesTickQuoteDataInsertedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static (@event, context) =>
+                ((FuturesSessionStatisticsUpdatedRealtimeEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTickTradeDataInsertedCompleteEvent)] = static (@event, context) =>
+                ((FuturesTickTradeDataInsertedCompleteEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTickQuoteDataInsertedCompleteEvent)] = static (@event, context) =>
+                ((FuturesTickQuoteDataInsertedCompleteEvent)@event).ExecuteAsync(context)
         };
-
     protected override async ValueTask OnStartup(IEventActorContext<TickAggregationRealtimeActor> context)
     {
         PooledQuoteSegmentBuffers.Warmup();

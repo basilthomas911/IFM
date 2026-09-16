@@ -113,11 +113,19 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
         savedEs.RowVersion.Should().Be(1);
         savedVx.Should().OnlyContain(value => value.RowVersion == 1);
 
+        var rolledFront = Assignment(DatabentoContractRole.VxFrontMonth, fixture.Sources["VX20261021"]);
+        var rolledSecond = Assignment(DatabentoContractRole.VxSecondMonth, fixture.Sources["VX20261118"]);
+        var rolledVx = await fixture.Store.ReplaceVxAssignmentsAsync(rolledFront, rolledSecond, 1, 1);
+        rolledVx.Select(value => value.ContractId).Should().Equal("VX20261021", "VX20261118");
+        rolledVx.Should().OnlyContain(value => value.RowVersion == 2);
+
         var replacement = Assignment(DatabentoContractRole.VxSecondMonth, fixture.Sources["VX20261118"]);
         var stalePair = () => fixture.Store.ReplaceVxAssignmentsAsync(front, replacement, 1, 0);
         await stalePair.Should().ThrowAsync<Exception>();
-        (await fixture.Store.GetAssignmentAsync(DatabentoContractRole.VxSecondMonth))!.ContractId
+        (await fixture.Store.GetAssignmentAsync(DatabentoContractRole.VxFrontMonth))!.ContractId
             .Should().Be("VX20261021", "the failed statement must roll back both VX changes");
+        (await fixture.Store.GetAssignmentAsync(DatabentoContractRole.VxSecondMonth))!.ContractId
+            .Should().Be("VX20261118", "the failed statement must roll back both VX changes");
 
         var updatedEs = await fixture.Store.UpsertAssignmentAsync(savedEs with { Description = "updated" }, 1);
         updatedEs.RowVersion.Should().Be(2);

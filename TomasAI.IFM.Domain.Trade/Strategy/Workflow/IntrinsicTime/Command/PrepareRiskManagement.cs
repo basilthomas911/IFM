@@ -92,7 +92,7 @@ public static class PrepareRiskManagement
             RiskManagement=current.RiskManagement with { InputWorkflowRevision=request.InputWorkflowRevision,ExpiresAtUtc=request.ExpiresAtUtc }
         };
         using var updateTrace = WorkflowTrace.Start("risk.prepare.state_update", current);
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject=new(ActorType.Event,WorkflowStrategyStateUpdatedEvent.Actor,WorkflowStrategyStateUpdatedEvent.Verb,command.EntityId.Format()),
             Id=Guid.CreateVersion7(new DateTimeOffset(now)),EntityId=command.EntityId,CommandId=command.CommandId,

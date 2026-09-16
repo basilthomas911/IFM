@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetFuturesEodDataParameters
 {
-    internal static async ValueTask<FuturesEodDataParametersReadModel> GetFuturesEodDataParametersAsync(
+    internal static async ValueTask<FuturesEodDataParametersReadModel> ExecuteAsync(
        this GetFuturesEodDataParametersQuery q, IDbContextFactory dbFactory)
     {
         return await GetFuturesEodDataParametersAsync(dbFactory.MarketDataDb, q.ContractId, q.ValueDate);

@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProj
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -253,9 +254,9 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         var snapshot = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
         var original = MessagePackSerializer.Serialize(snapshot);
 
-        var running = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+        var running = IntrinsicTimeStrategyWorkflowQueryModel.CreateObservation(
             snapshot.EntityId.Format(), snapshot, null, snapshot.ExpiresAtUtc.AddTicks(-1));
-        var expired = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+        var expired = IntrinsicTimeStrategyWorkflowQueryModel.CreateObservation(
             snapshot.EntityId.Format(), snapshot, null, snapshot.ExpiresAtUtc);
 
         running.OperationalStatus.Should().Be(IntrinsicTimeStrategyWorkflowOperationalStatus.Running);
@@ -272,7 +273,7 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     public void Operational_view_distinguishes_terminal_states(
         WorkflowStrategyMachineStatus machine,
         IntrinsicTimeStrategyWorkflowOperationalStatus operational)
-        => IntrinsicTimeStrategyWorkflowQueryActor.Classify(machine, expired: false).Should().Be(operational);
+        => IntrinsicTimeStrategyWorkflowQueryModel.Classify(machine, expired: false).Should().Be(operational);
 
     /// <summary>Confirms Regime terminal notification acceptance is correlated by workflow, revision, and source.</summary>
     [Fact]
@@ -293,9 +294,9 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
             Status = "Completed"
         };
 
-        var accepted = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+        var accepted = IntrinsicTimeStrategyWorkflowQueryModel.CreateObservation(
             snapshot.EntityId.Format(), snapshot, regime, snapshot.StartedAtUtc);
-        var lost = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+        var lost = IntrinsicTimeStrategyWorkflowQueryModel.CreateObservation(
             snapshot.EntityId.Format(), snapshot,
             regime with { SourceEventId = Guid.NewGuid() }, snapshot.ExpiresAtUtc);
 
@@ -334,9 +335,9 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
             SummaryText = "Daily ES condition is NotTradeable"
         };
 
-        var accepted = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+        var accepted = IntrinsicTimeStrategyWorkflowQueryModel.CreateObservation(
             snapshot.EntityId.Format(), snapshot, null, snapshot.StartedAtUtc, marketCondition);
-        var orphan = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+        var orphan = IntrinsicTimeStrategyWorkflowQueryModel.CreateObservation(
             snapshot.EntityId.Format(), snapshot, null, snapshot.ExpiresAtUtc,
             marketCondition with { SourceEventId = Guid.NewGuid() });
 
@@ -351,7 +352,7 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     [Fact]
     public void Operational_view_distinguishes_migration_blocked_stream()
     {
-        var result = IntrinsicTimeStrategyWorkflowQueryActor.MigrationBlocked(
+        var result = IntrinsicTimeStrategyWorkflowQueryModel.MigrationBlocked(
             "entity", DateTime.UnixEpoch, "legacy stream");
 
         result.OperationalStatus.Should().Be(IntrinsicTimeStrategyWorkflowOperationalStatus.MigrationBlocked);

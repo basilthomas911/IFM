@@ -85,7 +85,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
         [typeof(GetLookupTypesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypesQuery);
-            var result = await query.GetLookupTypesAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypesQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
@@ -93,7 +93,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
         [typeof(GetLookupTypeNamesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeNamesQuery);
-            var result = await query.GetLookupTypeNamesAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeNamesQuery.Verb,
                 new ServiceResult<string[]>(result));
@@ -101,7 +101,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
         [typeof(GetLookupTypeQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeQuery);
-            var result = await query.GetLookupTypeAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
@@ -109,7 +109,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
         [typeof(GetLookupTypeShortCodesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodesQuery);
-            var result = await query.GetLookupTypeShortCodesAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodesQuery.Verb,
                 new ServiceResult<LookupTypeShortCodeReadModel[]>(result));
@@ -117,7 +117,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
         [typeof(GetLookupTypeShortCodeExistsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodeExistsQuery);
-            var result = await query.GetLookupTypeShortCodeExistsAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodeExistsQuery.Verb,
                 new ServiceResult<ScalarReadModel<bool>>(result));

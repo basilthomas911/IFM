@@ -1,5 +1,5 @@
 using NATS.Client.Core;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor;

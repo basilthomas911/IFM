@@ -20,7 +20,7 @@ public sealed class FuturesOptionTradeQueryActor(
 {
     public const string ActorName = FuturesOptionTradeActorNames.Query;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetIronCondorOptionTradeQuery.Verb] = message =>
@@ -64,7 +64,7 @@ public sealed class FuturesOptionTradeQueryActor(
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
-        Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>> ReceiveMap =
+        Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type,
             Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>>
         {
@@ -108,13 +108,13 @@ public sealed class FuturesOptionTradeQueryActor(
                 ((GetTradeTypeLimitQuery)query).ExecuteAsync(queryContext, token)
         }.ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(
         IQueryActorContext<FuturesOptionTradeQueryActor> context,
         IActorMessage message) =>
-        ParseMappedQuery(context, message, ParseMap);
+        ParseMappedQuery(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IQueryActorContext<FuturesOptionTradeQueryActor> context,
@@ -125,7 +125,7 @@ public sealed class FuturesOptionTradeQueryActor(
         IQueryActorContext<FuturesOptionTradeQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken) =>
-        ResolveMappedQueryHandler(query, ReceiveMap)(
+        ResolveMappedQueryHandler(query, _receiveMap)(
             Typed(context),
             query,
             cancellationToken);
@@ -142,7 +142,7 @@ public sealed class FuturesOptionTradeQueryActor(
             query,
             verb,
             exception,
-            ExceptionMap);
+            _exceptionMap);
 
     static IFuturesOptionTradeQueryContext Typed(
         IQueryActorContext<FuturesOptionTradeQueryActor> context) =>

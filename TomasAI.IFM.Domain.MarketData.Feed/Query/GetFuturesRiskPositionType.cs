@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesRiskPositionType
 {
-    internal static async ValueTask<RiskPositionTypeReadModel> GetFuturesRiskPositionTypeAsync(
+    internal static async ValueTask<RiskPositionTypeReadModel> ExecuteAsync(
         this GetFuturesRiskPositionTypeQuery q,
         IDbContextFactory dbFactory)
     {
@@ -69,5 +69,16 @@ public static class GetFuturesRiskPositionType
                 riskPositionValue++;
             return riskPositionValue;
         }
+    }
+
+    /// <summary>Reads and replies with the requested market-data feed result.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetFuturesRiskPositionTypeQuery query,
+        TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
+        MarketDataFeedQueryParameters parameters)
+    {
+        var result = await query.ExecuteAsync(parameters.DbFactory).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new TomasAI.IFM.Shared.EventSourcing.ServiceResult<RiskPositionTypeReadModel>(result)).ConfigureAwait(false);
     }
 }

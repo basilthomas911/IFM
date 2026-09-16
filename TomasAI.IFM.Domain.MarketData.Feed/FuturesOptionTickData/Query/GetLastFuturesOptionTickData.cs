@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query;
 
 public static class GetLastFuturesOptionTickData
 {
-    internal static async ValueTask<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickDataAsync(
+    internal static async ValueTask<FuturesOptionTickDataV2ReadModel?> ExecuteAsync(
        this GetLastFuturesOptionTickDataQuery q, IDbContextFactory dbFactory)
         => await dbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(q.ContractId, q.ValueDate);
 }

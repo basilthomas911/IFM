@@ -56,7 +56,7 @@ public static class CancelIntrinsicTimeStrategyWorkflow
             TerminalAtUtc = now,
             StopReasonCode = command.ReasonCode
         }, cancelledStage);
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),

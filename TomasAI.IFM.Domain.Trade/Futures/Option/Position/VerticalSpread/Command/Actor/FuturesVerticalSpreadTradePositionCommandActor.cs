@@ -21,7 +21,7 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(
     public const string ActorName = PositionActorNames.VerticalSpreadCommand;
     readonly IVerticalSpreadPositionCommandContext services = Typed(context);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [OpenVerticalSpreadPositionCommand.Verb] = message => message.AsCommand<OpenVerticalSpreadPositionCommand>()!,
@@ -33,18 +33,21 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(
             [SnapshotVerticalSpreadPositionCommand.Verb] = message => message.AsCommand<SnapshotVerticalSpreadPositionCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly Type[] CommandTypes =
-    [
-        typeof(OpenVerticalSpreadPositionCommand), typeof(UpdateVerticalSpreadPositionLegMarketPriceCommand),
-        typeof(ChangeTradeLegDataCommand), typeof(EndOfDayVerticalSpreadPositionCommand),
-        typeof(CloseVerticalSpreadPositionCommand), typeof(CorrectVerticalSpreadPositionBasisCommand),
-        typeof(SnapshotVerticalSpreadPositionCommand)
-    ];
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap =
-        CommandTypes.ToDictionary(type => type, _ => (Func<ICommand, List<ValidationError>>)Validate).ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, VerticalSpreadPositionCommandState, ServiceResult<GuidResult>>> ReceiveMap =
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(OpenVerticalSpreadPositionCommand)] = Validate,
+            [typeof(UpdateVerticalSpreadPositionLegMarketPriceCommand)] = Validate,
+            [typeof(ChangeTradeLegDataCommand)] = Validate,
+            [typeof(EndOfDayVerticalSpreadPositionCommand)] = Validate,
+            [typeof(CloseVerticalSpreadPositionCommand)] = Validate,
+            [typeof(CorrectVerticalSpreadPositionBasisCommand)] = Validate,
+            [typeof(SnapshotVerticalSpreadPositionCommand)] = Validate,
+        }.ToFrozenDictionary();
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, VerticalSpreadPositionCommandState, ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, VerticalSpreadPositionCommandState, ServiceResult<GuidResult>>>
         {
             [typeof(OpenVerticalSpreadPositionCommand)] = static (command, state) => ((OpenVerticalSpreadPositionCommand)command).Execute(state),
@@ -64,16 +67,16 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(
 
     protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context) => services.EventProjector.StartAsync(context);
     protected override ValueTask OnInMemoryShutdownAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context) => services.EventProjector.StopAsync();
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, ParseMap);
+    protected override ICommand ParseMessage(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
 
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        ValidateMappedCommand(command, ValidationMap);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, IActorState state, ICommand command) =>
-        ValueTask.FromResult(ResolveMappedCommandHandler(command, ReceiveMap)(command, (VerticalSpreadPositionCommandState)state));
+        ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, (VerticalSpreadPositionCommandState)state));
 
     protected override ValueTask<VerticalSpreadPositionCommandState> LoadStateFromStoreAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) => services.StateRepository.LoadStateAsync(command, cancellationToken);
     protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, ActorThreadId threadId, VerticalSpreadPositionCommandState state, ICommand command, CancellationToken cancellationToken) => services.StateRepository.SaveStateAsync(context, state, command, cancellationToken);

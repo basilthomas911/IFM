@@ -16,7 +16,7 @@ public sealed class VerticalSpreadTradePlanQueryActor(
     : BaseQueryActor<VerticalSpreadTradePlanQueryActor>(context, Typed(context).Logger)
 {
     public const string ActorName = GetCurrentVerticalSpreadTradePlanQuery.Actor;
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetCurrentVerticalSpreadTradePlanQuery.Verb] = message =>
@@ -25,7 +25,7 @@ public sealed class VerticalSpreadTradePlanQueryActor(
                 message.AsQuery<GetVerticalSpreadTradePlanHistoryQuery, StrategyTradePlanHistoryPage>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type,
-        Func<IVerticalSpreadTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> ReceiveMap =
+        Func<IVerticalSpreadTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IVerticalSpreadTradePlanQueryContext, IQuery, CancellationToken, ValueTask>>
         {
             [typeof(GetCurrentVerticalSpreadTradePlanQuery)] = static (c, q, t) =>
@@ -33,18 +33,18 @@ public sealed class VerticalSpreadTradePlanQueryActor(
             [typeof(GetVerticalSpreadTradePlanHistoryQuery)] = static (c, q, t) =>
                 ((GetVerticalSpreadTradePlanHistoryQuery)q).ExecuteAsync(c, t)
         }.ToFrozenDictionary();
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(IQueryActorContext<VerticalSpreadTradePlanQueryActor> c, IActorMessage m) =>
-        ParseMappedQuery(c, m, ParseMap);
+        ParseMappedQuery(c, m, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<VerticalSpreadTradePlanQueryActor> c, IQuery q) =>
         ReceiveAsync(c, q, CancellationToken.None);
     protected override ValueTask ReceiveAsync(IQueryActorContext<VerticalSpreadTradePlanQueryActor> c, IQuery q,
-        CancellationToken t) => ResolveMappedQueryHandler(q, ReceiveMap)(Typed(c), q, t);
+        CancellationToken t) => ResolveMappedQueryHandler(q, _receiveMap)(Typed(c), q, t);
     protected override ValueTask OnExceptionAsync(IQueryActorContext<VerticalSpreadTradePlanQueryActor> c,
         ActorThreadId id, IQuery q, string verb, Exception exception) =>
-        ExceptionMappedQueryAsync(c, id, q, verb, exception, ExceptionMap);
+        ExceptionMappedQueryAsync(c, id, q, verb, exception, _exceptionMap);
     static IVerticalSpreadTradePlanQueryContext Typed(IQueryActorContext<VerticalSpreadTradePlanQueryActor> context) =>
         context as IVerticalSpreadTradePlanQueryContext
         ?? throw new ArgumentException("Typed Vertical Spread Trade Plan query context required.");

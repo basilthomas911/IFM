@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Query.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

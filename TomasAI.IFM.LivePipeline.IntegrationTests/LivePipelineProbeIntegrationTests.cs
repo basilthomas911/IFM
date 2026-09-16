@@ -68,14 +68,25 @@ public sealed class LivePipelineProbeIntegrationTests
         await using var f = await Fixture.Create();
         var contracts = new[] { "ES", "VX", "VX" }.Select((symbol, i) => new FuturesContractV3ReadModel(
             symbol + "STARTUP" + i, symbol, symbol, symbol + "U6", "FUT", "USD", "CME", "50", f.Date.AddDays(i + 1), true)).ToArray();
+        var rolloverCompleted = false;
+        var rollover = Substitute.For<IFuturesContractRolloverStartupCheck>();
+        rollover.ExecuteAsync(f.Date, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            rolloverCompleted = true;
+            return Array.Empty<FuturesContractRolloverReadModel>();
+        });
         var authority = Substitute.For<IDatabentoContractAuthority>();
-        authority.ReconcileAsync(f.Date, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(contracts.Select(c => new FuturesRolloverContractAssignment
+        authority.ReconcileAsync(f.Date, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            Assert.True(rolloverCompleted);
+            return contracts.Select(c => new FuturesRolloverContractAssignment
         {
             ContractRole = DatabentoContractRole.EsQuarterly, RootSymbol = c.Symbol, ContractId = c.ContractId,
             Description = c.Symbol, LocalSymbol = c.Symbol, SecurityType = "FUT", Currency = "USD", Exchange = "CME", Multiplier = "50",
             LastTradeDate = f.Date.AddDays(10), NextRolloverDate = f.Date.AddDays(9), SourceContractHash = "test",
             CreatedOnUtc = DateTime.UtcNow, UpdatedOnUtc = DateTime.UtcNow, CreatedBy = "test", UpdatedBy = "test"
-        }).ToArray());
+            }).ToArray();
+        });
         var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
         catalog.GetByRootAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call => contracts.Where(c => c.Symbol == call.Arg<string>()).ToArray());
         var commands = Substitute.For<IMarketDataFeedCommandApi>();
@@ -84,10 +95,11 @@ public sealed class LivePipelineProbeIntegrationTests
         var queries = Substitute.For<IMarketDataFeedQueryApi>();
         queries.GetRuntimeStatusAsync().Returns(new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(new MarketDataFeedRuntimeStatusReadModel()
         { IsRunning = true, ActiveValueDate = f.Date, ObservedAtUtc = DateTimeOffset.UtcNow }));
-        var activities = new ApiApplicationStartupActivities(f.Sessions, authority, catalog, null!, commands, queries,
+        var activities = new ApiApplicationStartupActivities(f.Sessions, authority, catalog, rollover, null!, commands, queries,
             null!, null!, f.Storage, f.Market, null!, null!, null!, new(), new(), TimeProvider.System, NullLogger<ApiApplicationStartupActivities>.Instance);
         var context = new ApplicationStartupContext(f.Date, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         await activities.ReconcileCurrentContractsAsync(context, default);
+        await rollover.Received(1).ExecuteAsync(f.Date, Arg.Any<CancellationToken>());
         Assert.Equal(ApplicationStartupActivityOutcome.AlreadySatisfied, await activities.StartMarketDataAsync(context, default));
         await commands.Received(1).StartFuturesBarDataStreamingAsync(Arg.Is<FuturesContractV3ReadModel[]>(x => x.Length == 3), f.Date);
         await commands.Received(3).StartFuturesTickDataStreamingAsync(Arg.Any<FuturesContractV3ReadModel>(), f.Date, false);

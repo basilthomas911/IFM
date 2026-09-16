@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -13,7 +13,7 @@ public static class GetDefaultFuturesContractDefinitions
     /// <summary>
     /// Handles a request to retrieve default futures contract definitions.
     /// </summary>
-    public static ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
+    public static ValueTask<DefaultFuturesContractDefinitionsReadModel> ExecuteAsync(
         this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
         => GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
 
@@ -43,5 +43,13 @@ public static class GetDefaultFuturesContractDefinitions
             OptionSecurityType = values[4].FirstOrDefault()?.ShortCode ?? string.Empty,
             Symbol = values[5].FirstOrDefault()?.ShortCode ?? string.Empty
         };
+    }
+
+    /// <summary>Reads and replies with the requested Reference result.</summary>
+    public static async ValueTask ExecuteAsync(this GetDefaultFuturesContractDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    {
+        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result)).ConfigureAwait(false);
     }
 }

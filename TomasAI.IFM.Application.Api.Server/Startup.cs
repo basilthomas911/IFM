@@ -918,6 +918,7 @@ public static class Startup
             services.AddSingleton<LivePipelineMonitor>();
             services.AddHostedService(provider => provider.GetRequiredService<LivePipelineMonitor>());
             services.AddHostedService<HistoricalDailyAnalyticsInitializationService>();
+            services.AddHostedService<FuturesRolloverPreparationHostedService>();
             services.AddHostedService<ApplicationStartupCommandDispatcher>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")

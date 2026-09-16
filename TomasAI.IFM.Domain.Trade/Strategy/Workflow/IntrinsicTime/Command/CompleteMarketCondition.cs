@@ -180,7 +180,7 @@ public static class CompleteMarketCondition
                     TradeSelection=view.TradeSelection with {ProcessingStatus=StrategyActorProcessingStatus.Failed,FailedAtUtc=now,Failure=new(){ErrorCode=23023,ErrorType="SelectionBindingInvalid",ErrorMessage=ex.Message,FailedAtUtc=now}}};
             }
         }
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),

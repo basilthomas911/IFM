@@ -13,7 +13,7 @@ internal static class GetFunds
     /// <param name="context">The Fund-specific query context.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask<FundReadModel[]> GetFundsAsync(
+    internal static async ValueTask<FundReadModel[]> ExecuteAsync(
         this GetFundsQuery q,
         IFundQueryContext context,
         CancellationToken cancellationToken = default)

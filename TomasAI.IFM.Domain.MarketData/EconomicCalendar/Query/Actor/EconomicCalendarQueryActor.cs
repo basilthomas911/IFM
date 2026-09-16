@@ -92,7 +92,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         [typeof(GetEconomicCalendarPageQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (GetEconomicCalendarPageQuery)q;
-            var result = await query.GetEconomicCalendarPageAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarPageQuery.Verb,
                 new ServiceResult<EconomicCalendarPageReadModel>(result));
@@ -100,7 +100,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         [typeof(GetEconomicCalendarAllQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarAllQuery;
-            var result = await query.GetEconomicCalendarAllAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb,
                 new ServiceResult<EconomicCalendarReadModel[]>(result));
@@ -108,7 +108,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         [typeof(GetEconomicCalendarQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarQuery;
-            var result = await query.GetEconomicCalendarAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb,
                 new ServiceResult<EconomicCalendarReadModel[]>(result));
@@ -116,7 +116,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         [typeof(GetEconomicCalendarDateQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarDateQuery;
-            var result = await query.GetEconomicCalendarDateAsync(cancellationToken);
+            var result = await query.ExecuteAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarDateQuery.Verb,
                 new ServiceResult<string>(result));
@@ -124,7 +124,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         [typeof(GetEconomicCalendarCountryCodesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarCountryCodesQuery;
-            var result = await query.GetEconomicCalendarCountryCodesAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarCountryCodesQuery.Verb,
                 new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(result));

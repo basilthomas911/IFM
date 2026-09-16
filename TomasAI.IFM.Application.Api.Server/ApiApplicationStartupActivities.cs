@@ -27,6 +27,7 @@ public sealed class ApiApplicationStartupActivities(
     IFuturesMarketSessionAuthority marketSessionAuthority,
     IDatabentoContractAuthority contractAuthority,
     ICurrentFuturesContractCatalog contractCatalog,
+    IFuturesContractRolloverStartupCheck rolloverCheck,
     IFmpMarketDataImportCoordinator referenceImportCoordinator,
     IMarketDataFeedCommandApi marketDataFeedCommandApi,
     IMarketDataFeedQueryApi marketDataFeedQueryApi,
@@ -152,6 +153,8 @@ public sealed class ApiApplicationStartupActivities(
         ApplicationStartupContext context,
         CancellationToken cancellationToken)
     {
+        await rolloverCheck.ExecuteAsync(context.ValueDate, cancellationToken)
+            .ConfigureAwait(false);
         var assignments = await contractAuthority.ReconcileAsync(
             context.ValueDate, nameof(ApiApplicationStartupActivities), cancellationToken).ConfigureAwait(false);
         var selectedIds = assignments.Select(value => value.ContractId).ToHashSet(StringComparer.Ordinal);

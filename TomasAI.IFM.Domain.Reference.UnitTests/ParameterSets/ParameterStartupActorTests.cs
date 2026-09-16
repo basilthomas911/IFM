@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Extensions;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

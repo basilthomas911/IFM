@@ -224,6 +224,9 @@ public sealed class MarketDataRuntimeHealthCheck(
             }
 
             data[$"{key}ContractId"] = contract.ContractId;
+            var maturityEligible = health.ValueDate is not { } activeValueDate
+                || contract.LastTradeDate > activeValueDate;
+            data[$"{key}ContractMaturityEligible"] = maturityEligible;
             var status = epoch?.ContractStatuses?.SingleOrDefault(item =>
                 StringComparer.Ordinal.Equals(item.ContractId, contract.ContractId));
             var routeActive = marketDataApi.IsTickDataStreamActive(contract.ContractId);
@@ -272,14 +275,15 @@ public sealed class MarketDataRuntimeHealthCheck(
 
             // Only explicitly owned routes are monitored. Live yellow/red degrade
             // market-data readiness; off-hours degradation leaves ownership intact.
-            return !routeActive
-                || status is { ContractConfigured: true, ContractRunning: true }
-                && (marketState switch
-                    {
-                        FuturesMarketState.Closed => true,
-                        FuturesMarketState.OffTrading => routeHealth == MarketDataFeedSessionHealthState.OffHoursActive,
-                        _ => routeHealth == MarketDataFeedSessionHealthState.Green
-                    });
+            return maturityEligible
+                && (!routeActive
+                    || status is { ContractConfigured: true, ContractRunning: true }
+                    && (marketState switch
+                        {
+                            FuturesMarketState.Closed => true,
+                            FuturesMarketState.OffTrading => routeHealth == MarketDataFeedSessionHealthState.OffHoursActive,
+                            _ => routeHealth == MarketDataFeedSessionHealthState.Green
+                        }));
         }
     }
 }

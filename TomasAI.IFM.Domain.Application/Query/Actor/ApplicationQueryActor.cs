@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Queries;
+using TomasAI.IFM.Domain.Application.Actor.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -29,14 +30,7 @@ public sealed class ApplicationQueryActor(IQueryActorContext<ApplicationQueryAct
             IQueryActorContext<ApplicationQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
             [typeof(GetApplicationStartupStatusQuery)] = static (context, query, cancellationToken) =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var statusQuery = (GetApplicationStartupStatusQuery)query;
-                return context.ReplyAsync(
-                    statusQuery.Subject.ThreadId,
-                    GetApplicationStartupStatusQuery.Verb,
-                    new ServiceOk<ApplicationStartupStatus>(Require(context).StatusStore.Current));
-            }
+                ((GetApplicationStartupStatusQuery)query).ExecuteAsync(Require(context), cancellationToken)
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

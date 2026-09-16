@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using NATS.Client.Core;
@@ -47,8 +48,10 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
             var e = (evt as FuturesBarDataStreamingStoppedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesBarDataInsertedEvent)] = static (_, _, _, _, _) => ValueTask.FromResult(true),
-        [typeof(FuturesBarDataDeletedEvent)] = static (_, _, _, _, _) => ValueTask.FromResult(true)
+        [typeof(FuturesBarDataInsertedEvent)] = static (value, context, commandApi, eventApi, parameters) =>
+            ((FuturesBarDataInsertedEvent)value).ExecuteAsync(context, commandApi, eventApi, parameters),
+        [typeof(FuturesBarDataDeletedEvent)] = static (value, context, commandApi, eventApi, parameters) =>
+            ((FuturesBarDataDeletedEvent)value).ExecuteAsync(context, commandApi, eventApi, parameters)
     };
 
     protected override ValueTask OnStartup(IEventActorContext<FuturesBarDataEventActor> context)

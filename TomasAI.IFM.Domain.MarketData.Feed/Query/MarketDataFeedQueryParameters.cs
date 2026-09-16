@@ -5,7 +5,7 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
-internal record MarketDataFeedQueryParameters
+public sealed record MarketDataFeedQueryParameters
 {
     public ApplicationMarketDataApi MarketDataApi { get; init; }
     public ISequenceIdGenerator SequenceIdGenerator { get; init; }

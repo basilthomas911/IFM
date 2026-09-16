@@ -13,7 +13,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Option.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Command.State;
-using TomasAI.IFM.Domain.Trade.Order.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Order.Command;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;

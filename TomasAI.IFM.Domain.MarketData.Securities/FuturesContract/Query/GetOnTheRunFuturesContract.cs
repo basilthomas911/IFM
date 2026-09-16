@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -17,7 +17,7 @@ public static class GetOnTheRunFuturesContract
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static ValueTask<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(
+    public static ValueTask<FuturesContractV3ReadModel?> ExecuteAsync(
         this GetOnTheRunFuturesContractQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

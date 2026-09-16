@@ -21,7 +21,7 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
     public const string ActorName = PositionActorNames.IronCondorCommand;
     readonly IIronCondorPositionCommandContext services = Typed(context);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [OpenIronCondorPositionCommand.Verb] = message => message.AsCommand<OpenIronCondorPositionCommand>()!,
@@ -33,18 +33,21 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
             [SnapshotIronCondorPositionCommand.Verb] = message => message.AsCommand<SnapshotIronCondorPositionCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly Type[] CommandTypes =
-    [
-        typeof(OpenIronCondorPositionCommand), typeof(UpdateIronCondorPositionLegMarketPriceCommand),
-        typeof(ChangeTradeLegDataCommand), typeof(EndOfDayIronCondorPositionCommand),
-        typeof(CloseIronCondorPositionCommand), typeof(CorrectIronCondorPositionBasisCommand),
-        typeof(SnapshotIronCondorPositionCommand)
-    ];
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap =
-        CommandTypes.ToDictionary(type => type, _ => (Func<ICommand, List<ValidationError>>)Validate).ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>> ReceiveMap =
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(OpenIronCondorPositionCommand)] = Validate,
+            [typeof(UpdateIronCondorPositionLegMarketPriceCommand)] = Validate,
+            [typeof(ChangeTradeLegDataCommand)] = Validate,
+            [typeof(EndOfDayIronCondorPositionCommand)] = Validate,
+            [typeof(CloseIronCondorPositionCommand)] = Validate,
+            [typeof(CorrectIronCondorPositionBasisCommand)] = Validate,
+            [typeof(SnapshotIronCondorPositionCommand)] = Validate,
+        }.ToFrozenDictionary();
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>>
         {
             [typeof(OpenIronCondorPositionCommand)] = static (command, state) => ((OpenIronCondorPositionCommand)command).Execute(state),
@@ -64,16 +67,16 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
 
     protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) => services.EventProjector.StartAsync(context);
     protected override ValueTask OnInMemoryShutdownAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) => services.EventProjector.StopAsync();
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, ParseMap);
+    protected override ICommand ParseMessage(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
 
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        ValidateMappedCommand(command, ValidationMap);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorState state, ICommand command) =>
-        ValueTask.FromResult(ResolveMappedCommandHandler(command, ReceiveMap)(command, (IronCondorPositionCommandState)state));
+        ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, (IronCondorPositionCommandState)state));
 
     protected override ValueTask<IronCondorPositionCommandState> LoadStateFromStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) => services.StateRepository.LoadStateAsync(command, cancellationToken);
     protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, IronCondorPositionCommandState state, ICommand command, CancellationToken cancellationToken) => services.StateRepository.SaveStateAsync(context, state, command, cancellationToken);

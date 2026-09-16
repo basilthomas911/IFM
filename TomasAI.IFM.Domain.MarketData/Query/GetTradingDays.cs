@@ -15,7 +15,7 @@ public static class GetTradingDays
     /// <param name="dbFactory">The database context factory.</param>
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-	public static async ValueTask<ScalarReadModel<int>> GetTradingDaysAsync(
+	public static async ValueTask<ScalarReadModel<int>> ExecuteAsync(
         this GetTradingDaysQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
@@ -28,5 +28,17 @@ public static class GetTradingDays
                 q.StartDate, q.EndDate, q.MarketType, q.CurrencyType)
                 .ConfigureAwait(false);
         return new ScalarReadModel<int>(tradingDayCount);
+    }
+
+    /// <summary>Reads and replies with the requested market-data result.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetTradingDaysQuery query,
+        TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
+        CancellationToken cancellationToken)
+    {
+        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
     }
 }

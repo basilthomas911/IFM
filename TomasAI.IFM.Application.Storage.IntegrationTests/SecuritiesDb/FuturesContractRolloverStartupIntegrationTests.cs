@@ -62,7 +62,10 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         };
         var syntheticCheck = new FuturesContractRolloverStartupCheck(
             api, fixture.Db, clock, syntheticOptions, registry);
-        var synthetic = await syntheticCheck.ExecuteAsync(new DateOnly(2026, 9, 18));
+        var synthetic = await syntheticCheck.ExecuteAsync(new DateOnly(2026, 9, 15));
+        var dueWithoutReplacement = () => syntheticCheck.ExecuteAsync(new DateOnly(2026, 9, 16));
+        await dueWithoutReplacement.Should().ThrowAsync<FuturesContractRolloverConfigurationException>()
+            .WithMessage("*2 configured 'VX' futures contract(s)*");
 
         first.Should().Contain(row => row.Symbol == "ES"
             && row.ContractId == "ES20260918"

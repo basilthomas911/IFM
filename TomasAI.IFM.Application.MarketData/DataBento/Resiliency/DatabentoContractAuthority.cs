@@ -70,7 +70,7 @@ public sealed class DatabentoContractAuthority(
     }
 
     static FuturesContractV3ReadModel[] Eligible(IReadOnlyList<FuturesContractV3ReadModel> values, DateOnly valueDate)
-        => [.. values.Where(value => value.IsValid && value.LastTradeDate >= valueDate)
+        => [.. values.Where(value => value.IsValid && value.LastTradeDate > valueDate)
             .OrderBy(value => value.LastTradeDate).ThenBy(value => value.ContractId, StringComparer.Ordinal)];
 
     static FuturesRolloverContractAssignment Copy(DatabentoContractRole role, FuturesContractV3ReadModel source,

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.Api.Server;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -26,6 +27,7 @@ public sealed class ParameterSignalStartupTests
   var authority=Substitute.For<IDatabentoContractAuthority>();
   authority.ReconcileAsync(date,Arg.Any<string>(),Arg.Any<CancellationToken>()).Returns(contracts.Select(c=>new FuturesRolloverContractAssignment{ContractRole=DatabentoContractRole.EsQuarterly,RootSymbol=c.Symbol,ContractId=c.ContractId,Description=c.Symbol,LocalSymbol=c.Symbol,SecurityType="FUT",Currency="USD",Exchange="CME",Multiplier="50",LastTradeDate=date.AddDays(10),NextRolloverDate=date.AddDays(9),SourceContractHash="test",CreatedOnUtc=DateTime.UtcNow,CreatedBy="test",UpdatedOnUtc=DateTime.UtcNow,UpdatedBy="test"}).ToArray());
   var catalog=Substitute.For<ICurrentFuturesContractCatalog>();catalog.GetByRootAsync(Arg.Any<string>(),Arg.Any<CancellationToken>()).Returns(call=>contracts.Where(x=>x.Symbol==call.Arg<string>()).ToArray());
+  var rollover=Substitute.For<IFuturesContractRolloverStartupCheck>();rollover.ExecuteAsync(date,Arg.Any<CancellationToken>()).Returns([]);
   var api=Substitute.For<IParameterSetsApi>();ParameterSignalStartupReport? report=null;
   api.RecordStartupReportAsync(Arg.Any<RecordSignalStartupReportCommand>(),Arg.Any<CancellationToken>()).Returns(call=>{report=call.Arg<RecordSignalStartupReportCommand>().Report;return new ServiceOk<GuidResult>(new(Guid.NewGuid()));});
   var analytics=Substitute.For<IMarketDataAnalyticsCommandApi>();
@@ -37,7 +39,7 @@ public sealed class ParameterSignalStartupTests
    new(new(ParameterSignalProducer.Rsi,TimeFrameType.OneMinute,14),true,true,[]),
    new(new(ParameterSignalProducer.Atr,TimeFrameType.OneMinute,14),true,true,[]),
    new(new(ParameterSignalProducer.Adx,TimeFrameType.OneMinute,14),false,true,[])]));
-  var activities=new ApiApplicationStartupActivities(sessions,authority,catalog,null!,null!,null!,analytics,null!,null!,null!,null!,null!,null!,new(),
+  var activities=new ApiApplicationStartupActivities(sessions,authority,catalog,rollover,null!,null!,null!,analytics,null!,null!,null!,null!,null!,null!,new(),
    new(){ParticipantTimeout=TimeSpan.FromMilliseconds(timeout?30:1000)},TimeProvider.System,NullLogger<ApiApplicationStartupActivities>.Instance,api,runtime);
   var context=new ApplicationStartupContext(date,Guid.NewGuid(),Guid.NewGuid(),run);
   await activities.ReconcileCurrentContractsAsync(context,default);

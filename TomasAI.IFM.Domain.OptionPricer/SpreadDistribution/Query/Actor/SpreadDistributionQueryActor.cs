@@ -74,7 +74,7 @@ public class SpreadDistributionQueryActor(
         [typeof(GetSpreadDistributionQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetSpreadDistributionQuery)!;
-            var result = await query.GetSpreadDistributionAsync(
+            var result = await query.ExecuteAsync(
                 dbFactory,
                 query.TradeId,
                 query.TradeType,

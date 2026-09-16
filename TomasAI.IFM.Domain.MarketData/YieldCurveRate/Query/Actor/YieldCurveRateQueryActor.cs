@@ -92,7 +92,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         GetLastYieldCurveRateQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetLastYieldCurveRateAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.ExecuteAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetLastYieldCurveRateQuery.Verb,
             new ServiceResult<YieldCurveRateReadModel?>(result)).ConfigureAwait(false);
@@ -103,7 +103,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         GetYieldCurveRatesQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRatesAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.ExecuteAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRatesQuery.Verb,
             new ServiceResult<YieldCurveRateReadModel[]>(result)).ConfigureAwait(false);
@@ -114,7 +114,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         GetYieldCurveRateExistsQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRateExistsAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.ExecuteAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateExistsQuery.Verb,
             new ServiceResult<ScalarReadModel<bool>>(result)).ConfigureAwait(false);
@@ -125,7 +125,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         GetYieldCurveRateYearsQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRateYearsAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.ExecuteAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateYearsQuery.Verb,
             new ServiceResult<YieldCurveRateYearsReadModel>(result)).ConfigureAwait(false);

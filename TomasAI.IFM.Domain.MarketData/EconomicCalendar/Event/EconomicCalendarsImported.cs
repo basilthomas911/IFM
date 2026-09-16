@@ -97,22 +97,6 @@ public static class EconomicCalendarsImported
         };
     }
 
-    /// <summary>Handles the successful terminal event without starting another operation.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this EconomicCalendarsImportedCompleteEvent @event,
-        IEventActorContext context,
-        ILogger<EconomicCalendarEventActor> logger)
-        => DownloadLogDelivery.ForwardAsync(@event.DownloadOutcome, @event,
-            MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Completed, context, logger);
-
-    /// <summary>Logs the failed terminal event without retrying the import attempt.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this EconomicCalendarsImportedFailEvent @event,
-        IEventActorContext context,
-        ILogger<EconomicCalendarEventActor> logger)
-        => DownloadLogDelivery.ForwardAsync(@event.DownloadOutcome, @event,
-            MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Failed, context, logger);
-
     /// <summary>Maps a provider-neutral calendar entry to the durable domain schema.</summary>
     static EconomicCalendarReadModel Map(EconomicCalendarEntry entry) => new(
         entry.EventTimeUtc.UtcDateTime,

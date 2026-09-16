@@ -15,14 +15,14 @@ public sealed class FuturesExitPositionWorkflowRealtimeActor(
     public const string ActorName = "FuturesExitPositionWorkflowRealtime";
     readonly IFuturesExitPositionWorkflowRealtimeContext services = Typed(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [ExitPositionWorkflowStartedEvent.Verb] = static message =>
                 message.AsEvent<ExitPositionWorkflowStartedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ExitPositionWorkflowStartedEvent,
-        IFuturesExitPositionWorkflowRealtimeContext, ValueTask>> ReceiveMap =
+        IFuturesExitPositionWorkflowRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<ExitPositionWorkflowStartedEvent,
             IFuturesExitPositionWorkflowRealtimeContext, ValueTask>>
         {
@@ -31,9 +31,9 @@ public sealed class FuturesExitPositionWorkflowRealtimeActor(
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(IEventActorContext<FuturesExitPositionWorkflowRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<FuturesExitPositionWorkflowRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, ReceiveMap)(
+        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
             (ExitPositionWorkflowStartedEvent)domainEvent, services);
     protected override ValueTask OnExceptionAsync(
         IEventActorContext<FuturesExitPositionWorkflowRealtimeActor> context, ActorThreadId threadId,

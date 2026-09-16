@@ -15,7 +15,7 @@ public static class GetLastFuturesTickData
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataAsync(
+    public static async ValueTask<FuturesTickDataV2ReadModel?> ExecuteAsync(
         this GetLastFuturesTickDataQuery q, IDbContextFactory dbFactory)
         => await dbFactory.MarketDataDb.GetLastFuturesTickDataAsync(q.ContractId, q.ValueDate);
 }

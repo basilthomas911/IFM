@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Frozen;
-using TomasAI.IFM.Domain.Trade.Order.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Order.Command;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Shared.Domain;

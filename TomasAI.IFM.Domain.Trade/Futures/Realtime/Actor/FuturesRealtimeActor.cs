@@ -18,14 +18,14 @@ public sealed class FuturesRealtimeActor(IRealtimeActorContext<FuturesRealtimeAc
     static readonly ActorTypeId TickRoute = new(
         ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [FuturesTickTradeDataChangedEvent.Verb] = message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!,
             [OpenPositionRoutesChangedEvent.Verb] = message => message.AsEvent<OpenPositionRoutesChangedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly IReadOnlyDictionary<Type, Func<IFuturesRealtimeContext, IEvent, ValueTask>> ReceiveMap =
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesRealtimeContext, IEvent, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IFuturesRealtimeContext, IEvent, ValueTask>>
         {
             [typeof(FuturesTickTradeDataChangedEvent)] = static (context, domainEvent) =>
@@ -50,11 +50,11 @@ public sealed class FuturesRealtimeActor(IRealtimeActorContext<FuturesRealtimeAc
 
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, ReceiveMap)(services, domainEvent);
+        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(services, domainEvent);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesRealtimeActor> context,

@@ -1,14 +1,13 @@
-using System.Reflection;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Extensions;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Extensions;
 
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Domain;
@@ -30,29 +29,44 @@ public class DatabaseBackupCommandActor(
     readonly IEventProjector<DatabaseBackupCommandActor> _eventProjector = actorContext.EventProjector;
 
     /// <summary>Gets the SupportedCommandTypes value.</summary>
-    public static IReadOnlyCollection<Type> SupportedCommandTypes => CommandTypes;
+    public static IReadOnlyCollection<Type> SupportedCommandTypes =>
+        _receiveMap.Keys as IReadOnlyCollection<Type> ?? _receiveMap.Keys.ToArray();
     /// <summary>Gets the SupportedVerbs value.</summary>
     public static IReadOnlyCollection<string> SupportedVerbs =>
         _parseMap.Keys as IReadOnlyCollection<string> ?? _parseMap.Keys.ToArray();
 
-    static readonly Type[] CommandTypes =
-    [
-        typeof(RequestDatabaseBackupCommand), typeof(CancelDatabaseBackupCommand), typeof(RequestDatabaseRestoreCommand),
-        typeof(ApproveDatabaseRestoreCommand), typeof(CancelDatabaseRestoreCommand), typeof(ApproveDatabaseCutoverCommand),
-        typeof(RequestDatabaseRestoreDrillCommand), typeof(UpdateDatabaseBackupPolicyCommand), typeof(PlaceBackupLegalHoldCommand),
-        typeof(ReleaseBackupLegalHoldCommand), typeof(RequestBackupRetentionEvaluationCommand), typeof(ExecuteBackupRetentionPlanCommand),
-        typeof(RecordDatabaseOperationAdmissionCommand), typeof(RecordDatabaseOperationStartedCommand), typeof(RecordDatabaseOperationProgressCommand),
-        typeof(RecordDatabaseBackupBoundaryCommand), typeof(RecordDatabaseArtifactReplicaCommand), typeof(RecordDatabaseOperationVerificationCommand),
-        typeof(RecordDatabaseOperationErrorCommand), typeof(RecordDatabaseRestoreReadyForCutoverCommand), typeof(CompleteDatabaseOperationCommand),
-        typeof(FailDatabaseOperationCommand), typeof(RecordDatabaseOperationCancelledCommand), typeof(RecordDatabaseBackupPolicyStatusCommand),
-        typeof(RecordDatabaseRetentionResultCommand), typeof(ReconcileDatabaseBackupServiceStateCommand),
-        typeof(RecordDatabaseBackupServiceCapabilityCommand), typeof(RecordDatabaseRecoveryRunStatisticsCommand)
-    ];
-    static readonly MethodInfo ParseMethod = typeof(DatabaseBackupCommandActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = CommandTypes.ToDictionary(
-        type => (string)type.GetProperty(nameof(DatabaseBackupCommand.Verb))!.GetValue(Activator.CreateInstance(type))!,
-        type => (Func<IActorMessage, ICommand>)ParseMethod.MakeGenericMethod(type).CreateDelegate(typeof(Func<IActorMessage, ICommand>)),
-        StringComparer.Ordinal);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+        {
+            ["RequestBackup"] = message => message.AsCommand<RequestDatabaseBackupCommand>()!,
+            ["CancelBackup"] = message => message.AsCommand<CancelDatabaseBackupCommand>()!,
+            ["RequestRestore"] = message => message.AsCommand<RequestDatabaseRestoreCommand>()!,
+            ["ApproveRestore"] = message => message.AsCommand<ApproveDatabaseRestoreCommand>()!,
+            ["CancelRestore"] = message => message.AsCommand<CancelDatabaseRestoreCommand>()!,
+            ["ApproveCutover"] = message => message.AsCommand<ApproveDatabaseCutoverCommand>()!,
+            ["RequestRestoreDrill"] = message => message.AsCommand<RequestDatabaseRestoreDrillCommand>()!,
+            ["UpdatePolicy"] = message => message.AsCommand<UpdateDatabaseBackupPolicyCommand>()!,
+            ["PlaceLegalHold"] = message => message.AsCommand<PlaceBackupLegalHoldCommand>()!,
+            ["ReleaseLegalHold"] = message => message.AsCommand<ReleaseBackupLegalHoldCommand>()!,
+            ["EvaluateRetention"] = message => message.AsCommand<RequestBackupRetentionEvaluationCommand>()!,
+            ["ExecuteRetention"] = message => message.AsCommand<ExecuteBackupRetentionPlanCommand>()!,
+            ["RecordAdmission"] = message => message.AsCommand<RecordDatabaseOperationAdmissionCommand>()!,
+            ["RecordStarted"] = message => message.AsCommand<RecordDatabaseOperationStartedCommand>()!,
+            ["RecordProgress"] = message => message.AsCommand<RecordDatabaseOperationProgressCommand>()!,
+            ["RecordBoundary"] = message => message.AsCommand<RecordDatabaseBackupBoundaryCommand>()!,
+            ["RecordArtifactReplica"] = message => message.AsCommand<RecordDatabaseArtifactReplicaCommand>()!,
+            ["RecordVerification"] = message => message.AsCommand<RecordDatabaseOperationVerificationCommand>()!,
+            ["RecordError"] = message => message.AsCommand<RecordDatabaseOperationErrorCommand>()!,
+            ["RecordReadyForCutover"] = message => message.AsCommand<RecordDatabaseRestoreReadyForCutoverCommand>()!,
+            ["CompleteOperation"] = message => message.AsCommand<CompleteDatabaseOperationCommand>()!,
+            ["FailOperation"] = message => message.AsCommand<FailDatabaseOperationCommand>()!,
+            ["RecordCancelled"] = message => message.AsCommand<RecordDatabaseOperationCancelledCommand>()!,
+            ["RecordPolicyStatus"] = message => message.AsCommand<RecordDatabaseBackupPolicyStatusCommand>()!,
+            ["RecordRetentionResult"] = message => message.AsCommand<RecordDatabaseRetentionResultCommand>()!,
+            ["ReconcileServiceState"] = message => message.AsCommand<ReconcileDatabaseBackupServiceStateCommand>()!,
+            ["RecordServiceCapability"] = message => message.AsCommand<RecordDatabaseBackupServiceCapabilityCommand>()!,
+            ["RecordRunStatistics"] = message => message.AsCommand<RecordDatabaseRecoveryRunStatisticsCommand>()!,
+        };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
@@ -282,12 +296,37 @@ public class DatabaseBackupCommandActor(
             }
         };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>> _receiveMap =
-        CommandTypes.ToDictionary(
-            type => type,
-            type => typeof(DatabaseBackupCommand).IsAssignableFrom(type)
-                ? (Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>)
-                    ((command, _, state) => ((DatabaseBackupCommand)command).Execute(state))
-                : ((command, _, state) => ((DatabaseBackupInternalCommand)command).Execute(state)));
+        new Dictionary<Type, Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>>
+        {
+            [typeof(RequestDatabaseBackupCommand)] = (command, _, state) => ((RequestDatabaseBackupCommand)command).Execute(state),
+            [typeof(CancelDatabaseBackupCommand)] = (command, _, state) => ((CancelDatabaseBackupCommand)command).Execute(state),
+            [typeof(RequestDatabaseRestoreCommand)] = (command, _, state) => ((RequestDatabaseRestoreCommand)command).Execute(state),
+            [typeof(ApproveDatabaseRestoreCommand)] = (command, _, state) => ((ApproveDatabaseRestoreCommand)command).Execute(state),
+            [typeof(CancelDatabaseRestoreCommand)] = (command, _, state) => ((CancelDatabaseRestoreCommand)command).Execute(state),
+            [typeof(ApproveDatabaseCutoverCommand)] = (command, _, state) => ((ApproveDatabaseCutoverCommand)command).Execute(state),
+            [typeof(RequestDatabaseRestoreDrillCommand)] = (command, _, state) => ((RequestDatabaseRestoreDrillCommand)command).Execute(state),
+            [typeof(UpdateDatabaseBackupPolicyCommand)] = (command, _, state) => ((UpdateDatabaseBackupPolicyCommand)command).Execute(state),
+            [typeof(PlaceBackupLegalHoldCommand)] = (command, _, state) => ((PlaceBackupLegalHoldCommand)command).Execute(state),
+            [typeof(ReleaseBackupLegalHoldCommand)] = (command, _, state) => ((ReleaseBackupLegalHoldCommand)command).Execute(state),
+            [typeof(RequestBackupRetentionEvaluationCommand)] = (command, _, state) => ((RequestBackupRetentionEvaluationCommand)command).Execute(state),
+            [typeof(ExecuteBackupRetentionPlanCommand)] = (command, _, state) => ((ExecuteBackupRetentionPlanCommand)command).Execute(state),
+            [typeof(RecordDatabaseOperationAdmissionCommand)] = (command, _, state) => ((RecordDatabaseOperationAdmissionCommand)command).Execute(state),
+            [typeof(RecordDatabaseOperationStartedCommand)] = (command, _, state) => ((RecordDatabaseOperationStartedCommand)command).Execute(state),
+            [typeof(RecordDatabaseOperationProgressCommand)] = (command, _, state) => ((RecordDatabaseOperationProgressCommand)command).Execute(state),
+            [typeof(RecordDatabaseBackupBoundaryCommand)] = (command, _, state) => ((RecordDatabaseBackupBoundaryCommand)command).Execute(state),
+            [typeof(RecordDatabaseArtifactReplicaCommand)] = (command, _, state) => ((RecordDatabaseArtifactReplicaCommand)command).Execute(state),
+            [typeof(RecordDatabaseOperationVerificationCommand)] = (command, _, state) => ((RecordDatabaseOperationVerificationCommand)command).Execute(state),
+            [typeof(RecordDatabaseOperationErrorCommand)] = (command, _, state) => ((RecordDatabaseOperationErrorCommand)command).Execute(state),
+            [typeof(RecordDatabaseRestoreReadyForCutoverCommand)] = (command, _, state) => ((RecordDatabaseRestoreReadyForCutoverCommand)command).Execute(state),
+            [typeof(CompleteDatabaseOperationCommand)] = (command, _, state) => ((CompleteDatabaseOperationCommand)command).Execute(state),
+            [typeof(FailDatabaseOperationCommand)] = (command, _, state) => ((FailDatabaseOperationCommand)command).Execute(state),
+            [typeof(RecordDatabaseOperationCancelledCommand)] = (command, _, state) => ((RecordDatabaseOperationCancelledCommand)command).Execute(state),
+            [typeof(RecordDatabaseBackupPolicyStatusCommand)] = (command, _, state) => ((RecordDatabaseBackupPolicyStatusCommand)command).Execute(state),
+            [typeof(RecordDatabaseRetentionResultCommand)] = (command, _, state) => ((RecordDatabaseRetentionResultCommand)command).Execute(state),
+            [typeof(ReconcileDatabaseBackupServiceStateCommand)] = (command, _, state) => ((ReconcileDatabaseBackupServiceStateCommand)command).Execute(state),
+            [typeof(RecordDatabaseBackupServiceCapabilityCommand)] = (command, _, state) => ((RecordDatabaseBackupServiceCapabilityCommand)command).Execute(state),
+            [typeof(RecordDatabaseRecoveryRunStatisticsCommand)] = (command, _, state) => ((RecordDatabaseRecoveryRunStatisticsCommand)command).Execute(state),
+        };
 
     protected override ValueTask OnStartup(ICommandActorContext<DatabaseBackupCommandActor> context)
         => StartAsync(context, CancellationToken.None);
@@ -316,9 +355,6 @@ public class DatabaseBackupCommandActor(
         ICommandActorContext<DatabaseBackupCommandActor> context,
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
-
-    static ICommand ParseTyped<TCommand>(IActorMessage message) where TCommand : class, ICommand
-        => message.AsCommand<TCommand>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TCommand).Name}.");
 
     protected override ValueTask OnValidateAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, ICommand command)
     {

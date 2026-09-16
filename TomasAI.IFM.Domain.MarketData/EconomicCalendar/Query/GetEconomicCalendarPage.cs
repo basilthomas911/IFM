@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query;
 
 public static class GetEconomicCalendarPage
 {
-    public static async ValueTask<EconomicCalendarPageReadModel> GetEconomicCalendarPageAsync(
+    public static async ValueTask<EconomicCalendarPageReadModel> ExecuteAsync(
         this GetEconomicCalendarPageQuery query,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

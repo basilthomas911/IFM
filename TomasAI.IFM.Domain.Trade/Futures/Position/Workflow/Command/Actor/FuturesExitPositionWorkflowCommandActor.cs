@@ -16,15 +16,27 @@ public sealed class FuturesExitPositionWorkflowCommandActor(
     public const string ActorName = StartFuturesExitPositionWorkflowCommand.Actor;
     readonly IFuturesExitPositionWorkflowCommandContext services = Typed(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [StartFuturesExitPositionWorkflowCommand.Verb] = static message =>
                 message.AsCommand<StartFuturesExitPositionWorkflowCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(StartFuturesExitPositionWorkflowCommand)] = static command =>
+            {
+                var typed = (StartFuturesExitPositionWorkflowCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+            }
+        }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, FuturesExitPositionWorkflowCommandState,
-        ServiceResult<GuidResult>>> ReceiveMap =
+        ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, FuturesExitPositionWorkflowCommandState, ServiceResult<GuidResult>>>
         {
             [typeof(StartFuturesExitPositionWorkflowCommand)] = static (command, state) =>
@@ -36,14 +48,11 @@ public sealed class FuturesExitPositionWorkflowCommandActor(
     protected override ValueTask OnShutdown(ICommandActorContext<FuturesExitPositionWorkflowCommandActor> context) =>
         services.EventProjector.StopAsync();
     protected override ICommand ParseMessage(ICommandActorContext<FuturesExitPositionWorkflowCommandActor> context,
-        IActorMessage message) => ParseMappedCommand(context, message, ParseMap);
+        IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesExitPositionWorkflowCommandActor> context,
         ActorThreadId threadId, ICommand command)
     {
-        var typed = (StartFuturesExitPositionWorkflowCommand)command;
-        var errors = new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
-            .ValidateEntityId(typed.EntityId, typed.CommandName);
-        if (errors.Count != 0) throw new ValidationException([.. errors]);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
     protected override async ValueTask<IActorState> OnLoadStateAsync(
@@ -55,7 +64,7 @@ public sealed class FuturesExitPositionWorkflowCommandActor(
             context, (FuturesExitPositionWorkflowCommandState)state, command).ConfigureAwait(false);
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<FuturesExitPositionWorkflowCommandActor> context, IActorState state,
-        ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, ReceiveMap)(
+        ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(
             command, (FuturesExitPositionWorkflowCommandState)state));
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesExitPositionWorkflowCommandActor> context, ActorThreadId threadId,

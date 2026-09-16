@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Transaction.Event.Extensions;
+using TomasAI.IFM.Domain.Fund.Transaction.Event;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -36,9 +37,9 @@ public class FundTransactionEventActor(IEventActorContext<FundTransactionEventAc
 
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFundTransactionEventContext, ValueTask>> _receiveMap = new Dictionary<Type, Func<IEvent, IFundTransactionEventContext, ValueTask>>()
     {
-        [typeof(FundTransactionEvent)] = static (_, _) => ValueTask.CompletedTask,
-        [typeof(FundTransactionsEvent)] = static (_, _) => ValueTask.CompletedTask,
-        [typeof(EndOfDayFundTransactionProcessedEvent)] = static (_, _) => ValueTask.CompletedTask
+        [typeof(FundTransactionEvent)] = static (value, context) => ((FundTransactionEvent)value).ExecuteAsync(context),
+        [typeof(FundTransactionsEvent)] = static (value, context) => ((FundTransactionsEvent)value).ExecuteAsync(context),
+        [typeof(EndOfDayFundTransactionProcessedEvent)] = static (value, context) => ((EndOfDayFundTransactionProcessedEvent)value).ExecuteAsync(context)
     };
 
     /// <summary>

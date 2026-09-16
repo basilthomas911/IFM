@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query;
 
 public static class GetFuturesOptionContractsPage
 {
-    public static Task<FuturesOptionContractPageReadModel> GetFuturesOptionContractsPageAsync(
+    public static Task<FuturesOptionContractPageReadModel> ExecuteAsync(
         this GetFuturesOptionContractsPageQuery query, IDbContextFactory factory, CancellationToken cancellationToken = default)
     {
         query.Request.Validate();

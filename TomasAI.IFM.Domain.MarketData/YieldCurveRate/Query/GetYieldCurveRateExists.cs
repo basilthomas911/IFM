@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query;
 
 public static class GetYieldCurveRateExists
 {
-    public static async ValueTask<ScalarReadModel<bool>> GetYieldCurveRateExistsAsync(
+    public static async ValueTask<ScalarReadModel<bool>> ExecuteAsync(
         this GetYieldCurveRateExistsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

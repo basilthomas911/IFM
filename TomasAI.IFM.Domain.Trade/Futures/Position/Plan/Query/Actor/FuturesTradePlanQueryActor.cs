@@ -15,7 +15,7 @@ public sealed class FuturesTradePlanQueryActor(IQueryActorContext<FuturesTradePl
     : BaseQueryActor<FuturesTradePlanQueryActor>(context, Typed(context).Logger)
 {
     public const string ActorName = GetCurrentFuturesTradePlanQuery.Actor;
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetCurrentFuturesTradePlanQuery.Verb] = message =>
@@ -24,7 +24,7 @@ public sealed class FuturesTradePlanQueryActor(IQueryActorContext<FuturesTradePl
                 message.AsQuery<GetFuturesTradePlanHistoryQuery, StrategyTradePlanHistoryPage>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type,
-        Func<IFuturesTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> ReceiveMap =
+        Func<IFuturesTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IFuturesTradePlanQueryContext, IQuery, CancellationToken, ValueTask>>
         {
             [typeof(GetCurrentFuturesTradePlanQuery)] = static (c, q, t) =>
@@ -32,18 +32,18 @@ public sealed class FuturesTradePlanQueryActor(IQueryActorContext<FuturesTradePl
             [typeof(GetFuturesTradePlanHistoryQuery)] = static (c, q, t) =>
                 ((GetFuturesTradePlanHistoryQuery)q).ExecuteAsync(c, t)
         }.ToFrozenDictionary();
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(IQueryActorContext<FuturesTradePlanQueryActor> c, IActorMessage m) =>
-        ParseMappedQuery(c, m, ParseMap);
+        ParseMappedQuery(c, m, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<FuturesTradePlanQueryActor> c, IQuery q) =>
         ReceiveAsync(c, q, CancellationToken.None);
     protected override ValueTask ReceiveAsync(IQueryActorContext<FuturesTradePlanQueryActor> c, IQuery q,
-        CancellationToken t) => ResolveMappedQueryHandler(q, ReceiveMap)(Typed(c), q, t);
+        CancellationToken t) => ResolveMappedQueryHandler(q, _receiveMap)(Typed(c), q, t);
     protected override ValueTask OnExceptionAsync(IQueryActorContext<FuturesTradePlanQueryActor> c,
         ActorThreadId id, IQuery q, string verb, Exception exception) =>
-        ExceptionMappedQueryAsync(c, id, q, verb, exception, ExceptionMap);
+        ExceptionMappedQueryAsync(c, id, q, verb, exception, _exceptionMap);
     static IFuturesTradePlanQueryContext Typed(IQueryActorContext<FuturesTradePlanQueryActor> context) =>
         context as IFuturesTradePlanQueryContext
         ?? throw new ArgumentException("Typed Futures Trade Plan query context required.");

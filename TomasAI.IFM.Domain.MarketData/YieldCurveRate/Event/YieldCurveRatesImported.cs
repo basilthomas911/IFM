@@ -96,22 +96,6 @@ public static class YieldCurveRatesImported
         };
     }
 
-    /// <summary>Handles the successful terminal event without starting another operation.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this YieldCurveRatesImportedCompleteEvent @event,
-        IEventActorContext context,
-        ILogger<YieldCurveRateEventActor> logger)
-        => DownloadLogDelivery.ForwardAsync(@event.DownloadOutcome, @event,
-            MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Completed, context, logger);
-
-    /// <summary>Logs the failed terminal event without retrying the import attempt.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this YieldCurveRatesImportedFailEvent @event,
-        IEventActorContext context,
-        ILogger<YieldCurveRateEventActor> logger)
-        => DownloadLogDelivery.ForwardAsync(@event.DownloadOutcome, @event,
-            MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Failed, context, logger);
-
     /// <summary>Maps a provider-neutral Treasury snapshot to the durable domain schema.</summary>
     static YieldCurveRateReadModel Map(TreasuryCurveSnapshot snapshot) => new(
         snapshot.ValueDate,

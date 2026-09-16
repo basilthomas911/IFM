@@ -16,15 +16,27 @@ public sealed class VerticalSpreadExitPositionWorkflowCommandActor(
     public const string ActorName = StartVerticalSpreadExitPositionWorkflowCommand.Actor;
     readonly IVerticalSpreadExitPositionWorkflowCommandContext services = Typed(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [StartVerticalSpreadExitPositionWorkflowCommand.Verb] = static message =>
                 message.AsCommand<StartVerticalSpreadExitPositionWorkflowCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(StartVerticalSpreadExitPositionWorkflowCommand)] = static command =>
+            {
+                var typed = (StartVerticalSpreadExitPositionWorkflowCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+            }
+        }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, VerticalSpreadExitPositionWorkflowCommandState,
-        ServiceResult<GuidResult>>> ReceiveMap =
+        ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, VerticalSpreadExitPositionWorkflowCommandState, ServiceResult<GuidResult>>>
         {
             [typeof(StartVerticalSpreadExitPositionWorkflowCommand)] = static (command, state) =>
@@ -36,14 +48,11 @@ public sealed class VerticalSpreadExitPositionWorkflowCommandActor(
     protected override ValueTask OnShutdown(ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor> context) =>
         services.EventProjector.StopAsync();
     protected override ICommand ParseMessage(ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor> context,
-        IActorMessage message) => ParseMappedCommand(context, message, ParseMap);
+        IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
     protected override ValueTask OnValidateAsync(ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor> context,
         ActorThreadId threadId, ICommand command)
     {
-        var typed = (StartVerticalSpreadExitPositionWorkflowCommand)command;
-        var errors = new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
-            .ValidateEntityId(typed.EntityId, typed.CommandName);
-        if (errors.Count != 0) throw new ValidationException([.. errors]);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
     protected override async ValueTask<IActorState> OnLoadStateAsync(
@@ -55,7 +64,7 @@ public sealed class VerticalSpreadExitPositionWorkflowCommandActor(
             context, (VerticalSpreadExitPositionWorkflowCommandState)state, command).ConfigureAwait(false);
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor> context, IActorState state,
-        ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, ReceiveMap)(
+        ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(
             command, (VerticalSpreadExitPositionWorkflowCommandState)state));
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor> context, ActorThreadId threadId,

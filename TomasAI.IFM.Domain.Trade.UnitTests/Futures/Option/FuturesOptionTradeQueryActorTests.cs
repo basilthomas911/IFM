@@ -30,7 +30,7 @@ public sealed class FuturesOptionTradeQueryActorTests
     [Fact]
     public void Parse_map_contains_every_migrated_option_query()
     {
-        var parseMap = GetStaticMap<string, Func<IActorMessage, IQuery>>("ParseMap");
+        var parseMap = GetStaticMap<string, Func<IActorMessage, IQuery>>("_parseMap");
 
         parseMap.Keys.Should().Contain(MigratedQueryVerbs);
     }
@@ -40,7 +40,7 @@ public sealed class FuturesOptionTradeQueryActorTests
     {
         var receiveMap = GetStaticMap<Type,
             Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>>(
-            "ReceiveMap");
+            "_receiveMap");
 
         receiveMap.Keys.Should().Contain(MigratedQueryTypes);
     }

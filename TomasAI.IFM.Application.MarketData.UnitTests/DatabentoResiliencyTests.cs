@@ -305,6 +305,57 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
+    public async Task Contract_authority_excludes_contracts_maturing_on_the_value_date()
+    {
+        var valueDate = new DateOnly(2026, 9, 16);
+        var store = new InMemoryMarketDataServiceStore();
+        var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
+        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+            Contract("ES20260918", "ES", new(2026, 9, 18))]);
+        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+            Contract("VX20260916", "VX", valueDate),
+            Contract("VX20261021", "VX", new(2026, 10, 21)),
+            Contract("VX20261118", "VX", new(2026, 11, 18))]);
+        var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
+        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+
+        var assignments = await authority.ReconcileAsync(valueDate, "test", CancellationToken.None);
+
+        assignments.Single(value => value.ContractRole == DatabentoContractRole.VxFrontMonth)
+            .ContractId.Should().Be("VX20261021");
+        assignments.Single(value => value.ContractRole == DatabentoContractRole.VxSecondMonth)
+            .ContractId.Should().Be("VX20261118");
+        registry.Received(1).ReplaceFuturesRolloverSet("VX",
+            Arg.Is<IReadOnlyCollection<FuturesContractV3ReadModel>>(values =>
+                values.OrderBy(value => value.LastTradeDate)
+                    .Select(value => value.ContractId)
+                    .SequenceEqual(new[] { "VX20261021", "VX20261118" })));
+    }
+
+    [Fact]
+    public async Task Contract_authority_rejects_an_incomplete_post_maturity_vx_pair()
+    {
+        var valueDate = new DateOnly(2026, 9, 16);
+        var store = new InMemoryMarketDataServiceStore();
+        var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
+        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+            Contract("ES20260918", "ES", new(2026, 9, 18))]);
+        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+            Contract("VX20260916", "VX", valueDate),
+            Contract("VX20261021", "VX", new(2026, 10, 21))]);
+        var authority = new DatabentoContractAuthority(
+            store,
+            catalog,
+            Substitute.For<IDatabentoContractRegistrationRegistry>(),
+            TimeProvider.System);
+
+        var reconcile = () => authority.ReconcileAsync(valueDate, "test", CancellationToken.None);
+
+        await reconcile.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*two ordered VX contracts*");
+        (await store.ListAssignmentsAsync()).Should().BeEmpty();
+    }
+    [Fact]
     public async Task Watchdog_observation_crud_enforces_optimistic_concurrency()
     {
         var store = new InMemoryMarketDataServiceStore();

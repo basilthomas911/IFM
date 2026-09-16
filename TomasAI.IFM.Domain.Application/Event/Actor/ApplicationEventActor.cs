@@ -39,18 +39,23 @@ public sealed class ApplicationEventActor(
             [ApplicationShutdownFailEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownFailEvent>(message)
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ValueTask>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, CancellationToken, ValueTask>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, CancellationToken, ValueTask>>
         {
-            [typeof(ApplicationStartupEvent)] = static (value, context) =>
-                ((ApplicationStartupEvent)value).ExecuteAsync(context.DomainContext, CancellationToken.None),
-            [typeof(ApplicationStartupCompleteEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(ApplicationStartupDegradedEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(ApplicationStartupFailEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(ApplicationShutdownEvent)] = static (value, context) =>
-                ((ApplicationShutdownEvent)value).ExecuteAsync(context.DomainContext, CancellationToken.None),
-            [typeof(ApplicationShutdownCompleteEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(ApplicationShutdownFailEvent)] = static (_, _) => ValueTask.CompletedTask
+            [typeof(ApplicationStartupEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationStartupEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
+            [typeof(ApplicationStartupCompleteEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationStartupCompleteEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
+            [typeof(ApplicationStartupDegradedEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationStartupDegradedEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
+            [typeof(ApplicationStartupFailEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationStartupFailEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
+            [typeof(ApplicationShutdownEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationShutdownEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
+            [typeof(ApplicationShutdownCompleteEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationShutdownCompleteEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
+            [typeof(ApplicationShutdownFailEvent)] = static (value, context, cancellationToken) =>
+                ((ApplicationShutdownFailEvent)value).ExecuteAsync(context.DomainContext, cancellationToken)
         };
 
     /// <summary>
@@ -80,31 +85,15 @@ public sealed class ApplicationEventActor(
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     protected override ValueTask ReceiveAsync(IEventActorContext<ApplicationEventActor> context, IEvent @event)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(@event);
-        var receive = ResolveMappedEventHandler(@event, _receiveMap);
-        return receive(@event, context);
-    }
+        => ReceiveAsync(context, @event, CancellationToken.None);
 
     /// <inheritdoc/>
-    protected override ValueTask ReceiveAsync(
-        IEventActorContext<ApplicationEventActor> context,
-        IEvent @event,
-        CancellationToken cancellationToken)
+    protected override ValueTask ReceiveAsync(IEventActorContext<ApplicationEventActor> context, IEvent @event, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        return @event switch
-        {
-            ApplicationStartupEvent startup => startup.ExecuteAsync(context.DomainContext, cancellationToken),
-            ApplicationShutdownEvent shutdown => shutdown.ExecuteAsync(context.DomainContext, cancellationToken),
-            ApplicationStartupCompleteEvent or ApplicationStartupDegradedEvent or ApplicationStartupFailEvent
-                or ApplicationShutdownCompleteEvent or ApplicationShutdownFailEvent => ValueTask.CompletedTask,
-            _ => throw new InvalidOperationException($"Unsupported Application event {@event.GetType().Name}.")
-        };
+        return ResolveMappedEventHandler(@event, _receiveMap)(@event, context, cancellationToken);
     }
-
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.

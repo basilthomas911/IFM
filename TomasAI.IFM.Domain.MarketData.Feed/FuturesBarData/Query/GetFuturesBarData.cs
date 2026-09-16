@@ -15,7 +15,7 @@ public static class GetFuturesBarData
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    internal static async ValueTask<FuturesBarDataReadModel[]> GetFuturesBarDataAsync(
+    internal static async ValueTask<FuturesBarDataReadModel[]> ExecuteAsync(
        this GetFuturesBarDataQuery q, IDbContextFactory dbFactory)
         => [.. await dbFactory.MarketDataDb.GetFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate, q.StartDate, q.EndDate)];
 }

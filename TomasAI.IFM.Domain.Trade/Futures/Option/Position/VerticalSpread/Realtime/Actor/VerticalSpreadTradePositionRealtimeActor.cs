@@ -15,14 +15,14 @@ public sealed class VerticalSpreadTradePositionRealtimeActor(
     public const string ActorName = "VerticalSpreadTradePositionRealtime";
     readonly IVerticalSpreadTradePositionRealtimeContext _context = Require(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [PositionChangedEvent.Verb] = static message => message.AsEvent<VerticalSpreadPositionChangedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type, Func<VerticalSpreadPositionChangedEvent,
-        IVerticalSpreadTradePositionRealtimeContext, ValueTask>> ReceiveMap =
+        IVerticalSpreadTradePositionRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<VerticalSpreadPositionChangedEvent,
             IVerticalSpreadTradePositionRealtimeContext, ValueTask>>
         {
@@ -30,10 +30,10 @@ public sealed class VerticalSpreadTradePositionRealtimeActor(
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, ReceiveMap)(
+        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
             (VerticalSpreadPositionChangedEvent)domainEvent, _context);
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context,

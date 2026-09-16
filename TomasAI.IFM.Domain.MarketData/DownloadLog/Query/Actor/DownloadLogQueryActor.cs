@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
-using TomasAI.IFM.Domain.MarketData.DownloadLog.Query.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

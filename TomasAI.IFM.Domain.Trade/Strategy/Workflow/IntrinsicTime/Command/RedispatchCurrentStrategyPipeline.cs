@@ -19,7 +19,7 @@ public static class RedispatchCurrentStrategyPipeline
         if (view.Status != WorkflowStrategyMachineStatus.Started && view.CompositionHandoff is null)
             return new ServiceOk<GuidResult>(new(c.CommandId));
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, c.EntityId.Format()),
             Id = Guid.CreateVersion7(new DateTimeOffset(now)),

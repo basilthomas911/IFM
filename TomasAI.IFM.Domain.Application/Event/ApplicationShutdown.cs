@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 namespace TomasAI.IFM.Domain.Application.Actor.Event;
 
 /// <summary>Shutdown event-family placeholder; production shutdown ordering is deliberately deferred.</summary>
-internal static class ApplicationShutdown
+public static class ApplicationShutdown
 {
     public static async ValueTask ExecuteAsync(
         this ApplicationShutdownEvent @event,

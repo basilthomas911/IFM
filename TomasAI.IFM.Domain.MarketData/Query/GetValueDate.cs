@@ -17,7 +17,7 @@ public static class GetValueDate
     /// <param name="q">The query requesting the current value date.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    public static ValueTask<ScalarReadModel<DateOnly>> GetValueDateAsync(
+    public static ValueTask<ScalarReadModel<DateOnly>> ExecuteAsync(
         this GetValueDateQuery q,
         IFuturesMarketSessionAuthority authority,
         CancellationToken cancellationToken = default)
@@ -40,4 +40,16 @@ public static class GetValueDate
         => FuturesTradingValueDate.TryGet(instant, out var valueDate)
             ? new ScalarReadModel<DateOnly>(valueDate)
             : null;
+
+    /// <summary>Reads and replies with the requested market-data result.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetValueDateQuery query,
+        TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
+        CancellationToken cancellationToken)
+    {
+        var result = await query.ExecuteAsync(context.MarketSessionAuthority, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
+    }
 }

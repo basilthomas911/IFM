@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -15,7 +15,7 @@ public static class GetLookupTypes
     /// <param name="context">The query actor context for sending the reply.</param>
     /// <param name="dbFactory">The database context factory for accessing reference storage.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<LookupTypeCollection> GetLookupTypesAsync(
+    public static async ValueTask<LookupTypeCollection> ExecuteAsync(
         this GetLookupTypesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
         => [.. await (cancellationToken.CanBeCanceled
             ? dbFactory.ReferenceDb.GetLookupTypesAsync(cancellationToken)

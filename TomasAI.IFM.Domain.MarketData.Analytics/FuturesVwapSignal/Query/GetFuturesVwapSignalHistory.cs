@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -17,7 +17,7 @@ public static class GetFuturesVwapSignalHistory
         IFuturesVwapSignalQueryContext typedContext,
         CancellationToken cancellationToken)
     {
-        var values = await query.ExecuteAsync(
+        var values = await FuturesVwapSignalQueryModel.ExecuteAsync(query,
             typedContext.DbFactory, cancellationToken).ConfigureAwait(false);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
             new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);

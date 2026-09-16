@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Transaction.Query.Extensions;
+using TomasAI.IFM.Domain.Fund.Transaction.Query;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Query.Actor;
 
@@ -90,14 +91,8 @@ public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryAc
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<IQuery, IFundTransactionQueryContext, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, IFundTransactionQueryContext, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFundTransactionsQuery)] = async (q, ctx, cancellationToken) =>
-        {
-            var query = (q as GetFundTransactionsQuery)!;
-            var result = await ctx.GetFundTransactionsAsync(query, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFundTransactionsQuery.Verb,
-                new ServiceResult<FundTransactionReadModel[]>(result));
-        }
+        [typeof(GetFundTransactionsQuery)] = static (q, ctx, cancellationToken) =>
+            ((GetFundTransactionsQuery)q).ExecuteAsync(ctx, cancellationToken)
     };
 
     /// <summary>

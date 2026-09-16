@@ -15,14 +15,14 @@ public sealed class IronCondorTradePositionRealtimeActor(
     public const string ActorName = "IronCondorTradePositionRealtime";
     readonly IIronCondorTradePositionRealtimeContext _context = Require(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [PositionChangedEvent.Verb] = static message => message.AsEvent<IronCondorPositionChangedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type, Func<IronCondorPositionChangedEvent,
-        IIronCondorTradePositionRealtimeContext, ValueTask>> ReceiveMap =
+        IIronCondorTradePositionRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IronCondorPositionChangedEvent,
             IIronCondorTradePositionRealtimeContext, ValueTask>>
         {
@@ -30,10 +30,10 @@ public sealed class IronCondorTradePositionRealtimeActor(
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(IEventActorContext<IronCondorTradePositionRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, ReceiveMap)(
+        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
             (IronCondorPositionChangedEvent)domainEvent, _context);
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context,

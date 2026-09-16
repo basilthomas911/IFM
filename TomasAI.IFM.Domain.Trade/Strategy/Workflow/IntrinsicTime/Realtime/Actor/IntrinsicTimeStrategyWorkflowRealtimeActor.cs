@@ -63,34 +63,9 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             IEvent,
             ValueTask>>
         {
-            [typeof(WorkflowStrategyStateUpdatedEvent)] = static async (actor, context, @event) =>
-            {
-                var snapshot = (WorkflowStrategyStateUpdatedEvent)@event;
-                var logger = RequireEventContext(context).Logger;
-                IntrinsicTimeStrategyWorkflowLogging.RealtimeStateReceived(
-                    logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
-                    snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString());
-                if (snapshot.State.RiskExecution is not null && snapshot.State.TerminalAtUtc is not null)
-                {
-                    _ = RiskManager.Model.RiskLatency.RecordWorkflow(snapshot.State);
-                }
-                if (snapshot.State.TerminalAtUtc is not null)
-                {
-                    var stage = CurrentStageState(snapshot.State);
-                    IntrinsicTimeStrategyWorkflowLogging.TerminalResult(
-                        logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
-                        snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString(),
-                        snapshot.State.Outcome.ToString(), stage.ContinuationDecision.ToString(), stage.ParameterSetId,
-                        stage.ParameterSetVersion,
-                        (snapshot.State.TerminalAtUtc.Value - snapshot.State.StartedAtUtc).TotalMilliseconds);
-                }
-                if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })
-                    await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
-                else if(snapshot.State.CompositionHandoff is not null)
-                    await ReconcileStoppedSelectionAsync(context,snapshot).ConfigureAwait(false);
-            }
+            [typeof(WorkflowStrategyStateUpdatedEvent)] = static (actor, context, @event) =>
+                ((WorkflowStrategyStateUpdatedEvent)@event).ExecuteAsync(actor, context)
         };
-
     delegate ValueTask PipelineExecutionHandler(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         WorkflowStrategyStateUpdatedEvent snapshot);
@@ -155,7 +130,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         return ValueTask.CompletedTask;
     }
 
-    static async ValueTask DispatchCommittedStateAsync(
+    internal static async ValueTask DispatchCommittedStateAsync(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         WorkflowStrategyStateUpdatedEvent snapshot)
     {
@@ -198,7 +173,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         _ => "Unknown"
     };
 
-    static StrategyWorkflowStageState CurrentStageState(IntrinsicTimeStrategyWorkflowView view) =>
+    internal static StrategyWorkflowStageState CurrentStageState(IntrinsicTimeStrategyWorkflowView view) =>
         view.CurrentStage switch
         {
             StrategyWorkflowStage.RegimeDiscovery => view.RegimeDiscovery,
@@ -466,7 +441,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 $"Context must implement {nameof(IIntrinsicTimeStrategyWorkflowRealtimeContext)}.",
                 nameof(context));
 
-    static IIntrinsicTimeStrategyWorkflowRealtimeContext RequireEventContext(
+    internal static IIntrinsicTimeStrategyWorkflowRealtimeContext RequireEventContext(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
         => context as IIntrinsicTimeStrategyWorkflowRealtimeContext
             ?? throw new ArgumentException(

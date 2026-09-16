@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Operations;
+using TomasAI.IFM.Domain.Portfolio.Query;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
@@ -52,16 +53,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
     : BaseQueryActor<PortfolioQueryActor>(actorContext, RequireContext(actorContext).Logger)
 {
     public const string ActorName = PortfolioQuerySubjects.Actor;
-    readonly PortfolioQueryService _service = new(
-        RequireContext(actorContext).DbFactory.PortfolioDb,
-        new PortfolioFundStrategyResolver(),
-        RequireContext(actorContext).IdentityAllocator);
-    readonly LegacyPortfolioHistoryQueryService _legacyHistory = new(
-        new LegacyPortfolioHistoryStore(
-            RequireContext(actorContext).DbFactory.FundLegacyDb,
-            RequireContext(actorContext).DbFactory.TradeDb),
-        RequireContext(actorContext).DbFactory.PortfolioDb,
-        RequireContext(actorContext).IdentityAllocator);
+    readonly PortfolioQueryParameters _parameters = new(RequireContext(actorContext));
 
     static IPortfolioQueryContext RequireContext(IQueryActorContext<PortfolioQueryActor> context) =>
         context as IPortfolioQueryContext
@@ -100,161 +92,59 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         [PortfolioQueryVerbs.GetLegacyFundOrderTrades] = static message => message.AsQuery<GetLegacyFundOrderTradesQuery, LegacyFundTradeHistoryReadModel[]>()!,
     };
 
-    static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryActor,
-        IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<PortfolioQueryActor,
-            IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetPortfolioQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfolioQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetPortfolioAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.Version, cancellationToken));
-            },
-            [typeof(GetPortfolioRevisionQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfolioRevisionQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetPortfolioRevisionAsync(
-                    typed.Parameters.PortfolioId, cancellationToken));
-            },
-            [typeof(GetPortfoliosQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfoliosQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetPortfoliosAsync(
-                    typed.Parameters.State is null ? null : (PortfolioOperatingState)typed.Parameters.State,
-                    typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
-            },
-            [typeof(GetFundQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetFundAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.Version, cancellationToken));
-            },
-            [typeof(GetFundRevisionQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundRevisionQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetFundRevisionAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.FundId, cancellationToken));
-            },
-            [typeof(GetFundsQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundsQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetFundsAsync(
-                    typed.Parameters.PortfolioId,
-                    typed.Parameters.State is null ? null : (FundOperatingState)typed.Parameters.State,
-                    typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
-            },
-            [typeof(GetFundAllocationQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundAllocationQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetFundAllocationAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.FundId, cancellationToken));
-            },
-            [typeof(GetFundRiskEnvelopeQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundRiskEnvelopeQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetFundRiskEnvelopeAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.AsOfUtc, cancellationToken));
-            },
-            [typeof(GetFundTemplateAssignmentsQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundTemplateAssignmentsQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetAssignmentsAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.MandateVersion, cancellationToken));
-            },
-            [typeof(ResolveForSelectionQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var p = ((ResolveForSelectionQuery)query).Parameters;
-                return ReplyAsync(context, (ResolveForSelectionQuery)query, actor._service.ResolveForSelectionAsync(
-                    p.PortfolioId, p.FundId, p.TradingYear, p.DecisionHorizon, p.UnderlyingRoot, p.AsOfUtc,
-                    p.WorkflowId, p.WorkflowRevision, p.CorrelationId, cancellationToken));
-            },
-            [typeof(GetPortfolioFundStrategySnapshotQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfolioFundStrategySnapshotQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetStrategySnapshotAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.TradingYear, typed.Parameters.DecisionHorizon,
-                    typed.Parameters.UnderlyingRoot, typed.Parameters.AssetType, typed.Parameters.AsOfUtc,
-                    typed.Parameters.WorkflowId, typed.Parameters.WorkflowRevision, typed.Parameters.CorrelationId,
-                    cancellationToken));
-            },
-            [typeof(GetFundOrderByOrderIdQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundOrderByOrderIdQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetOrderAsync(
-                    typed.Parameters.OrderId, cancellationToken));
-            },
-            [typeof(GetFundOrderTradeByTradeIdQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundOrderTradeByTradeIdQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetTradeAsync(
-                    typed.Parameters.TradeId, cancellationToken));
-            },
-            [typeof(GetFundCompositionByWorkflowQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundCompositionByWorkflowQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetCompositionByWorkflowAsync(
-                    typed.Parameters.WorkflowId, cancellationToken));
-            },
-            [typeof(GetFundOrdersPageQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundOrdersPageQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetOrdersAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.FundId, typed.Parameters.OrderMonth,
-                    typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
-            },
-            [typeof(GetFundOrderTradesPageQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetFundOrderTradesPageQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetOrderTradesAsync(
-                    typed.Parameters.OrderId, typed.Parameters.PageSize, typed.Parameters.PageToken, cancellationToken));
-            },
-            [typeof(GetPortfolioFundStrategyReferenceCombinationsQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfolioFundStrategyReferenceCombinationsQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetStrategyReferenceCombinationsAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.AsOfUtc, cancellationToken));
-            },
-            [typeof(AllocatePortfolioBusinessIdQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (AllocatePortfolioBusinessIdQuery)query;
-                return ReplyAsync(context, typed, actor.AllocateAsync(typed, cancellationToken));
-            },
-            [typeof(GetPortfolioFinancialPolicyQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfolioFinancialPolicyQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetPolicyAsync(
-                    typed.Parameters.PolicyId, typed.Parameters.PolicyVersion, cancellationToken));
-            },
-            [typeof(GetPortfolioFinancialPoliciesQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetPortfolioFinancialPoliciesQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetPoliciesAsync(
-                    typed.Parameters.PortfolioId, typed.Parameters.PageSize, cancellationToken));
-            },
-            [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetActivePortfolioFinancialPolicyQuery)query;
-                return ReplyAsync(context, typed, actor._service.GetActivePolicyAsync(
-                    typed.Parameters.PortfolioId, cancellationToken));
-            },
-            [typeof(GetLegacyPortfolioScopesQuery)] = static (actor, context, query, cancellationToken) =>
-                ReplyAsync(context, query, actor._legacyHistory.GetScopesAsync(cancellationToken)),
-            [typeof(GetLegacyFundCatalogQuery)] = static (actor, context, query, cancellationToken) =>
-                ReplyAsync(context, query, actor._legacyHistory.GetCatalogAsync(cancellationToken)),
-            [typeof(GetLegacyFundOrdersQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetLegacyFundOrdersQuery)query;
-                return ReplyAsync(context, typed, actor._legacyHistory.GetOrdersAsync(
-                    typed.Parameters.LegacyFundId, typed.Parameters.FromDate, typed.Parameters.ToDate,
-                    typed.Parameters.PageSize, cancellationToken));
-            },
-            [typeof(GetLegacyFundOrderTradesQuery)] = static (actor, context, query, cancellationToken) =>
-            {
-                var typed = (GetLegacyFundOrderTradesQuery)query;
-                return ReplyAsync(context, typed, actor._legacyHistory.GetOrderTradesAsync(
-                    typed.Parameters.LegacyFundId, typed.Parameters.OrderId, cancellationToken));
-            },
+            [typeof(GetPortfolioQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfolioQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetPortfolioRevisionQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfolioRevisionQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetPortfoliosQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfoliosQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundRevisionQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundRevisionQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundsQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundsQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundAllocationQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundAllocationQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundRiskEnvelopeQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundRiskEnvelopeQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundTemplateAssignmentsQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundTemplateAssignmentsQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(ResolveForSelectionQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((ResolveForSelectionQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetPortfolioFundStrategySnapshotQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfolioFundStrategySnapshotQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundOrderByOrderIdQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundOrderByOrderIdQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundOrderTradeByTradeIdQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundOrderTradeByTradeIdQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundCompositionByWorkflowQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundCompositionByWorkflowQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundOrdersPageQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundOrdersPageQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetFundOrderTradesPageQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetFundOrderTradesPageQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetPortfolioFundStrategyReferenceCombinationsQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfolioFundStrategyReferenceCombinationsQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(AllocatePortfolioBusinessIdQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((AllocatePortfolioBusinessIdQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetPortfolioFinancialPolicyQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetPortfolioFinancialPoliciesQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetPortfolioFinancialPoliciesQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetLegacyPortfolioScopesQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetLegacyPortfolioScopesQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetLegacyFundCatalogQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetLegacyFundCatalogQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetLegacyFundOrdersQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetLegacyFundOrdersQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+            [typeof(GetLegacyFundOrderTradesQuery)] = static (parameters, context, query, cancellationToken) =>
+                ((GetLegacyFundOrderTradesQuery)query).ExecuteAsync(context, parameters, cancellationToken)
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
@@ -280,7 +170,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         try
         {
             var receive = ResolveMappedQueryHandler(query, _receiveMap);
-            await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+            await receive(_parameters, context, query, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -288,27 +178,6 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
                 new KeyValuePair<string, object?>("portfolio.operation", query.Subject.Verb),
                 new KeyValuePair<string, object?>("portfolio.outcome", "completed"));
         }
-    }
-
-    async Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateAsync(
-        PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation> query,
-        CancellationToken cancellationToken)
-    {
-        var value = query.Parameters.Kind switch
-        {
-            PortfolioBusinessIdentityKind.Portfolio => (await RequireContext(Context).IdentityAllocator.AllocatePortfolioIdAsync(cancellationToken).ConfigureAwait(false)).Id,
-            PortfolioBusinessIdentityKind.Fund => await RequireContext(Context).IdentityAllocator.AllocateFundIdAsync(cancellationToken).ConfigureAwait(false),
-            PortfolioBusinessIdentityKind.Order => await RequireContext(Context).IdentityAllocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false),
-            PortfolioBusinessIdentityKind.Trade => await RequireContext(Context).IdentityAllocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false),
-            PortfolioBusinessIdentityKind.Policy => await RequireContext(Context).IdentityAllocator.AllocatePolicyIdAsync(cancellationToken).ConfigureAwait(false),
-            _ => throw new ArgumentOutOfRangeException(nameof(query), "A supported business identity kind is required."),
-        };
-        return new ServiceOk<PortfolioBusinessIdAllocation>(new()
-        {
-            Kind = query.Parameters.Kind,
-            Value = value,
-            CorrelationId = query.CorrelationId,
-        });
     }
 
     protected override ValueTask OnExceptionAsync(
@@ -319,13 +188,4 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         Exception exception) =>
         ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
-    static async ValueTask ReplyAsync<TResult>(
-        IQueryActorContext<PortfolioQueryActor> context,
-        IQuery query,
-        Task<ServiceResult<TResult>> resultTask)
-        where TResult : class
-    {
-        var result = await resultTask.ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
-    }
 }

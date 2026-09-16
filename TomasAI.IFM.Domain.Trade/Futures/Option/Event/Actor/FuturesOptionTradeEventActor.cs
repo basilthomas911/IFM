@@ -17,7 +17,7 @@ public class FuturesOptionTradeEventActor(
 {
     public const string ActorName = FuturesOptionTradeActorNames.Event;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [OptionTradeEndOfDayProcessedEvent.Verb] = message =>
@@ -27,7 +27,7 @@ public class FuturesOptionTradeEventActor(
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
-        Func<IFuturesOptionTradeEventContext, IEvent, ValueTask>> ReceiveMap =
+        Func<IFuturesOptionTradeEventContext, IEvent, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IFuturesOptionTradeEventContext, IEvent, ValueTask>>
         {
             [typeof(OptionTradeEndOfDayProcessedEvent)] = static (eventContext, domainEvent) =>
@@ -39,12 +39,12 @@ public class FuturesOptionTradeEventActor(
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesOptionTradeEventActor> context,
         IActorMessage message) =>
-        ParseMappedEvent(context, message, ParseMap);
+        ParseMappedEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesOptionTradeEventActor> context,
         IEvent domainEvent) =>
-        ResolveMappedEventHandler(domainEvent, ReceiveMap)(Typed(context), domainEvent);
+        ResolveMappedEventHandler(domainEvent, _receiveMap)(Typed(context), domainEvent);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesOptionTradeEventActor> context,

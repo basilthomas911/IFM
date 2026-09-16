@@ -13,7 +13,7 @@ public static class GetFuturesOptionContract
     /// <param name="context"></param>
     /// <param name="p"></param>
     /// <returns></returns>
-    internal static ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromProviderAsync(
+    internal static ValueTask<FuturesOptionContractReadModel> ExecuteAsync(
         this GetFuturesOptionContractQuery q, ApplicationMarketDataApi marketDataApi)
         => GetFuturesOptionContractFromProviderAsync(marketDataApi, q.ContractId);
 
@@ -29,4 +29,15 @@ public static class GetFuturesOptionContract
                 $"Futures option contract definition '{contractId}' is not configured in the active market-data epoch.");
     }
 
+
+    /// <summary>Reads and replies with the requested market-data feed result.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetFuturesOptionContractQuery query,
+        TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
+        MarketDataFeedQueryParameters parameters)
+    {
+        var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionContractReadModel>(result)).ConfigureAwait(false);
+    }
 }

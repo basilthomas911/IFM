@@ -16,7 +16,7 @@ public sealed class PositionExitWorkflowQueryActor(
 {
     public const string ActorName = GetPositionExitWorkflowQuery.Actor;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetPositionExitWorkflowQuery.Verb] = message =>
@@ -28,7 +28,7 @@ public sealed class PositionExitWorkflowQueryActor(
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
-        Func<IPositionExitWorkflowQueryContext, IQuery, CancellationToken, ValueTask>> ReceiveMap =
+        Func<IPositionExitWorkflowQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type,
             Func<IPositionExitWorkflowQueryContext, IQuery, CancellationToken, ValueTask>>
         {
@@ -38,12 +38,12 @@ public sealed class PositionExitWorkflowQueryActor(
                 ((GetPositionExitWorkflowTimelineQuery)query).ExecuteAsync(owner, token)
         }.ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(
         IQueryActorContext<PositionExitWorkflowQueryActor> actorContext,
-        IActorMessage message) => ParseMappedQuery(actorContext, message, ParseMap);
+        IActorMessage message) => ParseMappedQuery(actorContext, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IQueryActorContext<PositionExitWorkflowQueryActor> actorContext,
@@ -53,7 +53,7 @@ public sealed class PositionExitWorkflowQueryActor(
         IQueryActorContext<PositionExitWorkflowQueryActor> actorContext,
         IQuery query,
         CancellationToken cancellationToken) =>
-        ResolveMappedQueryHandler(query, ReceiveMap)(Typed(actorContext), query, cancellationToken);
+        ResolveMappedQueryHandler(query, _receiveMap)(Typed(actorContext), query, cancellationToken);
 
     protected override ValueTask OnExceptionAsync(
         IQueryActorContext<PositionExitWorkflowQueryActor> actorContext,
@@ -61,7 +61,7 @@ public sealed class PositionExitWorkflowQueryActor(
         IQuery query,
         string verb,
         Exception exception) =>
-        ExceptionMappedQueryAsync(actorContext, threadId, query, verb, exception, ExceptionMap);
+        ExceptionMappedQueryAsync(actorContext, threadId, query, verb, exception, _exceptionMap);
 
     static IPositionExitWorkflowQueryContext Typed(
         IQueryActorContext<PositionExitWorkflowQueryActor> context) =>

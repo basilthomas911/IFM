@@ -1,13 +1,12 @@
-using System.Reflection;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Extensions;
 
 using TomasAI.IFM.Shared.Extensions;
 
@@ -16,51 +15,42 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Actor;
 /// <summary>Provides the DatabaseBackupQueryActor implementation.</summary>
 public class DatabaseBackupQueryActor(
     IQueryActorContext<DatabaseBackupQueryActor> actorContext)
-    : BaseQueryActor<DatabaseBackupQueryActor>(actorContext, actorContext.Logger)
+    : BaseQueryActor<DatabaseBackupQueryActor>(actorContext, Require(actorContext).Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupQueryContext ActorContext =>
         IsArgumentNull.Set(Context as IDatabaseBackupQueryContext, nameof(Context))!;
 
     public const string Actor = DatabaseBackupQuery.Actor;
-    readonly ISystemAdminDbContext _dbContext = actorContext.DbContext;
+    readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
 
-    /// <summary>Gets the SupportedQueryTypes value.</summary>
-    public static IReadOnlyCollection<Type> SupportedQueryTypes => QueryRoutes.Select(route => route.QueryType).ToArray();
-    /// <summary>Gets the SupportedVerbs value.</summary>
+    /// <summary>Gets the supported concrete query types.</summary>
+    public static IReadOnlyCollection<Type> SupportedQueryTypes => _receiveMap.Keys.ToArray();
+    /// <summary>Gets the supported query verbs.</summary>
     public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys.ToArray();
 
-    static readonly (Type QueryType, Type ResultType)[] QueryRoutes =
-    [
-        (typeof(GetDatabaseProtectionSetsQuery), typeof(DatabaseProtectionSetReadModel[])),
-        (typeof(GetDatabaseBackupPolicyQuery), typeof(DatabaseBackupPolicyReadModel)),
-        (typeof(GetDatabaseBackupOperationQuery), typeof(DatabaseBackupOperationReadModel)),
-        (typeof(ListDatabaseBackupOperationsQuery), typeof(DatabaseBackupOperationReadModel[])),
-        (typeof(GetDatabaseBackupSetQuery), typeof(DatabaseBackupSetReadModel)),
-        (typeof(ListDatabaseRestorePointsQuery), typeof(DatabaseRestorePointReadModel[])),
-        (typeof(GetDatabaseRestorePointQuery), typeof(DatabaseRestorePointReadModel)),
-        (typeof(GetLatestVerifiedDatabaseBackupQuery), typeof(DatabaseRestorePointReadModel)),
-        (typeof(GetLatestRestoreTestedDatabaseBackupQuery), typeof(DatabaseRestorePointReadModel)),
-        (typeof(GetDatabaseRecoveryObjectiveComplianceQuery), typeof(DatabaseProtectionSetReadModel[])),
-        (typeof(GetDatabaseRestoreOperationQuery), typeof(DatabaseRestoreOperationReadModel)),
-        (typeof(ListDatabaseRestoreDrillsQuery), typeof(DatabaseRestoreOperationReadModel[])),
-        (typeof(GetDatabaseRetentionForecastQuery), typeof(DatabaseRetentionReadModel)),
-        (typeof(GetDatabaseBackupServiceHealthQuery), typeof(DatabaseBackupHealthReadModel[])),
-        (typeof(GetDatabaseRecoveryRunStatsQuery), typeof(DatabaseRecoveryRunStatsReadModel))
-    ];
-    static readonly MethodInfo ParseMethod = typeof(DatabaseBackupQueryActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = QueryRoutes.ToDictionary(
-        route => ((DatabaseBackupQuery)Activator.CreateInstance(route.QueryType)!).Verb,
-        route => (Func<IActorMessage, IQuery>)ParseMethod.MakeGenericMethod(route.QueryType, route.ResultType).CreateDelegate(typeof(Func<IActorMessage, IQuery>)),
-        StringComparer.Ordinal);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
+    {
+        ["GetProtectionSets"] = static message => message.AsQuery<GetDatabaseProtectionSetsQuery, DatabaseProtectionSetReadModel[]>()!,
+        ["GetPolicy"] = static message => message.AsQuery<GetDatabaseBackupPolicyQuery, DatabaseBackupPolicyReadModel>()!,
+        ["GetBackupOperation"] = static message => message.AsQuery<GetDatabaseBackupOperationQuery, DatabaseBackupOperationReadModel>()!,
+        ["ListBackupOperations"] = static message => message.AsQuery<ListDatabaseBackupOperationsQuery, DatabaseBackupOperationReadModel[]>()!,
+        ["GetBackupSet"] = static message => message.AsQuery<GetDatabaseBackupSetQuery, DatabaseBackupSetReadModel>()!,
+        ["ListRestorePoints"] = static message => message.AsQuery<ListDatabaseRestorePointsQuery, DatabaseRestorePointReadModel[]>()!,
+        ["GetRestorePoint"] = static message => message.AsQuery<GetDatabaseRestorePointQuery, DatabaseRestorePointReadModel>()!,
+        ["GetLatestVerifiedBackup"] = static message => message.AsQuery<GetLatestVerifiedDatabaseBackupQuery, DatabaseRestorePointReadModel>()!,
+        ["GetLatestRestoreTestedBackup"] = static message => message.AsQuery<GetLatestRestoreTestedDatabaseBackupQuery, DatabaseRestorePointReadModel>()!,
+        ["GetRecoveryObjectiveCompliance"] = static message => message.AsQuery<GetDatabaseRecoveryObjectiveComplianceQuery, DatabaseProtectionSetReadModel[]>()!,
+        ["GetRestoreOperation"] = static message => message.AsQuery<GetDatabaseRestoreOperationQuery, DatabaseRestoreOperationReadModel>()!,
+        ["ListRestoreDrills"] = static message => message.AsQuery<ListDatabaseRestoreDrillsQuery, DatabaseRestoreOperationReadModel[]>()!,
+        ["GetRetentionForecast"] = static message => message.AsQuery<GetDatabaseRetentionForecastQuery, DatabaseRetentionReadModel>()!,
+        ["GetServiceHealth"] = static message => message.AsQuery<GetDatabaseBackupServiceHealthQuery, DatabaseBackupHealthReadModel[]>()!,
+        ["GetRecoveryRunStats"] = static message => message.AsQuery<GetDatabaseRecoveryRunStatsQuery, DatabaseRecoveryRunStatsReadModel>()!
+    };
 
     protected override IQuery ParseMessage(IQueryActorContext<DatabaseBackupQueryActor> context, IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
-
-    static IQuery ParseTyped<TQuery, TResult>(IActorMessage message)
-        where TQuery : class, IQuery<TResult>
-        where TResult : class
-        => message.AsQuery<TQuery, TResult>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TQuery).Name}.");
 
     protected override ValueTask ReceiveAsync(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
@@ -69,70 +59,43 @@ public class DatabaseBackupQueryActor(
     {
         ((DatabaseBackupQuery)query).Validate();
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
-        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+        await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<DatabaseBackupQueryActor,
-        IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<DatabaseBackupQueryActor,
-        IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>>()
+    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetDatabaseProtectionSetsQuery)] = static async (actor, context, query, cancellationToken) =>
-            await Reply(context, (GetDatabaseProtectionSetsQuery)query,
-                await actor._dbContext.GetProtectionSetsAsync((GetDatabaseProtectionSetsQuery)query, cancellationToken)),
-        [typeof(GetDatabaseBackupPolicyQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseBackupPolicyQuery)query,
-                await actor._dbContext.GetPolicyAsync((GetDatabaseBackupPolicyQuery)query, cancellationToken)),
-        [typeof(GetDatabaseBackupOperationQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseBackupOperationQuery)query,
-                await actor._dbContext.GetBackupOperationAsync((GetDatabaseBackupOperationQuery)query, cancellationToken)),
-        [typeof(ListDatabaseBackupOperationsQuery)] = static async (actor, context, query, cancellationToken) =>
-            await Reply(context, (ListDatabaseBackupOperationsQuery)query,
-                await actor._dbContext.ListBackupOperationsAsync((ListDatabaseBackupOperationsQuery)query, cancellationToken)),
-        [typeof(GetDatabaseBackupSetQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseBackupSetQuery)query,
-                await actor._dbContext.GetBackupSetAsync((GetDatabaseBackupSetQuery)query, cancellationToken)),
-        [typeof(ListDatabaseRestorePointsQuery)] = static async (actor, context, query, cancellationToken) =>
-            await Reply(context, (ListDatabaseRestorePointsQuery)query,
-                await actor._dbContext.ListRestorePointsAsync((ListDatabaseRestorePointsQuery)query, cancellationToken)),
-        [typeof(GetDatabaseRestorePointQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseRestorePointQuery)query,
-                await actor._dbContext.GetRestorePointAsync((GetDatabaseRestorePointQuery)query, cancellationToken)),
-        [typeof(GetLatestVerifiedDatabaseBackupQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetLatestVerifiedDatabaseBackupQuery)query,
-                await actor._dbContext.GetLatestVerifiedBackupAsync((GetLatestVerifiedDatabaseBackupQuery)query, cancellationToken)),
-        [typeof(GetLatestRestoreTestedDatabaseBackupQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetLatestRestoreTestedDatabaseBackupQuery)query,
-                await actor._dbContext.GetLatestRestoreTestedBackupAsync((GetLatestRestoreTestedDatabaseBackupQuery)query, cancellationToken)),
-        [typeof(GetDatabaseRecoveryObjectiveComplianceQuery)] = static async (actor, context, query, cancellationToken) =>
-            await Reply(context, (GetDatabaseRecoveryObjectiveComplianceQuery)query,
-                await actor._dbContext.GetRecoveryObjectiveComplianceAsync((GetDatabaseRecoveryObjectiveComplianceQuery)query, cancellationToken)),
-        [typeof(GetDatabaseRestoreOperationQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseRestoreOperationQuery)query,
-                await actor._dbContext.GetRestoreOperationAsync((GetDatabaseRestoreOperationQuery)query, cancellationToken)),
-        [typeof(ListDatabaseRestoreDrillsQuery)] = static async (actor, context, query, cancellationToken) =>
-            await Reply(context, (ListDatabaseRestoreDrillsQuery)query,
-                await actor._dbContext.ListRestoreDrillsAsync((ListDatabaseRestoreDrillsQuery)query, cancellationToken)),
-        [typeof(GetDatabaseRetentionForecastQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseRetentionForecastQuery)query,
-                await actor._dbContext.GetRetentionForecastAsync((GetDatabaseRetentionForecastQuery)query, cancellationToken)),
-        [typeof(GetDatabaseBackupServiceHealthQuery)] = static async (actor, context, query, cancellationToken) =>
-            await Reply(context, (GetDatabaseBackupServiceHealthQuery)query,
-                await actor._dbContext.GetServiceHealthAsync((GetDatabaseBackupServiceHealthQuery)query, cancellationToken)),
-        [typeof(GetDatabaseRecoveryRunStatsQuery)] = static async (actor, context, query, cancellationToken) =>
-            await ReplyOne(context, (GetDatabaseRecoveryRunStatsQuery)query,
-                await actor._dbContext.GetRecoveryRunStatsAsync((GetDatabaseRecoveryRunStatsQuery)query, cancellationToken))
+        [typeof(GetDatabaseProtectionSetsQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseProtectionSetsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseBackupPolicyQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseBackupPolicyQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseBackupOperationQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseBackupOperationQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(ListDatabaseBackupOperationsQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((ListDatabaseBackupOperationsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseBackupSetQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseBackupSetQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(ListDatabaseRestorePointsQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((ListDatabaseRestorePointsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseRestorePointQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseRestorePointQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetLatestVerifiedDatabaseBackupQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetLatestVerifiedDatabaseBackupQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetLatestRestoreTestedDatabaseBackupQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetLatestRestoreTestedDatabaseBackupQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseRecoveryObjectiveComplianceQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseRecoveryObjectiveComplianceQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseRestoreOperationQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseRestoreOperationQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(ListDatabaseRestoreDrillsQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((ListDatabaseRestoreDrillsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseRetentionForecastQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseRetentionForecastQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseBackupServiceHealthQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseBackupServiceHealthQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+        [typeof(GetDatabaseRecoveryRunStatsQuery)] = static (dbContext, context, query, cancellationToken) =>
+            ((GetDatabaseRecoveryRunStatsQuery)query).ExecuteAsync(dbContext, context, cancellationToken)
     };
-
-    static ValueTask Reply<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult result)
-        where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
-        => context.ReplyAsync(query.Subject.ThreadId, query.Verb, new ServiceOk<TResult>(result));
-
-    static ValueTask ReplyOne<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult? result)
-        where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
-        => context.ReplyAsync<TResult>(query.Subject.ThreadId, query.Verb,
-            result is null
-                ? new ServiceFailed<TResult>(404, "DatabaseBackup projection was not found.")
-                : new ServiceOk<TResult>(result));
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys);
@@ -144,4 +107,8 @@ public class DatabaseBackupQueryActor(
         string verb,
         Exception exception)
         => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+
+    /// <summary>Requires the typed Database Backup query context.</summary>
+    static IDatabaseBackupQueryContext Require(IQueryActorContext<DatabaseBackupQueryActor> context)
+        => context as IDatabaseBackupQueryContext ?? throw new ArgumentException("A typed Database Backup query context is required.", nameof(context));
 }

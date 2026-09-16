@@ -18,30 +18,17 @@ internal static class MarketDataServiceDbSql
         WHERE contract_role=$1 AND row_version=$17 RETURNING {AssignmentColumns};
         """;
     internal const string DeleteAssignment = "DELETE FROM market_data_service.futures_rollover_contract_assignment WHERE contract_role=$1 AND row_version=$2;";
-    internal const string UpsertVxPair = """
-        WITH front AS (
-          INSERT INTO market_data_service.futures_rollover_contract_assignment
-          (contract_role,root_symbol,contract_id,description,local_symbol,security_type,currency,exchange,multiplier,last_trade_date,next_rollover_date,source_contract_hash,row_version,created_on_utc,created_by,updated_on_utc,updated_by)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$17+1,$13,$14,$15,$16)
-          ON CONFLICT(contract_role) DO UPDATE SET root_symbol=EXCLUDED.root_symbol,contract_id=EXCLUDED.contract_id,
-          description=EXCLUDED.description,local_symbol=EXCLUDED.local_symbol,security_type=EXCLUDED.security_type,
-          currency=EXCLUDED.currency,exchange=EXCLUDED.exchange,multiplier=EXCLUDED.multiplier,last_trade_date=EXCLUDED.last_trade_date,
-          next_rollover_date=EXCLUDED.next_rollover_date,source_contract_hash=EXCLUDED.source_contract_hash,
-          row_version=market_data_service.futures_rollover_contract_assignment.row_version+1,
-          updated_on_utc=EXCLUDED.updated_on_utc,updated_by=EXCLUDED.updated_by
-          WHERE market_data_service.futures_rollover_contract_assignment.row_version=$17 RETURNING contract_role
-        ), second AS (
-          INSERT INTO market_data_service.futures_rollover_contract_assignment
-          (contract_role,root_symbol,contract_id,description,local_symbol,security_type,currency,exchange,multiplier,last_trade_date,next_rollover_date,source_contract_hash,row_version,created_on_utc,created_by,updated_on_utc,updated_by)
-          VALUES($18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$34+1,$30,$31,$32,$33)
-          ON CONFLICT(contract_role) DO UPDATE SET root_symbol=EXCLUDED.root_symbol,contract_id=EXCLUDED.contract_id,
-          description=EXCLUDED.description,local_symbol=EXCLUDED.local_symbol,security_type=EXCLUDED.security_type,
-          currency=EXCLUDED.currency,exchange=EXCLUDED.exchange,multiplier=EXCLUDED.multiplier,last_trade_date=EXCLUDED.last_trade_date,
-          next_rollover_date=EXCLUDED.next_rollover_date,source_contract_hash=EXCLUDED.source_contract_hash,
-          row_version=market_data_service.futures_rollover_contract_assignment.row_version+1,
-          updated_on_utc=EXCLUDED.updated_on_utc,updated_by=EXCLUDED.updated_by
-          WHERE market_data_service.futures_rollover_contract_assignment.row_version=$34 RETURNING contract_role
-        ) SELECT ((SELECT count(*) FROM front)+(SELECT count(*) FROM second))::integer;
+    internal const string DeleteVxPair = """
+        DELETE FROM market_data_service.futures_rollover_contract_assignment
+        WHERE (contract_role=$1 AND row_version=$2)
+           OR (contract_role=$3 AND row_version=$4);
+        """;
+    internal const string InsertVxPair = """
+        INSERT INTO market_data_service.futures_rollover_contract_assignment
+        (contract_role,root_symbol,contract_id,description,local_symbol,security_type,currency,exchange,multiplier,last_trade_date,next_rollover_date,source_contract_hash,row_version,created_on_utc,created_by,updated_on_utc,updated_by)
+        VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$17+1,$13,$14,$15,$16),
+        ($18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$34+1,$30,$31,$32,$33);
         """;
     internal const string InsertObservation = """
         INSERT INTO market_data_service.watchdog_status_log

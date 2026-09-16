@@ -21,7 +21,7 @@ public sealed class FuturesOptionRealtimeActor(
         FuturesTickTradeDataChangedEvent.Actor,
         FuturesTickTradeDataChangedEvent.Verb);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>
         {
             [FuturesTickTradeDataChangedEvent.Verb] =
@@ -30,7 +30,7 @@ public sealed class FuturesOptionRealtimeActor(
                 message => message.AsEvent<OpenPositionRoutesChangedEvent>()!
         }.ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionRealtimeContext, IEvent, ValueTask>> ReceiveMap =
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionRealtimeContext, IEvent, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IFuturesOptionRealtimeContext, IEvent, ValueTask>>
         {
             [typeof(FuturesTickTradeDataChangedEvent)] =
@@ -67,12 +67,12 @@ public sealed class FuturesOptionRealtimeActor(
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesOptionRealtimeActor> context,
         IActorMessage message) =>
-        ParseMappedRealtimeEvent(context, message, ParseMap);
+        ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesOptionRealtimeActor> context,
         IEvent @event) =>
-        ResolveMappedEventHandler(@event, ReceiveMap)(_runtime, @event);
+        ResolveMappedEventHandler(@event, _receiveMap)(_runtime, @event);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesOptionRealtimeActor> context,

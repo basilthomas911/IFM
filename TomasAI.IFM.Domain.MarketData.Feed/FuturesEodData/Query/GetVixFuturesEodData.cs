@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetVixFuturesEodData
 {
-    internal static async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataAsync(
+    internal static async ValueTask<VixFuturesEodDataReadModel[]> ExecuteAsync(
        this GetVixFuturesEodDataQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.MarketDataDb;

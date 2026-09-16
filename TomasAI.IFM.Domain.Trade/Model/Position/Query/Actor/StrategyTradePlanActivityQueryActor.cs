@@ -16,7 +16,7 @@ public sealed class StrategyTradePlanActivityQueryActor(
 {
     public const string ActorName = GetStrategyTradePlanActivityQuery.Actor;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetStrategyTradePlanActivityQuery.Verb] = message =>
@@ -26,7 +26,7 @@ public sealed class StrategyTradePlanActivityQueryActor(
 
     static readonly IReadOnlyDictionary<Type,
         Func<IStrategyTradePlanActivityQueryContext, IQuery, CancellationToken, ValueTask>>
-        ReceiveMap =
+        _receiveMap =
         new Dictionary<Type,
             Func<IStrategyTradePlanActivityQueryContext, IQuery, CancellationToken, ValueTask>>
         {
@@ -34,12 +34,12 @@ public sealed class StrategyTradePlanActivityQueryActor(
                 ((GetStrategyTradePlanActivityQuery)query).ExecuteAsync(owner, token)
         }.ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(
         IQueryActorContext<StrategyTradePlanActivityQueryActor> actorContext,
-        IActorMessage message) => ParseMappedQuery(actorContext, message, ParseMap);
+        IActorMessage message) => ParseMappedQuery(actorContext, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IQueryActorContext<StrategyTradePlanActivityQueryActor> actorContext,
@@ -49,7 +49,7 @@ public sealed class StrategyTradePlanActivityQueryActor(
         IQueryActorContext<StrategyTradePlanActivityQueryActor> actorContext,
         IQuery query,
         CancellationToken cancellationToken) =>
-        ResolveMappedQueryHandler(query, ReceiveMap)(Typed(actorContext), query, cancellationToken);
+        ResolveMappedQueryHandler(query, _receiveMap)(Typed(actorContext), query, cancellationToken);
 
     protected override ValueTask OnExceptionAsync(
         IQueryActorContext<StrategyTradePlanActivityQueryActor> actorContext,
@@ -57,7 +57,7 @@ public sealed class StrategyTradePlanActivityQueryActor(
         IQuery query,
         string verb,
         Exception exception) =>
-        ExceptionMappedQueryAsync(actorContext, threadId, query, verb, exception, ExceptionMap);
+        ExceptionMappedQueryAsync(actorContext, threadId, query, verb, exception, _exceptionMap);
 
     static IStrategyTradePlanActivityQueryContext Typed(
         IQueryActorContext<StrategyTradePlanActivityQueryActor> context) =>

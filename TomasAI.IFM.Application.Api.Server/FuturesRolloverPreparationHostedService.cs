@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// logged and retried without faulting the API host.
 /// </summary>
 public sealed class FuturesRolloverPreparationHostedService(
-    FuturesContractRolloverStartupCheck rolloverCheck,
+    IFuturesContractRolloverStartupCheck rolloverCheck,
     IFuturesExchangeBusinessCalendar calendar,
     IStatusConsoleWriter statusConsoleWriter,
     TimeProvider timeProvider,

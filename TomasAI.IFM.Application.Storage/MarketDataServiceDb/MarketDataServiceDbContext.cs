@@ -65,11 +65,21 @@ public sealed class MarketDataServiceDbContext(
         var transaction = BeginTransaction();
         try
         {
-            var changed = await Database.Use("MarketDataService.ReplaceVxAssignments", MarketDataServiceDbSql.UpsertVxPair)
+            if (expectedFrontVersion != 0 || expectedSecondVersion != 0)
+            {
+                var deleted = await Database.Use("MarketDataService.DeleteVxAssignments", MarketDataServiceDbSql.DeleteVxPair)
+                    .SetParameters(new VxPairDeleteParameter(
+                        front.ContractRole, expectedFrontVersion, second.ContractRole, expectedSecondVersion))
+                    .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                if (deleted.Sum() != 2)
+                    throw new InvalidOperationException("A VX assignment was concurrently changed; neither role was committed.");
+            }
+
+            var inserted = await Database.Use("MarketDataService.InsertVxAssignments", MarketDataServiceDbSql.InsertVxPair)
                 .SetParameters(new VxPairParameter(front, expectedFrontVersion, second, expectedSecondVersion))
-                .ExecuteScalarAsync(static row => row.GetInt(0), cancellationToken).ConfigureAwait(false);
-            if (changed != 2)
-                throw new InvalidOperationException("A VX assignment was concurrently changed; neither role was committed.");
+                .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            if (inserted.Sum() != 2)
+                throw new InvalidOperationException("The complete VX assignment pair was not stored; neither role was committed.");
             transaction?.Commit();
         }
         catch
@@ -214,6 +224,16 @@ public sealed class MarketDataServiceDbContext(
     readonly record struct AssignmentParameter(FuturesRolloverContractAssignment A, long Expected) : IBindValue
     {
         public object Bind() => BindAssignment(A, Expected);
+    }
+    readonly record struct VxPairDeleteParameter(
+        DatabentoContractRole FrontRole,
+        long FrontExpected,
+        DatabentoContractRole SecondRole,
+        long SecondExpected) : IBindValue
+    {
+        public object Bind() => Values(
+            Text(FrontRole.ToString()), Bigint(FrontExpected),
+            Text(SecondRole.ToString()), Bigint(SecondExpected));
     }
     readonly record struct VxPairParameter(FuturesRolloverContractAssignment Front, long FrontExpected,
         FuturesRolloverContractAssignment Second, long SecondExpected) : IBindValue

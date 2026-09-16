@@ -23,13 +23,12 @@ internal static class VerticalSpreadPositionTransition
         if (!decision.Accepted || decision.Value is null)
             return TradeCommandResult.Rejected(command.ErrorCode, decision);
 
-        state.Update(
-            new VerticalSpreadPositionChangedEvent
+        if (!state.Update(new VerticalSpreadPositionChangedEvent
             {
                 EntityId = command.EntityId,
                 State = decision.Value
-            },
-            command);
+            }, command))
+            return new ServiceFailed<GuidResult>(command.ErrorCode, "POSITION.STATE.APPLY_FAILED");
         return TradeCommandResult.Accepted(command.CommandId);
     }
 }

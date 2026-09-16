@@ -16,15 +16,27 @@ public sealed class IronCondorExitPositionWorkflowCommandActor(
     public const string ActorName = StartIronCondorExitPositionWorkflowCommand.Actor;
     readonly IIronCondorExitPositionWorkflowCommandContext services = Typed(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [StartIronCondorExitPositionWorkflowCommand.Verb] = static message =>
                 message.AsCommand<StartIronCondorExitPositionWorkflowCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(StartIronCondorExitPositionWorkflowCommand)] = static command =>
+            {
+                var typed = (StartIronCondorExitPositionWorkflowCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName);
+            }
+        }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, IronCondorExitPositionWorkflowCommandState,
-        ServiceResult<GuidResult>>> ReceiveMap =
+        ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, IronCondorExitPositionWorkflowCommandState, ServiceResult<GuidResult>>>
         {
             [typeof(StartIronCondorExitPositionWorkflowCommand)] = static (command, state) =>
@@ -36,14 +48,11 @@ public sealed class IronCondorExitPositionWorkflowCommandActor(
     protected override ValueTask OnShutdown(ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> context) =>
         services.EventProjector.StopAsync();
     protected override ICommand ParseMessage(ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> context,
-        IActorMessage message) => ParseMappedCommand(context, message, ParseMap);
+        IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
     protected override ValueTask OnValidateAsync(ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> context,
         ActorThreadId threadId, ICommand command)
     {
-        var typed = (StartIronCondorExitPositionWorkflowCommand)command;
-        var errors = new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
-            .ValidateEntityId(typed.EntityId, typed.CommandName);
-        if (errors.Count != 0) throw new ValidationException([.. errors]);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
     protected override async ValueTask<IActorState> OnLoadStateAsync(
@@ -55,7 +64,7 @@ public sealed class IronCondorExitPositionWorkflowCommandActor(
             context, (IronCondorExitPositionWorkflowCommandState)state, command).ConfigureAwait(false);
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> context, IActorState state,
-        ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, ReceiveMap)(
+        ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(
             command, (IronCondorExitPositionWorkflowCommandState)state));
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> context, ActorThreadId threadId,

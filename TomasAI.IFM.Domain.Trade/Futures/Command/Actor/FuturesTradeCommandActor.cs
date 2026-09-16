@@ -20,7 +20,7 @@ public sealed class FuturesTradeCommandActor(
 
     readonly IFuturesTradeCommandContext _services = Typed(context);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [CreateFuturesTradeCommand.Verb] = message =>
@@ -33,23 +33,19 @@ public sealed class FuturesTradeCommandActor(
                 message.AsCommand<CloseFuturesTradeCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly Type[] CommandTypes =
-    [
-        typeof(CreateFuturesTradeCommand),
-        typeof(AmendFuturesTradeEvidenceCommand),
-        typeof(BeginCloseFuturesTradeCommand),
-        typeof(CloseFuturesTradeCommand)
-    ];
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap =
-        CommandTypes
-            .ToDictionary(
-                type => type,
-                _ => (Func<ICommand, List<ValidationError>>)Validate)
-            .ToFrozenDictionary();
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(CreateFuturesTradeCommand)] = Validate,
+            [typeof(AmendFuturesTradeEvidenceCommand)] = Validate,
+            [typeof(BeginCloseFuturesTradeCommand)] = Validate,
+            [typeof(CloseFuturesTradeCommand)] = Validate,
+        }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type,
-        Func<ICommand, FuturesTradeCommandState, ServiceResult<GuidResult>>> ReceiveMap =
+        Func<ICommand, FuturesTradeCommandState, ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type,
             Func<ICommand, FuturesTradeCommandState, ServiceResult<GuidResult>>>
         {
@@ -74,14 +70,14 @@ public sealed class FuturesTradeCommandActor(
     protected override ICommand ParseMessage(
         ICommandActorContext<FuturesTradeCommandActor> context,
         IActorMessage message) =>
-        ParseMappedCommand(context, message, ParseMap);
+        ParseMappedCommand(context, message, _parseMap);
 
     protected override ValueTask OnValidateAsync(
         ICommandActorContext<FuturesTradeCommandActor> context,
         ActorThreadId actorThreadId,
         ICommand command)
     {
-        ValidateMappedCommand(command, ValidationMap);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -106,7 +102,7 @@ public sealed class FuturesTradeCommandActor(
         IActorState state,
         ICommand command) =>
         ValueTask.FromResult(
-            ResolveMappedCommandHandler(command, ReceiveMap)(
+            ResolveMappedCommandHandler(command, _receiveMap)(
                 command,
                 (FuturesTradeCommandState)state));
 

@@ -15,14 +15,14 @@ public sealed class IronCondorExitPositionWorkflowRealtimeActor(
     public const string ActorName = "IronCondorExitPositionWorkflowRealtime";
     readonly IIronCondorExitPositionWorkflowRealtimeContext services = Typed(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [ExitPositionWorkflowStartedEvent.Verb] = static message =>
                 message.AsEvent<ExitPositionWorkflowStartedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ExitPositionWorkflowStartedEvent,
-        IIronCondorExitPositionWorkflowRealtimeContext, ValueTask>> ReceiveMap =
+        IIronCondorExitPositionWorkflowRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<ExitPositionWorkflowStartedEvent,
             IIronCondorExitPositionWorkflowRealtimeContext, ValueTask>>
         {
@@ -31,9 +31,9 @@ public sealed class IronCondorExitPositionWorkflowRealtimeActor(
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(IEventActorContext<IronCondorExitPositionWorkflowRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<IronCondorExitPositionWorkflowRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, ReceiveMap)(
+        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
             (ExitPositionWorkflowStartedEvent)domainEvent, services);
     protected override ValueTask OnExceptionAsync(
         IEventActorContext<IronCondorExitPositionWorkflowRealtimeActor> context, ActorThreadId threadId,

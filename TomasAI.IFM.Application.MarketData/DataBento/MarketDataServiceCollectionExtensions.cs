@@ -34,6 +34,8 @@ public static class MarketDataServiceCollectionExtensions
         services.TryAddSingleton<IDatabentoCurrentFuturesContractResolver,
             DatabentoCurrentFuturesContractResolver>();
         services.TryAddSingleton<FuturesContractRolloverStartupCheck>();
+        services.TryAddSingleton<IFuturesContractRolloverStartupCheck>(provider =>
+            provider.GetRequiredService<FuturesContractRolloverStartupCheck>());
         services.TryAddSingleton<DatabentoMarketDataApi>();
         services.TryAddSingleton<IMarketDataApi>(provider =>
             provider.GetRequiredService<DatabentoMarketDataApi>());

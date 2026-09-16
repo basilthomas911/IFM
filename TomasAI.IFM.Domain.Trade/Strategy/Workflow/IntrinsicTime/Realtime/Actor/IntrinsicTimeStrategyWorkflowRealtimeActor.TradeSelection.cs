@@ -172,7 +172,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         };
         await context.SendAsync<TimeoutTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
     }
-    static async ValueTask ReconcileStoppedSelectionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
+    internal static async ValueTask ReconcileStoppedSelectionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
         var handoff = snapshot.State.CompositionHandoff; var services = RequireEventContext(context);
         if (handoff is { Status: CompositionHandoffStatus.ReservationPending })

@@ -15,7 +15,7 @@ public static class GetEconomicCalendarDate
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static ValueTask<string> GetEconomicCalendarDateAsync(
+    public static ValueTask<string> ExecuteAsync(
         this GetEconomicCalendarDateQuery q,
         CancellationToken cancellationToken = default)
     {

@@ -94,7 +94,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetClosingFundBalanceQuery)] =  async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetClosingFundBalanceQuery)!;
-            var result = await query.GetClosingFundBalanceAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundBalanceReadModel>(new FundBalanceReadModel(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetClosingFundBalanceQuery.Verb, serviceResult);
@@ -102,7 +102,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundBalanceQuery)] =  async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundBalanceQuery)!;
-            var result = await query.GetFundBalanceAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundBalanceReadModel>(new FundBalanceReadModel(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundBalanceQuery.Verb, serviceResult);
@@ -110,7 +110,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundDrawdownBalancesQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundDrawdownBalancesQuery)!;
-            var result = await query.GetFundDrawdownBalancesAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundDrawdownBalancesReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundDrawdownBalancesQuery.Verb, serviceResult);
@@ -119,7 +119,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundIdFromOrderIdQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundIdFromOrderIdQuery)!;
-            var result = await query.GetFundIdFromOrderIdAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResut = new ServiceResult<ScalarReadModel<int>>(new ScalarReadModel<int>(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundIdFromOrderIdQuery.Verb, serviceResut);
@@ -127,7 +127,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundOrdersQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundOrdersQuery)!;
-            var result = await query.GetFundOrdersAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundOrderReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundOrdersQuery.Verb, serviceResult);
@@ -135,7 +135,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundOrderTradesQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundOrderTradesQuery)!;
-            var result = await query.GetFundOrderTradesAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundOrderTradeReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundOrderTradesQuery.Verb, serviceResult);
@@ -143,7 +143,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundPnlReportQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundPnlReportQuery)!;
-            var fundPnlReport = await query.GetFundPnlReportAsync(ctx, cancellationToken);
+            var fundPnlReport = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundPnlReportReadModel>(fundPnlReport);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundPnlReportQuery.Verb, serviceResult);
@@ -151,7 +151,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundsQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundsQuery)!;
-            var result = await query.GetFundsAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundsQuery.Verb, serviceResult);
@@ -159,7 +159,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundWinLossRatioQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundWinLossRatioQuery)!;
-            var result = await query.GetFundWinLossRatioAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundWinLossRatioReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundWinLossRatioQuery.Verb, serviceResult);
@@ -167,7 +167,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetOpeningFundBalanceQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetOpeningFundBalanceQuery)!;
-            var result = await query.GetOpeningFundBalanceAsync(ctx, cancellationToken);
+            var result = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundBalanceReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOpeningFundBalanceQuery.Verb, serviceResult);
@@ -175,7 +175,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         [typeof(GetFundMaxProfitGeneratedQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundMaxProfitGeneratedQuery)!;
-            var fundMaxProfitGenerated = await query.GetFundMaxProfitGeneratedAsync(ctx, cancellationToken);
+            var fundMaxProfitGenerated = await query.ExecuteAsync(ctx, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundMaxProfitGeneratedReadModel>(fundMaxProfitGenerated);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundMaxProfitGeneratedQuery.Verb, serviceResult);

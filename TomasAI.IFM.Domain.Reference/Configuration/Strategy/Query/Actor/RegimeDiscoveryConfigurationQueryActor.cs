@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Query;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -42,40 +43,19 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
         CancellationToken cancellationToken)
     {
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
-        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+        await receive(ActorContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<RegimeDiscoveryConfigurationQueryActor,
-        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<RegimeDiscoveryConfigurationQueryActor,
-        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>>()
+    static readonly IReadOnlyDictionary<Type, Func<IRegimeDiscoveryConfigurationQueryContext,
+        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IRegimeDiscoveryConfigurationQueryContext,
+            IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetRegimeDiscoveryParameterSetQuery)] = static async (actor, context, query, cancellationToken) =>
-        {
-            var exact = (GetRegimeDiscoveryParameterSetQuery)query;
-            var result = (await actor.ActorContext.ConfigurationDb.GetRegimeDiscoveryAsync(
-                exact.ParameterSetId, exact.Version, cancellationToken).ConfigureAwait(false))?.ParameterSet;
-            await ReplyAsync(context, query, result).ConfigureAwait(false);
-        },
-        [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static async (actor, context, query, cancellationToken) =>
-        {
-            var effective = (ResolveRegimeDiscoveryParameterSetQuery)query;
-            var result = (await actor.ActorContext.ConfigurationDb.ResolveEffectiveRegimeDiscoveryAsync(
-                effective.EffectiveAtUtc, effective.TargetHorizon, cancellationToken).ConfigureAwait(false))?.ParameterSet;
-            await ReplyAsync(context, query, result).ConfigureAwait(false);
-        }
+        [typeof(GetRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
+            ((GetRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken),
+        [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
+            ((ResolveRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken)
     };
-
-    static ValueTask ReplyAsync(
-        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context,
-        IQuery query,
-        RegimeDiscoveryParameterSet? result)
-    {
-        if (result is null)
-            throw new KeyNotFoundException("The requested Regime Discovery parameter set was not found.");
-        return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<RegimeDiscoveryParameterSet>(result));
-    }
-
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys);

@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query;
 
 public static class GetSpreadDistribution
 {
-    internal static ValueTask<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
+    internal static ValueTask<SpreadDistributionReadModel?> ExecuteAsync(
         this GetSpreadDistributionQuery q, IDbContextFactory dbFactory,
         int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry,
         CancellationToken cancellationToken = default)

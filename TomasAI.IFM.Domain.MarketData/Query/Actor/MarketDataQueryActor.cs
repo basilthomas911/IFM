@@ -64,6 +64,24 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     protected override ValueTask ReceiveAsync(IQueryActorContext<MarketDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
+
+    static readonly IReadOnlyDictionary<Type,
+        Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>
+    {
+        [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) =>
+            ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetLastRateOfReturnQuery)] = static (context, query, cancellationToken) =>
+            ((GetLastRateOfReturnQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetTradingDaysQuery)] = static (context, query, cancellationToken) =>
+            ((GetTradingDaysQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetTradingDatesQuery)] = static (context, query, cancellationToken) =>
+            ((GetTradingDatesQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetValueDateQuery)] = static (context, query, cancellationToken) =>
+            ((GetValueDateQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetMarketSessionQuery)] = static (context, query, cancellationToken) =>
+            ((GetMarketSessionQuery)query).ExecuteAsync(context, cancellationToken)
+    };
     protected override async ValueTask ReceiveAsync(
         IQueryActorContext<MarketDataQueryActor> context,
         IQuery query,
@@ -72,93 +90,8 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
-        await receive(this, MarketDataContext, query, cancellationToken).ConfigureAwait(false);
+        await receive(MarketDataContext, query, cancellationToken).ConfigureAwait(false);
     }
-
-    static readonly IReadOnlyDictionary<Type,
-        Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>()
-    {
-        [typeof(GetTradeStrategySymbolsQuery)] = static async (actor, context, query, cancellationToken) =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var symbolsQuery = (GetTradeStrategySymbolsQuery)query;
-            var result = context.MarketDataApi is null
-                ? new ServiceFailed<TradeStrategySymbolReadModel[]>(503, "Market-data API is unavailable.")
-                : await context.MarketDataApi.GetTradeStrategySymbolsAsync(symbolsQuery.Family, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, GetTradeStrategySymbolsQuery.Verb, result).ConfigureAwait(false);
-        },
-        [typeof(GetLastRateOfReturnQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetLastRateOfReturnQuery)query, cancellationToken),
-        [typeof(GetTradingDaysQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetTradingDaysQuery)query, cancellationToken),
-        [typeof(GetTradingDatesQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetTradingDatesQuery)query, cancellationToken),
-        [typeof(GetValueDateQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetValueDateQuery)query, cancellationToken),
-        [typeof(GetMarketSessionQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetMarketSessionQuery)query, cancellationToken)
-    };
-
-    async ValueTask ReceiveAsync(
-        IQueryActorContext<MarketDataQueryActor> context,
-        GetLastRateOfReturnQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.GetLastRateOfReturnAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
-            new ServiceResult<RateOfReturnReadModel>(result)).ConfigureAwait(false);
-    }
-
-    async ValueTask ReceiveAsync(
-        IQueryActorContext<MarketDataQueryActor> context,
-        GetTradingDaysQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.GetTradingDaysAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetTradingDaysQuery.Verb,
-            new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
-    }
-
-    async ValueTask ReceiveAsync(
-        IQueryActorContext<MarketDataQueryActor> context,
-        GetTradingDatesQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.GetTradingDatesAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetTradingDatesQuery.Verb,
-            new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
-    }
-
-    async ValueTask ReceiveAsync(
-        IQueryActorContext<MarketDataQueryActor> context,
-        GetValueDateQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.GetValueDateAsync(
-            MarketDataContext.MarketSessionAuthority,
-            cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetValueDateQuery.Verb,
-            new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
-    }
-
-    async ValueTask ReceiveAsync(
-        IQueryActorContext<MarketDataQueryActor> context,
-        GetMarketSessionQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.GetMarketSessionAsync(
-            MarketDataContext.MarketSessionAuthority,
-            cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetMarketSessionQuery.Verb,
-            new ServiceResult<MarketSessionReadModel>(result)).ConfigureAwait(false);
-    }
-
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.
     /// </summary>

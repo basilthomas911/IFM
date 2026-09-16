@@ -11,7 +11,7 @@ public static class GetFuturesOptionContract
     /// <summary>
     /// Handles a request to retrieve a specific futures option contract by contract ID.
     /// </summary>
-    public static ValueTask<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
+    public static ValueTask<FuturesOptionContractReadModel?> ExecuteAsync(
         this GetFuturesOptionContractQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

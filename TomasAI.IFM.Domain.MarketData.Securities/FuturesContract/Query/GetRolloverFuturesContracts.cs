@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -15,7 +15,7 @@ public static class GetRolloverFuturesContracts
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask<FuturesContractV3ReadModel[]> GetRolloverFuturesContractsAsync(
+    public static async ValueTask<FuturesContractV3ReadModel[]> ExecuteAsync(
         this GetRolloverFuturesContractsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

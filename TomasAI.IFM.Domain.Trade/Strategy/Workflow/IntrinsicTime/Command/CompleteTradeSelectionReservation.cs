@@ -36,7 +36,7 @@ public static class CompleteTradeSelectionReservation
             StopReasonCode = stillCurrent ? current.StopReasonCode : "TS.RESERVATION.STOPPED",
             OrderComposition = stillCurrent ? new() { ProcessingStatus = StrategyActorProcessingStatus.Processing, StartedAtUtc = now, InputWorkflowRevision = current.WorkflowRevision + 1, ExpiresAtUtc = pending.Request.ExpiresAtUtc } : current.OrderComposition
         };
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, c.EntityId.Format()),
             Id = Guid.CreateVersion7(new DateTimeOffset(now)),

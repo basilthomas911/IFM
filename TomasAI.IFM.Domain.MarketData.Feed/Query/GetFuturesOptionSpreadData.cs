@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesOptionSpreadData
 {
-    internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
+    internal static async ValueTask<FuturesOptionSpreadDataReadModel> ExecuteAsync(
         this GetFuturesOptionSpreadDataQuery q, ApplicationMarketDataApi marketDataApi)
         => await GetFuturesOptionSpreadDataAsync(
             marketDataApi,
@@ -55,4 +55,15 @@ public static class GetFuturesOptionSpreadData
             delta: greeks is { IsValid: true, Delta: { } delta } ? delta : 0d,
             gamma: greeks is { IsValid: true, Gamma: { } gamma } ? gamma : 0d,
             theta: greeks is { IsValid: true, Theta: { } theta } ? theta : 0d);
+
+    /// <summary>Reads and replies with the requested market-data feed result.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetFuturesOptionSpreadDataQuery query,
+        TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
+        MarketDataFeedQueryParameters parameters)
+    {
+        var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionSpreadDataReadModel>(result)).ConfigureAwait(false);
+    }
 }

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Extensions;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;

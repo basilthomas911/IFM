@@ -126,6 +126,11 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
                 continue;
             }
             expectedContracts[symbol] = contract.ContractId;
+            var maturityEligible = contract.LastTradeDate > date;
+            Add("Contract mapping", symbol, maturityEligible,
+                maturityEligible
+                    ? "Current contract maturity is after the active value date."
+                    : $"Contract {contract.ContractId} matured on {contract.LastTradeDate:yyyy-MM-dd}.");
             var status = epoch?.ContractStatuses?.FirstOrDefault(x => x.ContractId == contract.ContractId);
             var grace = session.IsOffTrading ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(5);
             Add("Price cache", symbol, status?.LastAcceptedCacheUpdateAtUtc is { } accepted && now - accepted.UtcDateTime < grace,

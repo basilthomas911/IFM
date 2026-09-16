@@ -3,7 +3,7 @@ using System.Reflection;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Extensions;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;

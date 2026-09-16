@@ -15,11 +15,11 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime;
 
 /// <summary>Builds the external option-price notification from one live trade and the hot quote cache.</summary>
-internal static class FuturesTickTradeDataInserted
+public static class FuturesTickTradeDataInserted
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesTickTradeDataInserted}";
 
-    internal static async ValueTask<bool> ExecuteAsync(
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesTickTradeDataInsertedEvent source,
         IEventActorContext eventApi,
         IMarketDataApi marketDataApi,

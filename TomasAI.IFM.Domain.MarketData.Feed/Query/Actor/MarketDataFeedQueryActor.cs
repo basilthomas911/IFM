@@ -78,119 +78,20 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     /// Provides a mapping from query type names to delegate functions that execute the corresponding market data feed query
     /// logic against the query state.
     /// </summary>
-    static readonly IReadOnlyDictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap = new Dictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>>()
+    static readonly IReadOnlyDictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>>
     {
-        [typeof(GetFuturesOptionContractQuery)] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetFuturesOptionContractQuery)!;
-            var result = await query.GetFuturesOptionContractFromProviderAsync(qryParams.MarketDataApi);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
-                new ServiceResult<FuturesOptionContractReadModel>(result));
-        },
-        [typeof(GetFuturesOptionSpreadDataQuery)] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetFuturesOptionSpreadDataQuery)!;
-            var result = await query.GetFuturesOptionSpreadDataAsync(qryParams.MarketDataApi);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb,
-                new ServiceResult<FuturesOptionSpreadDataReadModel>(result));
-        },
-        [typeof(GetFuturesRiskPositionTypeQuery)] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetFuturesRiskPositionTypeQuery)!;
-            var result = await query.GetFuturesRiskPositionTypeAsync(qryParams.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRiskPositionTypeQuery.Verb,
-                new ServiceResult<RiskPositionTypeReadModel>(result));
-        },
-        [typeof(GetIronCondorMarketDataFeedQuery)] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetIronCondorMarketDataFeedQuery)!;
-            var result = await query.GetIronCondorMarketDataFeedAsync(qryParams.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb,
-                new ServiceResult<IronCondorMarketDataFeedReadModel>(result));
-        },
-        [typeof(GetNormalCurveTableQuery)] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetNormalCurveTableQuery)!;
-            var result = await query.GetNormalCurveTableAsync(qryParams.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb,
-                new ServiceResult<NormalCurveTableReadModel>(result));
-        },
-        [typeof(GetMarketDataFeedRuntimeStatusQuery)] = async (ctx, qryParams, q) =>
-        {
-            var result = qryParams.MarketDataApi.GetRuntimeStatus();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetMarketDataFeedRuntimeStatusQuery.Verb,
-                new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(result));
-        },
-        [typeof(GetDatabentoReadinessQuery)] = async (ctx, qryParams, q) =>
-        {
-            var current = qryParams.MarketDataLifecycle.Current;
-            var result = MapReadiness(current);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetDatabentoReadinessQuery.Verb,
-                new ServiceResult<DatabentoReadinessReadModel>(result));
-        },
-        [typeof(GetDatabentoCurrentContractsQuery)] = async (ctx, qryParams, q) =>
-        {
-            var values = await qryParams.MarketDataServiceStore.ListAssignmentsAsync();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetDatabentoCurrentContractsQuery.Verb,
-                new ServiceResult<DatabentoContractAssignmentReadModel[]>([.. values.Select(MapAssignment)]));
-        },
-        [typeof(GetDatabentoWatchdogHistoryQuery)] = async (ctx, qryParams, q) =>
-        {
-            var parameter = q.EntityId as TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters.GetDatabentoWatchdogHistoryParameter
-                ?? throw new InvalidOperationException("Databento watchdog history parameters are invalid.");
-            DatabentoMajorStatus? status = string.IsNullOrWhiteSpace(parameter.MajorStatus) ? null
-                : Enum.Parse<DatabentoMajorStatus>(parameter.MajorStatus, true);
-            var values = await qryParams.MarketDataServiceStore.ListObservationsAsync(
-                parameter.ValueDate, status, parameter.PageSize);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetDatabentoWatchdogHistoryQuery.Verb,
-                new ServiceResult<DatabentoWatchdogObservationReadModel[]>([.. values.Select(MapObservation)]));
-        },
-        [typeof(GetStreamingRequestIdQuery)] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetStreamingRequestIdQuery)!;
-            var result = await query.GetStreamingRequestIdAsync(qryParams.SequenceIdGenerator);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetStreamingRequestIdQuery.Verb,
-                new ServiceResult<ScalarValue<int>>(result));
-        }
+        [typeof(GetFuturesOptionContractQuery)] = static (context, parameters, query) => ((GetFuturesOptionContractQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetFuturesOptionSpreadDataQuery)] = static (context, parameters, query) => ((GetFuturesOptionSpreadDataQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetFuturesRiskPositionTypeQuery)] = static (context, parameters, query) => ((GetFuturesRiskPositionTypeQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetIronCondorMarketDataFeedQuery)] = static (context, parameters, query) => ((GetIronCondorMarketDataFeedQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetNormalCurveTableQuery)] = static (context, parameters, query) => ((GetNormalCurveTableQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetMarketDataFeedRuntimeStatusQuery)] = static (context, parameters, query) => ((GetMarketDataFeedRuntimeStatusQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetDatabentoReadinessQuery)] = static (context, parameters, query) => ((GetDatabentoReadinessQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetDatabentoCurrentContractsQuery)] = static (context, parameters, query) => ((GetDatabentoCurrentContractsQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetDatabentoWatchdogHistoryQuery)] = static (context, parameters, query) => ((GetDatabentoWatchdogHistoryQuery)query).ExecuteAsync(context, parameters),
+        [typeof(GetStreamingRequestIdQuery)] = static (context, parameters, query) => ((GetStreamingRequestIdQuery)query).ExecuteAsync(context, parameters)
     };
-
-    static DatabentoReadinessReadModel MapReadiness(DatabentoLifecycleSnapshot value) => new()
-    {
-        State = value.State.ToString(), DisplayHealth = value.LastObservation?.DisplayHealth.ToString() ?? "Inactive",
-        CoreReady = value.CoreReady, ValueDate = value.ValueDate, CorrelationId = value.CorrelationId,
-        NativeGeneration = value.NativeGeneration, RecoveryAttempt = value.RecoveryAttempt, Reason = value.Reason,
-        ChangedOnUtc = value.ChangedOnUtc, NextRetryOnUtc = value.NextRetryOnUtc,
-        Feeds = [.. (value.LastObservation?.FeedStatusDetails ?? []).Select(MapFeed)]
-    };
-
-    static DatabentoContractAssignmentReadModel MapAssignment(FuturesRolloverContractAssignment value) => new()
-    {
-        Role = value.ContractRole.ToString(), RootSymbol = value.RootSymbol, ContractId = value.ContractId,
-        LastTradeDate = value.LastTradeDate, NextRolloverDate = value.NextRolloverDate,
-        RowVersion = value.RowVersion, UpdatedOnUtc = value.UpdatedOnUtc
-    };
-
-    static DatabentoWatchdogObservationReadModel MapObservation(DatabentoWatchdogObservation value) => new()
-    {
-        Id = value.WatchdogStatusLogId, ObservationId = value.ObservationId, CorrelationId = value.CorrelationId,
-        ValueDate = value.ValueDate, ObservedOnUtc = value.ObservedOnUtc, OperationReason = value.OperationReason.ToString(),
-        MajorStatus = value.MajorStatus.ToString(), DisplayHealth = value.DisplayHealth.ToString(),
-        CoreReady = value.CoreContractsReady, RecoveryAttempt = value.RecoveryAttempt, FailureStage = value.FailureStage,
-        FailureDetail = value.FailureDetail, Feeds = [.. value.FeedStatusDetails.Select(MapFeed)], RowVersion = value.RowVersion
-    };
-
-    static DatabentoFeedStatusReadModel MapFeed(DatabentoFeedWatchdogStatus value) => new()
-    {
-        FeedInstanceId = value.FeedInstanceId, Dataset = value.Dataset, FeedKind = value.FeedKind,
-        Criticality = value.Criticality.ToString(), MajorStatus = value.MajorStatus.ToString(), NativeState = value.NativeState,
-        ProducerAlive = value.ProducerAlive, AggregationWorkerRunning = value.AggregationWorkerRunning,
-        ExpectedSubscriptions = value.ExpectedSubscriptions, ReceivedSubscriptions = value.ReceivedSubscriptions,
-        ProviderMessageCount = value.ProviderMessageCount,
-        LastProviderMessageAgeTicks = value.LastProviderMessageAge == TimeSpan.MaxValue ? long.MaxValue : value.LastProviderMessageAge.Ticks,
-        RingUsed = value.RingUsed, RingCapacity = value.RingCapacity, FailureDetail = value.FailureDetail,
-        ContractIds = [.. value.ContractIds]
-    };
-
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.
     /// </summary>

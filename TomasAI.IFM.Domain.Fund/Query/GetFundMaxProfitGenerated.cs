@@ -13,7 +13,7 @@ internal static class GetFundMaxProfitGenerated
     /// <param name="context">The Fund-specific query context.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns> A task representing the asynchronous operation </returns>
-    internal static async ValueTask<FundMaxProfitGeneratedReadModel> GetFundMaxProfitGeneratedAsync(
+    internal static async ValueTask<FundMaxProfitGeneratedReadModel> ExecuteAsync(
         this GetFundMaxProfitGeneratedQuery q,
         IFundQueryContext context,
         CancellationToken cancellationToken = default)

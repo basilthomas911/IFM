@@ -15,7 +15,7 @@ using TomasAI.IFM.Domain.Fund.Event.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.Event;
 
-public static class FundMaxProfitGeneratedEventHandler
+public static class FundMaxProfitGenerated
 {
     static readonly string ServiceId = "FundEventHandlers";
 

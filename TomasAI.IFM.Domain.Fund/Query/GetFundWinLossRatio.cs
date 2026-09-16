@@ -13,7 +13,7 @@ internal static class GetFundWinLossRatio
     /// <param name="context">The Fund-specific query context.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns></returns>
-    internal static async ValueTask<FundWinLossRatioReadModel> GetFundWinLossRatioAsync(
+    internal static async ValueTask<FundWinLossRatioReadModel> ExecuteAsync(
         this GetFundWinLossRatioQuery q,
         IFundQueryContext context,
         CancellationToken cancellationToken = default)

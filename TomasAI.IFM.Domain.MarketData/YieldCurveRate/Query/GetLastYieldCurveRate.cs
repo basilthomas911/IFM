@@ -15,7 +15,7 @@ internal static class GetLastYieldCurveRate
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static ValueTask<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(
+    public static ValueTask<YieldCurveRateReadModel?> ExecuteAsync(
         this GetLastYieldCurveRateQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

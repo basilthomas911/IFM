@@ -45,7 +45,7 @@ public static class AcceptOrderCompositionPreparation
         next = next with { CompositionExecution = CompositionDispatch.Create(next, prepared, now) };
         timing_composer_accept_create_execution?.Stop();
         using var timing_composer_accept_state_update = WorkflowTrace.Start("composer.accept.state_update", current);
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
             Id = Guid.CreateVersion7(new DateTimeOffset(now)), EntityId = command.EntityId, CommandId = command.CommandId,

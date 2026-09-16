@@ -14,7 +14,7 @@ internal static class GetFundDrawdownBalances
     /// <param name="context">The Fund-specific query context.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask<FundDrawdownBalancesReadModel> GetFundDrawdownBalancesAsync(
+    internal static async ValueTask<FundDrawdownBalancesReadModel> ExecuteAsync(
         this GetFundDrawdownBalancesQuery q,
         IFundQueryContext context,
         CancellationToken cancellationToken = default)

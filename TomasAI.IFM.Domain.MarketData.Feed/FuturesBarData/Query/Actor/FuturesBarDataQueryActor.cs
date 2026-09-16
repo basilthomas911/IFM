@@ -74,14 +74,14 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
         [typeof(GetFuturesBarDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetFuturesBarDataQuery)!;
-            var result = await query.GetFuturesBarDataAsync(ctx.DbFactory);
+            var result = await query.ExecuteAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb,
                 new ServiceResult<FuturesBarDataReadModel[]>(result));
         },
         [typeof(GetLastFuturesBarDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesBarDataQuery)!;
-            var result = await query.GetLastFuturesBarDataAsync(ctx.DbFactory);
+            var result = await query.ExecuteAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb,
                 new ServiceResult<FuturesBarDataReadModel>(result));
         }

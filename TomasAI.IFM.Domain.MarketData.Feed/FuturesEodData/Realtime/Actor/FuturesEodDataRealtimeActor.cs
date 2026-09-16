@@ -83,64 +83,34 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         new Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
             FuturesEodDataEventParameters, ValueTask>>
         {
-            [typeof(FuturesTickTradeDataInsertedEvent)] = async (@event, context, parameters) =>
+            [typeof(FuturesTickTradeDataInsertedEvent)] = static async (@event, context, parameters) =>
             {
                 _ = await ((FuturesTickTradeDataInsertedEvent)@event).ExecuteAsync(
-                        context,
-                        context.MarketDataApi,
-                        context.BlackboardService,
-                        context.StatusConsoleWriter,
-                        context.Projector,
-                        context.Logger)
-                    .ConfigureAwait(false);
+                    context, context.MarketDataApi, context.BlackboardService,
+                    context.StatusConsoleWriter, context.Projector, context.Logger).ConfigureAwait(false);
             },
-            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, parameters) =>
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context, parameters) =>
+                ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static async (@event, context, parameters) =>
             {
-                _ = await ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteVxQuoteAsync(
-                        context.MarketDataApi,
-                        context.Projector,
-                        context.StatusConsoleWriter,
-                        context.Logger)
-                    .ConfigureAwait(false);
+                _ = await ((FuturesSessionStatisticsUpdatedRealtimeEvent)@event).ExecuteAsync(
+                    context, context.Projector, context.Logger).ConfigureAwait(false);
             },
-            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = async (@event, context, parameters) =>
-            {
-                _ = await ((FuturesSessionStatisticsUpdatedRealtimeEvent)@event)
-                    .ExecuteAsync(context, context.Projector, context.Logger).ConfigureAwait(false);
-            },
-            [typeof(FuturesEodDataInsertedEvent)] = static (@event, context, _) =>
-            {
-                var inserted = (FuturesEodDataInsertedEvent)@event;
-                context.BlackboardService.MarketDataFeed.FuturesEodData.Set(
-                    inserted.FuturesEodData.ContractId,
-                    inserted.FuturesEodData.ValueDate,
-                    inserted.FuturesEodData);
-                return ValueTask.CompletedTask;
-            },
-            [typeof(FuturesEodDataInsertedCompleteEvent)] = async (@event, context, parameters) =>
-            {
-                _ = await ((FuturesEodDataInsertedCompleteEvent)@event)
-                    .ExecuteAsync(context, context, parameters).ConfigureAwait(false);
-            },
-            [typeof(VixFuturesEodDataInsertedCompleteEvent)] = async (@event, context, parameters) =>
-            {
-                _ = await ((VixFuturesEodDataInsertedCompleteEvent)@event)
-                    .ExecuteAsync(context, parameters).ConfigureAwait(false);
-            },
-            [typeof(FuturesEodDataInsertedFailEvent)] = static (@event, context, _) =>
-            {
-                LogProjectionFailure((FuturesEodDataInsertedFailEvent)@event, context.Logger);
-                return ValueTask.CompletedTask;
-            },
-            [typeof(VixFuturesEodDataInsertedFailEvent)] = static (@event, context, _) =>
-            {
-                LogProjectionFailure((VixFuturesEodDataInsertedFailEvent)@event, context.Logger);
-                return ValueTask.CompletedTask;
-            },
-            [typeof(VixFuturesEodDataInsertedEvent)] = static (_, _, _) => ValueTask.CompletedTask,
-            [typeof(FuturesEodSessionStatisticsUpdatedEvent)] = static (_, _, _) => ValueTask.CompletedTask
+            [typeof(FuturesEodDataInsertedEvent)] = static (@event, context, parameters) =>
+                ((FuturesEodDataInsertedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesEodDataInsertedCompleteEvent)] = static (@event, context, parameters) =>
+                ((FuturesEodDataInsertedCompleteEvent)@event).ExecuteAsync(context, parameters),
+            [typeof(VixFuturesEodDataInsertedCompleteEvent)] = static (@event, context, parameters) =>
+                ((VixFuturesEodDataInsertedCompleteEvent)@event).ExecuteAsync(context, parameters),
+            [typeof(FuturesEodDataInsertedFailEvent)] = static (@event, context, parameters) =>
+                ((FuturesEodDataInsertedFailEvent)@event).ExecuteAsync(context),
+            [typeof(VixFuturesEodDataInsertedFailEvent)] = static (@event, context, parameters) =>
+                ((VixFuturesEodDataInsertedFailEvent)@event).ExecuteAsync(context),
+            [typeof(VixFuturesEodDataInsertedEvent)] = static (@event, context, parameters) =>
+                ((VixFuturesEodDataInsertedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesEodSessionStatisticsUpdatedEvent)] = static (@event, context, parameters) =>
+                ((FuturesEodSessionStatisticsUpdatedEvent)@event).ExecuteAsync(context)
         };
-
     protected override async ValueTask OnStartup(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
         await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);

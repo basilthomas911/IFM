@@ -16,7 +16,7 @@ internal static class GetFundOrders
     /// <param name="context">The Fund-specific query context.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask<FundOrderReadModel[]> GetFundOrdersAsync(
+    internal static async ValueTask<FundOrderReadModel[]> ExecuteAsync(
         this GetFundOrdersQuery q,
         IFundQueryContext context,
         CancellationToken cancellationToken = default)

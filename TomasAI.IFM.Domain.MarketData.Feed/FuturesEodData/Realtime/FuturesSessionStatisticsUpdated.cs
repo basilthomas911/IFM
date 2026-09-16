@@ -12,9 +12,9 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 
-internal static class FuturesSessionStatisticsUpdated
+public static class FuturesSessionStatisticsUpdated
 {
-    internal static async ValueTask<bool> ExecuteAsync(
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesSessionStatisticsUpdatedRealtimeEvent source,
         IEventActorContext context,
         IRealtimeProjector<FuturesEodDataRealtimeActor> projector,

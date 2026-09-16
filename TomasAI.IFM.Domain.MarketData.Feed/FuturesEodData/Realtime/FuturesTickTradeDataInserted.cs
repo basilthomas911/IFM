@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -25,11 +25,11 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 /// reads are current-state queries; the resulting write uses the realtime
 /// source/complete/fail lifecycle and is never replayed.
 /// </summary>
-internal static class FuturesTickTradeDataInserted
+public static class FuturesTickTradeDataInserted
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesTickTradeDataInserted}";
 
-    internal static async ValueTask<bool> ExecuteAsync(
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesTickTradeDataInsertedEvent source,
         IEventActorContext context,
         IMarketDataApi marketDataApi,

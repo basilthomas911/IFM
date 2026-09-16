@@ -16,7 +16,7 @@ public static class GetFundBalance
     /// <param name="context">The Fund-specific query context.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns></returns>
-    internal static async ValueTask<decimal> GetFundBalanceAsync(
+    internal static async ValueTask<decimal> ExecuteAsync(
         this GetFundBalanceQuery q,
         IFundQueryContext context,
         CancellationToken cancellationToken = default)

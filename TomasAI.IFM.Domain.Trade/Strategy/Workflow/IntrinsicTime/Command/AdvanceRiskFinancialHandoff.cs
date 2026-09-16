@@ -140,7 +140,7 @@ public static class AdvanceRiskFinancialHandoff
             next=next with { Status=WorkflowStrategyMachineStatus.Completed,Outcome=StrategyWorkflowOutcome.Completed,TerminalAtUtc=now,
                 RiskManagement=next.RiskManagement with { ContinuationDecision=StrategyWorkflowContinuationDecision.Proceed } };
         using var timing_authorization_verify_state_update = WorkflowTrace.Start("authorization.verify.state_update", view);
-        state.Update(new WorkflowStrategyStateUpdatedEvent
+        state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Id=eventId,CommandId=command.CommandId,EntityId=command.EntityId,
             Subject=new(ActorType.Event,WorkflowStrategyStateUpdatedEvent.Actor,WorkflowStrategyStateUpdatedEvent.Verb,command.EntityId.Format()),

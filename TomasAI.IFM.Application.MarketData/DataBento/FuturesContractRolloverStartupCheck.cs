@@ -8,6 +8,20 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
 /// <summary>
+/// Refreshes and validates the provider-backed futures rollover set required
+/// before a value-date market-data generation can be admitted.
+/// </summary>
+public interface IFuturesContractRolloverStartupCheck
+{
+    /// <summary>
+    /// Refreshes due contracts and returns the validated durable rollover pointers.
+    /// </summary>
+    Task<IReadOnlyCollection<FuturesContractRolloverReadModel>> ExecuteAsync(
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Seeds and reconciles the minimum futures rollover configuration required by
 /// the application before market-data workflows are admitted.
 /// </summary>
@@ -17,12 +31,29 @@ public sealed class FuturesContractRolloverStartupCheck(
     TimeProvider timeProvider,
     DatabentoMarketDataRuntimeOptions runtimeOptions,
     IDatabentoContractRegistrationRegistry? registry = null)
+    : IFuturesContractRolloverStartupCheck
 {
     public static readonly string[] RequiredSymbols = ["ES", "VX"];
+    readonly SemaphoreSlim execution = new(1, 1);
 
     public async Task<IReadOnlyCollection<FuturesContractRolloverReadModel>> ExecuteAsync(
         DateOnly valueDate,
         CancellationToken cancellationToken = default)
+    {
+        await execution.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ExecuteCoreAsync(valueDate, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            execution.Release();
+        }
+    }
+
+    async Task<IReadOnlyCollection<FuturesContractRolloverReadModel>> ExecuteCoreAsync(
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
     {
         if (valueDate == default)
             throw new ArgumentOutOfRangeException(nameof(valueDate));
@@ -58,7 +89,7 @@ public sealed class FuturesContractRolloverStartupCheck(
         }
         else
         {
-            await SeedSyntheticAssignmentsAsync(seeded, cancellationToken)
+            await SeedSyntheticAssignmentsAsync(seeded, valueDate, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -109,6 +140,7 @@ public sealed class FuturesContractRolloverStartupCheck(
 
     private async Task SeedSyntheticAssignmentsAsync(
         IReadOnlyCollection<FuturesContractRolloverReadModel> seeded,
+        DateOnly valueDate,
         CancellationToken cancellationToken)
     {
         foreach (var symbol in RequiredSymbols)
@@ -118,7 +150,8 @@ public sealed class FuturesContractRolloverStartupCheck(
             var requiredCount = symbol == "VX" ? 2 : 1;
             var persisted = await store.GetFuturesRolloverSetAsync(
                 symbol, cancellationToken).ConfigureAwait(false);
-            if (row.NextRolloverDate is not null
+            if (row.NextRolloverDate is { } nextRolloverDate
+                && nextRolloverDate > valueDate
                 && persisted.Count == requiredCount
                 && persisted.All(contract => contract.Rollover
                     && string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
@@ -134,6 +167,7 @@ public sealed class FuturesContractRolloverStartupCheck(
                         symbol,
                         StringComparison.OrdinalIgnoreCase))
                 .Select(SyntheticFuturesContractFactory.Create)
+                .Where(contract => contract.LastTradeDate > valueDate)
                 .OrderBy(static contract => contract.LastTradeDate)
                 .Take(requiredCount)
                 .ToArray();

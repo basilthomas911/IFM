@@ -17,7 +17,7 @@ public sealed class FuturesTradeQueryActor(
 {
     public const string ActorName = FuturesTradeActorNames.Query;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetFuturesTradeQuery.Verb] = message =>
@@ -25,7 +25,7 @@ public sealed class FuturesTradeQueryActor(
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
-        Func<IFuturesTradeQueryContext, IQuery, CancellationToken, ValueTask>> ReceiveMap =
+        Func<IFuturesTradeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type,
             Func<IFuturesTradeQueryContext, IQuery, CancellationToken, ValueTask>>
         {
@@ -33,13 +33,13 @@ public sealed class FuturesTradeQueryActor(
                 ((GetFuturesTradeQuery)query).ExecuteAsync(queryContext, token)
         }.ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(
         IQueryActorContext<FuturesTradeQueryActor> context,
         IActorMessage message) =>
-        ParseMappedQuery(context, message, ParseMap);
+        ParseMappedQuery(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IQueryActorContext<FuturesTradeQueryActor> context,
@@ -50,7 +50,7 @@ public sealed class FuturesTradeQueryActor(
         IQueryActorContext<FuturesTradeQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken) =>
-        ResolveMappedQueryHandler(query, ReceiveMap)(
+        ResolveMappedQueryHandler(query, _receiveMap)(
             Typed(context),
             query,
             cancellationToken);
@@ -67,7 +67,7 @@ public sealed class FuturesTradeQueryActor(
             query,
             verb,
             exception,
-            ExceptionMap);
+            _exceptionMap);
 
     static IFuturesTradeQueryContext Typed(
         IQueryActorContext<FuturesTradeQueryActor> context) =>

@@ -18,7 +18,7 @@ public static class GetEconomicCalendar
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<EconomicCalendarReadModel[]> GetEconomicCalendarAsync(
+    public static async ValueTask<EconomicCalendarReadModel[]> ExecuteAsync(
         this GetEconomicCalendarQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
         => [.. await GetEconomicCalendarAsync(
             dbFactory.MarketDataDb, q.TodaysDate, q.CalendarViewType, q.CountryCode, cancellationToken)];

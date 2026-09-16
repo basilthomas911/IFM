@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -15,7 +15,7 @@ public static class GetLookupTypeShortCodeExists
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<ScalarReadModel<bool>> GetLookupTypeShortCodeExistsAsync(
+    public static async ValueTask<ScalarReadModel<bool>> ExecuteAsync(
         this GetLookupTypeShortCodeExistsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
     {
         return new ScalarReadModel<bool>(await (cancellationToken.CanBeCanceled

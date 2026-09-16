@@ -92,7 +92,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
         [typeof(GetOnTheRunFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetOnTheRunFuturesContractQuery)!;
-            var result = await query.GetOnTheRunFuturesContractAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOnTheRunFuturesContractQuery.Verb,
                 new ServiceResult<FuturesContractV3ReadModel?>(result));
@@ -100,7 +100,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
         [typeof(GetRolloverFuturesContractsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetRolloverFuturesContractsQuery)!;
-            var result = await query.GetRolloverFuturesContractsAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetRolloverFuturesContractsQuery.Verb,
                 new ServiceResult<FuturesContractV3ReadModel[]>(result));
@@ -108,7 +108,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
         [typeof(GetFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesContractQuery)!;
-            var result = await query.GetFuturesContractAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractQuery.Verb,
                 new ServiceResult<FuturesContractV3ReadModel?>(result));
@@ -116,7 +116,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
         [typeof(GetFuturesContractsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesContractsQuery)!;
-            var result = await query.GetFuturesContractsAsync(ctx.DbFactory, cancellationToken);
+            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractsQuery.Verb,
                 new ServiceResult<FuturesContractV3ReadModel[]>(result));

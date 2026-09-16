@@ -15,14 +15,14 @@ public sealed class VerticalSpreadExitPositionWorkflowRealtimeActor(
     public const string ActorName = "VerticalSpreadExitPositionWorkflowRealtime";
     readonly IVerticalSpreadExitPositionWorkflowRealtimeContext services = Typed(actorContext);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [ExitPositionWorkflowStartedEvent.Verb] = static message =>
                 message.AsEvent<ExitPositionWorkflowStartedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ExitPositionWorkflowStartedEvent,
-        IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>> ReceiveMap =
+        IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<ExitPositionWorkflowStartedEvent,
             IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>>
         {
@@ -31,9 +31,9 @@ public sealed class VerticalSpreadExitPositionWorkflowRealtimeActor(
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, ReceiveMap)(
+        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
             (ExitPositionWorkflowStartedEvent)domainEvent, services);
     protected override ValueTask OnExceptionAsync(
         IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context, ActorThreadId threadId,

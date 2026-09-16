@@ -16,7 +16,7 @@ public sealed class FuturesPositionQueryActor(IQueryActorContext<FuturesPosition
 {
     public const string ActorName = FuturesPositionActorNames.Query;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetFuturesTradePositionQuery.Verb] = message =>
@@ -26,7 +26,7 @@ public sealed class FuturesPositionQueryActor(IQueryActorContext<FuturesPosition
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
-        Func<IFuturesPositionQueryContext, IQuery, CancellationToken, ValueTask>> ReceiveMap =
+        Func<IFuturesPositionQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IFuturesPositionQueryContext, IQuery, CancellationToken, ValueTask>>
         {
             [typeof(GetFuturesTradePositionQuery)] = static (context, query, token) =>
@@ -35,12 +35,12 @@ public sealed class FuturesPositionQueryActor(IQueryActorContext<FuturesPosition
                 ((GetFuturesTradePositionHistoryQuery)query).ExecuteAsync(context, token)
         }.ToFrozenDictionary();
 
-    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> ExceptionMap =
-        CreateQueryExceptionMap(ReceiveMap.Keys);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
     protected override IQuery ParseMessage(
         IQueryActorContext<FuturesPositionQueryActor> context,
-        IActorMessage message) => ParseMappedQuery(context, message, ParseMap);
+        IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IQueryActorContext<FuturesPositionQueryActor> context,
@@ -50,7 +50,7 @@ public sealed class FuturesPositionQueryActor(IQueryActorContext<FuturesPosition
         IQueryActorContext<FuturesPositionQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken) =>
-        ResolveMappedQueryHandler(query, ReceiveMap)(Typed(context), query, cancellationToken);
+        ResolveMappedQueryHandler(query, _receiveMap)(Typed(context), query, cancellationToken);
 
     protected override ValueTask OnExceptionAsync(
         IQueryActorContext<FuturesPositionQueryActor> context,
@@ -58,7 +58,7 @@ public sealed class FuturesPositionQueryActor(IQueryActorContext<FuturesPosition
         IQuery query,
         string verb,
         Exception exception) => ExceptionMappedQueryAsync(
-            context, threadId, query, verb, exception, ExceptionMap);
+            context, threadId, query, verb, exception, _exceptionMap);
 
     static IFuturesPositionQueryContext Typed(IQueryActorContext<FuturesPositionQueryActor> context) =>
         context as IFuturesPositionQueryContext ??

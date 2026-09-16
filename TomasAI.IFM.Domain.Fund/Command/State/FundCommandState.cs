@@ -37,6 +37,7 @@ public sealed class FundCommandState
             FundOrderClosedEvent e => On(e),
             OrderRemovedFromFundEvent e => On(e),
             TradeRemovedFromFundOrderEvent e => On(e),
+            FundMaxProfitGeneratedEvent => true,
             _ => false
         };
 

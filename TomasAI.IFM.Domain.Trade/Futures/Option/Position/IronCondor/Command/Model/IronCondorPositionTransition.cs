@@ -23,13 +23,12 @@ internal static class IronCondorPositionTransition
         if (!decision.Accepted || decision.Value is null)
             return TradeCommandResult.Rejected(command.ErrorCode, decision);
 
-        state.Update(
-            new IronCondorPositionChangedEvent
+        if (!state.Update(new IronCondorPositionChangedEvent
             {
                 EntityId = command.EntityId,
                 State = decision.Value
-            },
-            command);
+            }, command))
+            return new ServiceFailed<GuidResult>(command.ErrorCode, "POSITION.STATE.APPLY_FAILED");
         return TradeCommandResult.Accepted(command.CommandId);
     }
 }

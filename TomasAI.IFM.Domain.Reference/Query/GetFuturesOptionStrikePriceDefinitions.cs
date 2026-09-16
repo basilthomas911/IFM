@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -17,7 +17,7 @@ public static class GetFuturesOptionStrikePriceDefinitions
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(
+    public static ValueTask<FuturesOptionStrikePriceReadModel> ExecuteAsync(
         this GetFuturesOptionStrikePriceDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
         => GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
 
@@ -40,5 +40,13 @@ public static class GetFuturesOptionStrikePriceDefinitions
             Maximum = Convert.ToInt32(values[1].FirstOrDefault()?.ShortCode),
             Increment = Convert.ToInt32(values[2].FirstOrDefault()?.ShortCode)
         };
+    }
+
+    /// <summary>Reads and replies with the requested Reference result.</summary>
+    public static async ValueTask ExecuteAsync(this GetFuturesOptionStrikePriceDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    {
+        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(result)).ConfigureAwait(false);
     }
 }

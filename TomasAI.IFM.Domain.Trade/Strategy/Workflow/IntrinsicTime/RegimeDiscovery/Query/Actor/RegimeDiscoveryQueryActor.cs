@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Query;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
@@ -48,32 +49,17 @@ public sealed class RegimeDiscoveryQueryActor(
         CancellationToken cancellationToken)
     {
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
-        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+        await receive(ActorContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<RegimeDiscoveryQueryActor,
-        IQueryActorContext<RegimeDiscoveryQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<RegimeDiscoveryQueryActor,
-        IQueryActorContext<RegimeDiscoveryQueryActor>, IQuery, CancellationToken, ValueTask>>()
+    static readonly IReadOnlyDictionary<Type, Func<IRegimeDiscoveryQueryContext,
+        IQueryActorContext<RegimeDiscoveryQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IRegimeDiscoveryQueryContext,
+            IQueryActorContext<RegimeDiscoveryQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetRegimeDiscoveryQuery)] = static async (actor, context, query, cancellationToken) =>
-        {
-            var get = (GetRegimeDiscoveryQuery)query;
-            var result = await actor.ActorContext.DbFactory.TradeDb
-                .GetRegimeDiscoveryAsync(get.WorkflowId, cancellationToken).ConfigureAwait(false);
-            if (result is null)
-                throw new KeyNotFoundException($"Regime Discovery result for workflow {get.WorkflowId} was not found.");
-            await context.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
-                new ServiceResult<RegimeDiscoveryReadModel>(result)).ConfigureAwait(false);
-        },
-        [typeof(GetRegimeDiscoveryDecisionReferenceQuery)] = static async (_, context, query, _) =>
-        {
-            var get = (GetRegimeDiscoveryDecisionReferenceQuery)query;
-            var result = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
-            await context.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
-                new ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>(result)).ConfigureAwait(false);
-        }
+        [typeof(GetRegimeDiscoveryQuery)] = static (services, context, query, cancellationToken) => ((GetRegimeDiscoveryQuery)query).ExecuteAsync(services, context, cancellationToken),
+        [typeof(GetRegimeDiscoveryDecisionReferenceQuery)] = static (services, context, query, cancellationToken) => ((GetRegimeDiscoveryDecisionReferenceQuery)query).ExecuteAsync(services, context, cancellationToken)
     };
-
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys);
