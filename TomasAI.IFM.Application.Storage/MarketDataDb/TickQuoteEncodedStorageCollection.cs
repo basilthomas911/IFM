@@ -8,8 +8,11 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <summary>
 /// Binds the existing frozen UDT-list column as native CQL bytes after checking prepared marker metadata.
 /// </summary>
-internal sealed class TickQuoteEncodedStorageCollection(FuturesTickQuoteDataSegment segment) : IScyllaPreparedBindValue
+internal sealed class TickQuoteEncodedStorageCollection(FuturesTickQuoteDataSegment segment)
+    : IScyllaPreparedBindValue, IDisposable
 {
+    private PooledTickQuoteCqlBuffer? _owner;
+    private int _resolved;
     private static readonly object Gate = new();
     private static readonly object ValidatedMarker = new();
     private static readonly ConditionalWeakTable<PreparedStatement, object> ValidatedStatements = new();
@@ -45,8 +48,15 @@ internal sealed class TickQuoteEncodedStorageCollection(FuturesTickQuoteDataSegm
                 }
             }
         }
-        return TickQuoteCqlEncoder.Encode(segment);
+        if (Interlocked.Exchange(ref _resolved, 1) != 0)
+            throw new InvalidOperationException("The quote CQL value has already been resolved.");
+        var owner = TickQuoteCqlEncoder.EncodePooled(segment);
+        Volatile.Write(ref _owner, owner);
+        return owner.Buffer;
     }
+
+    /// <summary>Returns the encoded bytes after the actual Scylla request ends.</summary>
+    public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Dispose();
 
     private static void Validate(ISession session, PreparedStatement statement)
     {

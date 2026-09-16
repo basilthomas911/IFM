@@ -26,6 +26,7 @@ using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Application.MarketData.Worker;
 using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
@@ -755,6 +756,10 @@ public static class Startup
             {
                 FeedOptions = feedOptions,
                 Contracts = contracts,
+                FuturesQuoteBatchCapacity = config.GetValue(
+                    "AppSettings:Databento:FuturesQuoteBatchCapacity", (ushort)64),
+                FuturesOptionQuoteBatchCapacity = config.GetValue(
+                    "AppSettings:Databento:FuturesOptionQuoteBatchCapacity", (ushort)64),
                 TradeStrategySymbolDatasets = config.GetSection("AppSettings:Databento:TradeStrategySymbolDatasets")
                     .Get<string[]>() ?? []
             };
@@ -782,6 +787,16 @@ public static class Startup
             }.Validate());
             var stage3Options = (config.GetSection("MarketDataRecovery:Stage3")
                 .Get<DatabentoStage3Options>() ?? new DatabentoStage3Options()).Validate();
+            if (runtimeOptions.FuturesQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount
+                || runtimeOptions.FuturesOptionQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
+                throw new ArgumentOutOfRangeException(
+                    nameof(runtimeOptions), "Configured quote batch capacities must be between 1 and 4096.");
+            if ((runtimeOptions.FuturesQuoteBatchCapacity > 64
+                    || runtimeOptions.FuturesOptionQuoteBatchCapacity > 64)
+                && (!stage3Options.Enabled
+                    || feedOptions.DataSource != FeedDataSourceMode.Synthetic))
+                throw new InvalidOperationException(
+                    "Quote batches above 64 are qualified only for isolated Synthetic Development with bounded Stage 3 publishing.");
             services.AddSingleton((config.GetSection("MarketDataRecovery:Stage4")
                 .Get<TomasAI.IFM.Application.MarketData.Subscriptions.Stage4SubscriptionOptions>()
                 ?? new TomasAI.IFM.Application.MarketData.Subscriptions.Stage4SubscriptionOptions())

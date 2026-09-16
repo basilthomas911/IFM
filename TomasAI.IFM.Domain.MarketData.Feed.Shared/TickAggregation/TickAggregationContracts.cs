@@ -112,22 +112,35 @@ public readonly record struct FuturesTickTradeData(
     [property: Key(9)] byte DbnFlags);
 
 [MessagePackFormatter(typeof(FuturesTickQuoteDataSegmentFormatter))]
-public readonly struct FuturesTickQuoteDataSegment
+public readonly struct FuturesTickQuoteDataSegment : IDisposable
 {
-    public const ushort MaximumCount = 64;
+    public const ushort MaximumCount = 4096;
 
     public FuturesTickQuoteDataSegment(FuturesTickQuoteData[] buffer, ushort count)
+        : this(buffer, count, null)
+    {
+    }
+
+    internal FuturesTickQuoteDataSegment(
+        FuturesTickQuoteData[] buffer,
+        ushort count,
+        IDisposable? owner)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         if (count is 0 or > MaximumCount || count > buffer.Length)
             throw new ArgumentOutOfRangeException(nameof(count));
         Buffer = buffer;
         Count = count;
+        Owner = owner;
     }
 
     public FuturesTickQuoteData[] Buffer { get; }
     public ushort Count { get; }
     public ReadOnlySpan<FuturesTickQuoteData> Items => Buffer.AsSpan(0, Count);
+    [IgnoreMember] internal IDisposable? Owner { get; }
+
+    /// <summary>Returns a decoded quote slot after its final consumer finishes.</summary>
+    public void Dispose() => Owner?.Dispose();
 }
 
 public sealed class FuturesTickQuoteDataSegmentFormatter
@@ -151,10 +164,19 @@ public sealed class FuturesTickQuoteDataSegmentFormatter
         var count = reader.ReadArrayHeader();
         if (count is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
             throw new MessagePackSerializationException($"Invalid quote segment length {count}.");
-        var buffer = new FuturesTickQuoteData[count];
+        var owner = PooledQuoteSegmentBuffers.Rent(count);
+        var buffer = owner?.Buffer ?? new FuturesTickQuoteData[count];
         var formatter = options.Resolver.GetFormatterWithVerify<FuturesTickQuoteData>();
-        for (var index = 0; index < count; index++)
-            buffer[index] = formatter.Deserialize(ref reader, options);
-        return new FuturesTickQuoteDataSegment(buffer, checked((ushort)count));
+        try
+        {
+            for (var index = 0; index < count; index++)
+                buffer[index] = formatter.Deserialize(ref reader, options);
+            return new FuturesTickQuoteDataSegment(buffer, checked((ushort)count), owner);
+        }
+        catch
+        {
+            owner?.Dispose();
+            throw;
+        }
     }
 }

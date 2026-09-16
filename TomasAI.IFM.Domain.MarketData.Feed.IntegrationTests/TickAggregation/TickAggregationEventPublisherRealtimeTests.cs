@@ -79,7 +79,7 @@ public sealed class TickAggregationEventPublisherRealtimeTests
     }
 
     [Fact]
-    public async Task Slow_nats_delivery_does_not_backpressure_market_data_ingestion()
+    public async Task Slow_nats_delivery_backpressures_after_bounded_capacity_is_reached()
     {
         var supervisor = Substitute.For<IActorSupervisor>();
         var realtimeProducer = Substitute.For<IActorProducer>();
@@ -104,15 +104,14 @@ public sealed class TickAggregationEventPublisherRealtimeTests
                 () => realtimeProducer.ReceivedCalls().Any(),
                 TimeSpan.FromSeconds(2)));
 
-            var enqueueBurst = Task.Run(async () =>
-            {
-                for (var index = 0; index < 2_048; index++)
-                    await publisher.PublishAsync(CreateEvent());
-            });
-            Assert.Same(enqueueBurst, await Task.WhenAny(
-                enqueueBurst,
-                Task.Delay(TimeSpan.FromSeconds(2))));
-            await enqueueBurst;
+            await publisher.PublishAsync(CreateEvent());
+            await publisher.PublishAsync(CreateEvent());
+            Assert.Equal(2, publisher.GetSnapshot().Depth);
+
+            var waiting = publisher.PublishAsync(CreateEvent()).AsTask();
+            Assert.False(waiting.IsCompleted);
+            releaseDelivery.TrySetResult();
+            await waiting.WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally { releaseDelivery.TrySetResult(); }
         await publisher.StopAsync();

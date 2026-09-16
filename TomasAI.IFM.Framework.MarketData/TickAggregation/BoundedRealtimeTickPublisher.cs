@@ -40,7 +40,11 @@ internal sealed class BoundedRealtimeTickPublisher(
                 current?.Queue.TryPeek(out var oldest) == true ? time.GetElapsedTime(oldest.EnqueuedAt) : TimeSpan.Zero,
                 current?.InFlight is { } active ? time.GetElapsedTime(active.EnqueuedAt) : TimeSpan.Zero,
                 accepted, published, rejected, saturation, generationCanceled, shutdownDiscarded, expired, failed,
-                failure, detail);
+                failure, detail)
+            {
+                RetainedQuoteItems = current?.RetainedQuoteItems ?? 0,
+                MaximumRetainedQuoteItems = policy.MaximumQueuedQuoteItems
+            };
         }
     }
 
@@ -83,6 +87,7 @@ internal sealed class BoundedRealtimeTickPublisher(
     {
         ArgumentNullException.ThrowIfNull(value);
         cancellationToken.ThrowIfCancellationRequested();
+        var quoteItems = value is FuturesTickQuoteDataChangedEvent quote ? quote.QuoteCount : 0;
         List<Publication>? canceled = null;
         Exception? rejection = null;
         lock (gate)
@@ -96,7 +101,8 @@ internal sealed class BoundedRealtimeTickPublisher(
             else
             {
                 // Retired generations need not occupy admission capacity behind an unrelated slow send.
-                if (current.Queue.Count >= policy.Capacity)
+                if (current.Queue.Count >= policy.Capacity
+                    || quoteItems > policy.MaximumQueuedQuoteItems - current.RetainedQuoteItems)
                 {
                     var count = current.Queue.Count;
                     for (var index = 0; index < count; index++)
@@ -105,6 +111,7 @@ internal sealed class BoundedRealtimeTickPublisher(
                         if (pending.Token.IsCancellationRequested)
                         {
                             generationCanceled++;
+                            current.RetainedQuoteItems -= pending.QuoteItems;
                             (canceled ??= []).Add(pending);
                         }
                         else current.Queue.Enqueue(pending);
@@ -118,9 +125,20 @@ internal sealed class BoundedRealtimeTickPublisher(
                     detail = "A raw realtime publication was rejected because the bounded queue was full.";
                     rejection = new RealtimeTickPublisherSaturatedException(policy.Capacity);
                 }
+                else if (quoteItems > policy.MaximumQueuedQuoteItems - current.RetainedQuoteItems)
+                {
+                    rejected++;
+                    saturation++;
+                    failure = RealtimeTickPublisherFailure.Saturated;
+                    detail = "A quote publication was rejected because the retained quote-item limit was reached.";
+                    rejection = new RealtimeTickPublisherQuoteBudgetExceededException(
+                        policy.MaximumQueuedQuoteItems);
+                }
                 else
                 {
-                    current.Queue.Enqueue(new Publication(value, lease, cancellationToken, time.GetTimestamp()));
+                    current.Queue.Enqueue(new Publication(
+                        value, lease, cancellationToken, time.GetTimestamp(), quoteItems));
+                    current.RetainedQuoteItems += quoteItems;
                     accepted++;
                     // A binary wake-up cannot accumulate phantom permits as retired generations
                     // are pruned. Queue access and signaling share the same gate.
@@ -255,7 +273,14 @@ internal sealed class BoundedRealtimeTickPublisher(
                 if (!retainLease)
                 {
                     item.DisposeLease();
-                    lock (gate) if (ReferenceEquals(current.InFlight, item)) current.InFlight = null;
+                    lock (gate)
+                    {
+                        if (ReferenceEquals(current.InFlight, item))
+                        {
+                            current.InFlight = null;
+                            current.RetainedQuoteItems -= item.QuoteItems;
+                        }
+                    }
                 }
             }
         }
@@ -270,7 +295,11 @@ internal sealed class BoundedRealtimeTickPublisher(
             item.DisposeLease();
             lock (gate)
             {
-                if (ReferenceEquals(current.InFlight, item)) current.InFlight = null;
+                if (ReferenceEquals(current.InFlight, item))
+                {
+                    current.InFlight = null;
+                    current.RetainedQuoteItems -= item.QuoteItems;
+                }
                 uncontained = false;
             }
         }
@@ -296,6 +325,7 @@ internal sealed class BoundedRealtimeTickPublisher(
         var result = new List<Publication>(current.Queue.Count);
         while (current.Queue.TryDequeue(out var item))
         {
+            current.RetainedQuoteItems -= item.QuoteItems;
             if (item.Token.IsCancellationRequested) generationCanceled++;
             else if (onStop) shutdownDiscarded++;
             else if (time.GetElapsedTime(item.EnqueuedAt) > policy.MaximumQueueAge) expired++;
@@ -333,16 +363,19 @@ internal sealed class BoundedRealtimeTickPublisher(
         public CancellationTokenSource Stopping { get; } = new();
         public Task? Worker;
         public Publication? InFlight;
+        public int RetainedQuoteItems;
         public bool Accepting = true;
         public void DisposeSignals() { Available.Dispose(); Stopping.Dispose(); }
     }
 
-    sealed class Publication(object value, ITickQuoteBufferLease? lease, CancellationToken token, long enqueuedAt)
+    sealed class Publication(
+        object value, ITickQuoteBufferLease? lease, CancellationToken token, long enqueuedAt, int quoteItems)
     {
         ITickQuoteBufferLease? ownedLease = lease;
         public object Value { get; } = value;
         public CancellationToken Token { get; } = token;
         public long EnqueuedAt { get; } = enqueuedAt;
+        public int QuoteItems { get; } = quoteItems;
         public void DisposeLease() => Interlocked.Exchange(ref ownedLease, null)?.Dispose();
     }
 }

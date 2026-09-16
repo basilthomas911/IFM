@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Cassandra;
 using Microsoft.Extensions.DependencyInjection;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
@@ -16,7 +17,8 @@ namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 /// <summary>Runs bounded synthetic quote traffic through one realtime actor and its Scylla projection.</summary>
 internal sealed class TickQuoteSoakRunner(IServiceProvider services)
 {
-    private readonly TickQuoteBufferPool _pool = new();
+    private readonly TickQuoteBufferPool _pool = CreatePool();
+    private readonly ushort _capacityBatchSize = ReadCapacityBatchSize();
     private readonly DateOnly _valueDate = DateOnly.FromDateTime(DateTime.UtcNow);
     private readonly string[] _contracts =
     [
@@ -25,8 +27,31 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
     ];
     private readonly List<double> _visibilityLagMs = [];
     private readonly long[] _assetSent = new long[2];
+    private readonly long[] _assetQuoteItems = new long[2];
+    private readonly bool _capacityProfile =
+        Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK_PROFILE") == "option-heavy-capacity";
     private long _outstandingLeases;
     private long _sent;
+
+    private static ushort ReadCapacityBatchSize()
+    {
+        var configured = Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK_BATCH_SIZE");
+        if (string.IsNullOrWhiteSpace(configured))
+            return FuturesTickQuoteDataSegment.MaximumCount;
+        if (!ushort.TryParse(configured, CultureInfo.InvariantCulture, out var size)
+            || size is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
+            throw new ArgumentOutOfRangeException(nameof(configured));
+        return size;
+    }
+
+    private static TickQuoteBufferPool CreatePool()
+    {
+        if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK_PROFILE")
+                == "option-heavy-capacity"
+            && ReadCapacityBatchSize() <= 512)
+            return new TickQuoteBufferPool([(ReadCapacityBatchSize(), 16)]);
+        return new TickQuoteBufferPool();
+    }
 
     /// <summary>Runs the configured elapsed soak and writes minute samples and a final verdict.</summary>
     public async Task RunAsync(CancellationToken stopping)
@@ -70,7 +95,7 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
         using var process = Process.GetCurrentProcess();
         await using var csv = new StreamWriter(csvPath);
         await csv.WriteLineAsync(
-            "utc,phase,elapsed_s,sent,published,depth,inflight,failed,rejected,expired,outstanding_leases,allocated_Bps,working_set_B,private_B,heap_B,loh_B,gen0_delta,gen1_delta,gen2_delta");
+            "utc,phase,elapsed_s,sent,published,futures_quotes,option_quotes,depth,inflight,failed,rejected,expired,outstanding_leases,allocated_Bps,working_set_B,private_B,heap_B,loh_B,gen0_delta,gen1_delta,gen2_delta,live_managed_B,cql_idle_B,cql_new_arrays,decoder_overflow");
 
         Task generator = Task.CompletedTask;
         Task observer = Task.CompletedTask;
@@ -79,7 +104,7 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
         try
         {
             await publisher.StartAsync(cancellation.Token);
-            Console.WriteLine($"SOAK START {startedUtc:O} duration={minutes:F1}min actor={actorId} rawCql=true csv={csvPath}");
+            Console.WriteLine($"SOAK START {startedUtc:O} duration={minutes:F1}min actor={actorId} profile={(_capacityProfile ? "option-heavy-capacity" : "legacy")} activeBatch={(_capacityProfile ? _capacityBatchSize : 64)} hardLimit={FuturesTickQuoteDataSegment.MaximumCount} csv={csvPath}");
             generator = GenerateAsync(publisher, sentinels.Writer, started, warmup, active, total, cancellation.Token);
             observer = ObserveAsync(session, readStatement, sentinels.Reader, cancellation.Token);
             sampler = SampleAsync(publisher, csv, process, started, warmup, active, total,
@@ -123,6 +148,15 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
         await csv.FlushAsync().ConfigureAwait(false);
         _visibilityLagMs.Sort();
         var final = publisher.GetSnapshot();
+        var managedBeforeDiagnosticGc = GC.GetTotalMemory(false);
+        long? managedAfterDiagnosticGc = null;
+        if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK_FINAL_GC") == "true")
+        {
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+            managedAfterDiagnosticGc = GC.GetTotalMemory(false);
+        }
         var verdict = new
         {
             Status = failure is null ? "Passed" : "Failed",
@@ -132,12 +166,19 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
             PlannedDurationMinutes = minutes,
             ElapsedMinutes = Stopwatch.GetElapsedTime(started).TotalMinutes,
             RawCqlEnabled = true,
+            Profile = _capacityProfile ? "option-heavy-capacity" : "legacy",
+            QuoteLimit = FuturesTickQuoteDataSegment.MaximumCount,
+            ActiveBatchSize = _capacityProfile ? _capacityBatchSize : (ushort)64,
             FuturesContractId = _contracts[0],
             FuturesOptionContractId = _contracts[1],
             SentBatches = Interlocked.Read(ref _sent),
             FuturesBatches = Interlocked.Read(ref _assetSent[0]),
             FuturesOptionBatches = Interlocked.Read(ref _assetSent[1]),
+            FuturesQuoteItems = Interlocked.Read(ref _assetQuoteItems[0]),
+            FuturesOptionQuoteItems = Interlocked.Read(ref _assetQuoteItems[1]),
             Publisher = final,
+            ManagedBeforeDiagnosticGcBytes = managedBeforeDiagnosticGc,
+            ManagedAfterDiagnosticGcBytes = managedAfterDiagnosticGc,
             OutstandingLeases = Interlocked.Read(ref _outstandingLeases),
             VisibilitySamples = _visibilityLagMs.Count,
             VisibilityLagP50Ms = Percentile(0.50),
@@ -148,6 +189,7 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
         await File.WriteAllTextAsync(verdictPath,
             JsonSerializer.Serialize(verdict, new JsonSerializerOptions { WriteIndented = true })).ConfigureAwait(false);
         Console.WriteLine($"SOAK {verdict.Status.ToUpperInvariant()} elapsed={verdict.ElapsedMinutes:F1}min sent={verdict.SentBatches} published={final.Published} p95Visibility={verdict.VisibilityLagP95Ms:F1}ms leases={verdict.OutstandingLeases} verdict={verdictPath}");
+        _pool.Dispose();
         if (failure is not null)
             throw new InvalidOperationException($"Tick quote soak failed; see {verdictPath}. {failure}");
     }
@@ -158,6 +200,12 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
         CancellationToken cancellationToken)
     {
         var nextSentinel = TimeSpan.Zero;
+        var capacityInterval = new[]
+        {
+            TimeSpan.FromSeconds(_capacityBatchSize / 200d),
+            TimeSpan.FromSeconds(_capacityBatchSize / 2_000d)
+        };
+        var nextCapacityBatch = new[] { capacityInterval[0], capacityInterval[1] };
         try
         {
             while (Stopwatch.GetElapsedTime(started) < active)
@@ -170,10 +218,23 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
                 var burstWindow = TimeSpan.FromTicks(total.Ticks / 120);
                 var burst = sustained && sustainedElapsed.Ticks % burstPeriod.Ticks < burstWindow.Ticks;
                 var rate = sustained ? burst ? 64 : 8 : 1;
-                var asset = (int)(Interlocked.Read(ref _sent) & 1);
+                var asset = _capacityProfile
+                    ? nextCapacityBatch[0] <= nextCapacityBatch[1] ? 0 : 1
+                    : (int)(Interlocked.Read(ref _sent) & 1);
+                if (_capacityProfile && elapsed < nextCapacityBatch[asset])
+                {
+                    await Task.Delay(TimeSpan.FromTicks(Math.Min(
+                        (nextCapacityBatch[asset] - elapsed).Ticks, TimeSpan.FromMilliseconds(50).Ticks)),
+                        cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
                 var sequence = Interlocked.Read(ref _assetSent[asset]) + 1;
-                var quoteCount = (ushort)((sequence % 3) switch { 0 => 1, 1 => 32, _ => 64 });
-                var lease = new CountingLease(this, _pool.Rent());
+                var quoteCount = _capacityProfile
+                    ? _capacityBatchSize
+                    : (ushort)((sequence % 3) switch { 0 => 1, 1 => 32, _ => 64 });
+                var lease = new CountingLease(this,
+                    await _pool.RentAsync(_capacityProfile ? _capacityBatchSize : (ushort)64,
+                        cancellationToken).ConfigureAwait(false));
                 try
                 {
                     var timestamp = DateTime.UtcNow;
@@ -223,6 +284,7 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
                     await publisher.PublishAsync(@event, lease, cancellationToken).ConfigureAwait(false);
                     Interlocked.Increment(ref _assetSent[asset]);
                     Interlocked.Increment(ref _sent);
+                    Interlocked.Add(ref _assetQuoteItems[asset], quoteCount);
                     var sentinel = new Sentinel(asset, sequence, timestamp, quoteCount, sentAt);
                     if (elapsed >= nextSentinel)
                     {
@@ -231,7 +293,10 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
                     }
                 }
                 catch { lease.Dispose(); throw; }
-                await Task.Delay(TimeSpan.FromSeconds(1d / rate), cancellationToken).ConfigureAwait(false);
+                if (_capacityProfile)
+                    nextCapacityBatch[asset] += capacityInterval[asset];
+                else
+                    await Task.Delay(TimeSpan.FromSeconds(1d / rate), cancellationToken).ConfigureAwait(false);
             }
         }
         finally { sentinels.TryComplete(); }
@@ -291,7 +356,7 @@ internal sealed class TickQuoteSoakRunner(IServiceProvider services)
             process.Refresh();
             var phase = elapsed < warmup ? "warmup" : elapsed < active ? "sustained" : "drain";
             await csv.WriteLineAsync(FormattableString.Invariant(
-                $"{DateTime.UtcNow:O},{phase},{elapsed.TotalSeconds:F1},{Interlocked.Read(ref _sent)},{snapshot.Published},{snapshot.Depth},{snapshot.InFlight},{snapshot.Failed},{snapshot.Rejected},{snapshot.Expired},{Interlocked.Read(ref _outstandingLeases)},{(allocated - prior) / seconds:F0},{process.WorkingSet64},{process.PrivateMemorySize64},{info.HeapSizeBytes},{loh},{currentGen0 - gen0},{currentGen1 - gen1},{currentGen2 - gen2}"));
+                $"{DateTime.UtcNow:O},{phase},{elapsed.TotalSeconds:F1},{Interlocked.Read(ref _sent)},{snapshot.Published},{Interlocked.Read(ref _assetQuoteItems[0])},{Interlocked.Read(ref _assetQuoteItems[1])},{snapshot.Depth},{snapshot.InFlight},{snapshot.Failed},{snapshot.Rejected},{snapshot.Expired},{Interlocked.Read(ref _outstandingLeases)},{(allocated - prior) / seconds:F0},{process.WorkingSet64},{process.PrivateMemorySize64},{info.HeapSizeBytes},{loh},{currentGen0 - gen0},{currentGen1 - gen1},{currentGen2 - gen2},{GC.GetTotalMemory(false)},{PooledTickQuoteCqlBuffer.IdleBytes},{PooledTickQuoteCqlBuffer.NewArrays},{PooledQuoteSegmentBuffers.OverflowAllocations}"));
             await csv.FlushAsync().ConfigureAwait(false);
             Console.WriteLine(FormattableString.Invariant(
                 $"SOAK {phase} {elapsed.TotalMinutes:F1}/{total.TotalMinutes:F1}min sent={_sent} published={snapshot.Published} depth={snapshot.Depth} failed={snapshot.Failed} leases={_outstandingLeases} alloc={(allocated - prior) / seconds / 1_000_000:F2}MB/s workingSet={process.WorkingSet64 / 1_000_000d:F1}MB G0/G1/G2={currentGen0 - gen0}/{currentGen1 - gen1}/{currentGen2 - gen2}"));

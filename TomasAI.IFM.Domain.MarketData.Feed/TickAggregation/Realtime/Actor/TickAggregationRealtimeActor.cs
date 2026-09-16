@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Extensions;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -78,8 +79,12 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
             [typeof(FuturesTickQuoteDataInsertedCompleteEvent)] = static (_, _) => ValueTask.CompletedTask
         };
 
-    protected override async ValueTask OnStartup(IEventActorContext<TickAggregationRealtimeActor> context) =>
-        await ((ITickAggregationRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
+    protected override async ValueTask OnStartup(IEventActorContext<TickAggregationRealtimeActor> context)
+    {
+        PooledQuoteSegmentBuffers.Warmup();
+        await ((ITickAggregationRealtimeContext)actorContext).Projector.StartAsync(context)
+            .ConfigureAwait(false);
+    }
 
     protected override async ValueTask OnShutdown(IEventActorContext<TickAggregationRealtimeActor> context) =>
         await ((ITickAggregationRealtimeContext)actorContext).Projector.StopAsync().ConfigureAwait(false);
@@ -94,8 +99,18 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
         IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(context);
-        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
-        await handler(domainEvent, RealtimeContext).ConfigureAwait(false);
+        try
+        {
+            var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
+            await handler(domainEvent, RealtimeContext).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (domainEvent is FuturesTickQuoteDataChangedEvent changed)
+                changed.QuoteData.Dispose();
+            else if (domainEvent is FuturesTickQuoteDataInsertedEvent inserted)
+                inserted.QuoteData.Dispose();
+        }
     }
 
     static void LogProjectionFailure(TickAggregationFailEvent failed, ILogger logger) =>

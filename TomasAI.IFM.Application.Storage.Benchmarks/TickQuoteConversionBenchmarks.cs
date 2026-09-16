@@ -12,7 +12,7 @@ public class TickQuoteConversionBenchmarks
 {
     private FuturesTickQuoteDataSegment _segment;
 
-    [Params(1, 32, 64)]
+    [Params(64, 512, 4096)]
     public int QuoteCount { get; set; }
 
     [GlobalSetup]
@@ -35,4 +35,12 @@ public class TickQuoteConversionBenchmarks
     /// <summary>Encodes the native nested UDT list into one byte array.</summary>
     public byte[] OneBufferCqlEncoding()
         => TickQuoteCqlEncoder.Encode(_segment);
+
+    [Benchmark]
+    /// <summary>Encodes into a privately retained exact-length buffer.</summary>
+    public int PooledCqlEncoding()
+    {
+        using var owner = TickQuoteCqlEncoder.EncodePooled(_segment);
+        return owner.Buffer.Length;
+    }
 }

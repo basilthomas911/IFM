@@ -18,6 +18,7 @@
 	  <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.IntegratedTests" />
 	  <InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage.Benchmarks" />
 	  <InternalsVisibleTo Include="TomasAI.IFM.Application.Storage.Benchmarks" />
+	  <InternalsVisibleTo Include="TomasAI.IFM.Application.Actor.IntegrationTests" />
 
   </ItemGroup>
 

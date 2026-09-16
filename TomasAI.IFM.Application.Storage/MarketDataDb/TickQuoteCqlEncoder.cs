@@ -16,15 +16,40 @@ internal static class TickQuoteCqlEncoder
     /// <summary>Creates the exact CQL binary value for a bounded quote segment.</summary>
     internal static byte[] Encode(FuturesTickQuoteDataSegment segment)
     {
+        var payload = new byte[EncodedLength(segment)];
+        EncodeInto(segment, payload);
+        return payload;
+    }
+
+    /// <summary>Encodes into an owned, exact-length buffer retained by the storage writer.</summary>
+    internal static PooledTickQuoteCqlBuffer EncodePooled(FuturesTickQuoteDataSegment segment)
+    {
+        var owner = PooledTickQuoteCqlBuffer.Rent(EncodedLength(segment));
+        try
+        {
+            EncodeInto(segment, owner.Buffer);
+            return owner;
+        }
+        catch
+        {
+            owner.Dispose();
+            throw;
+        }
+    }
+
+    private static int EncodedLength(FuturesTickQuoteDataSegment segment)
+    {
         if (segment.Buffer is null || segment.Count is 0 or > FuturesTickQuoteDataSegment.MaximumCount
             || segment.Count > segment.Buffer.Length)
             throw new ArgumentOutOfRangeException(nameof(segment));
-
         var length = sizeof(int);
         foreach (ref readonly var quote in segment.Items)
             length = checked(length + sizeof(int) + ItemSize(quote));
+        return length;
+    }
 
-        var payload = new byte[length];
+    private static void EncodeInto(FuturesTickQuoteDataSegment segment, byte[] payload)
+    {
         var output = payload.AsSpan();
         var offset = 0;
         WriteInt32(output, ref offset, segment.Count);
@@ -46,7 +71,6 @@ internal static class TickQuoteCqlEncoder
         }
         if (offset != payload.Length)
             throw new InvalidOperationException("Quote CQL encoding length mismatch.");
-        return payload;
     }
 
     private static int ItemSize(in FuturesTickQuoteData quote)

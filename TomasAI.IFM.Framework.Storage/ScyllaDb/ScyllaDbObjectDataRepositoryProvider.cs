@@ -150,10 +150,24 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     Task<RowSet> ExecuteOwnedStatementAsync(
         ISession session,
         IStatement statement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IDisposable? bindLifetime = null)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ScyllaDbWriteAwaiter.AwaitAsync(session.ExecuteAsync(statement), cancellationToken);
+        Task<RowSet> pendingExecution;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            pendingExecution = session.ExecuteAsync(statement);
+        }
+        catch
+        {
+            bindLifetime?.Dispose();
+            throw;
+        }
+        return bindLifetime is null
+            ? ScyllaDbWriteAwaiter.AwaitAsync(pendingExecution, cancellationToken)
+            : ScyllaDbWriteAwaiter.AwaitAsync(
+                pendingExecution, cancellationToken, bindLifetime);
     }
 
     /// <summary>
@@ -174,8 +188,14 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         CancellationToken cancellationToken,
         Action<string> onInfoMessage = null!)
     {
+        IDisposable? unsubmittedLifetime = null;
         try
         {
+            if (ctx is ObjectDataRepositoryContext ownedContext
+                && !ownedContext.HasDeferredParameterValues
+                && ownedContext.ParameterValueCount == 1)
+                unsubmittedLifetime = (ownedContext.ParameterValues[0]
+                    as IScyllaOwnedBindValues)?.BindLifetime;
             cancellationToken.ThrowIfCancellationRequested();
             var parameterCount = ctx is ObjectDataRepositoryContext repositoryContext
                 ? repositoryContext.ParameterValueCount
@@ -228,7 +248,10 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                         parameterValues.Count,
                         index => parameterValues[index]).ConfigureAwait(false);
                 else if (parameterValues.Count == 1)
+                {
+                    unsubmittedLifetime = null;
                     await ExecuteSingleCommandAsync(session, parameterValues[0]).ConfigureAwait(false);
+                }
                 else
                 {
                     using var rowSet = await ExecuteOwnedStatementAsync(
@@ -241,10 +264,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            unsubmittedLifetime?.Dispose();
             throw;
         }
         catch (Exception ex)
         {
+            unsubmittedLifetime?.Dispose();
             while (ex.InnerException != null) ex = ex.InnerException;
             var errorMessage = $"{ClassName}.ExecuteCommandAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
@@ -252,12 +277,24 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
 
         async Task ExecuteSingleCommandAsync(ISession session, object bindValues)
         {
-            var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
-            var boundStatement = Bind(session, ps, bindValues);
+            var bindLifetime = (bindValues as IScyllaOwnedBindValues)?.BindLifetime;
+            BoundStatement boundStatement;
+            try
+            {
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken)
+                    .ConfigureAwait(false);
+                boundStatement = Bind(session, ps, bindValues);
+            }
+            catch
+            {
+                bindLifetime?.Dispose();
+                throw;
+            }
             using var rowSet = await ExecuteOwnedStatementAsync(
                 session,
                 boundStatement,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                bindLifetime).ConfigureAwait(false);
         }
 
         async Task ExecuteIndexedCommandsAsync(

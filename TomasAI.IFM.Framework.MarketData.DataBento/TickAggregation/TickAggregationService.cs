@@ -526,12 +526,19 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 // leave the service in Stopping so a later StopAsync can retry.
                 throw new AggregateException("Tick aggregation shutdown failed.", failures);
             }
+            var workerStopped = false;
             try
             {
                 if (_worker is not null)
                     await _worker.WaitAsync(cancellationToken).ConfigureAwait(false);
+                workerStopped = true;
             }
             catch (Exception exception) { (failures ??= []).Add(exception); }
+            if (workerStopped)
+            {
+                try { await FlushAllAsync(QuoteEmissionReason.FeedStopped).ConfigureAwait(false); }
+                catch (Exception exception) { (failures ??= []).Add(exception); }
+            }
             _reader?.Dispose();
             _reader = null;
             _worker = null;
@@ -790,7 +797,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                             CreateLiveQuote(state, record.Quote), cancellationToken)
                         .ConfigureAwait(false);
                 }
-                if (state.QuoteCount == FuturesTickQuoteDataSegment.MaximumCount)
+                if (state.QuoteCount == QuoteBatchCapacity(state))
                 {
                     SetProcessingStage(TickAggregationProcessingStage.QuoteFlush);
                     await FlushAsync(
@@ -799,8 +806,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                             cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
                 }
-                AddQuote(state, record.Quote);
-                if (state.QuoteCount == FuturesTickQuoteDataSegment.MaximumCount)
+                await AddQuoteAsync(state, record.Quote, cancellationToken)
+                    .ConfigureAwait(false);
+                if (state.QuoteCount == QuoteBatchCapacity(state))
                 {
                     SetProcessingStage(TickAggregationProcessingStage.QuoteFlush);
                     await FlushAsync(
@@ -927,11 +935,15 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
-    private void AddQuote(TickerState state, QuoteRecord64 quote)
+    private async ValueTask AddQuoteAsync(
+        TickerState state,
+        QuoteRecord64 quote,
+        CancellationToken cancellationToken)
     {
         if (state.QuoteLease is null)
         {
-            state.QuoteLease = _quotePool.Rent();
+            state.QuoteLease = await _quotePool.RentAsync(
+                QuoteBatchCapacity(state), cancellationToken).ConfigureAwait(false);
             Interlocked.Increment(ref _outstandingQuoteBuffers);
         }
         state.QuoteLease.Buffer[state.QuoteCount++] = new FuturesTickQuoteData(
@@ -1180,7 +1192,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         Interlocked.Add(ref _emittedQuoteItems, count);
         if (pending.Reason == QuoteEmissionReason.BufferFull)
             Interlocked.Increment(ref _bufferFullFlushes);
-        else if (count < FuturesTickQuoteDataSegment.MaximumCount)
+        else if (count < QuoteBatchCapacity(state))
             Interlocked.Increment(ref _partialQuoteFlushes);
     }
 
@@ -1258,6 +1270,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             await PublishPendingTradeAsync(state).ConfigureAwait(false);
         }
     }
+
+    private ushort QuoteBatchCapacity(TickerState state) =>
+        state.Mapping.AssetTypeId == AssetTypeId.FuturesOption
+            ? _options.FuturesOptionQuoteBatchCapacity
+            : _options.FuturesQuoteBatchCapacity;
 
     private static decimal? ScaleNullable(long value) => value == UndefinedPrice ? null : value / PriceScale;
 
@@ -1424,6 +1441,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset);
         if (options.DefinitionDate == default)
             throw new ArgumentOutOfRangeException(nameof(options.DefinitionDate));
+        if (options.FuturesQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
+            throw new ArgumentOutOfRangeException(nameof(options.FuturesQuoteBatchCapacity));
+        if (options.FuturesOptionQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
+            throw new ArgumentOutOfRangeException(nameof(options.FuturesOptionQuoteBatchCapacity));
         ValidateTimeout(options.FeedStartTimeout, nameof(options.FeedStartTimeout));
         ValidateTimeout(options.FeedStopTimeout, nameof(options.FeedStopTimeout));
     }
@@ -1446,6 +1467,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
         _reader?.Dispose();
         _feed.Dispose();
+        _quotePool.Dispose();
         _generationStopping.Dispose();
         _lifecycle.Dispose();
     }

@@ -33,9 +33,89 @@ public sealed class TickAggregationContractTests
         var bytes = MessagePackSerializer.Serialize(new FuturesTickQuoteDataSegment(buffer, 2));
         var roundTrip = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(bytes);
 
-        Assert.Equal((ushort)2, roundTrip.Count);
-        Assert.Equal(2, roundTrip.Buffer.Length);
-        Assert.Equal((uint)2, roundTrip.Buffer[1].SourceSequence);
+        try
+        {
+            Assert.Equal((ushort)2, roundTrip.Count);
+            Assert.True(roundTrip.Buffer.Length >= roundTrip.Count);
+            Assert.Equal((uint)2, roundTrip.Buffer[1].SourceSequence);
+        }
+        finally { roundTrip.Dispose(); }
+    }
+
+    [Fact]
+    public void Maximum_quote_segment_round_trips_without_losing_order_or_count()
+    {
+        var buffer = new FuturesTickQuoteData[FuturesTickQuoteDataSegment.MaximumCount];
+        for (var index = 0; index < buffer.Length; index++)
+            buffer[index] = new FuturesTickQuoteData(
+                (uint)(index + 1), index + 1, index + 2, 0,
+                5_000_000_000L + index, index % 2 == 0 ? null : 5m,
+                (uint)(index + 10), 1, 5_100_000_000L + index,
+                index % 2 == 0 ? 5.1m : null, (uint)(index + 11), 1);
+
+        var payload = MessagePackSerializer.Serialize(
+            new FuturesTickQuoteDataSegment(buffer, FuturesTickQuoteDataSegment.MaximumCount));
+        var decoded = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(payload);
+
+        try
+        {
+            Assert.Equal(FuturesTickQuoteDataSegment.MaximumCount, decoded.Count);
+            Assert.Equal(buffer.Length, decoded.Buffer.Length);
+            Assert.Equal(buffer[0], decoded.Buffer[0]);
+            Assert.Equal(buffer[^1], decoded.Buffer[^1]);
+        }
+        finally { decoded.Dispose(); }
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new FuturesTickQuoteDataSegment(
+                new FuturesTickQuoteData[FuturesTickQuoteDataSegment.MaximumCount + 1],
+                (ushort)(FuturesTickQuoteDataSegment.MaximumCount + 1)));
+    }
+
+    [Fact]
+    public void Decoded_quote_slot_is_reused_after_the_consumer_disposes_it()
+    {
+        PooledQuoteSegmentBuffers.Warmup();
+        var quote = new FuturesTickQuoteData(
+            1, 2, 3, 4, 5_000_000_000, 5m, 6, 7,
+            5_100_000_000, 5.1m, 8, 9);
+        var payload = MessagePackSerializer.Serialize(
+            new FuturesTickQuoteDataSegment([quote], 1));
+
+        var first = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(payload);
+        var buffer = first.Buffer;
+        Assert.Equal(512, buffer.Length);
+        first.Dispose();
+        first.Dispose();
+
+        var second = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(payload);
+        try
+        {
+            Assert.Same(buffer, second.Buffer);
+            Assert.Equal(quote, second.Buffer[0]);
+        }
+        finally { second.Dispose(); }
+    }
+
+    [Fact]
+    public void Malformed_quote_segment_returns_its_decoder_slot()
+    {
+        PooledQuoteSegmentBuffers.Warmup();
+        var quote = new FuturesTickQuoteData(
+            1, 2, 3, 4, 5_000_000_000, 5m, 6, 7,
+            5_100_000_000, 5.1m, 8, 9);
+        var payload = MessagePackSerializer.Serialize(
+            new FuturesTickQuoteDataSegment([quote, quote], 2));
+
+        var first = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(payload);
+        var buffer = first.Buffer;
+        first.Dispose();
+
+        Assert.Throws<MessagePackSerializationException>(() =>
+            MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(payload[..^1]));
+
+        var next = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(payload);
+        try { Assert.Same(buffer, next.Buffer); }
+        finally { next.Dispose(); }
     }
 
     [Fact]

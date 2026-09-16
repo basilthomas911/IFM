@@ -30,6 +30,8 @@ public sealed record DatabentoMarketDataRuntimeOptions
     public int QueryConcurrency { get; init; } = 2;
     public int QueryQueueCapacity { get; init; } = 128;
     public int LastPriceCapacity { get; init; } = 4096;
+    public ushort FuturesQuoteBatchCapacity { get; init; } = 64;
+    public ushort FuturesOptionQuoteBatchCapacity { get; init; } = 64;
     public int MaximumConcurrentOptionChains { get; init; } = 8;
     public TimeSpan ProviderQueryTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public int CatalogQueryAttempts { get; init; } = 3;

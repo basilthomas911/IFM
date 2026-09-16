@@ -13,6 +13,37 @@ internal static class ScyllaDbWriteAwaiter
             : pendingExecution;
     }
 
+    /// <summary>
+    /// Retains a bound value owner until the driver really finishes, including
+    /// when the caller stops awaiting a non-cancellable submitted request.
+    /// </summary>
+    public static async Task<TResult> AwaitAsync<TResult>(
+        Task<TResult> pendingExecution,
+        CancellationToken cancellationToken,
+        IDisposable bindLifetime)
+        where TResult : IDisposable
+    {
+        ArgumentNullException.ThrowIfNull(pendingExecution);
+        ArgumentNullException.ThrowIfNull(bindLifetime);
+        try
+        {
+            return await pendingExecution.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (!pendingExecution.IsCompleted)
+                _ = DrainCancelledWithLifetimeAsync(pendingExecution, bindLifetime);
+            else
+                _ = DrainCancelledAsync(pendingExecution);
+            throw;
+        }
+        finally
+        {
+            if (pendingExecution.IsCompleted)
+                bindLifetime.Dispose();
+        }
+    }
+
     static async Task<TResult> AwaitCancellableAsync<TResult>(
         Task<TResult> pendingExecution,
         CancellationToken cancellationToken)
@@ -89,5 +120,21 @@ internal static class ScyllaDbWriteAwaiter
             // The caller observed cancellation. Drain the driver task so its exception and result resources
             // do not become unobserved when Cassandra completes the request in the background.
         }
+    }
+
+    static async Task DrainCancelledWithLifetimeAsync<TResult>(
+        Task<TResult> pendingExecution,
+        IDisposable bindLifetime)
+        where TResult : IDisposable
+    {
+        try
+        {
+            using var result = await pendingExecution.ConfigureAwait(false);
+        }
+        catch
+        {
+            // The caller observed cancellation; consume the driver's final result.
+        }
+        finally { bindLifetime.Dispose(); }
     }
 }

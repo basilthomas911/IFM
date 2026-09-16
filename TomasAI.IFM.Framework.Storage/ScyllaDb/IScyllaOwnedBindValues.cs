@@ -8,4 +8,7 @@ public interface IScyllaOwnedBindValues
 {
     /// <summary>Transfers the fresh positional values to one bind operation; a second call must fail.</summary>
     object?[] TakeValues();
+
+    /// <summary>Optional buffer owner retained until the underlying driver request ends.</summary>
+    IDisposable? BindLifetime { get; }
 }

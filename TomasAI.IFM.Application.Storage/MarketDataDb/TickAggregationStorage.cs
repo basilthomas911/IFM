@@ -28,6 +28,7 @@ public partial class MarketDataDbContext
     public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e)
     {
         var id = e.TickDataId;
+        var encoded = new TickQuoteEncodedStorageCollection(e.QuoteData);
         object?[] values = [
             (sbyte)e.AssetTypeId, id.ContractId, id.ValueDate,
             TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId,
@@ -35,10 +36,10 @@ public partial class MarketDataDbContext
             e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId,
             e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn,
             (short)e.EmissionReason, (short)e.QuoteCount,
-            new TickQuoteEncodedStorageCollection(e.QuoteData)
+            encoded
         ];
         return Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickQuoteData)}", MarketDataDbCql.InsertTickQuoteData)
-            .SetParameters(new InsertTickQuoteData(values))
+            .SetParameters(new InsertTickQuoteData(values, encoded))
             .ExecuteCommandAsync();
     }
 }

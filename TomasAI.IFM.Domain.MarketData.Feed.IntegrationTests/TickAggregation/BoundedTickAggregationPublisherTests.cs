@@ -35,13 +35,56 @@ public sealed class BoundedTickAggregationPublisherTests
             Assert.Equal(0, rejected.Disposed);
             await Until(() => publisher.GetSnapshot().Faulted);
             Assert.Equal(0, lease.Disposed);
+            Assert.Equal(1, publisher.GetSnapshot().RetainedQuoteItems);
             Assert.Equal(1, queued.Disposed);
             await publisher.StopAsync();
             Assert.Equal(0, lease.Disposed);
         }
         finally { release.TrySetResult(); rejected.Dispose(); }
         await Until(() => lease.Disposed == 1);
+        Assert.Equal(0, publisher.GetSnapshot().RetainedQuoteItems);
         Assert.Equal(1, queued.Disposed);
+    }
+
+    [Fact]
+    public async Task Retained_quote_item_budget_rejects_a_large_backlog_before_message_capacity()
+    {
+        var (supervisor, producer) = Setup();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = new TestLease();
+        var second = new TestLease();
+        var rejected = new TestLease();
+        producer.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(
+            Arg.Any<ActorSubject>(), Arg.Any<FuturesTickQuoteDataChangedEvent>(), Arg.Any<CancellationToken>())
+            .Returns(_ => { entered.TrySetResult(); return new ValueTask(release.Task); });
+        await using var publisher = new TickAggregationEventPublisher(supervisor,
+            policy: new() { Capacity = 4, MaximumQueuedQuoteItems = 2 });
+        await publisher.StartAsync();
+        try
+        {
+            await publisher.PublishAsync(Quote(first), first);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await publisher.PublishAsync(Quote(second), second);
+            await Assert.ThrowsAsync<RealtimeTickPublisherQuoteBudgetExceededException>(
+                () => publisher.PublishAsync(Quote(rejected), rejected).AsTask());
+            var blocked = publisher.GetSnapshot();
+            Assert.Equal(1, blocked.Depth);
+            Assert.Equal(1, blocked.InFlight);
+            Assert.Equal(2, blocked.RetainedQuoteItems);
+            Assert.Equal(2, blocked.MaximumRetainedQuoteItems);
+            Assert.Equal(0, rejected.Disposed);
+            release.SetResult();
+            await Until(() => publisher.GetSnapshot().Published == 2);
+            Assert.Equal(0, publisher.GetSnapshot().RetainedQuoteItems);
+            Assert.Equal(1, first.Disposed);
+            Assert.Equal(1, second.Disposed);
+        }
+        finally
+        {
+            release.TrySetResult();
+            rejected.Dispose();
+        }
     }
 
     static FuturesTickQuoteDataChangedEvent Quote(TestLease lease) => new()

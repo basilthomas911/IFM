@@ -291,12 +291,19 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                             feed,
                             mappings,
                             _publisher,
-                            new TickQuoteBufferPool(),
+                            new TickQuoteBufferPool(contracts.GroupBy(resolved =>
+                                    resolved.Registration.AssetTypeId == AssetTypeId.FuturesOption
+                                        ? _options.FuturesOptionQuoteBatchCapacity
+                                        : _options.FuturesQuoteBatchCapacity)
+                                .Select(group => (Capacity: group.Key,
+                                    Slots: checked(group.Count() + 8)))),
                             new EpochValueDateProvider(ValueDate),
                             new TickAggregationOptions
                             {
                                 Dataset = dataset,
                                 DefinitionDate = ValueDate,
+                                FuturesQuoteBatchCapacity = _options.FuturesQuoteBatchCapacity,
+                                FuturesOptionQuoteBatchCapacity = _options.FuturesOptionQuoteBatchCapacity,
                                 FeedStartTimeout = _options.FeedStartTimeout,
                                 FeedStopTimeout = _options.FeedStopTimeout
                             },
@@ -560,12 +567,19 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                 feed,
                 _mappings!,
                 _publisher,
-                new TickQuoteBufferPool(),
+                new TickQuoteBufferPool(contracts.GroupBy(resolved =>
+                        resolved.Registration.AssetTypeId == AssetTypeId.FuturesOption
+                            ? _options.FuturesOptionQuoteBatchCapacity
+                            : _options.FuturesQuoteBatchCapacity)
+                    .Select(group => (Capacity: group.Key,
+                        Slots: checked(group.Count() + 8)))),
                 new EpochValueDateProvider(ValueDate),
                 new TickAggregationOptions
                 {
                     Dataset = dataset,
                     DefinitionDate = ValueDate,
+                    FuturesQuoteBatchCapacity = _options.FuturesQuoteBatchCapacity,
+                    FuturesOptionQuoteBatchCapacity = _options.FuturesOptionQuoteBatchCapacity,
                     FeedStartTimeout = _options.FeedStartTimeout,
                     FeedStopTimeout = _options.FeedStopTimeout
                 },
@@ -844,6 +858,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             throw new ArgumentOutOfRangeException(nameof(options.LastPriceCapacity));
         if (options.MaximumConcurrentOptionChains <= 0)
             throw new ArgumentOutOfRangeException(nameof(options.MaximumConcurrentOptionChains));
+        if (options.FuturesQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
+            throw new ArgumentOutOfRangeException(nameof(options.FuturesQuoteBatchCapacity));
+        if (options.FuturesOptionQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
+            throw new ArgumentOutOfRangeException(nameof(options.FuturesOptionQuoteBatchCapacity));
     }
 
     private sealed class EpochValueDateProvider(DateOnly valueDate) : ITickValueDateProvider

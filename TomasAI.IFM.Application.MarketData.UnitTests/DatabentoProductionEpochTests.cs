@@ -48,6 +48,7 @@ public sealed class DatabentoProductionEpochTests
             ],
             QueryConcurrency = 1,
             QueryQueueCapacity = 4,
+            FuturesOptionQuoteBatchCapacity = 512,
             LastPriceCapacity = 2,
             CatalogQueryRetryDelay = TimeSpan.Zero
         };

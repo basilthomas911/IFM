@@ -4,13 +4,15 @@ namespace TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 public sealed record RealtimeTickPublisherPolicy
 {
     public int Capacity { get; init; } = 4096;
+    public int MaximumQueuedQuoteItems { get; init; } = 65_536;
     public TimeSpan MaximumQueueAge { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan SendTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan CancellationGracePeriod { get; init; } = TimeSpan.FromMilliseconds(100);
 
     public RealtimeTickPublisherPolicy Validate()
     {
-        if (Capacity is < 1 or > 65536 || MaximumQueueAge <= TimeSpan.Zero
+        if (Capacity is < 1 or > 65536 || MaximumQueuedQuoteItems is < 1 or > 4_194_304
+            || MaximumQueueAge <= TimeSpan.Zero
             || MaximumQueueAge > TimeSpan.FromMinutes(5) || SendTimeout <= TimeSpan.Zero
             || SendTimeout > TimeSpan.FromMinutes(1) || CancellationGracePeriod < TimeSpan.Zero
             || CancellationGracePeriod > TimeSpan.FromSeconds(5))
@@ -50,7 +52,11 @@ public sealed record RealtimeTickPublisherSnapshot(
     long Expired,
     long Failed,
     RealtimeTickPublisherFailure Failure,
-    string FailureDetail);
+    string FailureDetail)
+{
+    public int RetainedQuoteItems { get; init; }
+    public int MaximumRetainedQuoteItems { get; init; }
+}
 
 public interface ITickAggregationPublisherDiagnostics
 {
@@ -62,6 +68,12 @@ public sealed class RealtimeTickPublisherSaturatedException(int capacity)
     : InvalidOperationException($"The bounded realtime publisher queue is full (capacity={capacity}); this publication was rejected.")
 {
     public int Capacity { get; } = capacity;
+}
+
+public sealed class RealtimeTickPublisherQuoteBudgetExceededException(int maximumItems)
+    : InvalidOperationException($"The bounded realtime publisher has reached its retained quote-item limit ({maximumItems}); this publication was rejected.")
+{
+    public int MaximumItems { get; } = maximumItems;
 }
 
 public sealed class RealtimeTickPublisherUnavailableException(string reason)

@@ -12,9 +12,16 @@ public interface ITickQuoteBufferLease : IDisposable
     void SetCount(ushort count);
 }
 
-public interface ITickQuoteBufferPool
+public interface ITickQuoteBufferPool : IDisposable
 {
-    ITickQuoteBufferLease Rent();
+    ITickQuoteBufferLease Rent(ushort capacity = 64);
+    ValueTask<ITickQuoteBufferLease> RentAsync(
+        ushort capacity,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(Rent(capacity));
+    }
 }
 
 public interface ITickAggregationEventPublisher : IAsyncDisposable

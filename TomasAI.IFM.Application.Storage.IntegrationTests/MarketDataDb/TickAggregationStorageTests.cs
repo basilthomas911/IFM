@@ -21,7 +21,7 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         var timestamp = new DateTime(2026, 8, 7, 20, 15, 30, DateTimeKind.Utc);
         var quote = new FuturesTickQuoteData(
             1, 2, 3, 0, 5_000_000_000, 5m, 10, 1, 5_100_000_000, 5.1m, 11, 1);
-        var wrapper = new TickQuoteEncodedStorageCollection(
+        using var wrapper = new TickQuoteEncodedStorageCollection(
             new FuturesTickQuoteDataSegment([quote], 1));
         object?[] values =
         [
@@ -82,9 +82,13 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
     [InlineData(1, AssetTypeId.Futures)]
     [InlineData(32, AssetTypeId.Futures)]
     [InlineData(64, AssetTypeId.Futures)]
+    [InlineData(512, AssetTypeId.Futures)]
+    [InlineData(4096, AssetTypeId.Futures)]
     [InlineData(1, AssetTypeId.FuturesOption)]
     [InlineData(32, AssetTypeId.FuturesOption)]
     [InlineData(64, AssetTypeId.FuturesOption)]
+    [InlineData(512, AssetTypeId.FuturesOption)]
+    [InlineData(4096, AssetTypeId.FuturesOption)]
     public async Task Default_quote_encoder_round_trips_every_udt_field(int count, AssetTypeId assetType)
     {
         var contractId = (assetType == AssetTypeId.Futures ? "ES-" : "ES-OPTION-")

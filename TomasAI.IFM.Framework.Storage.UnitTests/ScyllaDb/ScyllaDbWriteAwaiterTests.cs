@@ -57,6 +57,43 @@ public sealed class ScyllaDbWriteAwaiterTests
         ownedResult.Disposed.Task.IsCompletedSuccessfully.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task BoundBufferOwner_ReturnsOnlyAfterSuccessfulDriverCompletion()
+    {
+        var pending = new TaskCompletionSource<DisposableResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var owner = new DisposableResult();
+        var awaited = ScyllaDbWriteAwaiter.AwaitAsync(
+            pending.Task, CancellationToken.None, owner);
+        owner.Disposed.Task.IsCompleted.Should().BeFalse();
+
+        using var result = new DisposableResult();
+        pending.SetResult(result);
+        (await awaited).Should().BeSameAs(result);
+        await owner.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task BoundBufferOwner_RemainsInFlightAfterCallerCancellation()
+    {
+        var pending = new TaskCompletionSource<DisposableResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
+        var owner = new DisposableResult();
+        var awaited = ScyllaDbWriteAwaiter.AwaitAsync(
+            pending.Task, cancellation.Token, owner);
+
+        cancellation.Cancel();
+        await FluentActions.Awaiting(() => awaited)
+            .Should().ThrowAsync<OperationCanceledException>();
+        owner.Disposed.Task.IsCompleted.Should().BeFalse();
+
+        var lateResult = new DisposableResult();
+        pending.SetResult(lateResult);
+        await owner.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await lateResult.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     sealed class DisposableResult : IDisposable
     {
         public TaskCompletionSource Disposed { get; } = new(

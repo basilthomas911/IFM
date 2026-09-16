@@ -12,7 +12,7 @@ public class TickQuoteIngressBenchmarks
 {
     private byte[] _payload = null!;
 
-    [Params(1, 32, 64)]
+    [Params(64, 512, 4096)]
     public int QuoteCount { get; set; }
 
     /// <summary>Builds one serialized segment outside the measured deserialization loop.</summary>
@@ -32,8 +32,12 @@ public class TickQuoteIngressBenchmarks
             new FuturesTickQuoteDataSegment(quotes, (ushort)quotes.Length));
     }
 
-    /// <summary>Decodes the segment and its distinct quote-value array as NATS ingress does.</summary>
+    /// <summary>Decodes and returns the quote-segment buffer as NATS ingress does.</summary>
     [Benchmark]
-    public FuturesTickQuoteDataSegment SegmentDeserialize() =>
-        MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(_payload);
+    public ushort SegmentDeserialize()
+    {
+        var decoded = MessagePackSerializer.Deserialize<FuturesTickQuoteDataSegment>(_payload);
+        try { return decoded.Count; }
+        finally { decoded.Dispose(); }
+    }
 }

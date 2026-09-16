@@ -763,6 +763,114 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
+    public async Task Maximum_quote_batch_flushes_before_the_next_quote_and_trade_drains_the_remainder()
+    {
+        var instrument = new InstrumentKey(7, 42);
+        var records = Enumerable.Range(1, FuturesTickQuoteDataSegment.MaximumCount + 1)
+            .Select(sequence => Quote(instrument, (uint)sequence,
+                5_000_000_000L + sequence, 5_100_000_000L + sequence))
+            .Append(Trade(instrument,
+                (uint)(FuturesTickQuoteDataSegment.MaximumCount + 2), 5_050_000_000L))
+            .ToArray();
+        using var feed = new FakeFeed(instrument, records);
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed, new MappingProvider(instrument), publisher, new TickQuoteBufferPool(),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = new DateOnly(2026, 8, 7),
+                FuturesQuoteBatchCapacity = FuturesTickQuoteDataSegment.MaximumCount
+            });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().RecordsCompleted == records.Length,
+            TimeSpan.FromSeconds(10)));
+        await service.StopAsync();
+
+        Assert.Equal(
+            [FuturesTickQuoteDataSegment.MaximumCount, (ushort)1],
+            publisher.QuoteCounts);
+        Assert.Equal(
+            [QuoteEmissionReason.BufferFull, QuoteEmissionReason.TradeObserved],
+            publisher.QuoteReasons);
+        var metrics = service.GetMetrics();
+        Assert.Equal(records.Length - 1, metrics.SourceQuoteRecords);
+        Assert.Equal(1, metrics.SourceTradeRecords);
+        Assert.Equal(2, metrics.EmittedQuoteBatches);
+        Assert.Equal(records.Length - 1, metrics.EmittedQuoteItems);
+        Assert.Equal(1, metrics.BufferFullFlushes);
+        Assert.Equal(1, metrics.PartialQuoteFlushes);
+        Assert.Equal(0, metrics.ServiceOwnedQuoteBuffers);
+    }
+
+    [Theory]
+    [InlineData(AssetTypeId.Futures, 64)]
+    [InlineData(AssetTypeId.FuturesOption, 512)]
+    public async Task Configured_asset_batch_capacity_flushes_at_its_own_limit(
+        AssetTypeId assetType, ushort capacity)
+    {
+        var instrument = new InstrumentKey(7, 42);
+        var records = Enumerable.Range(1, capacity + 1)
+            .Select(sequence => Quote(instrument, (uint)sequence,
+                5_000_000_000L + sequence, 5_100_000_000L + sequence))
+            .Append(Trade(instrument, (uint)(capacity + 2), 5_050_000_000L))
+            .ToArray();
+        using var feed = new FakeFeed(instrument, records);
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed, new AssetMappingProvider(instrument, "ESU6", assetType),
+            publisher, new TickQuoteBufferPool([(capacity, 2)]),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = new DateOnly(2026, 8, 7),
+                FuturesOptionQuoteBatchCapacity = 512
+            });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().RecordsCompleted == records.Length,
+            TimeSpan.FromSeconds(5)));
+        await service.StopAsync();
+
+        Assert.Equal([capacity, (ushort)1], publisher.QuoteCounts);
+        Assert.Equal(
+            [QuoteEmissionReason.BufferFull, QuoteEmissionReason.TradeObserved],
+            publisher.QuoteReasons);
+        Assert.Equal(capacity + 1, service.GetMetrics().EmittedQuoteItems);
+        Assert.Equal(0, service.GetMetrics().ServiceOwnedQuoteBuffers);
+    }
+
+    [Fact]
+    public async Task Stop_flushes_partial_quotes_after_the_feed_worker_drains()
+    {
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(instrument,
+            Quote(instrument, 1, 5_000_000_000L, 5_100_000_000L));
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed, new MappingProvider(instrument), publisher, new TickQuoteBufferPool(),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = new DateOnly(2026, 8, 7) });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().RecordsCompleted == 1,
+            TimeSpan.FromSeconds(2)));
+        await service.StopAsync();
+
+        Assert.Equal([(ushort)1], publisher.QuoteCounts);
+        Assert.Equal([QuoteEmissionReason.FeedStopped], publisher.QuoteReasons);
+        Assert.Equal(1, service.GetMetrics().EmittedQuoteItems);
+        Assert.Equal(1, service.GetMetrics().PartialQuoteFlushes);
+        Assert.Equal(0, service.GetMetrics().ServiceOwnedQuoteBuffers);
+    }
+
+    [Fact]
     public async Task Rejected_quote_publication_does_not_end_worker_and_retries_on_bounded_stop()
     {
         var instrument = new InstrumentKey(7, 42);
@@ -832,7 +940,8 @@ public sealed class TickAggregationServiceTests
             new TickAggregationOptions
             {
                 Dataset = "GLBX.MDP3",
-                DefinitionDate = new DateOnly(2026, 8, 7)
+                DefinitionDate = new DateOnly(2026, 8, 7),
+                FuturesQuoteBatchCapacity = FuturesTickQuoteDataSegment.MaximumCount
             });
 
         await service.StartAsync();
@@ -841,8 +950,13 @@ public sealed class TickAggregationServiceTests
             TimeSpan.FromSeconds(2)));
         await service.StopAsync();
 
-        Assert.Equal(2, publisher.QuoteAttempts.Count);
+        Assert.Equal(3, publisher.QuoteAttempts.Count);
         Assert.Equal(publisher.QuoteAttempts[0], publisher.QuoteAttempts[1]);
+        Assert.Equal(
+            [FuturesTickQuoteDataSegment.MaximumCount,
+                FuturesTickQuoteDataSegment.MaximumCount, (ushort)1],
+            publisher.QuoteCounts);
+        Assert.Equal(QuoteEmissionReason.FeedStopped, publisher.Reasons[2]);
         Assert.Equal(1, service.GetMetrics().ProcessingFailures);
         Assert.Equal(records.Length, service.GetMetrics().RecordsStarted);
         Assert.DoesNotContain(
@@ -1225,6 +1339,8 @@ public sealed class TickAggregationServiceTests
         public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
         public List<FuturesTickTradeDataChangedEvent> Trades { get; } = [];
         public List<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatistics { get; } = [];
+        public List<ushort> QuoteCounts { get; } = [];
+        public List<QuoteEmissionReason> QuoteReasons { get; } = [];
         public TaskCompletionSource<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatisticsFirst { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrice { get; } =
@@ -1256,6 +1372,8 @@ public sealed class TickAggregationServiceTests
         {
             Order.Add("quote"); Sequences.Add(e.TickDataId.SequenceId);
             QuoteCount = e.QuoteCount; SecondBid = e.QuoteData.Buffer[1].BidPrice;
+            QuoteCounts.Add(e.QuoteCount);
+            QuoteReasons.Add(e.EmissionReason);
             lease.Dispose();
             return ValueTask.CompletedTask;
         }
@@ -1283,6 +1401,7 @@ public sealed class TickAggregationServiceTests
     {
         public List<(Guid EventId, Guid CommandId, long Sequence)> QuoteAttempts { get; } = [];
         public List<QuoteEmissionReason> Reasons { get; } = [];
+        public List<ushort> QuoteCounts { get; } = [];
         public int DurableTradeCount { get; private set; }
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync() { IsRunning = true; return ValueTask.CompletedTask; }
@@ -1297,6 +1416,7 @@ public sealed class TickAggregationServiceTests
         {
             QuoteAttempts.Add((e.Id, e.CommandId, e.TickDataId.SequenceId));
             Reasons.Add(e.EmissionReason);
+            QuoteCounts.Add(e.QuoteCount);
             if (QuoteAttempts.Count == 1)
                 throw new IOException("Synthetic bounded-channel rejection.");
             lease.Dispose();
@@ -1436,7 +1556,7 @@ public sealed class TickAggregationServiceTests
         public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
             startConsumer(timeout);
-            foreach (var segment in _records.Chunk(FuturesTickQuoteDataSegment.MaximumCount))
+            foreach (var segment in _records.Chunk(64))
             {
                 var batch = _channel.RentBatch(static () => false);
                 foreach (var record in segment) batch.Add(record);

@@ -13,6 +13,7 @@ namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher, ITickAggregationPublisherDiagnostics
 {
     private readonly IActorSupervisor _supervisor;
+    private readonly int _capacity;
     private IActorProducer? _realtimeProducer;
     private Channel<Publication>? _channel;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
@@ -27,6 +28,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         ArgumentNullException.ThrowIfNull(supervisor);
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
         _supervisor = supervisor;
+        _capacity = capacity;
         if (policy is not null)
             _bounded = new BoundedRealtimeTickPublisher(supervisor, policy.Validate(), timeProvider ?? TimeProvider.System);
     }
@@ -34,10 +36,11 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     public bool IsRunning => _bounded?.IsRunning ?? Volatile.Read(ref _running) != 0;
 
     public RealtimeTickPublisherSnapshot GetSnapshot() => _bounded?.GetSnapshot()
-        ?? new(false, IsRunning, false, false, false, 0,
+        ?? new(false, IsRunning, false, false, false, _capacity,
             (int)Math.Min(int.MaxValue, Math.Max(0, Interlocked.Read(ref _pending))), 0,
             TimeSpan.Zero, TimeSpan.Zero, 0, 0, 0, 0, 0, 0, 0, 0,
-            RealtimeTickPublisherFailure.None, "Legacy publisher; bounded Stage 3 policy is disabled.");
+            RealtimeTickPublisherFailure.None,
+            "Live publisher has a bounded, waiting channel; Stage 3 policy is disabled.");
 
     public ValueTask StartAsync() => StartAsync(CancellationToken.None);
 
@@ -53,7 +56,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             _realtimeProducer = _supervisor.GetProducer(new ActorMailboxId(
                 ActorType.Realtime,
                 FuturesTickTradeDataChangedEvent.Actor));
-            _channel = CreateChannel();
+            _channel = CreateChannel(_capacity);
             Interlocked.Exchange(ref _pending, 0);
             Volatile.Write(ref _running, 1);
             _worker = Task.Run(ProcessAsync);
@@ -230,12 +233,13 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         }
     }
 
-    private static Channel<Publication> CreateChannel() =>
-        Channel.CreateUnbounded<Publication>(new UnboundedChannelOptions
+    private static Channel<Publication> CreateChannel(int capacity) =>
+        Channel.CreateBounded<Publication>(new BoundedChannelOptions(capacity)
         {
             SingleReader = true,
             // One shared publisher receives ES and VX writes concurrently.
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
             AllowSynchronousContinuations = false
         });
 
