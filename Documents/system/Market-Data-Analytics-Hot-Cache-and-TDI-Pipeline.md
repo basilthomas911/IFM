@@ -1,8 +1,8 @@
-# Market Data Analytics Hot-Cache and Traders Dynamic Index Pipeline
+# Market Data Analytics, Market Outlook, and Traders Dynamic Index Pipeline
 
 ## Purpose
 
-This document defines the system-wide conventions for generating intraday futures market-data analytics from the TickAggregation hot cache and for generating the Traders Dynamic Index (TDI) from durable RSI events. It applies to actor, API, storage, UI, console, and integration-test implementations.
+This document defines the system-wide conventions for generating intraday futures market-data analytics from the TickAggregation hot cache, generating the Traders Dynamic Index (TDI) from durable RSI events, and presenting selected analytics in Market Outlook. It applies to actor, API, storage, UI, console, and integration-test implementations.
 
 ## Design boundaries
 
@@ -89,9 +89,9 @@ The signal start event owns the timer registration. On every timer callback the 
 
 Stopping the signal removes its timer registration and its sequence-deduplication state. These actors sample immutable snapshots; they do not retain or mutate TickAggregation's live price state.
 
-### Authoritative UI startup profile
+### Authoritative application startup profile
 
-After the UI has resolved the active ES contract and current value date, it starts RSI-13, ATR-14, ADX-14, and conventional MACD-9/12/26 actors for each of these timeframes: 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours. `FuturesIntradaySignalActivationProfile` is the single source of these identities and parameters. This produces exactly 24 actor start commands through `IMarketDataAnalyticsCommandApi`; TDI is not independently started because every valid RSI-13 window drives the matching TDI flow.
+After application startup has resolved the active ES contract and current value date, the API startup workflow starts RSI-13, ATR-14, ADX-14, and conventional MACD-9/12/26 actors for each of these timeframes: 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours. `FuturesIntradaySignalActivationProfile` is the single source of these identities and parameters. This produces exactly 24 actor start commands through `IMarketDataAnalyticsCommandApi`; TDI is not independently started because every valid RSI-13 window drives the matching TDI flow. The UI observes and queries the resulting state and does not own signal startup.
 
 Startup records the result of every command. A partial failure is reported to the shell and status console, startup continues, and no automatic retry is attempted. Shutdown sends the matching 24 stop commands. Integration verification must observe a typed `Started` event for every configured identity, in addition to checking that every timeframe creates its signal timer registration.
 
@@ -105,6 +105,72 @@ Each generated MACD model persists the current fast and slow EMA accumulators. T
 
 The durable projection is `futures_macd_signal_v2`, partitioned by `(contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod)` and ordered by value date and timestamp. The original `futures_macd_signal` table remains unchanged as a legacy artifact; new writes and reads use only the v2 projection. Compatibility overloads that accept one period interpret it as the signal EMA period and supply the conventional 12/26 fast/slow defaults.
 
+## Market Outlook realtime signal profile
+
+Market Outlook is a quick operational view of the current market. Its indicator row displays MDI followed by ADX, ATR, and MACD. ADX, ATR, and MACD use one deliberately consistent five-minute profile so an operator can compare trend strength, volatility, and directional momentum at a glance.
+
+The current profile is:
+
+| Market Outlook field | Accepted signal | Displayed value | Purpose |
+| --- | --- | --- | --- |
+| ADX | Five-minute ADX-14 | `AdxValue` | Trend strength, with `PlusDI` and `MinusDI` providing direction |
+| ATR | Five-minute ATR-14 with its 20-observation baseline | `AtrValue` | Current range; `AtrRatio` supplies the relative-volatility classification |
+| MACD | Five-minute MACD-9/12/26 | `Histogram` | Directional momentum relative to its signal line |
+
+Only a signal whose contract, value date, timeframe, and calculation periods match the active Market Outlook entity and this profile is eligible. ADX and MACD must be warm. ATR must be warm, positive, and have a calculated `AtrRatio`. An ineligible, stale, mismatched, or unwarmed signal does not replace the last accepted component.
+
+### Event-to-view flow
+
+```text
+Five-minute completed bar
+    -> ADX-14 / ATR-14 / MACD-9-12-26 generation command
+        -> durable completed signal event
+            -> signal event handler
+                -> MarketOutlookComponentChangedRealtimeEvent
+                    -> Market Outlook hot-cache update channel
+                        -> composed MarketOutlookReadModel
+                            -> API notification/query
+                                -> Market Outlook view model and UI
+```
+
+The domain-completed signal is the calculation authority. Market Outlook does not recalculate the indicator, and the UI does not infer warm state from the displayed numeric value. Each component advances independently so a missing indicator does not suppress otherwise valid Market Outlook values.
+
+### Startup historical seed
+
+After the realtime analytics actors and their event attachments have started, application startup attempts to seed the Market Outlook five-minute ADX, ATR, and MACD streams with 35 historical bars. Thirty-five bars cover the largest current prerequisite, conventional MACD's 26-period slow EMA plus 9-period signal EMA; they also cover ADX-14 and ATR-14 with its 20-observation baseline.
+
+The seed process:
+
+1. Creates the previous 35 market-session-aware five-minute windows ending at the startup cutoff.
+2. Reads the last retained futures trade tick at or before each window end.
+3. Accepts that tick only when its market timestamp belongs to the requested window and its price is positive.
+4. Builds a completed historical five-minute bar using the retained close price for open, high, low, and close.
+5. Submits the bars in chronological order through the normal ADX, ATR, and MACD command actors with historical-seed provenance.
+
+The range must be contiguous. A missing tick, a tick outside its window, an invalid price, a rejected command, or an unavailable startup dependency stops the seed attempt for that contract. These are degradations rather than application-startup failures: the actors remain active, start with empty or partially initialized historical state, and continue warming from live five-minute bars. Market Outlook displays `N/A` with neutral styling until each signal becomes warm.
+
+Historical seeding may carry an observation value date earlier than the current actor stream value date because market-session windows can cross value-date boundaries. The historical-seed flag permits prior observation dates while still rejecting future observations. Normal live commands retain the standard value-date validation.
+
+### Temporary presentation classifications
+
+The current red, yellow, and green classifications are hardcoded presentation rules. They provide a fast operational summary and are not trade-entry rules, feed-health rules, or proof that the overall market is healthy.
+
+| Indicator | Green | Yellow | Red |
+| --- | --- | --- | --- |
+| ADX | `AdxValue >= 25` and `PlusDI > MinusDI` | `AdxValue < 25`, or equal directional indicators | `AdxValue >= 25` and `MinusDI > PlusDI` |
+| ATR ratio | `0.80 <= AtrRatio <= 1.25` | `0.60 <= AtrRatio < 0.80`, or `1.25 < AtrRatio <= 1.50` | `AtrRatio < 0.60`, or `AtrRatio > 1.50` |
+| MACD histogram | `Histogram >= 2.0` | `-2.0 < Histogram < 2.0` | `Histogram <= -2.0` |
+
+The ATR cell displays `AtrValue`, even though its color comes from `AtrRatio`. The ADX cell displays `AdxValue`, while its color combines strength with directional indicators. The MACD cell displays and classifies the histogram. Unavailable or warming values display `N/A` with the neutral Market Outlook colors.
+
+These thresholds are the first working defaults. A later reference-data parameter set will own the Market Outlook red/yellow/green ranges so they can be documented, versioned, assigned, and optimized in backtesting without changing code. Until that parameter set is implemented, code and tests must change together whenever a threshold changes.
+
+### Compatibility and observability
+
+Market Outlook message contracts add new members only at unused MessagePack keys. Existing keys remain in place so previously stored or transmitted models continue to deserialize. ADX and MACD read models expose an explicit `IsWarm` member; historical generation commands expose explicit historical-seed provenance.
+
+Operational logs distinguish a completed seed from an incomplete or failed optional seed. Snapshot diagnostics report `ADX warming`, `ATR warming`, or `MACD warming` while the corresponding component is unavailable. Expected warm-up and missing-history paths do not throw exceptions and do not prevent live recovery.
+
 ## UI and external consumers
 
 UI and console consumers should consume the durable completed signal events or query the v2 projection. They should not independently calculate TDI from raw ticks, because that would create a second calculation and sampling authority. A later UI optimization may use asynchronous streams and throttling, but it must preserve this durable domain boundary.
@@ -117,9 +183,13 @@ UI and console consumers should consume the durable completed signal events or q
 - Actor tests verify MessagePack parsing and durable RSI-to-TDI routing.
 - Storage integration tests verify the v2 table and partition isolation by time period and configuration.
 - Replay tests verify that the event projector writes only the v2 projection and respects normal event-source projection checkpoints.
+- Market Outlook eligibility tests reject wrong contracts, value dates, timeframes, periods, and unwarmed signals while accepting the configured warm five-minute profile.
+- Historical-seed tests cover complete and incomplete contiguous ranges, prior-value-date acceptance, future-value-date rejection, live warm-up fallback, and command rejection.
+- Presentation tests cover every ADX, ATR-ratio, and MACD threshold boundary plus neutral `N/A` behavior.
+- UI binding tests verify that component updates refresh ADX, ATR, and MACD without allowing an unrelated trade-signal refresh to overwrite them.
 
 ## Deferred work
 
 - Market-session-aware daily, weekly, and monthly scheduling is separate from the intraday TDI pipeline.
 - Contract-roll scheduling remains responsible for selecting the active contract; signal actors only validate the contract they are given.
-- UI-specific realtime notification contracts and throttling policies will be designed when the WinForms UI reaches its stable end state.
+- Market Outlook color ranges remain hardcoded until the dedicated versioned reference-data parameter set is designed and assigned.

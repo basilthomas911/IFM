@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Event;
@@ -8,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Event;
 public static class FuturesVwapSignalUpdatedComplete
 {
     /// <summary>Acknowledges the completed projection without retaining state.</summary>
-    public static ValueTask<bool> ExecuteAsync(
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesVwapSignalUpdatedCompleteEvent @event,
         IFuturesVwapSignalEventContext context,
         ILogger logger)
@@ -16,6 +17,7 @@ public static class FuturesVwapSignalUpdatedComplete
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);
-        return ValueTask.FromResult(true);
+        await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
+        return true;
     }
 }

@@ -91,6 +91,19 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
+    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent @event) =>
+        PublishAsync(@event, CancellationToken.None);
+
+    public ValueTask PublishAsync(
+        FuturesTradeReplayBatchRealtimeEvent @event,
+        CancellationToken cancellationToken)
+    {
+        if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
+        EnsureRunning();
+        ArgumentNullException.ThrowIfNull(@event);
+        return EnqueueAsync(new Publication(@event, null, cancellationToken), cancellationToken);
+    }
+
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event)
         => PublishAsync(@event, CancellationToken.None);
 
@@ -184,6 +197,10 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
                         case FuturesMarketPriceUpdatedRealtimeEvent price:
                             await _realtimeProducer!.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
                                 price.Subject, price, publication.CancellationToken).ConfigureAwait(false);
+                            break;
+                        case FuturesTradeReplayBatchRealtimeEvent replay:
+                            await _realtimeProducer!.SendAsync<FuturesTradeReplayBatchRealtimeEvent, TickDataEntityId>(
+                                replay.Subject, replay, publication.CancellationToken).ConfigureAwait(false);
                             break;
                         case FuturesSessionStatisticsUpdatedRealtimeEvent statistics:
                             await _realtimeProducer!.SendAsync<FuturesSessionStatisticsUpdatedRealtimeEvent, FuturesEodDataId>(

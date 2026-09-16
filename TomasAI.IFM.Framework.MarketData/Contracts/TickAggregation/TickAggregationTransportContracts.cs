@@ -43,6 +43,15 @@ public interface ITickAggregationEventPublisher : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         return PublishAsync(@event);
     }
+    ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent @event) =>
+        ValueTask.CompletedTask;
+    ValueTask PublishAsync(
+        FuturesTradeReplayBatchRealtimeEvent @event,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return PublishAsync(@event);
+    }
     ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event) =>
         ValueTask.CompletedTask;
     ValueTask PublishAsync(

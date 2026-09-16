@@ -21,7 +21,10 @@ public static class GenerateFuturesAdxSignal
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAdxSignalCommand e, FuturesAdxSignalCommandState state)
     {
         if (e.Observation is { } observation
-            && state.AdxSignals.LastOrDefault()?.Metadata?.ObservationId == observation.ObservationId)
+            && state.AdxSignals.LastOrDefault()?.Metadata?.MarketDataAsOfUtc >= observation.LastMarketEventUtc)
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+        if (e.Observation is { } observationDuplicate
+            && state.AdxSignals.LastOrDefault()?.Metadata?.ObservationId == observationDuplicate.ObservationId)
             return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         var updated = e.Compute(state.AdxSignal, state.AdxSignals, out var model) switch
         {
@@ -73,6 +76,7 @@ public static class GenerateFuturesAdxSignal
             trendDirection,
             computed.TrendDirectionStrength())
         {
+            IsWarm = computed.IsWarm,
             Metadata = e.Observation is { } observation
                 ? new MarketAnalyticsSignalMetadata
                 {

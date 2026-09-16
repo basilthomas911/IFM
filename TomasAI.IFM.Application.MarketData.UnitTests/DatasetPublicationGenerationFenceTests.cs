@@ -96,6 +96,32 @@ public sealed class DatasetPublicationGenerationFenceTests
     }
 
     [Fact]
+    public async Task Admitted_trade_replay_batch_is_deserialized_and_forwarded_privately()
+    {
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        var identity = Admission("GLBX.MDP3");
+        admissions.Admit(identity);
+        var publisher = Substitute.For<ITickAggregationEventPublisher>();
+        publisher.PublishAsync(
+                Arg.Any<FuturesTradeReplayBatchRealtimeEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ValueTask.CompletedTask);
+        var ingress = new DatasetPublicationIngress(
+            admissions, publisher, Substitute.For<IMarketDataOperationsRecorder>());
+
+        Assert.True(await ingress.AcceptAsync(Replay(identity, "ES20260918")));
+
+        await publisher.Received(1).PublishAsync(
+            Arg.Is<FuturesTradeReplayBatchRealtimeEvent>(value =>
+                value.EntityId.ContractId == "ES20260918"
+                && value.IsFirstBatch
+                && value.IsFinalBatch
+                && value.Trades.Length == 1),
+            Arg.Any<CancellationToken>());
+        admissions.Close(identity.Dataset, identity.GenerationId);
+    }
+
+    [Fact]
     public async Task Expected_generation_cancellation_during_publish_is_a_rejection_not_a_reader_fault()
     {
         var admissions = new DatasetWorkerAdmissionRegistry();
@@ -192,6 +218,34 @@ public sealed class DatasetPublicationGenerationFenceTests
 
     static DatasetWorkerAdmission Admission(string dataset) =>
         new(dataset, new DateOnly(2026, 9, 4), Guid.NewGuid(), Guid.NewGuid(), 1);
+
+    static DatasetPublicationEnvelope Replay(
+        DatasetWorkerAdmission identity,
+        string contractId) => new()
+    {
+        Dataset = identity.Dataset,
+        ValueDate = identity.ValueDate,
+        WorkerInstanceId = identity.WorkerInstanceId,
+        GenerationId = identity.GenerationId,
+        ManifestRevision = identity.ManifestRevision,
+        PublicationSequence = 1,
+        Kind = DatasetPublicationKind.TradeReplayBatch,
+        Payload = MessagePackSerializer.Serialize(new FuturesTradeReplayBatchRealtimeEvent
+        {
+            EntityId = new TickDataEntityId(contractId, identity.ValueDate, AssetTypeId.Futures),
+            RecoveryGenerationId = Guid.NewGuid(),
+            BatchOrdinal = 0,
+            IsFirstBatch = true,
+            IsFinalBatch = true,
+            LiveStreamEpochId = Guid.NewGuid(),
+            Trades =
+            [
+                new FuturesTradeReplayObservation(
+                    6500m, 2, 10, DateTimeOffset.UtcNow,
+                    NormalizedTradeAction.New, NormalizedTradeConditionFlags.Replay)
+            ]
+        })
+    };
 
     static DatasetPublicationEnvelope Price(DatasetWorkerAdmission identity, string contractId, long sequence = 1) => new()
     {

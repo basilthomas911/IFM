@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -68,7 +69,8 @@ public sealed class MarketOutlookLiveRefreshSystemTests
         Text(view, "txtDownTrendLimit"),
         Text(view, "txtExtremeLimit"),
         Text(view, "txtReversalLimit"),
-        Text(view, "txtTrendDelta")
+        Text(view, "txtTrend"),
+        Text(view, "txtVwap")
     ];
 
     static string Text(Control view, string name) =>
@@ -118,13 +120,25 @@ public sealed class MarketOutlookLiveRefreshSystemTests
                 Position20 = 0.5m,
                 IsWarm = true
             },
+            FuturesVwapSignal = new FuturesVwapSignalReadModel
+            {
+                ContractId = metadata.ContractId,
+                ValueDate = metadata.ValueDate,
+                Vwap = close + 1m,
+                AsOfUtc = metadata.MarketDataAsOfUtc,
+                IsWarm = true,
+                IsValid = true,
+                IsTickExact = true
+            },
             LatestItiTrendSignal = new()
             {
                 ContractId = metadata.ContractId,
                 ValueDate = metadata.ValueDate,
                 TimePeriod = TimeFrameType.Daily,
                 IntrinsicTimeMode = IntrinsicTimeModeType.Trending,
-                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+                IntrinsicTimeTrend = close % 2m == 0m
+                    ? IntrinsicTimeTrendType.UpTrend
+                    : IntrinsicTimeTrendType.DownTrend,
                 UpTrendTrigger = (double)(close + 10m),
                 DownTrendTrigger = (double)(close - 10m),
                 TrendExtreme = (double)(close + 20m),

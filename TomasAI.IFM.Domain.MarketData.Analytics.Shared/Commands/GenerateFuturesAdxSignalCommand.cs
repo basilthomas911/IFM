@@ -48,6 +48,9 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
     [Key(8)]
     public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
+    /// <summary>Gets whether this command is replaying an older completed bar into the current value-date stream.</summary>
+    [Key(9)] public bool IsHistoricalSeed { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -64,11 +67,13 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
     public GenerateFuturesAdxSignalCommand(
         FuturesAdxSignalId futuresAdxSignalId,
         decimal futuresPrice,
-        FuturesTradeSessionBarReadModel? observation = null)
+        FuturesTradeSessionBarReadModel? observation = null,
+        bool isHistoricalSeed = false)
     {
         FuturesAdxSignalId = futuresAdxSignalId;
         FuturesPrice = futuresPrice;
         Observation = observation;
+        IsHistoricalSeed = isHistoricalSeed;
 
         EntityId = futuresAdxSignalId.ToEntityId();
         ErrorCode = ErrorId;
@@ -88,7 +93,8 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
         BoundedContextName routeTo,
         FuturesAdxSignalId futuresAdxSignalId,
         decimal futuresPrice,
-        FuturesTradeSessionBarReadModel? observation)
+        FuturesTradeSessionBarReadModel? observation,
+        bool isHistoricalSeed = false)
     {
         CommandId = commandId;
         Subject = subject;
@@ -99,5 +105,6 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
         FuturesAdxSignalId = futuresAdxSignalId;
         FuturesPrice = futuresPrice;
         Observation = observation;
+        IsHistoricalSeed = isHistoricalSeed;
     }
 }

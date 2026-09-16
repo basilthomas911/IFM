@@ -32,7 +32,7 @@ public sealed class SchedulerBootstrapService(
                 FileShare.None);
             await migrator.MigrateAsync(cancellationToken);
             await catalog.SynchronizeSnapshotAsync(cancellationToken);
-            await scheduleSeeds.SeedDisabledDefinitionsAsync(cancellationToken);
+            await scheduleSeeds.SeedDefinitionsAsync(cancellationToken);
             var abandoned = await store.RecoverIncompleteRunsAsync(cancellationToken);
             bootstrap.Succeeded = true;
             health.Set(

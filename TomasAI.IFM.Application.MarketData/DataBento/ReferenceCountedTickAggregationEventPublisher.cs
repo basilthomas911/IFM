@@ -59,6 +59,13 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
         FuturesMarketPriceUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken) => _inner.PublishAsync(@event, cancellationToken);
 
+    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent @event) =>
+        _inner.PublishAsync(@event);
+
+    public ValueTask PublishAsync(
+        FuturesTradeReplayBatchRealtimeEvent @event,
+        CancellationToken cancellationToken) => _inner.PublishAsync(@event, cancellationToken);
+
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event) =>
         _inner.PublishAsync(@event);
 

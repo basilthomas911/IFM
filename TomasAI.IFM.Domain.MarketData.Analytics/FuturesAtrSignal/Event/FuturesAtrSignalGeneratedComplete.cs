@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -18,9 +19,9 @@ public static class FuturesAtrSignalGeneratedComplete
     static string ServiceId { get; } = default!;
 
     /// <summary>
-    /// Handles the completion of the Futures ATR signal generation process. 
-    /// This method is invoked when a FuturesAtrSignalGeneratedCompleteEvent is received, 
-    /// indicating that the ATR signal has been successfully generated for a specific entity. 
+    /// Handles the completion of the Futures ATR signal generation process.
+    /// This method is invoked when a FuturesAtrSignalGeneratedCompleteEvent is received,
+    /// indicating that the ATR signal has been successfully generated for a specific entity.
     /// The handler can perform any necessary post-processing, such as updating the status console or logging the completion of the signal generation.
     /// </summary>
     /// <param name="e">The FuturesAtrSignalGeneratedCompleteEvent to handle.</param>
@@ -28,12 +29,17 @@ public static class FuturesAtrSignalGeneratedComplete
     /// <param name="statusConsoleWriter">The status console writer.</param>
     /// <param name="logger">The logger.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalGeneratedCompleteEvent e, 
+    public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalGeneratedCompleteEvent e,
         IFuturesAtrSignalEventContext context, ILogger logger)
     {
         var source = $"FuturesAtrSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
+            if (e.FuturesAtrSignal is { IsWarm: true, AtrValue: > 0d, AtrRatio: not null } && e.FuturesAtrSignal.Metadata is { IsValid: true })
+            {
+                await ((IEventActorContext<FuturesAtrSignalEventActor>)context)
+                    .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+            }
             return true;
         }
         catch (Exception ex)

@@ -58,7 +58,9 @@ public static class FuturesVwapAccumulator
         bool isFirstBatch,
         bool isFinalBatch,
         IReadOnlyCollection<FuturesVwapTradeObservation> trades,
-        FuturesVwapConfiguration configuration)
+        FuturesVwapConfiguration configuration,
+        Guid liveStreamEpochId = default,
+        long liveTradeOrdinal = 0)
     {
         ArgumentNullException.ThrowIfNull(trades);
         if (recoveryGenerationId == Guid.Empty) throw new ArgumentException(
@@ -118,7 +120,11 @@ public static class FuturesVwapAccumulator
             IsValid = isFinalBatch && next.InvalidReason is FuturesVwapInvalidReason.None
                 or FuturesVwapInvalidReason.RecoveryIncomplete,
             InvalidReason = isFinalBatch && next.InvalidReason == FuturesVwapInvalidReason.RecoveryIncomplete
-                ? FuturesVwapInvalidReason.None : next.InvalidReason
+                ? FuturesVwapInvalidReason.None : next.InvalidReason,
+            StreamEpochId = isFinalBatch && liveStreamEpochId != Guid.Empty
+                ? liveStreamEpochId : next.StreamEpochId,
+            LastTradeOrdinal = isFinalBatch && liveStreamEpochId != Guid.Empty
+                ? liveTradeOrdinal : next.LastTradeOrdinal
         };
         if (!isFinalBatch)
             next = next with { IsValid = false, InvalidReason = FuturesVwapInvalidReason.RecoveryIncomplete };

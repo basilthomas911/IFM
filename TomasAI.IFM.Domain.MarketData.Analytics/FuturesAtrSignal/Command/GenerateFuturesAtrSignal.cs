@@ -41,7 +41,8 @@ public static class GenerateFuturesAtrSignal
         if (!FuturesIntradaySignalActivationProfile.TimeFrames.Contains(command.EntityId.TimePeriod)
             || observation.TimeFrame != command.EntityId.TimePeriod
             || !string.Equals(observation.ContractId, command.EntityId.ContractId, StringComparison.Ordinal)
-            || observation.ValueDate != command.EntityId.ValueDate)
+            || (!command.IsHistoricalSeed && observation.ValueDate != command.EntityId.ValueDate)
+            || (command.IsHistoricalSeed && observation.ValueDate > command.EntityId.ValueDate))
             return command.UpdateFailed("The closed observation does not match the intraday ATR identity.");
         if (!FuturesAtrWilderAccumulator.TryApply(
                 observation,

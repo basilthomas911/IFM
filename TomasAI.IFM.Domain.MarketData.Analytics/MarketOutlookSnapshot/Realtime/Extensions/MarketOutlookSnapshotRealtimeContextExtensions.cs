@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -71,6 +72,33 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate,
                 source.CommandId, source.AggregateId, source.EventName, tradeSignal: signal)
             : ValueTask.CompletedTask;
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesVwapSignalUpdatedCompleteEvent source)
+        where TActor : IActor => Publish(
+            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+            source.AggregateId, source.EventName, vwap: source.Signal);
+
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesAdxSignalGeneratedCompleteEvent source)
+        where TActor : IActor => Publish(
+            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+            source.AggregateId, source.EventName, adx: source.FuturesAdxSignal);
+
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesAtrSignalGeneratedCompleteEvent source)
+        where TActor : IActor => Publish(
+            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+            source.AggregateId, source.EventName, atr: source.FuturesAtrSignal);
+
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesMacdSignalGeneratedCompleteEvent source)
+        where TActor : IActor => Publish(
+            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+            source.AggregateId, source.EventName, macd: source.FuturesMacdSignal);
 
     static ValueTask Publish<TActor>(
         IEventActorContext<TActor> context,
@@ -85,7 +113,11 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
         decimal vixFuturesPrice = 0,
         FuturesEmaSignalReadModel? ema = null,
         FuturesBbSignalReadModel? bb = null,
-        FuturesTradeSignalV2ReadModel? tradeSignal = null)
+        FuturesTradeSignalV2ReadModel? tradeSignal = null,
+        FuturesVwapSignalReadModel? vwap = null,
+        FuturesAdxSignalReadModel? adx = null,
+        FuturesAtrSignalReadModel? atr = null,
+        FuturesMacdSignalReadModel? macd = null)
         where TActor : IActor
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -109,7 +141,11 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             VixFuturesPrice = vixFuturesPrice,
             FuturesEmaSignal = ema,
             FuturesBbSignal = bb,
-            FuturesTradeSignal = tradeSignal
+            FuturesTradeSignal = tradeSignal,
+            FuturesVwapSignal = vwap,
+            FuturesAdxSignal = adx,
+            FuturesAtrSignal = atr,
+            FuturesMacdSignal = macd
         };
         var eligible = MarketOutlookComponentEligibility.SelectEligible(changed, out _);
         return MarketOutlookComponentEligibility.IsEligible(eligible, out _)

@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -96,6 +97,121 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
             default!, default!, default);
     }
 
+    [Fact]
+    public async Task Indicator_components_accept_only_the_warm_five_minute_profiles()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
+        var actor = new TestActor(context);
+        var id = Id();
+
+        await actor.Receive(context, Component(id, 1) with
+        {
+            FuturesAdxSignal = new FuturesAdxSignalReadModel
+            {
+                ContractId = id.ContractId,
+                ValueDate = id.ValueDate,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                PeriodLength = FuturesIntradaySignalActivationProfile.AdxPeriodLength,
+                IsWarm = true,
+                AdxValue = 30d
+            },
+            FuturesAtrSignal = new FuturesAtrSignalReadModel
+            {
+                ContractId = id.ContractId,
+                ValueDate = id.ValueDate,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                PeriodLength = FuturesIntradaySignalActivationProfile.AtrPeriodLength,
+                IsWarm = true,
+                AtrValue = 8d,
+                AtrRatio = 1d
+            },
+            FuturesMacdSignal = new FuturesMacdSignalReadModel
+            {
+                ContractId = id.ContractId,
+                ValueDate = id.ValueDate,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                SignalEmaPeriod = FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+                FastEmaPeriod = FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+                SlowEmaPeriod = FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+                IsWarm = true
+            }
+        });
+        await runtime.DrainAsync();
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var accepted).Should().BeTrue();
+        accepted.FuturesAdxSignal.Should().NotBeNull();
+        accepted.FuturesAtrSignal.Should().NotBeNull();
+        accepted.FuturesMacdSignal.Should().NotBeNull();
+
+        await actor.Receive(context, Component(id, 2) with
+        {
+            FuturesAdxSignal = accepted.FuturesAdxSignal! with
+            {
+                TimePeriod = TimeFrameType.OneMinute,
+                AdxValue = 40d
+            },
+            FuturesAtrSignal = accepted.FuturesAtrSignal! with
+            {
+                TimePeriod = TimeFrameType.OneMinute,
+                AtrValue = 12d
+            },
+            FuturesMacdSignal = accepted.FuturesMacdSignal! with
+            {
+                TimePeriod = TimeFrameType.OneMinute,
+                Histogram = 4d
+            }
+        });
+        await runtime.DrainAsync();
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var unchanged).Should().BeTrue();
+        unchanged.FuturesAdxSignal!.AdxValue.Should().Be(30d);
+        unchanged.FuturesAtrSignal!.AtrValue.Should().Be(8d);
+        unchanged.FuturesMacdSignal!.Histogram.Should().Be(0d);
+    }
+    [Fact]
+    public async Task Vwap_component_accepts_only_a_warm_valid_exact_matching_signal()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
+        var actor = new TestActor(context);
+        var id = Id();
+        var vwap = new FuturesVwapSignalReadModel
+        {
+            ContractId = id.ContractId,
+            ValueDate = id.ValueDate,
+            AsOfUtc = DateTimeOffset.UtcNow,
+            Vwap = 5_100m,
+            IsWarm = true,
+            IsValid = true,
+            IsTickExact = true,
+            LastTradeSourceSequence = 10,
+            StreamEpochId = Guid.NewGuid(),
+            LastTradeOrdinal = 10
+        };
+
+        await actor.Receive(context, Component(id, 1) with { FuturesVwapSignal = vwap });
+        await runtime.DrainAsync();
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var accepted).Should().BeTrue();
+        accepted.FuturesVwapSignal.Should().Be(vwap);
+
+        var action = () => actor.Receive(context, Component(id, 2) with
+        {
+            FuturesVwapSignal = vwap with
+            {
+                Vwap = 5_101m,
+                IsTickExact = false,
+                LastTradeSourceSequence = 11,
+                LastTradeOrdinal = 11
+            }
+        }).AsTask();
+
+        await action.Should().NotThrowAsync();
+        await runtime.DrainAsync();
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var unchanged).Should().BeTrue();
+        unchanged.FuturesVwapSignal.Should().Be(vwap);
+    }
     [Fact]
     public async Task InvalidItiSibling_DoesNotSuppressValidVx()
     {

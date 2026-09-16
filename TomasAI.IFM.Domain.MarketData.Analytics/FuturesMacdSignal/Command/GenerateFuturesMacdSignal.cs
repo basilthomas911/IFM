@@ -22,7 +22,10 @@ public static class GenerateFuturesMacdSignal
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesMacdSignalCommand e, FuturesMacdSignalCommandState state)
     {
         if (e.Observation is { } observation
-            && state.MacdSignals.LastOrDefault()?.Metadata?.ObservationId == observation.ObservationId)
+            && state.MacdSignals.LastOrDefault()?.Metadata?.MarketDataAsOfUtc >= observation.LastMarketEventUtc)
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+        if (e.Observation is { } observationDuplicate
+            && state.MacdSignals.LastOrDefault()?.Metadata?.ObservationId == observationDuplicate.ObservationId)
             return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         return e.Compute(state.MacdSignals, out var model) switch
         {
@@ -80,6 +83,7 @@ public static class GenerateFuturesMacdSignal
             computed.FastEma,
             computed.SlowEma)
         {
+            IsWarm = computed.IsWarm,
             Metadata = e.Observation is { } observation
                 ? MarketAnalyticsSignalMetadataFactory.Create(
                     observation,

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
@@ -58,6 +59,42 @@ internal static class MarketOutlookComponentEligibility
         => signal.ContractId == entityId.ContractId
             && signal.ValueDate == entityId.ValueDate;
 
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesVwapSignalReadModel signal)
+        => signal.ContractId == entityId.ContractId
+            && signal.ValueDate == entityId.ValueDate
+            && signal.IsWarm
+            && signal.IsValid
+            && signal.IsTickExact
+            && signal.Vwap is > 0m;
+
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesAdxSignalReadModel signal)
+        => signal.ContractId == entityId.ContractId
+            && signal.ValueDate == entityId.ValueDate
+            && signal.TimePeriod == TimeFrameType.FiveMinutes
+            && signal.PeriodLength == FuturesIntradaySignalActivationProfile.AdxPeriodLength
+            && signal.IsWarm
+            && signal.Metadata is not { IsValid: false };
+
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesAtrSignalReadModel signal)
+        => signal.ContractId == entityId.ContractId
+            && signal.ValueDate == entityId.ValueDate
+            && signal.TimePeriod == TimeFrameType.FiveMinutes
+            && signal.PeriodLength == FuturesIntradaySignalActivationProfile.AtrPeriodLength
+            && signal.IsWarm
+            && signal.AtrValue > 0d
+            && signal.AtrRatio is not null
+            && signal.Metadata is not { IsValid: false };
+
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesMacdSignalReadModel signal)
+        => signal.ContractId == entityId.ContractId
+            && signal.ValueDate == entityId.ValueDate
+            && signal.TimePeriod == TimeFrameType.FiveMinutes
+            && signal.SignalEmaPeriod == FuturesMacdConfiguration.ConventionalSignalEmaPeriod
+            && signal.FastEmaPeriod == FuturesMacdConfiguration.ConventionalFastEmaPeriod
+            && signal.SlowEmaPeriod == FuturesMacdConfiguration.ConventionalSlowEmaPeriod
+            && signal.IsWarm
+            && signal.Metadata is not { IsValid: false };
+
     internal static bool IsEligibleAtPublicationBoundary(
         MarketOutlookEntityId entityId,
         FuturesEmaSignalReadModel signal) =>
@@ -91,7 +128,11 @@ internal static class MarketOutlookComponentEligibility
             || eligible.VixFuturesPrice > 0
             || eligible.FuturesEmaSignal is not null
             || eligible.FuturesBbSignal is not null
-            || eligible.FuturesTradeSignal is not null;
+            || eligible.FuturesTradeSignal is not null
+            || eligible.FuturesVwapSignal is not null
+            || eligible.FuturesAdxSignal is not null
+            || eligible.FuturesAtrSignal is not null
+            || eligible.FuturesMacdSignal is not null;
     }
 
     /// <summary>
@@ -146,6 +187,30 @@ internal static class MarketOutlookComponentEligibility
             rejected.Add("trade-signal-identity");
             tradeSignal = null;
         }
+        var vwap = source.FuturesVwapSignal;
+        if (vwap is not null && !IsEligible(source.EntityId, vwap))
+        {
+            rejected.Add("vwap-profile");
+            vwap = null;
+        }
+        var adx = source.FuturesAdxSignal;
+        if (adx is not null && !IsEligible(source.EntityId, adx))
+        {
+            rejected.Add("adx-profile");
+            adx = null;
+        }
+        var atr = source.FuturesAtrSignal;
+        if (atr is not null && !IsEligible(source.EntityId, atr))
+        {
+            rejected.Add("atr-profile");
+            atr = null;
+        }
+        var macd = source.FuturesMacdSignal;
+        if (macd is not null && !IsEligible(source.EntityId, macd))
+        {
+            rejected.Add("macd-profile");
+            macd = null;
+        }
         reason = rejected.Count == 0 ? string.Empty : string.Join(", ", rejected);
         return source with
         {
@@ -155,7 +220,11 @@ internal static class MarketOutlookComponentEligibility
             VixFuturesPrice = vix,
             FuturesEmaSignal = ema,
             FuturesBbSignal = bb,
-            FuturesTradeSignal = tradeSignal
+            FuturesTradeSignal = tradeSignal,
+            FuturesVwapSignal = vwap,
+            FuturesAdxSignal = adx,
+            FuturesAtrSignal = atr,
+            FuturesMacdSignal = macd
         };
     }
 }

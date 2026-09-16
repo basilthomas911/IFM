@@ -150,7 +150,7 @@ public class FuturesAdxSignalCommandActor(
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName)
                 .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
-                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
         },
         [typeof(GenerateFuturesAdxDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesAdxDailySignalCommand)cmd; return new List<ValidationError>()

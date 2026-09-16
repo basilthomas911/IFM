@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
@@ -22,13 +24,18 @@ public static class FuturesAdxSignalGeneratedComplete
     /// <param name="context">The typed ADX event context that exposes handler dependencies.</param>
     /// <param name="logger">The logger used to log messages to the application logs.</param>
     /// <returns><see langword="true"/> if the handler completed successfully; otherwise <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesAdxSignalGeneratedCompleteEvent e, 
+    public static async ValueTask<bool> ExecuteAsync(this FuturesAdxSignalGeneratedCompleteEvent e,
         IFuturesAdxSignalEventContext context,
         ILogger logger)
     {
         var source = $"FuturesAdxSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
+            if (e.FuturesAdxSignal is { IsWarm: true } && e.FuturesAdxSignal.Metadata is { IsValid: true })
+            {
+                await ((IEventActorContext<FuturesAdxSignalEventActor>)context)
+                    .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+            }
             return true;
         }
         catch (Exception ex)

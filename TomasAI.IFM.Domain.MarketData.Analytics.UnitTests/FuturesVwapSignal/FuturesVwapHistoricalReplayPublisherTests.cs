@@ -59,6 +59,8 @@ public sealed class FuturesVwapHistoricalReplayPublisherTests
         commands[1].IsFinalBatch.Should().BeTrue();
         commands[1].BatchOrdinal.Should().Be(1);
         commands[1].Trades.Should().BeEmpty();
+        commands[1].LiveStreamEpochId.Should().BeEmpty();
+        commands[1].LiveTradeOrdinal.Should().Be(0);
     }
 
     static NormalizedHistoricalBatch Batch(

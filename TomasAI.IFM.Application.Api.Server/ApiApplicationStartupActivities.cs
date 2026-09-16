@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
@@ -9,6 +9,8 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
@@ -16,6 +18,9 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -44,7 +49,9 @@ public sealed class ApiApplicationStartupActivities(
     ILogger<ApiApplicationStartupActivities> logger,
     IParameterSetsApi? parameterSetsApi=null,
     IParameterRuntimeSnapshot? parameterRuntime=null,
-    TomasAI.IFM.Application.Api.Server.ParameterSets.IRsiHistoricalPilotStartup? rsiPilot=null) : IApplicationStartupActivities
+    TomasAI.IFM.Application.Api.Server.ParameterSets.IRsiHistoricalPilotStartup? rsiPilot=null,
+    IMarketSessionCalendar? marketSessionCalendar=null,
+    IActorService? actorService=null) : IApplicationStartupActivities
 {
     readonly ConcurrentDictionary<DateOnly, FuturesContractV3ReadModel[]> contractsByValueDate = new();
 
@@ -329,7 +336,220 @@ public sealed class ApiApplicationStartupActivities(
 
         await WaitForRealtimeAnalyticsAttachmentsAsync(activations, cancellationToken)
             .ConfigureAwait(false);
+        await SeedMarketOutlookIndicatorsAsync(
+                es.ContractId,
+                context.ValueDate,
+                cancellationToken)
+            .ConfigureAwait(false);
         return ApplicationStartupActivityOutcome.Started;
+    }
+
+    async Task SeedMarketOutlookIndicatorsAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+    {
+        if (marketSessionCalendar is null || actorService is null)
+        {
+            logger.LogWarning(
+                "Market Outlook five-minute historical seed is unavailable because its startup dependencies are not registered.");
+            return;
+        }
+
+        const int requestedBars = FuturesMacdConfiguration.ConventionalSlowEmaPeriod
+            + FuturesMacdConfiguration.ConventionalSignalEmaPeriod;
+        var cutoff = timeProvider.GetUtcNow();
+        FuturesTradeSessionBarReadModel[] bars;
+        try
+        {
+            bars = await ReadFiveMinuteSeedBarsAsync(
+                    contractId,
+                    requestedBars,
+                    cutoff,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Market Outlook five-minute historical seed failed for {ContractId}; live signals will warm from empty state.",
+                contractId);
+            return;
+        }
+
+        if (bars.Length != requestedBars)
+        {
+            logger.LogInformation(
+                "Market Outlook five-minute historical seed is incomplete for {ContractId}; ADX, ATR, and MACD will warm from live bars.",
+                contractId);
+            return;
+        }
+
+        foreach (var bar in bars)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var timestamp = TimeOnly.FromDateTime(bar.LastMarketEventUtc.UtcDateTime);
+            var adxId = new FuturesAdxSignalId(
+                contractId,
+                valueDate,
+                TimeFrameType.FiveMinutes,
+                FuturesIntradaySignalActivationProfile.AdxPeriodLength,
+                timestamp);
+            var atrId = new FuturesAtrSignalId(
+                contractId,
+                valueDate,
+                TimeFrameType.FiveMinutes,
+                FuturesIntradaySignalActivationProfile.AtrPeriodLength,
+                timestamp);
+            var macdId = new FuturesMacdSignalId(
+                contractId,
+                valueDate,
+                TimeFrameType.FiveMinutes,
+                FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+                FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+                FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+                timestamp);
+
+            if (!await SubmitHistoricalSeedAsync(
+                    new GenerateFuturesAdxSignalCommand(adxId, bar.Close, bar, true),
+                    adxId.ToEntityId(),
+                    cancellationToken).ConfigureAwait(false)
+                || !await SubmitHistoricalSeedAsync(
+                    new GenerateFuturesAtrSignalCommand(atrId, bar.Close, bar, true),
+                    atrId.ToEntityId(),
+                    cancellationToken).ConfigureAwait(false)
+                || !await SubmitHistoricalSeedAsync(
+                    new GenerateFuturesMacdSignalCommand(macdId, bar.Close, bar, true),
+                    macdId.ToEntityId(),
+                    cancellationToken).ConfigureAwait(false))
+            {
+                logger.LogWarning(
+                    "Market Outlook five-minute historical seed was rejected for {ContractId}; live bars will continue warming the indicators.",
+                    contractId);
+                return;
+            }
+        }
+
+        logger.LogInformation(
+            "Market Outlook five-minute historical seed submitted {BarCount} bars for ADX, ATR, and MACD on {ContractId}.",
+            bars.Length,
+            contractId);
+    }
+
+    async Task<FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(
+        string contractId,
+        int count,
+        DateTimeOffset cutoff,
+        CancellationToken cancellationToken)
+    {
+        var windows = RsiHistoricalSeedWindowModel.Create(
+            TimeFrameType.FiveMinutes,
+            count,
+            cutoff,
+            marketSessionCalendar!);
+        var bars = new List<FuturesTradeSessionBarReadModel>(count);
+        var series = MarketSeriesIdentity.ForContract(contractId);
+
+        foreach (var window in windows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var tick = await dbContextFactory.MarketDataDb.GetFuturesTickAtOrBeforeAsync(
+                    contractId,
+                    window.ValueDate,
+                    TimeOnly.FromDateTime(window.EndUtc.AddTicks(-1).UtcDateTime),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (tick is null || tick.Price <= 0)
+                return [];
+
+            var session = marketSessionCalendar!.GetSession(window.ValueDate);
+            var observed = new DateTimeOffset(
+                DateOnly.FromDateTime(session.StartUtc.UtcDateTime)
+                    .ToDateTime(tick.TickTime, DateTimeKind.Utc));
+            if (observed < session.StartUtc)
+                observed = observed.AddDays(1);
+            if (observed < window.StartUtc || observed >= window.EndUtc)
+                return [];
+
+            bars.Add(new FuturesTradeSessionBarReadModel
+            {
+                MarketSeriesIdentity = series,
+                ObservationId = FuturesTradeSessionBarId.Create(
+                    series,
+                    TimeFrameType.FiveMinutes,
+                    window.EndUtc,
+                    0),
+                ContractId = contractId,
+                ValueDate = window.ValueDate,
+                TimeFrame = TimeFrameType.FiveMinutes,
+                IntervalStartUtc = window.StartUtc,
+                IntervalEndUtc = window.EndUtc,
+                Open = tick.Price,
+                High = tick.Price,
+                Low = tick.Price,
+                Close = tick.Price,
+                FirstMarketEventUtc = observed,
+                LastMarketEventUtc = observed,
+                CalculatedAtUtc = cutoff,
+                IsComplete = true,
+                IsValid = true,
+                CalculationVersion = "market-outlook-five-minute-seed-v1",
+                CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
+            });
+        }
+
+        return bars.Count == count ? bars.ToArray() : [];
+    }
+
+    async Task<bool> SubmitHistoricalSeedAsync<TCommand, TEntityId>(
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+    {
+        var commandId = Guid.CreateVersion7();
+        command = command switch
+        {
+            GenerateFuturesAdxSignalCommand value => (TCommand)(object)(value with
+            {
+                CommandId = commandId,
+                Subject = new ActorSubject(
+                    ActorType.Command,
+                    GenerateFuturesAdxSignalCommand.Actor,
+                    GenerateFuturesAdxSignalCommand.Verb,
+                    entityId.Format())
+            }),
+            GenerateFuturesAtrSignalCommand value => (TCommand)(object)(value with
+            {
+                CommandId = commandId,
+                Subject = new ActorSubject(
+                    ActorType.Command,
+                    GenerateFuturesAtrSignalCommand.Actor,
+                    GenerateFuturesAtrSignalCommand.Verb,
+                    entityId.Format())
+            }),
+            GenerateFuturesMacdSignalCommand value => (TCommand)(object)(value with
+            {
+                CommandId = commandId,
+                Subject = new ActorSubject(
+                    ActorType.Command,
+                    GenerateFuturesMacdSignalCommand.Actor,
+                    GenerateFuturesMacdSignalCommand.Verb,
+                    entityId.Format())
+            }),
+            _ => throw new ArgumentOutOfRangeException(nameof(command))
+        };
+        var result = await actorService!.RequestAsync<TCommand, TEntityId>(
+                command,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return result.Success;
     }
 
     public ValueTask<ApplicationStartupActivityOutcome> QualifyOperationalStateAsync(

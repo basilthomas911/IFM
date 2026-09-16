@@ -174,6 +174,13 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     statistics[value.ContractId] = value;
                     break;
                 }
+                case DatasetPublicationKind.TradeReplayBatch:
+                {
+                    var value = MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload);
+                    if (!Matches(state, value.EntityId.ContractId, value.EntityId.ValueDate))
+                        return false;
+                    break;
+                }
                 case DatasetPublicationKind.Trade:
                 {
                     var value = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload);

@@ -24,6 +24,12 @@ public static class FuturesVwapSignalCommandValidation
         if (command.RecoveryGenerationId == Guid.Empty || command.BatchOrdinal < 0
             || (command.IsFirstBatch && command.BatchOrdinal != 0))
             errors.Add(new("VWAP.RECOVERY.LINEAGE", "Recovery generation and batch ordinal are invalid."));
+        if (command.LiveTradeOrdinal < 0
+            || command.LiveStreamEpochId == Guid.Empty && command.LiveTradeOrdinal != 0
+            || !command.IsFinalBatch
+                && (command.LiveStreamEpochId != Guid.Empty || command.LiveTradeOrdinal != 0))
+            errors.Add(new("VWAP.RECOVERY.HANDOFF",
+                "A live stream handoff must be nonnegative and may appear only on a final batch."));
         if (command.Trades is null || command.Trades.Length > 4096)
             errors.Add(new("VWAP.RECOVERY.SIZE", "A recovery batch must contain at most 4096 trades."));
         else

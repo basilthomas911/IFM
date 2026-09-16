@@ -45,6 +45,38 @@ public static class MarketDataAnalyticsCommandApiExtensions
         return RequestAsync<UpdateFuturesVwapSignalCommand, FuturesVwapSignalEntityId>(context, command);
     }
 
+    /// <summary>Sends one bounded exact-trade recovery batch to the VWAP actor.</summary>
+    public static ValueTask<ServiceResult<GuidResult>> RecoverFuturesVwapSignalAsync(
+        this IEventActorContext context,
+        FuturesVwapSignalEntityId entityId,
+        Guid recoveryGenerationId,
+        long batchOrdinal,
+        bool isFirstBatch,
+        bool isFinalBatch,
+        Guid liveStreamEpochId,
+        FuturesVwapTradeObservation[] trades,
+        FuturesVwapConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(trades);
+        ArgumentNullException.ThrowIfNull(configuration);
+        RecoverFuturesVwapSignalCommand command = new()
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, UpdateFuturesVwapSignalCommand.Actor,
+                RecoverFuturesVwapSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            RecoveryGenerationId = recoveryGenerationId,
+            BatchOrdinal = batchOrdinal,
+            IsFirstBatch = isFirstBatch,
+            IsFinalBatch = isFinalBatch,
+            LiveStreamEpochId = liveStreamEpochId,
+            LiveTradeOrdinal = 0,
+            Trades = trades,
+            Configuration = configuration
+        };
+        return RequestAsync<RecoverFuturesVwapSignalCommand, FuturesVwapSignalEntityId>(context, command);
+    }
+
     /// <summary>Sends one immutable VX leg observation to the event-sourced term-structure actor.</summary>
     public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesVxTermStructureSignalAsync(
         this IEventActorContext context,

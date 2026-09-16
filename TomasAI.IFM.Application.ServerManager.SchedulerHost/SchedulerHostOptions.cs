@@ -105,9 +105,12 @@ public sealed class SchedulerHostOptions
             throw new InvalidOperationException($"Initial schedule ID '{duplicateScheduleId}' is duplicated.");
         }
 
-        if (InitialSchedules.Any(value => value.Enabled))
+        var unapprovedEnabledSchedule = InitialSchedules.FirstOrDefault(
+            value => value.Enabled && string.IsNullOrWhiteSpace(value.ActivationApprovalReference));
+        if (unapprovedEnabledSchedule is not null)
         {
-            throw new InvalidOperationException("Configuration-seeded schedules must always start disabled.");
+            throw new InvalidOperationException(
+                $"Configuration-seeded schedule '{unapprovedEnabledSchedule.Name}' requires an explicit activation approval reference.");
         }
     }
 }
@@ -119,6 +122,10 @@ public sealed class InitialScheduleDefinition
     public string Description { get; set; } = string.Empty;
     public string TaskKey { get; set; } = string.Empty;
     public bool Enabled { get; set; }
+
+    /// <summary>Gets or sets the recorded owner approval that permits an initial schedule to start enabled.</summary>
+    public string? ActivationApprovalReference { get; set; }
+
     public ScheduleKind Kind { get; set; }
     public string ScheduleExpression { get; set; } = string.Empty;
     public string TimeZoneId { get; set; } = "UTC";

@@ -49,6 +49,10 @@ namespace TomasAI.IFM.UI.Net.Views.App
                 DashboardTypography.ApplyFamilyAndSize(this);
                 txtRSI.Text = "No";
                 txtRSI.BackColor = Color.Red;
+                txtVwap.Text = "N/A";
+                txtAdx.Text = "N/A";
+                txtAtr.Text = "N/A";
+                txtMacd.Text = "N/A";
                 ConfigureAccessibility();
                 //txt50DMA.BackColor = Color.Black;
                 //txt200DMA.BackColor = Color.Black;
@@ -189,9 +193,21 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtUpperBandRT.Text = e.UpperBand;
             txtMeanRT.Text = e.Mean;
             txtLowerBandRT.Text = e.LowerBand;
+            txtVwap.Text = e.Vwap;
+            txtVwap.ForeColor = e.VwapForeColor.ToColor();
+            txtVwap.BackColor = e.VwapBackColor.ToColor();
             txtMDI.Text = e.MDI;
             txtMDI.ForeColor = e.MDIForeColor.ToColor();
             txtMDI.BackColor = e.MDIBackColor.ToColor();
+            txtAdx.Text = e.Adx;
+            txtAdx.ForeColor = e.AdxForeColor.ToColor();
+            txtAdx.BackColor = e.AdxBackColor.ToColor();
+            txtAtr.Text = e.Atr;
+            txtAtr.ForeColor = e.AtrForeColor.ToColor();
+            txtAtr.BackColor = e.AtrBackColor.ToColor();
+            txtMacd.Text = e.Macd;
+            txtMacd.ForeColor = e.MacdForeColor.ToColor();
+            txtMacd.BackColor = e.MacdBackColor.ToColor();
             UpdateMarketOutlookAccessibility();
         }
 
@@ -207,6 +223,11 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtCloseRT.AccessibleName = "Close price";
             txtVolumeRT.AccessibleName = "Volume";
             txtPercentChangeRT.AccessibleName = "Daily percent change";
+            txtVwap.AccessibleName = "VWAP";
+            txtMDI.AccessibleName = "MDI";
+            txtAdx.AccessibleName = "ADX";
+            txtAtr.AccessibleName = "ATR";
+            txtMacd.AccessibleName = "MACD";
         }
 
         void UpdateMarketOutlookAccessibility()
@@ -214,7 +235,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
             foreach (var control in new[]
                      {
                          txtMarketTrendRT, txtMarketVolatilityRT, txtMarketDirectionRT, txtVixVolRT,
-                         txtOpenRT, txtHighRT, txtLowRT, txtCloseRT, txtVolumeRT, txtPercentChangeRT
+                         txtOpenRT, txtHighRT, txtLowRT, txtCloseRT, txtVolumeRT, txtPercentChangeRT, txtVwap,
+                         txtMDI, txtAdx, txtAtr, txtMacd
                      })
             {
                 control.AccessibleDescription = control.Text;
@@ -229,15 +251,6 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtTrend.Text = e.Trend;
             txtTrend.ForeColor = e.TrendForeColor.ToColor();
             txtTrend.BackColor = e.TrendBackColor.ToColor();
-            txtMDITrend.Text = e.MDITrend;
-            txtMDITrend.ForeColor = e.MDITrendForeColor.ToColor();
-            txtMDITrend.BackColor = e.MDITrendBackColor.ToColor();
-            txtMDIUpLimit.Text = e.MDIUpLimit;
-            txtMDIUpLimit.ForeColor = e.MDIUpLimitForeColor.ToColor();
-            txtMDIUpLimit.BackColor = e.MDIUpLimitBackColor.ToColor();
-            txtMDIDownLimit.Text = e.MDIDownLimit;
-            txtMDIDownLimit.ForeColor = e.MDIDownLimitForeColor.ToColor();
-            txtMDIDownLimit.BackColor = e.MDIDownLimitBackColor.ToColor();
             txtRSI.Text = e.RSI;
             txtRSI.ForeColor = e.RSIForeColor.ToColor();
             txtRSI.BackColor = e.RSIBackColor.ToColor();
@@ -250,8 +263,6 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtExtremeLimit.ForeColor = e.TrendExtremeForeColor.ToColor();
             txtReversalLimit.Text = e.TrendReversal;
             txtReversalLimit.ForeColor = e.TrendReversalForeColor.ToColor();
-            txtTrendDelta.Text = e.TrendDelta;
-            txtTrendDelta.ForeColor = e.TrendDeltaForeColor.ToColor();
             _txtTdiDirection.Text = e.TdiDirection;
             _txtTdiStrength.Text = e.TdiStrength;
             _txtTdiMarketState.Text = e.TdiMarketState;

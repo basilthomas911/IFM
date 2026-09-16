@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -46,6 +47,30 @@ public sealed record BollingerBandMarketOutlookUpdate : MarketOutlookUpdate
 {
     public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.BollingerBand;
     public required FuturesBbSignalReadModel Signal { get; init; }
+}
+
+public sealed record VwapMarketOutlookUpdate : MarketOutlookUpdate
+{
+    public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Vwap;
+    public required FuturesVwapSignalReadModel Signal { get; init; }
+}
+
+public sealed record AdxMarketOutlookUpdate : MarketOutlookUpdate
+{
+    public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Adx;
+    public required FuturesAdxSignalReadModel Signal { get; init; }
+}
+
+public sealed record AtrMarketOutlookUpdate : MarketOutlookUpdate
+{
+    public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Atr;
+    public required FuturesAtrSignalReadModel Signal { get; init; }
+}
+
+public sealed record MacdMarketOutlookUpdate : MarketOutlookUpdate
+{
+    public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Macd;
+    public required FuturesMacdSignalReadModel Signal { get; init; }
 }
 
 public sealed record EsTradeMarketOutlookUpdate : MarketOutlookUpdate
@@ -444,6 +469,22 @@ public sealed class MarketOutlookUpdateProcessor(
                 update, [new(CacheComponentType.BollingerBand, position)],
                 state => state with { FuturesBbSignal = value.Signal },
                 MarketOutlookRefreshTrigger.Component, now),
+            VwapMarketOutlookUpdate value => Write(
+                update, [new(CacheComponentType.Vwap, position)],
+                state => state with { FuturesVwapSignal = value.Signal },
+                MarketOutlookRefreshTrigger.Component, now),
+            AdxMarketOutlookUpdate value => Write(
+                update, [new(CacheComponentType.Adx, position)],
+                state => state with { FuturesAdxSignal = value.Signal },
+                MarketOutlookRefreshTrigger.Component, now),
+            AtrMarketOutlookUpdate value => Write(
+                update, [new(CacheComponentType.Atr, position)],
+                state => state with { FuturesAtrSignal = value.Signal },
+                MarketOutlookRefreshTrigger.Component, now),
+            MacdMarketOutlookUpdate value => Write(
+                update, [new(CacheComponentType.Macd, position)],
+                state => state with { FuturesMacdSignal = value.Signal },
+                MarketOutlookRefreshTrigger.Component, now),
             VixPriceMarketOutlookUpdate value => Write(
                 update, [new(CacheComponentType.Vx, position)],
                 state => state with
@@ -518,6 +559,10 @@ public sealed class MarketOutlookUpdateProcessor(
             : state.VixFuturesSessionOpenPrice,
         FuturesEmaSignal = snapshot.FuturesEmaSignal ?? state.FuturesEmaSignal,
         FuturesBbSignal = snapshot.FuturesBbSignal ?? state.FuturesBbSignal,
+        FuturesVwapSignal = snapshot.FuturesVwapSignal ?? state.FuturesVwapSignal,
+        FuturesAdxSignal = snapshot.FuturesAdxSignal ?? state.FuturesAdxSignal,
+        FuturesAtrSignal = snapshot.FuturesAtrSignal ?? state.FuturesAtrSignal,
+        FuturesMacdSignal = snapshot.FuturesMacdSignal ?? state.FuturesMacdSignal,
         CurrentEsPrice = snapshot.FuturesTradeSignal?.FuturesPrice is > 0d
             ? (decimal)snapshot.FuturesTradeSignal.FuturesPrice
             : snapshot.FuturesEodData.ClosePrice is > 0m
@@ -548,6 +593,10 @@ public sealed class MarketOutlookUpdateProcessor(
         if (snapshot.VixFuturesPrice is > 0m) components.Add(new(CacheComponentType.Vx, position));
         if (snapshot.FuturesEmaSignal is not null) components.Add(new(CacheComponentType.Ema, position));
         if (snapshot.FuturesBbSignal is not null) components.Add(new(CacheComponentType.BollingerBand, position));
+        if (snapshot.FuturesVwapSignal is not null) components.Add(new(CacheComponentType.Vwap, position));
+        if (snapshot.FuturesAdxSignal is not null) components.Add(new(CacheComponentType.Adx, position));
+        if (snapshot.FuturesAtrSignal is not null) components.Add(new(CacheComponentType.Atr, position));
+        if (snapshot.FuturesMacdSignal is not null) components.Add(new(CacheComponentType.Macd, position));
         if (!string.IsNullOrWhiteSpace(snapshot.FeedHealth)) components.Add(new(CacheComponentType.FeedHealth, position));
         if (snapshot.FuturesTradeSignal?.FuturesPrice is > 0d
             || snapshot.FuturesEodData.ClosePrice is > 0m)

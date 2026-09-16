@@ -36,6 +36,7 @@ public class FuturesAdxSignalCompute
         PlusDI = plusDI;
         MinusDI = minusDI;
         AdxValue = adx;
+        IsWarm = _adxSignal?.IsWarm == true || signals.Count >= _adxPeriod;
     }
 
     /// <summary>
@@ -116,6 +117,9 @@ public class FuturesAdxSignalCompute
 
     /// <summary>Average Directional Index value.</summary>
     public double AdxValue { get; private set; }
+
+    /// <summary>Gets whether a complete ADX period contributed to this result.</summary>
+    public bool IsWarm { get; private set; }
 
     public FuturesTrendType TrendDirection
         => default(FuturesTrendType) switch

@@ -31,7 +31,8 @@ public static class RecoverFuturesVwapSignal
 
         var result = FuturesVwapAccumulator.ApplyRecovery(command.EntityId, state.Checkpoint,
             command.RecoveryGenerationId, command.BatchOrdinal, command.IsFirstBatch,
-            command.IsFinalBatch, command.Trades, command.Configuration);
+            command.IsFinalBatch, command.Trades, command.Configuration,
+            command.LiveStreamEpochId, command.LiveTradeOrdinal);
         return FuturesVwapSignalTransition.Append(command, command.EntityId, result, state);
     }
 }

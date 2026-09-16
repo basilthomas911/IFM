@@ -49,7 +49,13 @@ public sealed class MarketOutlookViewLayoutTests
                     trendRowHeights,
                     CaptureValueBounds(marketTrendData, trendRowHeights),
                     parent.Height - marketTrendData.Bottom,
-                    parent.Height));
+                    parent.Height,
+                    marketData.GetColumn(FindControl<TextBox>(view, "txtVwap")),
+                    marketData.GetRow(FindControl<TextBox>(view, "txtVwap")),
+                    marketTrendData.GetColumn(FindControl<TextBox>(view, "txtTrend")),
+                    marketTrendData.GetRow(FindControl<TextBox>(view, "txtTrend")),
+                    FindControl<Label>(view, "lblItiTrend").Text,
+                    FindControl<Label>(view, "lblItiTrend").Right <= marketTrendData.ClientSize.Width));
             }
             catch (Exception exception)
             {
@@ -76,6 +82,12 @@ public sealed class MarketOutlookViewLayoutTests
         snapshot.TrendValueBounds.Should().OnlyContain(
             value => value.ControlBottomWithMargin <= value.CellBottom,
             "the five bottom value controls must fit inside the shared compact value row");
+        snapshot.VwapColumn.Should().Be(0);
+        snapshot.VwapRow.Should().Be(5);
+        snapshot.TrendColumn.Should().Be(4);
+        snapshot.TrendRow.Should().Be(1);
+        snapshot.TrendLabel.Should().Be("Trend Direction");
+        snapshot.TrendLabelFits.Should().BeTrue();
         snapshot.BottomClearance.Should().BeGreaterThanOrEqualTo(6);
         snapshot.TotalHeight.Should().BeLessThan(330,
             "shared compact label/value rows should materially reduce the Market Outlook height");
@@ -224,7 +236,13 @@ public sealed class MarketOutlookViewLayoutTests
         int[] TrendRowHeights,
         ValueCellBounds[] TrendValueBounds,
         int BottomClearance,
-        int TotalHeight);
+        int TotalHeight,
+        int VwapColumn,
+        int VwapRow,
+        int TrendColumn,
+        int TrendRow,
+        string TrendLabel,
+        bool TrendLabelFits);
 
     sealed record ValueCellBounds(
         string Name,

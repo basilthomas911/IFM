@@ -15,7 +15,8 @@ public enum DatasetPublicationKind : byte
     Trade = 1,
     Quote = 2,
     MarketPrice = 3,
-    SessionStatistics = 4
+    SessionStatistics = 4,
+    TradeReplayBatch = 5
 }
 
 [MessagePackObject]
@@ -127,6 +128,11 @@ public sealed class DatasetPublicationIngress(
                 case DatasetPublicationKind.MarketPrice:
                     await publisher.PublishAsync(
                         MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload),
+                        generationCancellation).ConfigureAwait(false);
+                    break;
+                case DatasetPublicationKind.TradeReplayBatch:
+                    await publisher.PublishAsync(
+                        MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.SessionStatistics:

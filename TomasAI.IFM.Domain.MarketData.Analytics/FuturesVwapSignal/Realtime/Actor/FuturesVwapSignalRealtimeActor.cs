@@ -20,13 +20,17 @@ public sealed class FuturesVwapSignalRealtimeActor(
 {
     /// <summary>Identifies the VWAP Realtime mailbox.</summary>
     public const string ActorName = "FuturesVwapSignal";
-    static readonly ActorTypeId Route = new(ActorType.Realtime,
+    static readonly ActorTypeId PriceRoute = new(ActorType.Realtime,
         FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+    static readonly ActorTypeId ReplayRoute = new(ActorType.Realtime,
+        FuturesTradeReplayBatchRealtimeEvent.Actor, FuturesTradeReplayBatchRealtimeEvent.Verb);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
-                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
+                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
+            [FuturesTradeReplayBatchRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesTradeReplayBatchRealtimeEvent>()!
         };
     IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
@@ -38,13 +42,17 @@ public sealed class FuturesVwapSignalRealtimeActor(
     {
         [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
             await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+                .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false),
+        [typeof(FuturesTradeReplayBatchRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
+            await ((FuturesTradeReplayBatchRealtimeEvent)@event)
                 .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false)
     };
 
     /// <inheritdoc />
     protected override async ValueTask OnStartup(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
     {
-        context.AddRealtimeRouter(Route, Id);
+        context.AddRealtimeRouter(PriceRoute, Id);
+        context.AddRealtimeRouter(ReplayRoute, Id);
         var configuration = FuturesVwapConfiguration.Standard;
         if (TypedContext.MarketDataApi.TryGetOnTheRunFuturesContract(
             configuration.RootSymbol, out _))
@@ -67,7 +75,8 @@ public sealed class FuturesVwapSignalRealtimeActor(
     /// <inheritdoc />
     protected override async ValueTask OnShutdown(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
     {
-        context.RemoveRealtimeRouter(Route, Id);
+        context.RemoveRealtimeRouter(ReplayRoute, Id);
+        context.RemoveRealtimeRouter(PriceRoute, Id);
         await streamOwnership.ReleaseAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
     }
 

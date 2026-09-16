@@ -34,7 +34,7 @@ public sealed class EventQueryRealtimeActorHandlerConventionTests
         ["FuturesTradeSignalQueryActor"] = "GetFuturesTradeSignalQuery,GetLastFuturesTradeSignalQuery,GetFuturesTradeSignalIdsQuery",
         ["FuturesVwapSignalEventActor"] = "FuturesVwapSignalUpdatedCompleteEvent,FuturesVwapSignalUpdatedFailEvent",
         ["FuturesVwapSignalQueryActor"] = "GetLatestFuturesVwapSignalQuery,GetFuturesVwapSignalHistoryQuery",
-        ["FuturesVwapSignalRealtimeActor"] = "FuturesMarketPriceUpdatedRealtimeEvent",
+        ["FuturesVwapSignalRealtimeActor"] = "FuturesMarketPriceUpdatedRealtimeEvent,FuturesTradeReplayBatchRealtimeEvent",
         ["FuturesVxTermStructureSignalEventActor"] = "FuturesVxTermStructureSignalUpdatedCompleteEvent,FuturesVxTermStructureSignalUpdatedFailEvent",
         ["FuturesVxTermStructureSignalQueryActor"] = "GetLatestFuturesVxTermStructureSignalQuery",
         ["FuturesVxTermStructureSignalRealtimeActor"] = "FuturesMarketPriceUpdatedRealtimeEvent",

@@ -29,6 +29,8 @@ public class FuturesMacdSignalCompute
         FuturesMacdConfiguration configuration)
     {
         _macdSignal = previousMacdSignals.LastOrDefault();
+        IsWarm = _macdSignal?.IsWarm == true
+            || previousMacdSignals.Count + 1 >= configuration.SlowEmaPeriod + configuration.SignalEmaPeriod;
         ComputeMacdComponents((double)futuresPrice, configuration);
     }
 
@@ -44,6 +46,9 @@ public class FuturesMacdSignalCompute
     public double FastEma { get; private set; }
 
     public double SlowEma { get; private set; }
+
+    /// <summary>Gets whether the slow and signal EMA warm-up periods have completed.</summary>
+    public bool IsWarm { get; private set; }
 
     public FuturesTrendType TrendDirection
         => default(FuturesTrendType) switch

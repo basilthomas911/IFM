@@ -53,6 +53,9 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
     /// <summary>Gets the immutable closed observation that triggered this command.</summary>
     [Key(8)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
+    /// <summary>Gets whether this command is replaying an older completed bar into the current value-date stream.</summary>
+    [Key(9)] public bool IsHistoricalSeed { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -69,11 +72,13 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
     public GenerateFuturesAtrSignalCommand(
         FuturesAtrSignalId futuresAtrSignalId,
         decimal futuresPrice,
-        FuturesTradeSessionBarReadModel observation)
+        FuturesTradeSessionBarReadModel observation,
+        bool isHistoricalSeed = false)
     {
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;
         Observation = observation;
+        IsHistoricalSeed = isHistoricalSeed;
         EntityId = futuresAtrSignalId.ToEntityId();
         ErrorCode = ErrorId;
         RouteTo = BoundedContextName.FuturesAtrSignalBoundedContext;
@@ -92,7 +97,8 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
         BoundedContextName routeTo,
         FuturesAtrSignalId futuresAtrSignalId,
         decimal futuresPrice,
-        FuturesTradeSessionBarReadModel? observation)
+        FuturesTradeSessionBarReadModel? observation,
+        bool isHistoricalSeed = false)
     {
         CommandId = commandId;
         Subject = subject;
@@ -103,5 +109,6 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;
         Observation = observation;
+        IsHistoricalSeed = isHistoricalSeed;
     }
 }

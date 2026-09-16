@@ -71,6 +71,12 @@ internal sealed class PipeDatasetWorkerPublisher(
         CancellationToken cancellationToken) => WriteAsync(DatasetPublicationKind.MarketPrice,
             MessagePackSerializer.Serialize(value), cancellationToken);
 
+    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent value) =>
+        PublishAsync(value, CancellationToken.None);
+    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent value,
+        CancellationToken cancellationToken) => WriteAsync(DatasetPublicationKind.TradeReplayBatch,
+            MessagePackSerializer.Serialize(value), cancellationToken);
+
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent value) =>
         PublishAsync(value, CancellationToken.None);
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent value,

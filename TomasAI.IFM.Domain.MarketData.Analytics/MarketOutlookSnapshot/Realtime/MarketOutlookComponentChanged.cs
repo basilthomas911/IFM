@@ -154,6 +154,72 @@ public static class MarketOutlookComponentChanged
             submitted++;
         }
 
+        if (eligible.FuturesVwapSignal is { } vwap)
+        {
+            writer.Submit(new VwapMarketOutlookUpdate
+            {
+                UpdateId = ComponentId(source.Id, MarketOutlookUpdateKind.Vwap),
+                EntityId = source.EntityId,
+                ReceivedAtUtc = source.ReceivedOn,
+                MarketDataAsOfUtc = vwap.AsOfUtc.UtcDateTime,
+                Signal = vwap,
+                CommandId = commandId,
+                AggregateId = source.AggregateId,
+                EventSource = source.EventSource,
+                SourceSequence = vwap.LastTradeSourceSequence,
+                StreamEpochId = vwap.StreamEpochId,
+                StreamOrdinal = vwap.LastTradeOrdinal
+            });
+            submitted++;
+        }
+        if (eligible.FuturesAdxSignal is { } adx)
+        {
+            writer.Submit(new AdxMarketOutlookUpdate
+            {
+                UpdateId = ComponentId(source.Id, MarketOutlookUpdateKind.Adx),
+                EntityId = source.EntityId,
+                ReceivedAtUtc = source.ReceivedOn,
+                MarketDataAsOfUtc = adx.Metadata?.MarketDataAsOfUtc.UtcDateTime ?? source.ReceivedOn,
+                Signal = adx,
+                CommandId = commandId,
+                AggregateId = source.AggregateId,
+                EventSource = source.EventSource,
+                SourceSequence = adx.Metadata?.SourceSequence ?? source.EventId
+            });
+            submitted++;
+        }
+        if (eligible.FuturesAtrSignal is { } atr)
+        {
+            writer.Submit(new AtrMarketOutlookUpdate
+            {
+                UpdateId = ComponentId(source.Id, MarketOutlookUpdateKind.Atr),
+                EntityId = source.EntityId,
+                ReceivedAtUtc = source.ReceivedOn,
+                MarketDataAsOfUtc = atr.Metadata?.MarketDataAsOfUtc.UtcDateTime ?? source.ReceivedOn,
+                Signal = atr,
+                CommandId = commandId,
+                AggregateId = source.AggregateId,
+                EventSource = source.EventSource,
+                SourceSequence = atr.Metadata?.SourceSequence ?? source.EventId
+            });
+            submitted++;
+        }
+        if (eligible.FuturesMacdSignal is { } macd)
+        {
+            writer.Submit(new MacdMarketOutlookUpdate
+            {
+                UpdateId = ComponentId(source.Id, MarketOutlookUpdateKind.Macd),
+                EntityId = source.EntityId,
+                ReceivedAtUtc = source.ReceivedOn,
+                MarketDataAsOfUtc = macd.Metadata?.MarketDataAsOfUtc.UtcDateTime ?? source.ReceivedOn,
+                Signal = macd,
+                CommandId = commandId,
+                AggregateId = source.AggregateId,
+                EventSource = source.EventSource,
+                SourceSequence = macd.Metadata?.SourceSequence ?? source.EventId
+            });
+            submitted++;
+        }
         if (submitted == 0 && !string.IsNullOrWhiteSpace(ignoredReason))
         {
             typed.Logger.LogDebug(

@@ -8,6 +8,26 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsJetStreamActorConsumerTests
 {
     [Theory]
+    [InlineData(5, 2_294_812, 2_294_824, true)]
+    [InlineData(5, 2_294_824, 2_294_824, false)]
+    [InlineData(5, 2_294_825, 2_294_824, false)]
+    [InlineData(0, 2_294_812, 2_294_824, false)]
+    [InlineData(5, 0, 2_294_824, false)]
+    public void RequiresCursorRecovery_OnlyAcceptsImpossibleNonEmptyStreamCursor(
+        ulong retainedMessages,
+        ulong lastStreamSequence,
+        ulong acknowledgementFloorStreamSequence,
+        bool expected)
+    {
+        var actual = NatsJetStreamActorConsumer.RequiresCursorRecovery(
+            retainedMessages,
+            lastStreamSequence,
+            acknowledgementFloorStreamSequence);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
     [InlineData("Event.Backup123.Execute")]
     [InlineData("Event.Backup123.Started")]
     [InlineData("Event.Backup123.Ignored")]

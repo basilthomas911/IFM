@@ -344,6 +344,7 @@ internal sealed class BoundedRealtimeTickPublisher(
         FuturesTickTradeDataChangedEvent trade => producer.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(trade.Subject, trade, token),
         FuturesTickQuoteDataChangedEvent quote => producer.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote, token),
         FuturesMarketPriceUpdatedRealtimeEvent price => producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(price.Subject, price, token),
+        FuturesTradeReplayBatchRealtimeEvent replay => producer.SendAsync<FuturesTradeReplayBatchRealtimeEvent, TickDataEntityId>(replay.Subject, replay, token),
         FuturesSessionStatisticsUpdatedRealtimeEvent statistics => producer.SendAsync<FuturesSessionStatisticsUpdatedRealtimeEvent, FuturesEodDataId>(statistics.Subject, statistics, token),
         _ => throw new ArgumentException("Unsupported realtime publication.", nameof(value))
     };

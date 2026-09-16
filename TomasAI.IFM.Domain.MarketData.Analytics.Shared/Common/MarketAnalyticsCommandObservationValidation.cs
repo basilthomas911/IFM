@@ -14,7 +14,8 @@ public static class MarketAnalyticsCommandObservationValidation
         DateOnly valueDate,
         TimeFrameType timeFrame,
         string commandName,
-        bool required = false)
+        bool required = false,
+        bool allowPriorValueDate = false)
     {
         if (observation is null)
         {
@@ -26,7 +27,9 @@ public static class MarketAnalyticsCommandObservationValidation
             errors.Add(new(error.ErrorCode, $"{commandName}.Observation: {error.ErrorMessage}"));
         if (!observation.IsComplete || !observation.IsValid)
             errors.Add(new("ANALYTICS.BAR.INVALID", $"{commandName}: a valid completed bar is required."));
-        if (observation.ContractId != contractId || observation.ValueDate != valueDate
+        if (observation.ContractId != contractId
+            || (!allowPriorValueDate && observation.ValueDate != valueDate)
+            || (allowPriorValueDate && observation.ValueDate > valueDate)
             || observation.TimeFrame != timeFrame)
             errors.Add(new("ANALYTICS.BAR.IDENTITY", $"{commandName}: source bar contract, date, and timeframe must match."));
         return errors;

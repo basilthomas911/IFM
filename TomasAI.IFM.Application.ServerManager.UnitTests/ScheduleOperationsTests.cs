@@ -76,7 +76,7 @@ public sealed class ScheduleOperationsTests
     }
 
     [Fact]
-    public void Configuration_refuses_enabled_seed_schedule()
+    public void Configuration_refuses_enabled_seed_schedule_without_approval()
     {
         var options = CreateOptions(SchedulerRiskClassification.Maintenance, 60);
         options.InitialSchedules.Add(new InitialScheduleDefinition
@@ -91,7 +91,27 @@ public sealed class ScheduleOperationsTests
 
         var action = options.Validate;
 
-        action.Should().Throw<InvalidOperationException>().WithMessage("*disabled*");
+        action.Should().Throw<InvalidOperationException>().WithMessage("*approval reference*");
+    }
+
+    [Fact]
+    public void Configuration_accepts_enabled_seed_schedule_with_explicit_approval()
+    {
+        var options = CreateOptions(SchedulerRiskClassification.MarketLifecycle, 1_800);
+        options.InitialSchedules.Add(new InitialScheduleDefinition
+        {
+            ScheduleDefinitionId = Guid.NewGuid(),
+            Name = "approved close",
+            TaskKey = "task",
+            Enabled = true,
+            ActivationApprovalReference = "Owner directive 2026-09-16",
+            Kind = ScheduleKind.Cron,
+            ScheduleExpression = "0 1 17 ? * MON-FRI"
+        });
+
+        var action = options.Validate;
+
+        action.Should().NotThrow();
     }
 
     private static ScheduleValidationService CreateValidator(

@@ -149,14 +149,43 @@ public class NatsJetStreamActorConsumer(
                 cancellationToken).ConfigureAwait(false);
             streamName = stream.Info.Config.Name;
 
-            // Create or update the durable consumer...
-            var consumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(durableName)
+            var consumerConfig = new ConsumerConfig(durableName)
             {
                 FilterSubject = consumerSubjectFilter,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
                 DeliverPolicy = ConsumerConfigDeliverPolicy.All,
                 MaxAckPending = GetOutstandingLimit()
-            });
+            };
+
+            // A JetStream stream can be rebuilt after storage corruption while its durable
+            // consumer metadata survives. In that case the acknowledgement floor can point
+            // beyond the rebuilt stream and JetStream silently treats retained messages as
+            // already delivered. Recreate only that impossible cursor; valid consumers and
+            // empty streams remain untouched.
+            var consumer = await js.CreateOrUpdateConsumerAsync(streamName, consumerConfig);
+            var currentStream = await js.GetStreamAsync(
+                streamName,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (RequiresCursorRecovery(
+                    Convert.ToUInt64(currentStream.Info.State.Messages),
+                    Convert.ToUInt64(currentStream.Info.State.LastSeq),
+                    Convert.ToUInt64(consumer.Info.AckFloor.StreamSeq)))
+            {
+                NatsJetStreamActorConsumerLogging.RecoveringInvalidDurableCursor(
+                    _logger,
+                    streamName,
+                    durableName,
+                    Convert.ToUInt64(currentStream.Info.State.Messages),
+                    Convert.ToUInt64(currentStream.Info.State.FirstSeq),
+                    Convert.ToUInt64(currentStream.Info.State.LastSeq),
+                    Convert.ToUInt64(consumer.Info.AckFloor.StreamSeq));
+                await js.DeleteConsumerAsync(streamName, durableName, cancellationToken)
+                    .ConfigureAwait(false);
+                consumer = await js.CreateOrUpdateConsumerAsync(
+                    streamName,
+                    consumerConfig,
+                    cancellationToken).ConfigureAwait(false);
+            }
             StreamName = streamName;
             ConsumerName = durableName;
 
@@ -294,6 +323,25 @@ public class NatsJetStreamActorConsumer(
 
         return configuredStream;
     }
+
+    /// <summary>
+    /// Determines whether a durable consumer cursor is impossible for the retained stream state
+    /// and must be recreated so retained messages can be delivered.
+    /// </summary>
+    /// <param name="retainedMessages">The number of messages currently retained by the stream.</param>
+    /// <param name="lastStreamSequence">The stream's current last sequence.</param>
+    /// <param name="acknowledgementFloorStreamSequence">The durable consumer's acknowledged stream sequence.</param>
+    /// <returns>
+    /// <see langword="true"/> only when the stream retains messages and the durable acknowledgement
+    /// floor is strictly beyond its last sequence; otherwise, <see langword="false"/>.
+    /// </returns>
+    internal static bool RequiresCursorRecovery(
+        ulong retainedMessages,
+        ulong lastStreamSequence,
+        ulong acknowledgementFloorStreamSequence)
+        => retainedMessages > 0
+            && lastStreamSequence > 0
+            && acknowledgementFloorStreamSequence > lastStreamSequence;
 
     int GetDispatcherCapacity()
         => _options is NatsJetStreamConsumerOptions concrete

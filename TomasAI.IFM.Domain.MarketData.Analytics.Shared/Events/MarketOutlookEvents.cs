@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,6 +31,10 @@ public sealed record MarketOutlookComponentChangedRealtimeEvent : IEvent<MarketO
     [Key(12)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
     [Key(13)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
     [Key(14)] public FuturesTradeSignalV2ReadModel? FuturesTradeSignal { get; init; }
+    [Key(15)] public FuturesVwapSignalReadModel? FuturesVwapSignal { get; init; }
+    [Key(16)] public FuturesAdxSignalReadModel? FuturesAdxSignal { get; init; }
+    [Key(17)] public FuturesAtrSignalReadModel? FuturesAtrSignal { get; init; }
+    [Key(18)] public FuturesMacdSignalReadModel? FuturesMacdSignal { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(MarketOutlookComponentChangedRealtimeEvent);

@@ -74,6 +74,9 @@ public record FuturesMacdSignalReadModel
     /// <summary>Gets shared observation lineage for migrated MACD calculations.</summary>
     [Key(15)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
 
+    /// <summary>Gets whether the slow and signal EMA warm-up periods have completed.</summary>
+    [Key(16)] public bool IsWarm { get; init; }
+
     [JsonIgnore]
     [IgnoreMember]
     [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]

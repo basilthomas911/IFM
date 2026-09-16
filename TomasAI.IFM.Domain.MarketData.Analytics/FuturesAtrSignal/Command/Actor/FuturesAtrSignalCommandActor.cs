@@ -148,7 +148,7 @@ public class FuturesAtrSignalCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
-                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
         },
         [typeof(GenerateFuturesAtrDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesAtrDailySignalCommand)cmd; return new List<ValidationError>()

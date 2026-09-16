@@ -20,7 +20,11 @@ public enum MarketOutlookUpdateKind : byte
     FeedHealth,
     HistoricalWarmup,
     Hydration,
-    Recompose
+    Recompose,
+    Vwap,
+    Adx,
+    Atr,
+    Macd
 }
 
 /// <summary>
@@ -91,7 +95,11 @@ public enum MarketDataOperationStage : byte
     EodAnalytics,
     FuturesTradeSignal,
     UiDelivery,
-    DatabentoRealtimePublication
+    DatabentoRealtimePublication,
+    VwapAnalytics,
+    AdxAnalytics,
+    AtrAnalytics,
+    MacdAnalytics
 }
 
 public enum MarketDataOperationOutcome : byte
@@ -397,6 +405,10 @@ public sealed class MarketOutlookUpdateChannel : IMarketOutlookUpdateWriter, IMa
             MarketOutlookUpdateKind.VixPrice => MarketDataOperationStage.VixAnalytics,
             MarketOutlookUpdateKind.Eod => MarketDataOperationStage.EodAnalytics,
             MarketOutlookUpdateKind.TradeSignal => MarketDataOperationStage.FuturesTradeSignal,
+            MarketOutlookUpdateKind.Vwap => MarketDataOperationStage.VwapAnalytics,
+            MarketOutlookUpdateKind.Adx => MarketDataOperationStage.AdxAnalytics,
+            MarketOutlookUpdateKind.Atr => MarketDataOperationStage.AtrAnalytics,
+            MarketOutlookUpdateKind.Macd => MarketDataOperationStage.MacdAnalytics,
             _ => null
         };
         if (analytic is { } analyticStage)

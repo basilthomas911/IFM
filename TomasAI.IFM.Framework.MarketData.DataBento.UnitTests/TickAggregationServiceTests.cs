@@ -222,6 +222,13 @@ public sealed class TickAggregationServiceTests
         feed.Publish(ReplayTrade(instrument, 2, 5_005_000_000, 12));
         feed.Publish(TradeReplayComplete(instrument));
         await publisher.SessionStatisticsFirst.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Single(publisher.TradeReplayBatches);
+        var replay = publisher.TradeReplayBatches[0];
+        Assert.True(replay.IsFirstBatch);
+        Assert.True(replay.IsFinalBatch);
+        Assert.Single(replay.Trades);
+        Assert.NotEqual(Guid.Empty, replay.RecoveryGenerationId);
+        Assert.NotEqual(Guid.Empty, replay.LiveStreamEpochId);
         feed.Publish(NormalizedTrade(instrument, 3, 5_010_000_000, 0, (byte)'T', (byte)'B', 0));
         Assert.True(SpinWait.SpinUntil(
             () => publisher.MarketPrices.Count == 2,
@@ -229,6 +236,7 @@ public sealed class TickAggregationServiceTests
 
         var afterReplay = publisher.MarketPrices[1].Price.Trade!.Value;
         Assert.NotEqual(firstEpoch, afterReplay.StreamEpochId);
+        Assert.Equal(replay.LiveStreamEpochId, afterReplay.StreamEpochId);
         Assert.Equal(1, afterReplay.TradeOrdinal);
 
         await service.StopAsync();
@@ -1338,6 +1346,7 @@ public sealed class TickAggregationServiceTests
         public List<long> Sequences { get; } = [];
         public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
         public List<FuturesTickTradeDataChangedEvent> Trades { get; } = [];
+        public List<FuturesTradeReplayBatchRealtimeEvent> TradeReplayBatches { get; } = [];
         public List<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatistics { get; } = [];
         public List<ushort> QuoteCounts { get; } = [];
         public List<QuoteEmissionReason> QuoteReasons { get; } = [];
@@ -1353,6 +1362,11 @@ public sealed class TickAggregationServiceTests
         {
             MarketPrices.Add(e);
             MarketPrice.TrySetResult(e);
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent e)
+        {
+            TradeReplayBatches.Add(e);
             return ValueTask.CompletedTask;
         }
         public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent e)

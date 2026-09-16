@@ -21,7 +21,14 @@ internal static class Program
             .CreateLogger();
         builder.Services.AddSerilog();
 
+        var maintenanceOptions = new NatsJetStreamEndOfDayMaintenanceOptions();
+        builder.Configuration.GetSection("JetStreamEndOfDayPurge").Bind(maintenanceOptions);
+        maintenanceOptions.Url = builder.Configuration["Nats:Url"] ?? maintenanceOptions.Url;
+        maintenanceOptions.Validate();
+
+        builder.Services.AddSingleton(maintenanceOptions);
         builder.Services.AddSingleton<NatsConnectionManager>();
+        builder.Services.AddSingleton<INatsJetStreamEndOfDayMaintenance, NatsJetStreamEndOfDayMaintenance>();
         builder.Services.AddSingleton<IActorProducer>(services => new NatsActorProducer(
             new NatsProducerOptions
             {

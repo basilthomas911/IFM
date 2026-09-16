@@ -21,6 +21,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 {
     private const decimal PriceScale = 1_000_000_000m;
     private const long UndefinedPrice = long.MaxValue;
+    private const int TradeReplayBatchCapacity = 512;
     private readonly IDatabentoTickerFeed _feed;
     private readonly ITickContractMappingProvider _mappings;
     private readonly ITickAggregationEventPublisher _publisher;
@@ -736,6 +737,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             state.ValueDate = valueDate;
             state.Sequence = 0;
             state.TradeOrdinal = 0;
+            state.StreamEpochId = Guid.NewGuid();
+            state.ReplayBatchOrdinal = 0;
+            state.ReplayTrades.Clear();
             state.MarketPrice.Reset();
             state.SessionStatistics.Reset();
         }
@@ -754,9 +758,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             var reconstructed = state.SessionStatistics.CompleteTradeReplay(
                 state.Mapping.ContractId,
                 state.ValueDate);
-            state.StreamEpochId = Guid.NewGuid();
-            state.TradeOrdinal = 0;
+            var liveStreamEpochId = Guid.NewGuid();
             SetProcessingStage(TickAggregationProcessingStage.TradeReplayPublish);
+            await PublishTradeReplayBatchAsync(
+                state, isFinalBatch: true, liveStreamEpochId, cancellationToken).ConfigureAwait(false);
+            state.StreamEpochId = liveStreamEpochId;
+            state.TradeOrdinal = 0;
             await PublishSessionStatisticsAsync(state, reconstructed, cancellationToken)
                 .ConfigureAwait(false);
             return;
@@ -829,7 +836,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     isReplay,
                     out _);
                 if (isReplay)
+                {
+                    state.ReplayTrades.Add(new FuturesTradeReplayObservation(
+                        record.Trade.Price / PriceScale,
+                        record.Trade.Size,
+                        record.Trade.Header.Sequence,
+                        FromUnixNanoseconds(record.Trade.Header.EventTimestampNanoseconds),
+                        DatabentoTradeNormalizer.MapAction(record.Trade.Action),
+                        DatabentoTradeNormalizer.MapConditions(
+                            record.Trade.Header.Flags, record.Trade.DbnFlags)));
+                    if (state.ReplayTrades.Count == TradeReplayBatchCapacity)
+                        await PublishTradeReplayBatchAsync(
+                            state, isFinalBatch: false, Guid.Empty, cancellationToken).ConfigureAwait(false);
                     break;
+                }
                 MarkObserved(state);
                 if (!UpdateLastTrade(state, record.Trade, out var marketPrice))
                 {
@@ -887,6 +907,44 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 }
                 break;
         }
+    }
+
+    private async ValueTask PublishTradeReplayBatchAsync(
+        TickerState state,
+        bool isFinalBatch,
+        Guid liveStreamEpochId,
+        CancellationToken cancellationToken)
+    {
+        if (!isFinalBatch && state.ReplayTrades.Count == 0)
+            return;
+        var entityId = new TickDataEntityId(
+            state.Mapping.ContractId,
+            state.ValueDate,
+            state.Mapping.AssetTypeId);
+        var ordinal = state.ReplayBatchOrdinal;
+        var @event = new FuturesTradeReplayBatchRealtimeEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesTradeReplayBatchRealtimeEvent.Actor,
+                FuturesTradeReplayBatchRealtimeEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = nameof(TickAggregationService),
+            ReceivedOn = _timeProvider.GetUtcNow().UtcDateTime,
+            RecoveryGenerationId = state.StreamEpochId,
+            BatchOrdinal = ordinal,
+            IsFirstBatch = ordinal == 0,
+            IsFinalBatch = isFinalBatch,
+            LiveStreamEpochId = liveStreamEpochId,
+            Trades = state.ReplayTrades.ToArray()
+        };
+        await _publisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
+        state.ReplayTrades.Clear();
+        state.ReplayBatchOrdinal = checked(ordinal + 1);
     }
 
     private async ValueTask PublishSessionStatisticsAsync(
@@ -1483,6 +1541,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         public DateOnly ValueDate;
         public long Sequence;
         public long TradeOrdinal;
+        public long ReplayBatchOrdinal;
+        public List<FuturesTradeReplayObservation> ReplayTrades { get; } =
+            new(TradeReplayBatchCapacity);
         public ITickQuoteBufferLease? QuoteLease;
         public ushort QuoteCount;
         public PendingQuotePublication? PendingQuote;

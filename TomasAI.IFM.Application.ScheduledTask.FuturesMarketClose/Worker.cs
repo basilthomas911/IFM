@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Application.ScheduledTask.Shared;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose;
 
@@ -16,6 +17,7 @@ public sealed class Worker(
     ScheduledTaskOutcome outcome,
     ILogger<Worker> logger,
     IApplicationCommandApi applicationCommandApi,
+    INatsJetStreamEndOfDayMaintenance jetStreamMaintenance,
     IDatabaseBackupCommandApi databaseBackupCommandApi,
     IActorProducer actorProducer,
     IConfiguration configuration) : OneShotScheduledTaskWorker(lifetime, outcome, logger)
@@ -27,14 +29,31 @@ public sealed class Worker(
             stoppingToken).ConfigureAwait(false);
         try
         {
-            logger.LogInformation("Shutting down IFM application services before the scheduled protection-set backup.");
+            logger.LogInformation("Recording the IFM end-of-day lifecycle request before JetStream maintenance and protection-set backup submission.");
             var shutdownResult = await applicationCommandApi
                 .ShutdownApplicationAsync(DateOnly.FromDateTime(DateTime.UtcNow))
                 .ConfigureAwait(false);
             if (!shutdownResult.Success)
                 throw new InvalidOperationException(
                     $"The application shutdown command was rejected: {shutdownResult.ErrorMessage}");
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken).ConfigureAwait(false);
+            Exception? purgeFailure = null;
+            try
+            {
+                var purgeResult = await jetStreamMaintenance
+                    .PurgeCompletedMessagesAsync(stoppingToken)
+                    .ConfigureAwait(false);
+                logger.LogInformation(
+                    "End-of-day JetStream maintenance purged {MessageCount} completed transport messages from {StreamCount} production streams.",
+                    purgeResult.PurgedMessages,
+                    purgeResult.Streams.Count);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                purgeFailure = exception;
+                logger.LogError(
+                    exception,
+                    "End-of-day JetStream maintenance failed. The blocked stream and all later streams were retained; database backups will still be submitted.");
+            }
 
             var protectionSets = configuration
                 .GetSection("DatabaseBackup:ProtectionSets")
@@ -79,6 +98,11 @@ public sealed class Worker(
                     result.Value.OperationId.Format(),
                     protectionSet);
             }
+
+            if (purgeFailure is not null)
+                throw new InvalidOperationException(
+                    "End-of-day JetStream maintenance failed after database backups were submitted.",
+                    purgeFailure);
         }
         finally
         {

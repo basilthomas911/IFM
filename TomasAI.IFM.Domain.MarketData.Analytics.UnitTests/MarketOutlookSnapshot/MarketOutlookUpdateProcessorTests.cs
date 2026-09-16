@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Proces
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -280,6 +281,99 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Vwap_update_is_composed_into_the_current_snapshot()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+
+        runtime.Channel.Submit(Eod());
+        runtime.Channel.Submit(Vwap(5_430m));
+        await runtime.DrainAsync();
+
+        runtime.Cache.TryGetCurrent(Id, out var current).Should().BeTrue();
+        current.FuturesVwapSignal.Should().NotBeNull();
+        current.FuturesVwapSignal!.Vwap.Should().Be(5_430m);
+        current.VwapAvailability.Should().Be(MarketOutlookInputAvailability.Available);
+        var metrics = runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Vwap];
+        metrics.Applied.Should().Be(1);
+        metrics.Published.Should().Be(1);
+    }
+    [Fact]
+    public async Task Five_minute_adx_atr_and_macd_updates_are_composed_into_the_current_snapshot()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var now = DateTime.UtcNow;
+
+        runtime.Channel.Submit(Eod());
+        runtime.Channel.Submit(new AdxMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = now,
+            MarketDataAsOfUtc = now,
+            Signal = new FuturesAdxSignalReadModel
+            {
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                PeriodLength = FuturesIntradaySignalActivationProfile.AdxPeriodLength,
+                AdxValue = 30d,
+                PlusDI = 25d,
+                MinusDI = 15d,
+                IsWarm = true
+            },
+            EventSource = "unit-test-adx"
+        });
+        runtime.Channel.Submit(new AtrMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = now,
+            MarketDataAsOfUtc = now,
+            Signal = new FuturesAtrSignalReadModel
+            {
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                PeriodLength = FuturesIntradaySignalActivationProfile.AtrPeriodLength,
+                AtrValue = 8d,
+                AtrRatio = 1d,
+                IsWarm = true
+            },
+            EventSource = "unit-test-atr"
+        });
+        runtime.Channel.Submit(new MacdMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = now,
+            MarketDataAsOfUtc = now,
+            Signal = new FuturesMacdSignalReadModel
+            {
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                SignalEmaPeriod = FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+                FastEmaPeriod = FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+                SlowEmaPeriod = FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+                Histogram = 2.5d,
+                IsWarm = true
+            },
+            EventSource = "unit-test-macd"
+        });
+        await runtime.DrainAsync();
+
+        runtime.Cache.TryGetCurrent(Id, out var current).Should().BeTrue();
+        current.FuturesAdxSignal.Should().NotBeNull();
+        current.FuturesAtrSignal.Should().NotBeNull();
+        current.FuturesMacdSignal.Should().NotBeNull();
+        current.AdxAvailability.Should().Be(MarketOutlookInputAvailability.Available);
+        current.AtrAvailability.Should().Be(MarketOutlookInputAvailability.Available);
+        current.MacdAvailability.Should().Be(MarketOutlookInputAvailability.Available);
+        runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Adx].Applied.Should().Be(1);
+        runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Atr].Applied.Should().Be(1);
+        runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Macd].Applied.Should().Be(1);
+    }
+    [Fact]
     public async Task Hydration_then_warmup_publishes_one_merged_snapshot()
     {
         await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
@@ -458,6 +552,31 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         };
     }
 
+    static VwapMarketOutlookUpdate Vwap(decimal value)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new()
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = now.UtcDateTime,
+            MarketDataAsOfUtc = now.UtcDateTime,
+            Signal = new FuturesVwapSignalReadModel
+            {
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate,
+                AsOfUtc = now,
+                Vwap = value,
+                IsWarm = true,
+                IsValid = true,
+                IsTickExact = true,
+                LastTradeSourceSequence = 10,
+                StreamEpochId = Guid.NewGuid(),
+                LastTradeOrdinal = 10
+            },
+            EventSource = "unit-test-vwap"
+        };
+    }
     static EodMarketOutlookUpdate Eod(DateTime? marketTime = null)
     {
         var now = marketTime ?? DateTime.UtcNow;

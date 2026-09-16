@@ -2,9 +2,6 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -43,9 +40,21 @@ public class FuturesEodDataUIViewModel
         UpperBand = $"{e.UpperBand:F2}";
         Mean = $"{e.Mean:F2}";
         LowerBand = $"{e.LowerBand:F2}";
+        Vwap = Unavailable;
+        VwapForeColor = PresentationColorRole.LightText;
+        VwapBackColor = PresentationColorRole.Default;
         MDI = $"{e.MarketDirectionIndicator:F4}";
         MDIForeColor = PresentationColorRole.DarkText;
         MDIBackColor = GetMDIBackColor();
+        Adx = Unavailable;
+        AdxForeColor = PresentationColorRole.LightText;
+        AdxBackColor = PresentationColorRole.Default;
+        Atr = Unavailable;
+        AtrForeColor = PresentationColorRole.LightText;
+        AtrBackColor = PresentationColorRole.Default;
+        Macd = Unavailable;
+        MacdForeColor = PresentationColorRole.LightText;
+        MacdBackColor = PresentationColorRole.Default;
         return;
 
         PresentationColorRole GetMarketDirectionBackColor()
@@ -117,6 +126,61 @@ public class FuturesEodDataUIViewModel
             MDI = Unavailable;
             MDIBackColor = PresentationColorRole.Default;
         }
+
+        if (snapshot.FuturesVwapSignal is { IsWarm: true, IsValid: true, Vwap: > 0m } vwap)
+        {
+            Vwap = $"{vwap.Vwap.Value:F2}";
+            VwapForeColor = PresentationColorRole.DarkText;
+            VwapBackColor = vwap.Vwap.Value.CompareTo(snapshot.FuturesEodData.ClosePrice) switch
+            {
+                > 0 => PresentationColorRole.Positive,
+                < 0 => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Caution
+            };
+        }
+        else
+        {
+            Vwap = Unavailable;
+            VwapForeColor = PresentationColorRole.LightText;
+            VwapBackColor = PresentationColorRole.Default;
+        }
+
+        if (snapshot.FuturesAdxSignal is { IsWarm: true } adx)
+        {
+            Adx = $"{adx.AdxValue:F2}";
+            AdxForeColor = PresentationColorRole.DarkText;
+            AdxBackColor = adx.AdxValue < 25d
+                ? PresentationColorRole.Caution
+                : adx.PlusDI > adx.MinusDI
+                    ? PresentationColorRole.Positive
+                    : adx.MinusDI > adx.PlusDI
+                        ? PresentationColorRole.Negative
+                        : PresentationColorRole.Caution;
+        }
+
+        if (snapshot.FuturesAtrSignal is { IsWarm: true, AtrRatio: { } atrRatio } atr)
+        {
+            Atr = $"{atr.AtrValue:F2}";
+            AtrForeColor = PresentationColorRole.DarkText;
+            AtrBackColor = atrRatio switch
+            {
+                < 0.60d or > 1.50d => PresentationColorRole.Negative,
+                < 0.80d or > 1.25d => PresentationColorRole.Caution,
+                _ => PresentationColorRole.Positive
+            };
+        }
+
+        if (snapshot.FuturesMacdSignal is { IsWarm: true } macd)
+        {
+            Macd = $"{macd.Histogram:F2}";
+            MacdForeColor = PresentationColorRole.DarkText;
+            MacdBackColor = macd.Histogram switch
+            {
+                >= 2d => PresentationColorRole.Positive,
+                <= -2d => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Caution
+            };
+        }
     }
 
     public string MarketDirection { get; private set; }
@@ -143,7 +207,19 @@ public class FuturesEodDataUIViewModel
     public string UpperBand { get; private set; }
     public string Mean { get; private set; }
     public string LowerBand { get; private set; }
+    public string Vwap { get; private set; }
+    public PresentationColorRole VwapForeColor { get; private set; }
+    public PresentationColorRole VwapBackColor { get; private set; }
     public string MDI { get; private set; }
     public PresentationColorRole MDIForeColor { get; private set; }
     public PresentationColorRole MDIBackColor { get; private set; }
+    public string Adx { get; private set; }
+    public PresentationColorRole AdxForeColor { get; private set; }
+    public PresentationColorRole AdxBackColor { get; private set; }
+    public string Atr { get; private set; }
+    public PresentationColorRole AtrForeColor { get; private set; }
+    public PresentationColorRole AtrBackColor { get; private set; }
+    public string Macd { get; private set; }
+    public PresentationColorRole MacdForeColor { get; private set; }
+    public PresentationColorRole MacdBackColor { get; private set; }
 }

@@ -58,6 +58,9 @@ public record FuturesAdxSignalReadModel
     /// <summary>Gets shared observation lineage for migrated ADX calculations.</summary>
     [Key(11)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
 
+    /// <summary>Gets whether the configured ADX observation period has completed.</summary>
+    [Key(12)] public bool IsWarm { get; init; }
+
     /// <summary>
     /// Entity identifier consisting of contract id, value date, and time period (not serialized).
     /// </summary>

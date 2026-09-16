@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -22,7 +23,11 @@ public enum MarketOutlookComponentType : byte
     BollingerBand,
     EsTrade,
     TradeSignal,
-    FeedHealth
+    FeedHealth,
+    Vwap,
+    Adx,
+    Atr,
+    Macd
 }
 
 /// <summary>
@@ -56,6 +61,10 @@ public sealed record MarketOutlookInputState
     public decimal? VixFuturesPrice { get; init; }
     public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
     public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
+    public FuturesVwapSignalReadModel? FuturesVwapSignal { get; init; }
+    public FuturesAdxSignalReadModel? FuturesAdxSignal { get; init; }
+    public FuturesAtrSignalReadModel? FuturesAtrSignal { get; init; }
+    public FuturesMacdSignalReadModel? FuturesMacdSignal { get; init; }
     public decimal? CurrentEsPrice { get; init; }
     public DateTime MarketDataAsOfUtc { get; init; }
     public string FeedHealth { get; init; } = "Unavailable";

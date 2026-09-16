@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -70,6 +71,14 @@ public sealed record MarketOutlookReadModel
     [Key(23)] public string FeedHealth { get; init; } = "Unknown";
     [Key(24)] public string FeedHealthReason { get; init; } = string.Empty;
     [Key(25)] public MarketOutlookSnapshotSource SnapshotSource { get; init; }
+    [Key(26)] public FuturesVwapSignalReadModel? FuturesVwapSignal { get; init; }
+    [Key(27)] public MarketOutlookInputAvailability VwapAvailability { get; init; }
+    [Key(28)] public FuturesAdxSignalReadModel? FuturesAdxSignal { get; init; }
+    [Key(29)] public MarketOutlookInputAvailability AdxAvailability { get; init; }
+    [Key(30)] public FuturesAtrSignalReadModel? FuturesAtrSignal { get; init; }
+    [Key(31)] public MarketOutlookInputAvailability AtrAvailability { get; init; }
+    [Key(32)] public FuturesMacdSignalReadModel? FuturesMacdSignal { get; init; }
+    [Key(33)] public MarketOutlookInputAvailability MacdAvailability { get; init; }
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid
@@ -92,5 +101,9 @@ public sealed record MarketOutlookReadModel
             || LatestItiTrendSignal is not null
             || VixFuturesPrice > 0
             || FuturesEmaSignal is not null
-            || FuturesBbSignal is not null);
+            || FuturesBbSignal is not null
+            || FuturesVwapSignal is not null
+            || FuturesAdxSignal is not null
+            || FuturesAtrSignal is not null
+            || FuturesMacdSignal is not null);
 }

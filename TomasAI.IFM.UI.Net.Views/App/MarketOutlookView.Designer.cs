@@ -2,12 +2,12 @@ namespace TomasAI.IFM.UI.Net.Views.App
 {
     partial class MarketOutlookView
     {
-        /// <summary> 
+        /// <summary>
         /// Required designer variable.
         /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        /// <summary> 
+        /// <summary>
         /// Clean up any resources being used.
         /// </summary>
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
@@ -22,8 +22,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
 
         #region Component Designer generated code
 
-        /// <summary> 
-        /// Required method for Designer support - do not modify 
+        /// <summary>
+        /// Required method for Designer support - do not modify
         /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent()
@@ -39,8 +39,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblMarketVolatilityRt = new Label();
             tlpMarketData = new TableLayoutPanel();
             lblTdiStrength = new Label();
-            lblMDIUpLimit = new Label();
-            lblMDITrend = new Label();
+            lblAtr = new Label();
+            lblAdx = new Label();
             lblOpenRT = new Label();
             lblHighRT = new Label();
             lblLowRT = new Label();
@@ -69,14 +69,14 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblItiTrend = new Label();
             lblMdi = new Label();
             txtMDI = new TextBox();
-            txtMDITrend = new TextBox();
-            txtMDIUpLimit = new TextBox();
-            txtMDIDownLimit = new TextBox();
+            txtAdx = new TextBox();
+            txtAtr = new TextBox();
+            txtMacd = new TextBox();
             txtRSI = new TextBox();
-            lblMDIDownLimit = new Label();
+            lblMacd = new Label();
             tlpMarketTrendData = new TableLayoutPanel();
-            txtTrendDelta = new TextBox();
-            lblTrendDelta = new Label();
+            txtVwap = new TextBox();
+            lblVwap = new Label();
             lblTrendReversal = new Label();
             lblUpTrendLimit = new Label();
             txtReversalLimit = new TextBox();
@@ -89,9 +89,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketData.SuspendLayout();
             tlpMarketTrendData.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // tlpMarketOutlook
-            // 
+            //
             tlpMarketOutlook.BackColor = Color.Black;
             tlpMarketOutlook.BackgroundImageLayout = ImageLayout.None;
             tlpMarketOutlook.ColumnCount = 4;
@@ -117,9 +117,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tlpMarketOutlook.Size = new Size(621, 54);
             tlpMarketOutlook.TabIndex = 0;
-            // 
+            //
             // lblVixVolRT
-            // 
+            //
             lblVixVolRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblVixVolRT.AutoSize = true;
             lblVixVolRT.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -131,9 +131,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblVixVolRT.TabIndex = 48;
             lblVixVolRT.Text = "     Price Volatility";
             lblVixVolRT.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // lblMarketTrendRT
-            // 
+            //
             lblMarketTrendRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblMarketTrendRT.AutoSize = true;
             lblMarketTrendRT.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -146,9 +146,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblMarketTrendRT.Text = "    Market Direction";
             lblMarketTrendRT.TextAlign = ContentAlignment.BottomCenter;
             lblMarketTrendRT.Click += lblMarketTrendRT_Click;
-            // 
+            //
             // txtVixVolRT
-            // 
+            //
             txtVixVolRT.BackColor = Color.Black;
             txtVixVolRT.BorderStyle = BorderStyle.FixedSingle;
             txtVixVolRT.Font = new Font("Microsoft Sans Serif", 11F, FontStyle.Bold);
@@ -160,9 +160,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtVixVolRT.Size = new Size(150, 24);
             txtVixVolRT.TabIndex = 44;
             txtVixVolRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtMarketDirectionRT
-            // 
+            //
             txtMarketDirectionRT.BackColor = Color.Black;
             txtMarketDirectionRT.BorderStyle = BorderStyle.FixedSingle;
             txtMarketDirectionRT.Dock = DockStyle.Fill;
@@ -175,9 +175,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtMarketDirectionRT.Size = new Size(151, 24);
             txtMarketDirectionRT.TabIndex = 43;
             txtMarketDirectionRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtMarketTrendRT
-            // 
+            //
             txtMarketTrendRT.BackColor = Color.Black;
             txtMarketTrendRT.BorderStyle = BorderStyle.FixedSingle;
             txtMarketTrendRT.Dock = DockStyle.Top;
@@ -190,9 +190,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtMarketTrendRT.Size = new Size(151, 24);
             txtMarketTrendRT.TabIndex = 26;
             txtMarketTrendRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblMarketDirectionRT
-            // 
+            //
             lblMarketDirectionRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblMarketDirectionRT.AutoSize = true;
             lblMarketDirectionRT.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -204,9 +204,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblMarketDirectionRT.TabIndex = 47;
             lblMarketDirectionRT.Text = "       Price Direction";
             lblMarketDirectionRT.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // txtMarketVolatilityRT
-            // 
+            //
             txtMarketVolatilityRT.BackColor = Color.Black;
             txtMarketVolatilityRT.BorderStyle = BorderStyle.FixedSingle;
             txtMarketVolatilityRT.Dock = DockStyle.Fill;
@@ -220,9 +220,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtMarketVolatilityRT.TabIndex = 42;
             txtMarketVolatilityRT.Text = "   ";
             txtMarketVolatilityRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblMarketVolatilityRt
-            // 
+            //
             lblMarketVolatilityRt.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblMarketVolatilityRt.AutoSize = true;
             lblMarketVolatilityRt.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -234,9 +234,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblMarketVolatilityRt.TabIndex = 46;
             lblMarketVolatilityRt.Text = "    Market Volatility";
             lblMarketVolatilityRt.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // tlpMarketData
-            // 
+            //
             tlpMarketData.BackColor = Color.Black;
             tlpMarketData.ColumnCount = 6;
             tlpMarketData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16.66667F));
@@ -246,8 +246,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16.66666F));
             tlpMarketData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16.66666F));
             tlpMarketData.Controls.Add(lblTdiStrength, 5, 4);
-            tlpMarketData.Controls.Add(lblMDIUpLimit, 3, 4);
-            tlpMarketData.Controls.Add(lblMDITrend, 2, 4);
+            tlpMarketData.Controls.Add(lblAtr, 3, 4);
+            tlpMarketData.Controls.Add(lblAdx, 2, 4);
             tlpMarketData.Controls.Add(lblOpenRT, 0, 0);
             tlpMarketData.Controls.Add(lblHighRT, 1, 0);
             tlpMarketData.Controls.Add(lblLowRT, 2, 0);
@@ -262,25 +262,25 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketData.Controls.Add(txtPercentChangeRT, 5, 1);
             tlpMarketData.Controls.Add(lblStdDevRT, 0, 2);
             tlpMarketData.Controls.Add(lblUpperBandRT, 1, 2);
-            tlpMarketData.Controls.Add(lblMeanRT, 2, 2);
-            tlpMarketData.Controls.Add(lblLowerBandRT, 3, 2);
+            tlpMarketData.Controls.Add(lblMeanRT, 3, 2);
+            tlpMarketData.Controls.Add(lblLowerBandRT, 2, 2);
             tlpMarketData.Controls.Add(lbl50Dma, 4, 2);
             tlpMarketData.Controls.Add(lbl200Dma, 5, 2);
             tlpMarketData.Controls.Add(txtStdDevRT, 0, 3);
             tlpMarketData.Controls.Add(txtUpperBandRT, 1, 3);
-            tlpMarketData.Controls.Add(txtMeanRT, 2, 3);
-            tlpMarketData.Controls.Add(txtLowerBandRT, 3, 3);
+            tlpMarketData.Controls.Add(txtMeanRT, 3, 3);
+            tlpMarketData.Controls.Add(txtLowerBandRT, 2, 3);
             tlpMarketData.Controls.Add(txt50DMA, 4, 3);
             tlpMarketData.Controls.Add(txt200DMA, 5, 3);
-            tlpMarketData.Controls.Add(txtTrend, 0, 5);
-            tlpMarketData.Controls.Add(lblItiTrend, 0, 4);
+            tlpMarketData.Controls.Add(txtVwap, 0, 5);
+            tlpMarketData.Controls.Add(lblVwap, 0, 4);
             tlpMarketData.Controls.Add(lblMdi, 1, 4);
             tlpMarketData.Controls.Add(txtMDI, 1, 5);
-            tlpMarketData.Controls.Add(txtMDITrend, 2, 5);
-            tlpMarketData.Controls.Add(txtMDIUpLimit, 3, 5);
-            tlpMarketData.Controls.Add(txtMDIDownLimit, 4, 5);
+            tlpMarketData.Controls.Add(txtAdx, 2, 5);
+            tlpMarketData.Controls.Add(txtAtr, 3, 5);
+            tlpMarketData.Controls.Add(txtMacd, 4, 5);
             tlpMarketData.Controls.Add(txtRSI, 5, 5);
-            tlpMarketData.Controls.Add(lblMDIDownLimit, 4, 4);
+            tlpMarketData.Controls.Add(lblMacd, 4, 4);
             tlpMarketData.Dock = DockStyle.Top;
             tlpMarketData.Location = new Point(0, 54);
             tlpMarketData.Margin = new Padding(4, 3, 4, 3);
@@ -294,9 +294,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
             tlpMarketData.Size = new Size(621, 200);
             tlpMarketData.TabIndex = 1;
-            // 
+            //
             // lblTdiStrength
-            // 
+            //
             lblTdiStrength.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblTdiStrength.AutoSize = true;
             lblTdiStrength.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -309,35 +309,35 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblTdiStrength.Text = "        RSI";
             lblTdiStrength.TextAlign = ContentAlignment.BottomCenter;
             lblTdiStrength.Click += lblTdiStrength_Click;
-            // 
-            // lblMDIUpLimit
-            // 
-            lblMDIUpLimit.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            lblMDIUpLimit.AutoSize = true;
-            lblMDIUpLimit.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblMDIUpLimit.ForeColor = Color.White;
-            lblMDIUpLimit.Location = new Point(313, 149);
-            lblMDIUpLimit.Margin = new Padding(4, 0, 4, 0);
-            lblMDIUpLimit.Name = "lblMDIUpLimit";
-            lblMDIUpLimit.Size = new Size(74, 16);
-            lblMDIUpLimit.TabIndex = 33;
-            lblMDIUpLimit.Text = "    MDI Up";
-            // 
-            // lblMDITrend
-            // 
-            lblMDITrend.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            lblMDITrend.AutoSize = true;
-            lblMDITrend.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblMDITrend.ForeColor = Color.White;
-            lblMDITrend.Location = new Point(210, 149);
-            lblMDITrend.Margin = new Padding(4, 0, 4, 0);
-            lblMDITrend.Name = "lblMDITrend";
-            lblMDITrend.Size = new Size(79, 16);
-            lblMDITrend.TabIndex = 32;
-            lblMDITrend.Text = "MDI Trend";
-            // 
+            //
+            // lblAtr
+            //
+            lblAtr.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            lblAtr.AutoSize = true;
+            lblAtr.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblAtr.ForeColor = Color.White;
+            lblAtr.Location = new Point(313, 149);
+            lblAtr.Margin = new Padding(4, 0, 4, 0);
+            lblAtr.Name = "lblAtr";
+            lblAtr.Size = new Size(74, 16);
+            lblAtr.TabIndex = 33;
+            lblAtr.Text = "ATR";
+            //
+            // lblAdx
+            //
+            lblAdx.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            lblAdx.AutoSize = true;
+            lblAdx.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblAdx.ForeColor = Color.White;
+            lblAdx.Location = new Point(210, 149);
+            lblAdx.Margin = new Padding(4, 0, 4, 0);
+            lblAdx.Name = "lblAdx";
+            lblAdx.Size = new Size(79, 16);
+            lblAdx.TabIndex = 32;
+            lblAdx.Text = "ADX";
+            //
             // lblOpenRT
-            // 
+            //
             lblOpenRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblOpenRT.AutoSize = true;
             lblOpenRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -349,9 +349,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblOpenRT.TabIndex = 0;
             lblOpenRT.Text = "     Open";
             lblOpenRT.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            //
             // lblHighRT
-            // 
+            //
             lblHighRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblHighRT.AutoSize = true;
             lblHighRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -362,9 +362,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblHighRT.Size = new Size(71, 17);
             lblHighRT.TabIndex = 1;
             lblHighRT.Text = "      High";
-            // 
+            //
             // lblLowRT
-            // 
+            //
             lblLowRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblLowRT.AutoSize = true;
             lblLowRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -375,9 +375,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblLowRT.Size = new Size(66, 17);
             lblLowRT.TabIndex = 2;
             lblLowRT.Text = "      Low";
-            // 
+            //
             // txtOpenRT
-            // 
+            //
             txtOpenRT.BackColor = Color.Black;
             txtOpenRT.BorderStyle = BorderStyle.FixedSingle;
             txtOpenRT.Dock = DockStyle.Fill;
@@ -389,9 +389,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtOpenRT.Size = new Size(95, 20);
             txtOpenRT.TabIndex = 3;
             txtOpenRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblCloseRT
-            // 
+            //
             lblCloseRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblCloseRT.AutoSize = true;
             lblCloseRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -402,9 +402,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblCloseRT.Size = new Size(73, 17);
             lblCloseRT.TabIndex = 4;
             lblCloseRT.Text = "     Close";
-            // 
+            //
             // lblVolumeRT
-            // 
+            //
             lblVolumeRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblVolumeRT.AutoSize = true;
             lblVolumeRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -415,9 +415,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblVolumeRT.Size = new Size(76, 17);
             lblVolumeRT.TabIndex = 5;
             lblVolumeRT.Text = "   Volume";
-            // 
+            //
             // lblPercentChangeRT
-            // 
+            //
             lblPercentChangeRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblPercentChangeRT.AutoSize = true;
             lblPercentChangeRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -428,9 +428,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblPercentChangeRT.Size = new Size(91, 17);
             lblPercentChangeRT.TabIndex = 6;
             lblPercentChangeRT.Text = "  % Change";
-            // 
+            //
             // txtHighRT
-            // 
+            //
             txtHighRT.BackColor = Color.Black;
             txtHighRT.BorderStyle = BorderStyle.FixedSingle;
             txtHighRT.Dock = DockStyle.Fill;
@@ -442,9 +442,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtHighRT.Size = new Size(95, 20);
             txtHighRT.TabIndex = 7;
             txtHighRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtLowRT
-            // 
+            //
             txtLowRT.BackColor = Color.Black;
             txtLowRT.BorderStyle = BorderStyle.FixedSingle;
             txtLowRT.Dock = DockStyle.Fill;
@@ -456,9 +456,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtLowRT.Size = new Size(95, 20);
             txtLowRT.TabIndex = 8;
             txtLowRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtCloseRT
-            // 
+            //
             txtCloseRT.BackColor = Color.Black;
             txtCloseRT.BorderStyle = BorderStyle.FixedSingle;
             txtCloseRT.Dock = DockStyle.Fill;
@@ -470,9 +470,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtCloseRT.Size = new Size(95, 20);
             txtCloseRT.TabIndex = 9;
             txtCloseRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtVolumeRT
-            // 
+            //
             txtVolumeRT.BackColor = Color.Black;
             txtVolumeRT.BorderStyle = BorderStyle.FixedSingle;
             txtVolumeRT.Dock = DockStyle.Fill;
@@ -484,9 +484,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtVolumeRT.Size = new Size(95, 20);
             txtVolumeRT.TabIndex = 10;
             txtVolumeRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtPercentChangeRT
-            // 
+            //
             txtPercentChangeRT.BackColor = Color.Black;
             txtPercentChangeRT.BorderStyle = BorderStyle.FixedSingle;
             txtPercentChangeRT.Dock = DockStyle.Fill;
@@ -498,9 +498,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtPercentChangeRT.Size = new Size(98, 20);
             txtPercentChangeRT.TabIndex = 11;
             txtPercentChangeRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblStdDevRT
-            // 
+            //
             lblStdDevRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblStdDevRT.AutoSize = true;
             lblStdDevRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -512,9 +512,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblStdDevRT.TabIndex = 12;
             lblStdDevRT.Text = "    Std Dev";
             lblStdDevRT.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // lblUpperBandRT
-            // 
+            //
             lblUpperBandRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblUpperBandRT.AutoSize = true;
             lblUpperBandRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -525,35 +525,35 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblUpperBandRT.Size = new Size(82, 17);
             lblUpperBandRT.TabIndex = 13;
             lblUpperBandRT.Text = "     Upper ";
-            // 
+            //
             // lblMeanRT
-            // 
+            //
             lblMeanRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblMeanRT.AutoSize = true;
             lblMeanRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblMeanRT.ForeColor = Color.White;
-            lblMeanRT.Location = new Point(210, 82);
+            lblMeanRT.Location = new Point(313, 82);
             lblMeanRT.Margin = new Padding(4, 0, 4, 0);
             lblMeanRT.Name = "lblMeanRT";
             lblMeanRT.Size = new Size(77, 17);
             lblMeanRT.TabIndex = 14;
-            lblMeanRT.Text = "      Mean";
-            // 
+            lblMeanRT.Text = "   20 EMA";
+            //
             // lblLowerBandRT
-            // 
+            //
             lblLowerBandRT.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblLowerBandRT.AutoSize = true;
             lblLowerBandRT.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblLowerBandRT.ForeColor = Color.White;
-            lblLowerBandRT.Location = new Point(313, 82);
+            lblLowerBandRT.Location = new Point(210, 82);
             lblLowerBandRT.Margin = new Padding(4, 0, 4, 0);
             lblLowerBandRT.Name = "lblLowerBandRT";
             lblLowerBandRT.Size = new Size(71, 17);
             lblLowerBandRT.TabIndex = 15;
             lblLowerBandRT.Text = "    Lower";
-            // 
+            //
             // lbl50Dma
-            // 
+            //
             lbl50Dma.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lbl50Dma.AutoSize = true;
             lbl50Dma.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -564,9 +564,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lbl50Dma.Size = new Size(79, 17);
             lbl50Dma.TabIndex = 16;
             lbl50Dma.Text = "   50 EMA";
-            // 
+            //
             // lbl200Dma
-            // 
+            //
             lbl200Dma.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lbl200Dma.AutoSize = true;
             lbl200Dma.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -578,9 +578,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lbl200Dma.TabIndex = 17;
             lbl200Dma.Text = "  200 EMA";
             lbl200Dma.Click += lblRiskPosition_Click;
-            // 
+            //
             // txtStdDevRT
-            // 
+            //
             txtStdDevRT.BackColor = Color.Black;
             txtStdDevRT.BorderStyle = BorderStyle.FixedSingle;
             txtStdDevRT.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -591,9 +591,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtStdDevRT.Size = new Size(95, 20);
             txtStdDevRT.TabIndex = 18;
             txtStdDevRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtUpperBandRT
-            // 
+            //
             txtUpperBandRT.BackColor = Color.Black;
             txtUpperBandRT.BorderStyle = BorderStyle.FixedSingle;
             txtUpperBandRT.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -604,35 +604,35 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtUpperBandRT.Size = new Size(95, 20);
             txtUpperBandRT.TabIndex = 19;
             txtUpperBandRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtMeanRT
-            // 
+            //
             txtMeanRT.BackColor = Color.Black;
             txtMeanRT.BorderStyle = BorderStyle.FixedSingle;
             txtMeanRT.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtMeanRT.ForeColor = Color.White;
-            txtMeanRT.Location = new Point(210, 102);
+            txtMeanRT.Location = new Point(313, 102);
             txtMeanRT.Margin = new Padding(4, 3, 4, 3);
             txtMeanRT.Name = "txtMeanRT";
             txtMeanRT.Size = new Size(95, 20);
-            txtMeanRT.TabIndex = 20;
+            txtMeanRT.TabIndex = 21;
             txtMeanRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtLowerBandRT
-            // 
+            //
             txtLowerBandRT.BackColor = Color.Black;
             txtLowerBandRT.BorderStyle = BorderStyle.FixedSingle;
             txtLowerBandRT.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtLowerBandRT.ForeColor = Color.White;
-            txtLowerBandRT.Location = new Point(313, 102);
+            txtLowerBandRT.Location = new Point(210, 102);
             txtLowerBandRT.Margin = new Padding(4, 3, 4, 3);
             txtLowerBandRT.Name = "txtLowerBandRT";
             txtLowerBandRT.Size = new Size(95, 20);
-            txtLowerBandRT.TabIndex = 21;
+            txtLowerBandRT.TabIndex = 20;
             txtLowerBandRT.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txt50DMA
-            // 
+            //
             txt50DMA.BackColor = Color.Black;
             txt50DMA.BorderStyle = BorderStyle.FixedSingle;
             txt50DMA.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -643,9 +643,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txt50DMA.Size = new Size(95, 20);
             txt50DMA.TabIndex = 22;
             txt50DMA.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txt200DMA
-            // 
+            //
             txt200DMA.BackColor = Color.Black;
             txt200DMA.BorderStyle = BorderStyle.FixedSingle;
             txt200DMA.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -657,36 +657,37 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txt200DMA.TabIndex = 23;
             txt200DMA.TextAlign = HorizontalAlignment.Center;
             txt200DMA.TextChanged += txt200DMA_TextChanged;
-            // 
+            //
             // txtTrend
-            // 
+            //
             txtTrend.BackColor = Color.Black;
             txtTrend.BorderStyle = BorderStyle.FixedSingle;
-            txtTrend.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            txtTrend.Font = new Font("Microsoft Sans Serif", 11F, FontStyle.Bold);
             txtTrend.ForeColor = Color.White;
-            txtTrend.Location = new Point(4, 168);
-            txtTrend.Margin = new Padding(4, 3, 4, 3);
+            txtTrend.Location = new Point(498, 25);
+            txtTrend.Margin = new Padding(2);
             txtTrend.Name = "txtTrend";
-            txtTrend.Size = new Size(95, 20);
-            txtTrend.TabIndex = 24;
+            txtTrend.ReadOnly = true;
+            txtTrend.Size = new Size(119, 24);
+            txtTrend.TabIndex = 50;
             txtTrend.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblItiTrend
-            // 
+            //
             lblItiTrend.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblItiTrend.AutoSize = true;
-            lblItiTrend.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblItiTrend.Font = new Font("Microsoft Sans Serif", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblItiTrend.ForeColor = Color.White;
-            lblItiTrend.Location = new Point(4, 149);
-            lblItiTrend.Margin = new Padding(4, 0, 4, 0);
+            lblItiTrend.Location = new Point(496, 8);
+            lblItiTrend.Margin = new Padding(0);
             lblItiTrend.Name = "lblItiTrend";
-            lblItiTrend.Size = new Size(86, 16);
-            lblItiTrend.TabIndex = 25;
-            lblItiTrend.Text = "    ITI Trend";
-            lblItiTrend.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            lblItiTrend.Size = new Size(113, 15);
+            lblItiTrend.TabIndex = 49;
+            lblItiTrend.Text = "Trend Direction";
+            lblItiTrend.TextAlign = ContentAlignment.BottomCenter;
+            //
             // lblMdi
-            // 
+            //
             lblMdi.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblMdi.AutoSize = true;
             lblMdi.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -697,9 +698,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblMdi.Size = new Size(54, 16);
             lblMdi.TabIndex = 26;
             lblMdi.Text = "     MDI";
-            // 
+            //
             // txtMDI
-            // 
+            //
             txtMDI.BackColor = Color.Black;
             txtMDI.BorderStyle = BorderStyle.FixedSingle;
             txtMDI.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -710,48 +711,48 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtMDI.Size = new Size(95, 20);
             txtMDI.TabIndex = 27;
             txtMDI.TextAlign = HorizontalAlignment.Center;
-            // 
-            // txtMDITrend
-            // 
-            txtMDITrend.BackColor = Color.Black;
-            txtMDITrend.BorderStyle = BorderStyle.FixedSingle;
-            txtMDITrend.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            txtMDITrend.ForeColor = Color.White;
-            txtMDITrend.Location = new Point(210, 168);
-            txtMDITrend.Margin = new Padding(4, 3, 4, 3);
-            txtMDITrend.Name = "txtMDITrend";
-            txtMDITrend.Size = new Size(95, 20);
-            txtMDITrend.TabIndex = 28;
-            txtMDITrend.TextAlign = HorizontalAlignment.Center;
-            // 
-            // txtMDIUpLimit
-            // 
-            txtMDIUpLimit.BackColor = Color.Black;
-            txtMDIUpLimit.BorderStyle = BorderStyle.FixedSingle;
-            txtMDIUpLimit.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            txtMDIUpLimit.ForeColor = Color.White;
-            txtMDIUpLimit.Location = new Point(313, 168);
-            txtMDIUpLimit.Margin = new Padding(4, 3, 4, 3);
-            txtMDIUpLimit.Name = "txtMDIUpLimit";
-            txtMDIUpLimit.Size = new Size(95, 20);
-            txtMDIUpLimit.TabIndex = 29;
-            txtMDIUpLimit.TextAlign = HorizontalAlignment.Center;
-            // 
-            // txtMDIDownLimit
-            // 
-            txtMDIDownLimit.BackColor = Color.Black;
-            txtMDIDownLimit.BorderStyle = BorderStyle.FixedSingle;
-            txtMDIDownLimit.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            txtMDIDownLimit.ForeColor = Color.White;
-            txtMDIDownLimit.Location = new Point(416, 168);
-            txtMDIDownLimit.Margin = new Padding(4, 3, 4, 3);
-            txtMDIDownLimit.Name = "txtMDIDownLimit";
-            txtMDIDownLimit.Size = new Size(95, 20);
-            txtMDIDownLimit.TabIndex = 30;
-            txtMDIDownLimit.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
+            // txtAdx
+            //
+            txtAdx.BackColor = Color.Black;
+            txtAdx.BorderStyle = BorderStyle.FixedSingle;
+            txtAdx.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            txtAdx.ForeColor = Color.White;
+            txtAdx.Location = new Point(210, 168);
+            txtAdx.Margin = new Padding(4, 3, 4, 3);
+            txtAdx.Name = "txtAdx";
+            txtAdx.Size = new Size(95, 20);
+            txtAdx.TabIndex = 28;
+            txtAdx.TextAlign = HorizontalAlignment.Center;
+            //
+            // txtAtr
+            //
+            txtAtr.BackColor = Color.Black;
+            txtAtr.BorderStyle = BorderStyle.FixedSingle;
+            txtAtr.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            txtAtr.ForeColor = Color.White;
+            txtAtr.Location = new Point(313, 168);
+            txtAtr.Margin = new Padding(4, 3, 4, 3);
+            txtAtr.Name = "txtAtr";
+            txtAtr.Size = new Size(95, 20);
+            txtAtr.TabIndex = 29;
+            txtAtr.TextAlign = HorizontalAlignment.Center;
+            //
+            // txtMacd
+            //
+            txtMacd.BackColor = Color.Black;
+            txtMacd.BorderStyle = BorderStyle.FixedSingle;
+            txtMacd.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            txtMacd.ForeColor = Color.White;
+            txtMacd.Location = new Point(416, 168);
+            txtMacd.Margin = new Padding(4, 3, 4, 3);
+            txtMacd.Name = "txtMacd";
+            txtMacd.Size = new Size(95, 20);
+            txtMacd.TabIndex = 30;
+            txtMacd.TextAlign = HorizontalAlignment.Center;
+            //
             // txtRSI
-            // 
+            //
             txtRSI.BackColor = Color.Black;
             txtRSI.BorderStyle = BorderStyle.FixedSingle;
             txtRSI.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -762,22 +763,22 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtRSI.Size = new Size(95, 20);
             txtRSI.TabIndex = 31;
             txtRSI.TextAlign = HorizontalAlignment.Center;
-            // 
-            // lblMDIDownLimit
-            // 
-            lblMDIDownLimit.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            lblMDIDownLimit.AutoSize = true;
-            lblMDIDownLimit.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblMDIDownLimit.ForeColor = Color.White;
-            lblMDIDownLimit.Location = new Point(416, 149);
-            lblMDIDownLimit.Margin = new Padding(4, 0, 4, 0);
-            lblMDIDownLimit.Name = "lblMDIDownLimit";
-            lblMDIDownLimit.Size = new Size(80, 16);
-            lblMDIDownLimit.TabIndex = 34;
-            lblMDIDownLimit.Text = " MDI Down";
-            // 
+            //
+            // lblMacd
+            //
+            lblMacd.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            lblMacd.AutoSize = true;
+            lblMacd.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblMacd.ForeColor = Color.White;
+            lblMacd.Location = new Point(416, 149);
+            lblMacd.Margin = new Padding(4, 0, 4, 0);
+            lblMacd.Name = "lblMacd";
+            lblMacd.Size = new Size(80, 16);
+            lblMacd.TabIndex = 34;
+            lblMacd.Text = "MACD";
+            //
             // tlpMarketTrendData
-            // 
+            //
             tlpMarketTrendData.BackColor = Color.Black;
             tlpMarketTrendData.BackgroundImageLayout = ImageLayout.None;
             tlpMarketTrendData.ColumnCount = 5;
@@ -786,8 +787,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketTrendData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             tlpMarketTrendData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             tlpMarketTrendData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            tlpMarketTrendData.Controls.Add(txtTrendDelta, 4, 1);
-            tlpMarketTrendData.Controls.Add(lblTrendDelta, 4, 0);
+            tlpMarketTrendData.Controls.Add(txtTrend, 4, 1);
+            tlpMarketTrendData.Controls.Add(lblItiTrend, 4, 0);
             tlpMarketTrendData.Controls.Add(lblTrendReversal, 3, 0);
             tlpMarketTrendData.Controls.Add(lblUpTrendLimit, 0, 0);
             tlpMarketTrendData.Controls.Add(txtReversalLimit, 3, 1);
@@ -806,37 +807,37 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketTrendData.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tlpMarketTrendData.Size = new Size(621, 54);
             tlpMarketTrendData.TabIndex = 2;
-            // 
-            // txtTrendDelta
-            // 
-            txtTrendDelta.BackColor = Color.Black;
-            txtTrendDelta.BorderStyle = BorderStyle.FixedSingle;
-            txtTrendDelta.Font = new Font("Microsoft Sans Serif", 11F, FontStyle.Bold);
-            txtTrendDelta.ForeColor = Color.White;
-            txtTrendDelta.Location = new Point(498, 25);
-            txtTrendDelta.Margin = new Padding(2);
-            txtTrendDelta.Name = "txtTrendDelta";
-            txtTrendDelta.ReadOnly = true;
-            txtTrendDelta.Size = new Size(119, 24);
-            txtTrendDelta.TabIndex = 50;
-            txtTrendDelta.TextAlign = HorizontalAlignment.Center;
-            // 
-            // lblTrendDelta
-            // 
-            lblTrendDelta.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            lblTrendDelta.AutoSize = true;
-            lblTrendDelta.Font = new Font("Microsoft Sans Serif", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblTrendDelta.ForeColor = Color.White;
-            lblTrendDelta.Location = new Point(496, 8);
-            lblTrendDelta.Margin = new Padding(0);
-            lblTrendDelta.Name = "lblTrendDelta";
-            lblTrendDelta.Size = new Size(98, 15);
-            lblTrendDelta.TabIndex = 49;
-            lblTrendDelta.Text = "    Trend Delta";
-            lblTrendDelta.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
+            // txtVwap
+            //
+            txtVwap.BackColor = Color.Black;
+            txtVwap.BorderStyle = BorderStyle.FixedSingle;
+            txtVwap.Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            txtVwap.ForeColor = Color.White;
+            txtVwap.Location = new Point(4, 168);
+            txtVwap.Margin = new Padding(4, 3, 4, 3);
+            txtVwap.Name = "txtVwap";
+            txtVwap.ReadOnly = true;
+            txtVwap.Size = new Size(95, 20);
+            txtVwap.TabIndex = 24;
+            txtVwap.TextAlign = HorizontalAlignment.Center;
+            //
+            // lblVwap
+            //
+            lblVwap.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            lblVwap.AutoSize = true;
+            lblVwap.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblVwap.ForeColor = Color.White;
+            lblVwap.Location = new Point(4, 149);
+            lblVwap.Margin = new Padding(4, 0, 4, 0);
+            lblVwap.Name = "lblVwap";
+            lblVwap.Size = new Size(55, 16);
+            lblVwap.TabIndex = 25;
+            lblVwap.Text = "  VWAP";
+            lblVwap.TextAlign = ContentAlignment.MiddleCenter;
+            //
             // lblTrendReversal
-            // 
+            //
             lblTrendReversal.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblTrendReversal.AutoSize = true;
             lblTrendReversal.Font = new Font("Microsoft Sans Serif", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -848,9 +849,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblTrendReversal.TabIndex = 48;
             lblTrendReversal.Text = " Trend Reversal";
             lblTrendReversal.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // lblUpTrendLimit
-            // 
+            //
             lblUpTrendLimit.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblUpTrendLimit.AutoSize = true;
             lblUpTrendLimit.Font = new Font("Microsoft Sans Serif", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -862,9 +863,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblUpTrendLimit.TabIndex = 45;
             lblUpTrendLimit.Text = "  UpTrend Limit ";
             lblUpTrendLimit.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // txtReversalLimit
-            // 
+            //
             txtReversalLimit.BackColor = Color.Black;
             txtReversalLimit.BorderStyle = BorderStyle.FixedSingle;
             txtReversalLimit.Font = new Font("Microsoft Sans Serif", 11F, FontStyle.Bold);
@@ -876,9 +877,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtReversalLimit.Size = new Size(119, 24);
             txtReversalLimit.TabIndex = 44;
             txtReversalLimit.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtExtremeLimit
-            // 
+            //
             txtExtremeLimit.BackColor = Color.Black;
             txtExtremeLimit.BorderStyle = BorderStyle.FixedSingle;
             txtExtremeLimit.Dock = DockStyle.Fill;
@@ -891,9 +892,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtExtremeLimit.Size = new Size(120, 24);
             txtExtremeLimit.TabIndex = 43;
             txtExtremeLimit.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // txtUpTrendLimit
-            // 
+            //
             txtUpTrendLimit.BackColor = Color.Black;
             txtUpTrendLimit.BorderStyle = BorderStyle.FixedSingle;
             txtUpTrendLimit.Dock = DockStyle.Top;
@@ -906,9 +907,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtUpTrendLimit.Size = new Size(120, 24);
             txtUpTrendLimit.TabIndex = 26;
             txtUpTrendLimit.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblTrendExtreme
-            // 
+            //
             lblTrendExtreme.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblTrendExtreme.AutoSize = true;
             lblTrendExtreme.Font = new Font("Microsoft Sans Serif", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -920,9 +921,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblTrendExtreme.TabIndex = 47;
             lblTrendExtreme.Text = "  Trend Extreme";
             lblTrendExtreme.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // txtDownTrendLimit
-            // 
+            //
             txtDownTrendLimit.BackColor = Color.Black;
             txtDownTrendLimit.BorderStyle = BorderStyle.FixedSingle;
             txtDownTrendLimit.Dock = DockStyle.Fill;
@@ -936,9 +937,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtDownTrendLimit.TabIndex = 42;
             txtDownTrendLimit.Text = "   ";
             txtDownTrendLimit.TextAlign = HorizontalAlignment.Center;
-            // 
+            //
             // lblDownTrendLimit
-            // 
+            //
             lblDownTrendLimit.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblDownTrendLimit.AutoSize = true;
             lblDownTrendLimit.Font = new Font("Microsoft Sans Serif", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
@@ -950,9 +951,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblDownTrendLimit.TabIndex = 46;
             lblDownTrendLimit.Text = " DownTrend Limit";
             lblDownTrendLimit.TextAlign = ContentAlignment.BottomCenter;
-            // 
+            //
             // MarketOutlookView
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.Black;
@@ -1010,14 +1011,14 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.TextBox txtTrend;
         private System.Windows.Forms.Label lblItiTrend;
         private System.Windows.Forms.Label lblTdiStrength;
-        private System.Windows.Forms.Label lblMDIDownLimit;
-        private System.Windows.Forms.Label lblMDIUpLimit;
-        private System.Windows.Forms.Label lblMDITrend;
+        private System.Windows.Forms.Label lblMacd;
+        private System.Windows.Forms.Label lblAtr;
+        private System.Windows.Forms.Label lblAdx;
         private System.Windows.Forms.Label lblMdi;
         private System.Windows.Forms.TextBox txtMDI;
-        private System.Windows.Forms.TextBox txtMDITrend;
-        private System.Windows.Forms.TextBox txtMDIUpLimit;
-        private System.Windows.Forms.TextBox txtMDIDownLimit;
+        private System.Windows.Forms.TextBox txtAdx;
+        private System.Windows.Forms.TextBox txtAtr;
+        private System.Windows.Forms.TextBox txtMacd;
         private System.Windows.Forms.TextBox txtRSI;
         private System.Windows.Forms.TableLayoutPanel tlpMarketTrendData;
         private System.Windows.Forms.Label lblTrendReversal;
@@ -1028,7 +1029,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.Label lblTrendExtreme;
         private System.Windows.Forms.TextBox txtDownTrendLimit;
         private System.Windows.Forms.Label lblDownTrendLimit;
-        private System.Windows.Forms.TextBox txtTrendDelta;
-        private System.Windows.Forms.Label lblTrendDelta;
+        private System.Windows.Forms.TextBox txtVwap;
+        private System.Windows.Forms.Label lblVwap;
     }
 }

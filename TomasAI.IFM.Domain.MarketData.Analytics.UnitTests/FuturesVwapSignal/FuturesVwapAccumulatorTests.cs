@@ -111,6 +111,29 @@ public sealed class FuturesVwapAccumulatorTests
     }
 
     [Fact]
+    public void CompletedReplayHandsOffToFirstLiveOrdinalWithoutInvalidation()
+    {
+        var liveEpoch = Guid.NewGuid();
+        var recovered = FuturesVwapAccumulator.ApplyRecovery(
+            EntityId, null, Guid.NewGuid(), 0, true, true,
+            new[] { Trade(1, 100m, 2), Trade(2, 102m, 3) }, Configuration,
+            liveEpoch, 0);
+
+        var live = FuturesVwapAccumulator.ApplyLive(
+            EntityId,
+            recovered.Checkpoint,
+            Trade(1, 104m, 1) with { StreamEpochId = liveEpoch },
+            Configuration);
+
+        Assert.True(recovered.Signal.IsTickExact);
+        Assert.Equal(liveEpoch, recovered.Checkpoint.StreamEpochId);
+        Assert.Equal(0, recovered.Checkpoint.LastTradeOrdinal);
+        Assert.True(live.Signal.IsTickExact);
+        Assert.Equal(3, live.Checkpoint.EligibleTradeCount);
+        Assert.Equal(1, live.Checkpoint.LastTradeOrdinal);
+    }
+
+    [Fact]
     public void PartialRecoveryRemainsExplicitlyInvalid()
     {
         var recovery = FuturesVwapAccumulator.ApplyRecovery(

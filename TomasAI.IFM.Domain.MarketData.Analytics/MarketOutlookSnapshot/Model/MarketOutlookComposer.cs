@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -57,6 +58,10 @@ public static class MarketOutlookComposer
             VixFuturesPrice = state.VixFuturesPrice,
             FuturesEmaSignal = ema,
             FuturesBbSignal = bb,
+            FuturesVwapSignal = state.FuturesVwapSignal,
+            FuturesAdxSignal = state.FuturesAdxSignal,
+            FuturesAtrSignal = state.FuturesAtrSignal,
+            FuturesMacdSignal = state.FuturesMacdSignal,
             EsPriceAvailability = Availability(
                 state, CacheComponentType.EsTrade, state.CurrentEsPrice > 0, true, updatedAtUtc),
             RsiAvailability = state.FuturesRsiSignal switch
@@ -80,6 +85,37 @@ public static class MarketOutlookComposer
                 : ema is null && bb is null
                     ? MarketOutlookInputAvailability.Unavailable
                     : MarketOutlookInputAvailability.Warming,
+            VwapAvailability = state.FuturesVwapSignal switch
+            {
+                null => MarketOutlookInputAvailability.Unavailable,
+                { IsWarm: false } => MarketOutlookInputAvailability.Warming,
+                { IsValid: true, Vwap: > 0m } => Availability(
+                    state, CacheComponentType.Vwap, true, true, updatedAtUtc),
+                _ => MarketOutlookInputAvailability.Invalid
+            },
+            AdxAvailability = state.FuturesAdxSignal switch
+            {
+                null => MarketOutlookInputAvailability.Unavailable,
+                { IsWarm: false } => MarketOutlookInputAvailability.Warming,
+                { Metadata.IsValid: false } => MarketOutlookInputAvailability.Invalid,
+                _ => Availability(state, CacheComponentType.Adx, true, true, updatedAtUtc)
+            },
+            AtrAvailability = state.FuturesAtrSignal switch
+            {
+                null => MarketOutlookInputAvailability.Unavailable,
+                { IsWarm: false } => MarketOutlookInputAvailability.Warming,
+                { AtrRatio: null } => MarketOutlookInputAvailability.Warming,
+                { AtrValue: <= 0d } => MarketOutlookInputAvailability.Invalid,
+                { Metadata.IsValid: false } => MarketOutlookInputAvailability.Invalid,
+                _ => Availability(state, CacheComponentType.Atr, true, true, updatedAtUtc)
+            },
+            MacdAvailability = state.FuturesMacdSignal switch
+            {
+                null => MarketOutlookInputAvailability.Unavailable,
+                { IsWarm: false } => MarketOutlookInputAvailability.Warming,
+                { Metadata.IsValid: false } => MarketOutlookInputAvailability.Invalid,
+                _ => Availability(state, CacheComponentType.Macd, true, true, updatedAtUtc)
+            },
             FeedHealth = FeedHealth(state, updatedAtUtc),
             FeedHealthReason = FeedHealthReason(state)
         };
@@ -189,6 +225,9 @@ public static class MarketOutlookComposer
         if (state.VixFuturesPrice is not > 0) missing.Add("VX price");
         if (ema is not { IsWarm: true }) missing.Add("EMA");
         if (bb is not { IsWarm: true }) missing.Add("Bollinger Bands");
+        if (state.FuturesAdxSignal is not { IsWarm: true }) missing.Add("ADX warming");
+        if (state.FuturesAtrSignal is not { IsWarm: true, AtrRatio: not null }) missing.Add("ATR warming");
+        if (state.FuturesMacdSignal is not { IsWarm: true }) missing.Add("MACD warming");
         return missing;
     }
 }

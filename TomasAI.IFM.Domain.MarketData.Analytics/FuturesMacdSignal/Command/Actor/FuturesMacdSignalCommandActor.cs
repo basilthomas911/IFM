@@ -152,7 +152,7 @@ public class FuturesMacdSignalCommandActor(
                 .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration)
                 .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
-                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
+                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
         },
         [typeof(GenerateFuturesMacdDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesMacdDailySignalCommand)cmd; return new List<ValidationError>()

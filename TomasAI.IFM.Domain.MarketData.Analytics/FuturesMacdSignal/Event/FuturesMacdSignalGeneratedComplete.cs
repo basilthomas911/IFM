@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -21,6 +22,11 @@ public static class FuturesMacdSignalGeneratedComplete
         var source = $"FuturesMacdSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
+            if (e.FuturesMacdSignal is { IsWarm: true } && e.FuturesMacdSignal.Metadata is { IsValid: true })
+            {
+                await ((IEventActorContext<FuturesMacdSignalEventActor>)context)
+                    .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+            }
             return true;
         }
         catch (Exception ex)

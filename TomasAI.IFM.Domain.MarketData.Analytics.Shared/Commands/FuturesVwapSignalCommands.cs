@@ -45,6 +45,10 @@ public sealed record RecoverFuturesVwapSignalCommand : ICommand<FuturesVwapSigna
     [Key(9)] public bool IsFinalBatch { get; init; }
     [Key(10)] public FuturesVwapTradeObservation[] Trades { get; init; } = [];
     [Key(11)] public FuturesVwapConfiguration Configuration { get; init; } = FuturesVwapConfiguration.Standard;
+    /// <summary>Gets the live epoch that immediately follows a completed source replay.</summary>
+    [Key(12)] public Guid LiveStreamEpochId { get; init; }
+    /// <summary>Gets the last live ordinal included in the replay handoff.</summary>
+    [Key(13)] public long LiveTradeOrdinal { get; init; }
     [IgnoreMember] public string CommandName => nameof(RecoverFuturesVwapSignalCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => UpdateFuturesVwapSignalCommand.Actor;

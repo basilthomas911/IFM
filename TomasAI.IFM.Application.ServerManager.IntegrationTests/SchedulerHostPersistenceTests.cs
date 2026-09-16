@@ -115,6 +115,65 @@ public sealed class SchedulerHostPersistenceTests(SchedulerHostPostgresFixture f
     }
 
     [Fact]
+    public async Task Approved_seed_enables_and_reconciles_only_deployment_owned_schedule()
+    {
+        var services = await CreateServicesAsync();
+        await services.Migrator.MigrateAsync(CancellationToken.None);
+        await services.Catalog.SynchronizeSnapshotAsync(CancellationToken.None);
+        var scheduleId = Guid.NewGuid();
+        var seed = new InitialScheduleDefinition
+        {
+            ScheduleDefinitionId = scheduleId,
+            Name = "weekday close",
+            Description = "approved end-of-day cleanup",
+            TaskKey = "helper",
+            Enabled = true,
+            ActivationApprovalReference = "owner approval",
+            Kind = ScheduleKind.Cron,
+            ScheduleExpression = "0 1 17 ? * MON-FRI",
+            TimeZoneId = "America/New_York",
+            MisfirePolicy = SchedulerMisfirePolicy.DoNothing,
+            MaximumRuntimeSeconds = 30
+        };
+        services.Options.InitialSchedules.Add(seed);
+        var provider = new ScheduleSeedProvider(
+            services.Options,
+            services.Catalog,
+            new ScheduleValidationService(services.Options, services.Catalog),
+            services.DataSource);
+
+        await provider.SeedDefinitionsAsync(CancellationToken.None);
+
+        var created = (await services.Store.GetSchedulesAsync(CancellationToken.None)).Single();
+        created.Enabled.Should().BeTrue();
+        created.ScheduleExpression.Should().Be("0 1 17 ? * MON-FRI");
+
+        seed.ScheduleExpression = "0 2 17 ? * MON-FRI";
+        await provider.SeedDefinitionsAsync(CancellationToken.None);
+        var reconciled = (await services.Store.GetSchedulesAsync(CancellationToken.None)).Single();
+        reconciled.ScheduleExpression.Should().Be("0 2 17 ? * MON-FRI");
+        reconciled.Version.Should().Be(2);
+
+        await using (var connection = await services.DataSource.OpenConnectionAsync())
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                UPDATE ifm_scheduler.schedule_definition
+                SET updated_by = 'operator'
+                WHERE schedule_definition_id = $1;
+                """;
+            command.Parameters.AddWithValue(scheduleId);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        seed.ScheduleExpression = "0 3 17 ? * MON-FRI";
+        await provider.SeedDefinitionsAsync(CancellationToken.None);
+        var operatorOwned = (await services.Store.GetSchedulesAsync(CancellationToken.None)).Single();
+        operatorOwned.ScheduleExpression.Should().Be("0 2 17 ? * MON-FRI");
+        operatorOwned.Version.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Recovery_marks_incomplete_run_abandoned_without_retrying_it()
     {
         var services = await CreateServicesAsync();
