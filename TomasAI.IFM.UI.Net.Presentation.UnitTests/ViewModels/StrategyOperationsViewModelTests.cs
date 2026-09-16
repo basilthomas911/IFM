@@ -157,6 +157,31 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
+    public async Task Initialize_DailyGraphIncludesOnlyTheRollingEightHourWindow()
+    {
+        var subject = CreateSubject();
+        var boundary = Signal(TimeFrameType.Daily, 1, IntrinsicTimeModeType.Trending) with
+        {
+            IntrinsicTime = new DateTime(2026, 8, 21, 6, 0, 0, DateTimeKind.Utc)
+        };
+        var expired = Signal(TimeFrameType.Daily, 2, IntrinsicTimeModeType.Trending) with
+        {
+            IntrinsicTime = boundary.IntrinsicTime.AddTicks(-1)
+        };
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(
+                ContractId,
+                ValueDate,
+                TimeFrameType.Daily)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([expired, boundary])));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+
+        subject.ViewModel.Events.Should().ContainSingle()
+            .Which.SequenceId.Should().Be(boundary.SequenceId);
+        await subject.ViewModel.DisposeAsync();
+    }
+    [Fact]
     public async Task DuplicateSignal_DoesNotRepublishUnchangedEventSnapshot()
     {
         var subject = CreateSubject();
@@ -696,7 +721,8 @@ public sealed class StrategyOperationsViewModelTests
                 model,
                 ContractId,
                 ValueDate,
-                timeProvider,
+                timeProvider ?? new ManualTimeProvider(
+                    new DateTimeOffset(2026, 8, 21, 14, 0, 0, TimeSpan.Zero)),
                 reconciliationInterval),
             queryApi,
             eventSource,

@@ -79,6 +79,10 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     public DateOnly ValueDate => _valueDate;
     public IReadOnlyList<TimeFrameType> TimeFrames => SupportedPeriods;
 
+    /// <summary>Gets the exact current UTC interval rendered by the selected ITI graph.</summary>
+    public FuturesItiGraphWindow SelectedGraphWindow =>
+        FuturesItiGraphWindow.Resolve(_timeProvider.GetUtcNow(), SelectedTimeFrame);
+
     public TimeFrameType SelectedTimeFrame
     {
         get => _selectedTimeFrame;
@@ -269,6 +273,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                 await ReconcileSignalPeriodAsync(period, cancellationToken);
                 await ReconcileWorkflowPeriodAsync(period, cancellationToken);
             }
+            PublishSelectedEvents();
+            PublishStatus();
         }
     }
 
@@ -446,9 +452,12 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     void PublishSelectedEvents()
     {
+        var graphWindow = SelectedGraphWindow;
         FuturesItiSignalEventRow[] selected;
         lock (_stateGate)
-            selected = _eventBuffer.Where(row => row.TimePeriod == SelectedTimeFrame).ToArray();
+            selected = _eventBuffer
+                .Where(row => row.TimePeriod == SelectedTimeFrame && graphWindow.Contains(row.OccurredOn))
+                .ToArray();
         Events = selected;
     }
 
@@ -497,8 +506,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             || !SupportedPeriods.Contains(row.TimePeriod))
             return false;
 
-        var window = FuturesItiSignalHistoryWindow.Resolve(_valueDate, row.TimePeriod);
-        return row.ValueDate >= window.StartValueDate && row.ValueDate <= window.EndValueDate;
+        var graphWindow = FuturesItiGraphWindow.Resolve(_timeProvider.GetUtcNow(), row.TimePeriod);
+        return graphWindow.Contains(row.OccurredOn);
     }
 
     bool IsRelevantWorkflow(IntrinsicTimeStrategyWorkflowView view)

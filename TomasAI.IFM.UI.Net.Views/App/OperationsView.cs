@@ -3,10 +3,10 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
@@ -326,7 +326,7 @@ public partial class OperationsView : DarkTradingView
             return;
 
         var strategy = _viewModel.Strategy;
-        ConfigureChartWindow(strategy.ValueDate, strategy.SelectedTimeFrame);
+        ConfigureChartWindow(strategy.SelectedGraphWindow, strategy.SelectedTimeFrame);
 
         foreach (var row in events.OrderBy(static row => row.OccurredOn)
                      .ThenBy(static row => row.SequenceId))
@@ -367,13 +367,10 @@ public partial class OperationsView : DarkTradingView
         return point;
     }
 
-    void ConfigureChartWindow(DateOnly valueDate, TimeFrameType timeFrame)
+    void ConfigureChartWindow(FuturesItiGraphWindow window, TimeFrameType timeFrame)
     {
-        var window = FuturesItiSignalHistoryWindow.Resolve(valueDate, timeFrame);
-        var start = EasternTime.FromUtc(
-            FuturesTradingValueDate.GetSessionStartUtc(window.StartValueDate).UtcDateTime);
-        var end = EasternTime.FromUtc(
-            FuturesTradingValueDate.GetSessionEndUtc(window.EndValueDate).UtcDateTime);
+        var start = EasternTime.FromUtc(window.StartUtc);
+        var end = EasternTime.FromUtc(window.EndUtc);
         var axis = itiChart.ChartAreas[0].AxisX;
         axis.Minimum = start.ToOADate();
         axis.Maximum = end.ToOADate();

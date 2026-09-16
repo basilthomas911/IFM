@@ -5,7 +5,7 @@ public readonly record struct FuturesItiSignalHistoryWindow(
     DateOnly StartValueDate,
     DateOnly EndValueDate)
 {
-    /// <summary>Resolves the trailing Daily, Weekly, or Monthly range ending on <paramref name="valueDate"/>.</summary>
+    /// <summary>Resolves the calendar Daily, Weekly, or Monthly range ending on <paramref name="valueDate"/>.</summary>
     public static FuturesItiSignalHistoryWindow Resolve(
         DateOnly valueDate,
         TimeFrameType timePeriod)
@@ -13,11 +13,12 @@ public readonly record struct FuturesItiSignalHistoryWindow(
         if (valueDate == default)
             throw new ArgumentOutOfRangeException(nameof(valueDate));
 
+        var daysSinceMonday = ((int)valueDate.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
         return timePeriod switch
         {
             TimeFrameType.Daily => new(valueDate, valueDate),
-            TimeFrameType.Weekly => new(valueDate.AddDays(-6), valueDate),
-            TimeFrameType.Monthly => new(valueDate.AddMonths(-1), valueDate),
+            TimeFrameType.Weekly => new(valueDate.AddDays(-daysSinceMonday), valueDate),
+            TimeFrameType.Monthly => new(new DateOnly(valueDate.Year, valueDate.Month, 1), valueDate),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(timePeriod),
                 timePeriod,

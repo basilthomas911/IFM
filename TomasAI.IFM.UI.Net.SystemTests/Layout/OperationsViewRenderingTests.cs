@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.Views.App;
@@ -81,6 +82,28 @@ public sealed class OperationsViewRenderingTests
 
     }
 
+    [Fact]
+    public void StrategyChart_UsesTheExactResolvedGraphWindow()
+    {
+        using var operations = new OperationsView();
+        var chart = operations.Controls.Find("itiChart", true)
+            .OfType<Chart>()
+            .Single();
+        var window = new FuturesItiGraphWindow(
+            new DateTime(2026, 9, 16, 9, 45, 0, DateTimeKind.Utc),
+            new DateTime(2026, 9, 16, 17, 45, 0, DateTimeKind.Utc));
+
+        typeof(OperationsView)
+            .GetMethod("ConfigureChartWindow", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(operations, [window, TimeFrameType.Daily]);
+
+        chart.ChartAreas[0].AxisX.Minimum.Should().BeApproximately(
+            EasternTime.FromUtc(window.StartUtc).ToOADate(),
+            0.000_000_1);
+        chart.ChartAreas[0].AxisX.Maximum.Should().BeApproximately(
+            EasternTime.FromUtc(window.EndUtc).ToOADate(),
+            0.000_000_1);
+    }
     [Fact]
     public void StrategyComposesChartAndWorkflowListAboveDetailsAndSummaryTabs()
     {
