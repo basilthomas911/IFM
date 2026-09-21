@@ -1,5 +1,5 @@
-﻿using TomasAI.IFM.Domain.Fund.Shared;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -19,7 +19,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
 {
     readonly int _fundId;
     readonly DateTime _orderDate;
-    readonly OrderStatus _orderStatus = OrderStatus.Open;
+    readonly PortfolioOrderEditorStatus _orderStatus = PortfolioOrderEditorStatus.Open;
     readonly DateOnly _valueDate;
     readonly IReferenceDataService _referenceDataService;
     readonly MarketDataFeedQueryService _marketDataFeedQueryModel;
@@ -83,7 +83,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     public DateTime OrderDate => _orderDate;
 
     /// <summary>Gets the initial order status.</summary>
-    public OrderStatus OrderStatus => _orderStatus;
+    public PortfolioOrderEditorStatus OrderStatus => _orderStatus;
 
     /// <summary>Gets the trading date.</summary>
     public DateOnly TradeDate
@@ -147,13 +147,13 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     public IAsyncOperation RefreshReferenceOperation { get; }
 
     /// <summary>Gets the immutable domain read model represented by the current editor state.</summary>
-    public FundOrderReadModel FundOrder
+    public PortfolioFundOrderEditorModel FundOrder
     {
         get
         {
             var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-            return new FundOrderReadModel(
+            return new PortfolioFundOrderEditorModel(
                 fundId: _fundId,
                 orderId: OrderId,
                 orderDate: EasternTime.ToUtc(OrderDate),

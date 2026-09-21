@@ -1,6 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Views.Presentation;
@@ -37,8 +37,15 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     public event EventHandler? EndOfDayRequested;
     public event EventHandler? RecalculateRequested;
 
-    public EsTradeBlotterControl(IAppRoot appRoot, FundReadModel fund, FundOrderReadModel order,
-        FundOrderTradeReadModel trade, int portfolioId, bool historicalReadOnly,
+    /// <summary>Initializes a canonical Portfolio Fund trade blotter control.</summary>
+    /// <param name="appRoot">The application service root.</param>
+    /// <param name="fund">The selected canonical Fund.</param>
+    /// <param name="order">The selected canonical order.</param>
+    /// <param name="trade">The selected canonical trade.</param>
+    /// <param name="valueDate">The optional historical value date.</param>
+    /// <param name="baseContracts">The available futures contracts.</param>
+    public EsTradeBlotterControl(IAppRoot appRoot, PortfolioFundEditorModel fund, PortfolioFundOrderEditorModel order,
+        PortfolioFundOrderTradeEditorModel trade, int portfolioId, bool historicalReadOnly,
         BrokerCapabilities? capabilities = null, Control? workflowControl = null)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
@@ -196,7 +203,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         SetSelectorReadOnly(_orderTypeSelector, readOnly);
     }
 
-    private void BindTradeContracts(FundOrderTradeReadModel trade)
+    private void BindTradeContracts(PortfolioFundOrderTradeEditorModel trade)
     {
         var contracts = trade.GetContractIds();
         _sourceLabel.Text += $"; Trade {trade.TradeId}; State {trade.TradeState}; Contracts {string.Join(", ", contracts)}";
@@ -298,8 +305,15 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 /// <summary>Compatibility name retained for existing factory and automation callers.</summary>
 public sealed class BrokerTradeBlotterView : EsTradeBlotterControl
 {
-    public BrokerTradeBlotterView(IAppRoot appRoot, FundReadModel fund, FundOrderReadModel order,
-        FundOrderTradeReadModel trade, int portfolioId, bool historicalReadOnly,
+    /// <summary>Initializes the compatibility-named canonical Portfolio Fund trade blotter.</summary>
+    /// <param name="appRoot">The application service root.</param>
+    /// <param name="fund">The selected canonical Fund.</param>
+    /// <param name="order">The selected canonical order.</param>
+    /// <param name="trade">The selected canonical trade.</param>
+    /// <param name="valueDate">The optional historical value date.</param>
+    /// <param name="baseContracts">The available futures contracts.</param>
+    public BrokerTradeBlotterView(IAppRoot appRoot, PortfolioFundEditorModel fund, PortfolioFundOrderEditorModel order,
+        PortfolioFundOrderTradeEditorModel trade, int portfolioId, bool historicalReadOnly,
         Control? workflowControl = null, BrokerCapabilities? capabilities = null)
         : base(appRoot, fund, order, trade, portfolioId, historicalReadOnly, capabilities, workflowControl)
     {

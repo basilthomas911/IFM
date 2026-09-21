@@ -19,9 +19,7 @@ public sealed class UiServiceBoundaryTests
     [
         "App/IFMAppViewModel.cs", "App/MarketEconomicCalendarViewModel.cs",
         "App/StatusConsoleViewModel.cs", "Contracts/ITradeOrderConfirmationService.cs",
-        "Extensions/LookupTypeListExtension.cs", "Fund/AdjustFundTransactionViewModel.cs",
-        "Fund/CreateFundViewModel.cs", "Fund/FundCashTransactionViewModel.cs",
-        "Fund/FundTransactionEditorViewModel.cs", "Fund/FundTransactionUIViewModel.cs",
+        "Extensions/LookupTypeListExtension.cs",
         "MarketData/FuturesContractEditorViewModel.cs", "MarketData/FuturesEodDataUIViewModel.cs",
         "MarketData/FuturesOptionContractEditorViewModel.cs",
         "MarketData/FuturesTradeSignalUIViewModel.cs", "MarketData/FuturesTradeStatusUIViewModel.cs",
@@ -29,7 +27,7 @@ public sealed class UiServiceBoundaryTests
         "MarketData/ReferenceConventionEditor.cs",
         "MarketData/YieldCurveRateEditorViewModel.cs",
         "Operations/FuturesItiSignalEventRow.cs", "Operations/StrategyWorkflowPresentation.cs",
-        "Portfolio/FundMetricsViewModel.cs", "Portfolio/PortfolioAdministrationViewModel.cs",
+        "Portfolio/PortfolioAdministrationViewModel.cs",
         "Trade/BrokerManualTradeOrderViewModel.cs", "Trade/EndOfDayProcessViewModel.cs",
         "Trade/FundOrderEditorViewModel.cs", "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
         "Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
@@ -106,7 +104,7 @@ public sealed class UiServiceBoundaryTests
     {
         var catalog = File.ReadAllText(Path.Combine(
             SolutionSource.RootPath, "TomasAI.IFM.UI.Net.Services", "IUiServiceCatalog.cs"));
-        catalog.Should().Contain("FundCommandService FundCommands");
+        catalog.Should().Contain("IPortfolioFundCommandApi PortfolioFundCommands");
         catalog.Should().Contain("IOptionPricingService OptionPricing");
         catalog.Should().NotMatchRegex(@"\b(Get|Resolve)\s*<");
     }

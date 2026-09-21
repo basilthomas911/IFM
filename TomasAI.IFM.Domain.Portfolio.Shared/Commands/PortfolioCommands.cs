@@ -32,8 +32,13 @@ public static class PortfolioCommandVerbs
     public const string AssignTradeTemplate = "AssignTradeTemplate";
     public const string ReserveFundOrderComposition = "ReserveFundOrderComposition";
     public const string CreateManualFundOrder = "CreateManualFundOrder";
+    public const string AddManualFundOrderTrade = "AddManualFundOrderTrade";
     public const string MarkFundOrderComposing = "MarkFundOrderComposing";
     public const string RecordFundOrderComposed = "RecordFundOrderComposed";
+    public const string RemoveManualFundOrderTrade = "RemoveManualFundOrderTrade";
+    public const string ChangeManualFundOrderTradeState = "ChangeManualFundOrderTradeState";
+    public const string CloseManualFundOrder = "CloseManualFundOrder";
+    public const string DeleteManualFundOrder = "DeleteManualFundOrder";
     public const string RecordFundOrderRiskOutcome = "RecordFundOrderRiskOutcome";
     public const string AuthorizeFundOrderRisk = "AuthorizeFundOrderRisk";
     public const string SynchronizeFundRiskOutcome = "SynchronizeFundRiskOutcome";
@@ -123,7 +128,23 @@ public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>
 [MessagePackObject] public sealed record AssignTradeTemplatePayload([property: Key(0)] FundTradeTemplateAssignmentReadModel Assignment, [property: Key(1)] long ExpectedVersion);
 [MessagePackObject] public sealed record ReserveCompositionPayload([property: Key(0)] ReserveFundOrderCompositionRequest Request, [property: Key(1)] PortfolioFundStrategySnapshot Snapshot);
 [MessagePackObject] public sealed record CreateManualFundOrderPayload([property: Key(0)] CreateManualFundOrderRequest Request);
+/// <summary>Payload for adding one trade to a manual Portfolio Fund order.</summary>
+[MessagePackObject]
+public sealed record AddManualFundOrderTradePayload([property: Key(0)] AddManualFundOrderTradeRequest Request);
 [MessagePackObject] public sealed record MarkComposingPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] Guid InvocationId);
+/// <summary>Payload for removing one economically inactive trade from a manual Portfolio Fund order.</summary>
+[MessagePackObject]
+public sealed record RemoveManualFundOrderTradePayload([property: Key(0)] ManualFundOrderTradeMutationRequest Request);
+/// <summary>Payload for changing one manual Portfolio Fund order trade state.</summary>
+[MessagePackObject]
+public sealed record ChangeManualFundOrderTradeStatePayload([property: Key(0)] ManualFundOrderTradeMutationRequest Request);
+/// <summary>Payload for closing one manual Portfolio Fund order.</summary>
+[MessagePackObject]
+public sealed record CloseManualFundOrderPayload([property: Key(0)] ManualFundOrderMutationRequest Request);
+/// <summary>Payload for deleting one empty draft manual Portfolio Fund order.</summary>
+/// <param name="Request">The scoped manual order deletion request.</param>
+[MessagePackObject]
+public sealed record DeleteManualFundOrderPayload([property: Key(0)] ManualFundOrderMutationRequest Request);
 [MessagePackObject] public sealed record RecordComposedPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] OrderCompositionResultReference Result);
 [MessagePackObject] public sealed record RecordRiskOutcomePayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] RiskManagementResultReference Result);
 [MessagePackObject] public sealed record CancelFundOrderCompositionPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] string Reason);

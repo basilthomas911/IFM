@@ -1,8 +1,7 @@
-﻿using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.PredictiveModelDb;
@@ -10,7 +9,6 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.FundDb.Schema;
 using TomasAI.IFM.Application.Storage.LogDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
@@ -40,9 +38,6 @@ public interface IDbContextFactory
     IObjectRepository<LogDbContext> LogDb { get; }
     IObjectRepository<SequenceIdDbContext> SequenceIdDb { get; }
 
-    IFundDbContext FundDb { get; }
-    IFundLegacyDbContext FundLegacyDb { get; }
-
     //IObjectRepository<MarketDataDbContext> MarketDataDb { get; }
     IMarketDataDbContext MarketDataDb { get; }
     IOptionPricerDbContext OptionPricerDb { get; }
@@ -59,7 +54,6 @@ public interface IDbContextFactory
     EventSourceSchemaDb EventSourceSchema { get; }
     LogSchemaDb LogSchema { get; }
     SequenceIdSchemaDb SequenceIdSchema { get; }
-    FundSchemaDb FundSchema { get; }
     MarketDataSchemaDb MarketDataSchema { get; }
     OptionPricerSchemaDb OptionPricerSchema { get; }
     PredictiveModelSchemaDb PredictiveModelSchema { get; }

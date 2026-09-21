@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 
 namespace TomasAI.IFM.UI.Net.Services.Trade;
 
@@ -186,7 +186,7 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
     /// </summary>
     /// <param name="fundOrderTrades"></param>
     /// <returns></returns>
-    public async Task GetTradeInfoAsync(ICollection<FundOrderTradeReadModel> fundOrderTrades, Action<ICollection<TradeInfoReadModel>> onTradeInfoLoaded)
+    public async Task GetTradeInfoAsync(ICollection<PortfolioFundOrderTradeEditorModel> fundOrderTrades, Action<ICollection<TradeInfoReadModel>> onTradeInfoLoaded)
     {
         var tradeInfo = new List<TradeInfoReadModel>();
         foreach (var e in fundOrderTrades)

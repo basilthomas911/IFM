@@ -37,10 +37,6 @@ public static class PortfolioQueryVerbs
     public const string GetPortfolioFinancialPolicy = "GetPortfolioFinancialPolicy";
     public const string GetPortfolioFinancialPolicies = "GetPortfolioFinancialPolicies";
     public const string GetActivePortfolioFinancialPolicy = "GetActivePortfolioFinancialPolicy";
-    public const string GetLegacyPortfolioScopes = "GetLegacyPortfolioScopes";
-    public const string GetLegacyFundCatalog = "GetLegacyFundCatalog";
-    public const string GetLegacyFundOrders = "GetLegacyFundOrders";
-    public const string GetLegacyFundOrderTrades = "GetLegacyFundOrderTrades";
 }
 
 [MessagePackObject(AllowPrivate = true)]
@@ -80,15 +76,5 @@ public sealed record AllocatePortfolioBusinessIdRequest(
 [MessagePackObject] public sealed record GetPolicyRequest([property: Key(0)] int PolicyId, [property: Key(1)] long? PolicyVersion);
 [MessagePackObject] public sealed record GetPoliciesRequest([property: Key(0)] int PortfolioId, [property: Key(1)] int PageSize);
 [MessagePackObject] public sealed record GetActivePolicyRequest([property: Key(0)] int PortfolioId);
-[MessagePackObject] public sealed record GetLegacyPortfolioScopesRequest;
-[MessagePackObject] public sealed record GetLegacyFundCatalogRequest;
-[MessagePackObject] public sealed record GetLegacyFundOrdersRequest(
-    [property: Key(0)] int LegacyFundId,
-    [property: Key(1)] DateOnly FromDate,
-    [property: Key(2)] DateOnly ToDate,
-    [property: Key(3)] int PageSize);
-[MessagePackObject] public sealed record GetLegacyFundOrderTradesRequest(
-    [property: Key(0)] int LegacyFundId,
-    [property: Key(1)] int OrderId);
 
 [MessagePackObject] public sealed record ResolveForSelectionRequest([property: Key(0)] int PortfolioId, [property: Key(1)] int? FundId, [property: Key(2)] int TradingYear, [property: Key(3)] string DecisionHorizon, [property: Key(4)] string UnderlyingRoot, [property: Key(5)] DateTime AsOfUtc, [property: Key(6)] Guid WorkflowId, [property: Key(7)] long WorkflowRevision, [property: Key(8)] Guid CorrelationId);

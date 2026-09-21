@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
-using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -446,7 +446,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
     }
 
     public Task RemoveTradeAsync(int fundId, int orderId, int tradeId)
-        => _viewModel.RemoveTradeFromFundOrder(new FundOrderTradeId(fundId, orderId, tradeId));
+        => _viewModel.RemoveTradeFromFundOrder(new PortfolioFundOrderTradeEditorId(fundId, orderId, tradeId));
 
     public async Task<Guid> SubmitOrderAsync(
         DateOnly tradeDate,

@@ -70,18 +70,6 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
     public Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) =>
         Send<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel>(PortfolioQueryVerbs.GetActivePortfolioFinancialPolicy, portfolioId.ToString(), new(portfolioId), cancellationToken);
 
-    public Task<ServiceResult<LegacyPortfolioScopeReadModel[]>> GetLegacyPortfolioScopesAsync(CancellationToken cancellationToken = default) =>
-        Send<GetLegacyPortfolioScopesRequest, LegacyPortfolioScopeReadModel[]>(PortfolioQueryVerbs.GetLegacyPortfolioScopes, "legacy", new(), cancellationToken);
-
-    public Task<ServiceResult<LegacyFundHistoryReadModel[]>> GetLegacyFundCatalogAsync(CancellationToken cancellationToken = default) =>
-        Send<GetLegacyFundCatalogRequest, LegacyFundHistoryReadModel[]>(PortfolioQueryVerbs.GetLegacyFundCatalog, "legacy", new(), cancellationToken);
-
-    public Task<ServiceResult<LegacyFundOrderHistoryReadModel[]>> GetLegacyFundOrdersAsync(int legacyFundId, DateOnly fromDate, DateOnly toDate, int pageSize = 1000, CancellationToken cancellationToken = default) =>
-        Send<GetLegacyFundOrdersRequest, LegacyFundOrderHistoryReadModel[]>(PortfolioQueryVerbs.GetLegacyFundOrders, legacyFundId.ToString(), new(legacyFundId, fromDate, toDate, pageSize), cancellationToken);
-
-    public Task<ServiceResult<LegacyFundTradeHistoryReadModel[]>> GetLegacyFundOrderTradesAsync(int legacyFundId, int orderId, CancellationToken cancellationToken = default) =>
-        Send<GetLegacyFundOrderTradesRequest, LegacyFundTradeHistoryReadModel[]>(PortfolioQueryVerbs.GetLegacyFundOrderTrades, $"{legacyFundId}.{orderId}", new(legacyFundId, orderId), cancellationToken);
-
     async Task<ServiceResult<TResult>> Send<TParameters, TResult>(string verb, string entityKey, TParameters parameters, CancellationToken cancellationToken)
         where TResult : class
     {

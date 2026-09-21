@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using TomasAI.IFM.Application.Api.IntegrationTests.QueryApiResults;
 using TomasAI.IFM.Shared.Application;
@@ -9,18 +9,6 @@ public static  class MapQueryExtension
 {
     public static void MapQueryApi(this WebApplication app)
     {
-        // map Fund Query APIs
-        app.MapGet(FundQueryUriPath.GetFunds, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundsAsync(resp));
-        app.MapGet(FundQueryUriPath.GetClosingFundBalance, async (HttpResponse resp) => await FundQueryApiResult.FromGetClosingFundBalanceAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundBalance, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundBalanceAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundDrawdownBalances, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundDrawdownBalancesAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundIdFromOrderId, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundIdFromOrderIdAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundOrders, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundOrdersAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundOrderTrades, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundOrderTradesAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundPnlReport, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundPnlReportAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundTransactions, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundTransactionsAsync(resp));
-        app.MapGet(FundQueryUriPath.GetFundWinLossRatio, async (HttpResponse resp) => await FundQueryApiResult.FromGetFundWinLossRatioAsync(resp));
-        app.MapGet(FundQueryUriPath.GetOpeningFundBalance, async (HttpResponse resp) => await FundQueryApiResult.FromGetOpeningFundBalanceAsync(resp));
 
         // map Market Data Analytics Query APIs
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignal, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesTradeSignalAsync(resp));

@@ -58,3 +58,18 @@ public sealed record FundCompositionStateChanged(
     public TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference? FinancialAuthorization => Order.RiskAuthorization;
     public TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence? TerminalRisk => Order.TerminalRisk;
 }
+
+/// <summary>Records the complete canonical state produced by a manual order or trade mutation.</summary>
+/// <summary>Records removal of an empty manual Portfolio Fund order.</summary>
+public sealed record FundManualOrderDeleted(
+    Guid Id, Guid CommandId, long Revision, DateTime OccurredOnUtc, string Principal, int OrderId)
+    : PortfolioFundDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
+public sealed record FundManualOrderChanged(
+    Guid Id,
+    Guid CommandId,
+    long Revision,
+    DateTime OccurredOnUtc,
+    string Principal,
+    FundCompositionReservationResult Reservation,
+    int RemovedTradeId = 0)
+    : PortfolioFundDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);

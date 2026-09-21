@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
@@ -19,7 +19,7 @@ public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrde
         InitializeComponent();
     }
 
-    public FundOrderReadModel FundOrder => _viewModel.FundOrder;
+    public PortfolioFundOrderEditorModel FundOrder => _viewModel.FundOrder;
 
     public void SetViewModel(FundOrderEditorViewModel viewModel)
     {

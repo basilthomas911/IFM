@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -13,7 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TomasAI.IFM.Domain.Fund.UnitTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Application.Benchmarks" />
   </ItemGroup>
 

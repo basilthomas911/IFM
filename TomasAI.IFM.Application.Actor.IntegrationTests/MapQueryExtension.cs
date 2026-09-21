@@ -12,8 +12,6 @@ using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Fund.Shared.Queries;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using EconomicCalendarPageRequest = TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.EconomicCalendarPageRequest;
@@ -50,8 +48,6 @@ public static class MapQueryExtension
     {
         // Chain all query mapping methods here
         return endpoints
-            .MapFundQueries()
-            .MapFundTransactionQueries()
             .MapReferenceQueries()
             .MapMarketDataQueries()
             .MapMarketDataFeedQueries()
@@ -69,101 +65,6 @@ public static class MapQueryExtension
 /// retrieving fund balances, transactions, orders, and reports. These endpoints are intended to be used with minimal
 /// API routing in ASP.NET Core applications. All methods are static and designed to be used as extension methods on
 /// IEndpointRouteBuilder.</remarks>
-public static class FundQueries
-{
-    public static IEndpointRouteBuilder MapFundQueries(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapGet(FundQueryUriPath.GetClosingFundBalance, async (IActorService e, int fundId, DateOnly valueDate) =>
-        {
-            var query = new GetClosingFundBalanceQuery(fundId, valueDate);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetClosingFundBalanceQuery.Actor, GetClosingFundBalanceQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundBalanceReadModel, GetClosingFundBalanceQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetOpeningFundBalance, async (IActorService e, int fundId, DateOnly valueDate) =>
-        {
-            var query = new GetOpeningFundBalanceQuery(fundId, valueDate);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetOpeningFundBalanceQuery.Actor, GetOpeningFundBalanceQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundBalanceReadModel, GetOpeningFundBalanceQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundBalance, async (IActorService e, int fundId) =>
-        {
-            var query = new GetFundBalanceQuery(fundId);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundBalanceQuery.Actor, GetFundBalanceQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundBalanceReadModel, GetFundBalanceQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFunds, async (IActorService e) =>
-        {
-            var query = new GetFundsQuery();
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundsQuery.Actor, GetFundsQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundReadModel[], GetFundsQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundOrders, async (IActorService e) =>
-        {
-            var query = new GetFundOrdersQuery();
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundOrdersQuery.Actor, GetFundOrdersQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundOrderReadModel[], GetFundOrdersQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundOrderTrades, async (IActorService e) =>
-        {
-            var query = new GetFundOrderTradesQuery();
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundOrderTradesQuery.Actor, GetFundOrderTradesQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundOrderTradeReadModel[], GetFundOrderTradesQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundPnlReport, async (IActorService e, int fundId, DateOnly startDate, DateOnly endDate) =>
-        {
-            var query = new GetFundPnlReportQuery(fundId, startDate, endDate);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundPnlReportQuery.Actor, GetFundPnlReportQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundPnlReportReadModel, GetFundPnlReportQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundIdFromOrderId, async (IActorService e, int orderId) =>
-        {
-            var query = new GetFundIdFromOrderIdQuery(orderId);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundIdFromOrderIdQuery.Actor, GetFundIdFromOrderIdQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<ScalarReadModel<int>, GetFundIdFromOrderIdQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundWinLossRatio, async (IActorService e, int fundId, DateOnly startDate, DateOnly endDate) =>
-        {
-            var query = new GetFundWinLossRatioQuery(fundId, startDate, endDate);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundWinLossRatioQuery.Actor, GetFundWinLossRatioQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundWinLossRatioReadModel, GetFundWinLossRatioQuery>(query);
-        });
-
-        endpoints.MapGet(FundQueryUriPath.GetFundDrawdownBalances, async (IActorService e, int fundId, DateOnly startDate, DateOnly endDate) =>
-        {
-            var query = new GetFundDrawdownBalancesQuery(fundId, startDate, endDate);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundDrawdownBalancesQuery.Actor, GetFundDrawdownBalancesQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundDrawdownBalancesReadModel, GetFundDrawdownBalancesQuery>(query);
-        });
-
-        return endpoints;
-    }
-
-
-}
-
-public static class FundTransactionQueries
-{
-    public static IEndpointRouteBuilder MapFundTransactionQueries(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapGet(FundQueryUriPath.GetFundTransactions, async (IActorService e, int fundId, DateOnly startDate, DateOnly endDate) =>
-        {
-            var query = new GetFundTransactionsQuery(fundId, startDate, endDate);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetFundTransactionsQuery.Actor, GetFundTransactionsQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FundTransactionReadModel[], GetFundTransactionsQuery>(query);
-        });
-
-        return endpoints;
-    }
-}
-
 public static class ReferenceQueries
 {
     public static IEndpointRouteBuilder MapReferenceQueries(this IEndpointRouteBuilder endpoints)

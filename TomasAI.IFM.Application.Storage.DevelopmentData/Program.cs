@@ -335,7 +335,6 @@ internal static class Program
     {
         public static UnavailableBlackboardService Instance { get; } = new();
         public IEventSourcingBlackboard EventSourcing => Unavailable<IEventSourcingBlackboard>();
-        public IFundBlackboard Fund => Unavailable<IFundBlackboard>();
         public IMarketDataBlackboard MarketData => Unavailable<IMarketDataBlackboard>();
         public IMarketDataAnalyticsBlackboard MarketDataAnalytics => Unavailable<IMarketDataAnalyticsBlackboard>();
         public IMarketDataFeedBlackboard MarketDataFeed => Unavailable<IMarketDataFeedBlackboard>();

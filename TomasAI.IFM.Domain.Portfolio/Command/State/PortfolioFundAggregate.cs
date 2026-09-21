@@ -63,8 +63,6 @@ public sealed class PortfolioFundAggregate
             throw new InvalidOperationException($"Fund transition {Current.OperatingState} -> {replacement.OperatingState} is not allowed.");
         if (replacement.OperatingState == FundOperatingState.Active && !activation.IsValid)
             throw new InvalidOperationException("Fund activation configuration is incomplete.");
-        if (replacement.IsLegacyHistory && replacement.OperatingState != FundOperatingState.Draft)
-            throw new InvalidOperationException("A legacy-history Fund mandate cannot become operational.");
         ThrowIfInvalid(replacement.Validate());
         return ApplyAndReturn(new FundMandateVersionAdded(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, replacement.DefensiveCopy()));
     }
@@ -85,8 +83,6 @@ public sealed class PortfolioFundAggregate
             throw new InvalidOperationException($"Fund transition {Current.OperatingState} -> {state} is not allowed.");
         if (state == FundOperatingState.Active && !activation.IsValid)
             throw new InvalidOperationException("Fund activation configuration is incomplete.");
-        if (Current.IsLegacyHistory && state != FundOperatingState.Draft)
-            throw new InvalidOperationException("A legacy-history Fund mandate cannot become operational.");
         if (state == FundOperatingState.Active)
             ThrowIfInvalid((Current with { OperatingState = state }).Validate());
         return ApplyAndReturn(new FundOperatingStateChanged(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, state, reason.Trim()));
@@ -194,6 +190,67 @@ public sealed class PortfolioFundAggregate
         return CommitAlreadyApplied(new FundCompositionReserved(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation));
     }
 
+
+    /// <summary>Adds a trade to an existing manual Portfolio Fund order.</summary>
+    /// <param name="commandId">The stable command identifier.</param>
+    /// <param name="request">The fully scoped trade request.</param>
+    /// <param name="nowUtc">The authoritative UTC command time.</param>
+    /// <param name="principal">The authenticated operator principal.</param>
+    /// <returns>The event containing the complete updated canonical order state.</returns>
+    public PortfolioFundDomainEvent AddManualTrade(
+        Guid commandId, AddManualFundOrderTradeRequest request, DateTime nowUtc, string principal)
+    {
+        RequireCurrent(Revision);
+        ValidateCommand(commandId, nowUtc, principal);
+        var reservation = _compositions.AddManualTrade(request, principal);
+        return CommitAlreadyApplied(new FundManualOrderChanged(
+            Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation));
+    }
+    /// <summary>Removes an economically inactive trade from a manual Portfolio Fund order.</summary>
+    /// <param name="commandId">The stable command identifier.</param>
+    /// <param name="request">The scoped trade-removal request.</param>
+    /// <param name="nowUtc">The authoritative UTC command time.</param>
+    /// <param name="principal">The authenticated operator principal.</param>
+    /// <returns>The event containing the complete updated canonical order state.</returns>
+    public PortfolioFundDomainEvent RemoveManualTrade(
+        Guid commandId, ManualFundOrderTradeMutationRequest request, DateTime nowUtc, string principal) =>
+        ChangeManualComposition(commandId, nowUtc, principal, () => _compositions.RemoveManualTrade(request), request.TradeId);
+
+    /// <summary>Deletes an empty draft manual Portfolio Fund order.</summary>
+    /// <param name="commandId">The stable command identifier.</param>
+    /// <param name="request">The scoped order deletion request.</param>
+    /// <param name="nowUtc">The authoritative UTC command time.</param>
+    /// <param name="principal">The authenticated operator principal.</param>
+    /// <returns>The committed deletion event.</returns>
+    public PortfolioFundDomainEvent DeleteManualOrder(
+        Guid commandId, ManualFundOrderMutationRequest request, DateTime nowUtc, string principal)
+    {
+        RequireCurrent(Revision);
+        ValidateCommand(commandId, nowUtc, principal);
+        _compositions.DeleteManualOrder(request);
+        return CommitAlreadyApplied(new FundManualOrderDeleted(
+            Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, request.OrderId));
+    }
+    /// <summary>Changes a manual Portfolio Fund order trade lifecycle state.</summary>
+    /// <param name="commandId">The stable command identifier.</param>
+    /// <param name="request">The scoped trade-state mutation request.</param>
+    /// <param name="nowUtc">The authoritative UTC command time.</param>
+    /// <param name="principal">The authenticated operator principal.</param>
+    /// <returns>The event containing the complete updated canonical order state.</returns>
+    public PortfolioFundDomainEvent ChangeManualTradeState(
+        Guid commandId, ManualFundOrderTradeMutationRequest request, DateTime nowUtc, string principal) =>
+        ChangeManualComposition(commandId, nowUtc, principal, () => _compositions.ChangeManualTradeState(request));
+
+    /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>
+    /// <param name="commandId">The stable command identifier.</param>
+    /// <param name="request">The scoped order-close request.</param>
+    /// <param name="nowUtc">The authoritative UTC command time.</param>
+    /// <param name="principal">The authenticated operator principal.</param>
+    /// <returns>The event containing the complete closed canonical order state.</returns>
+    public PortfolioFundDomainEvent CloseManualOrder(
+        Guid commandId, ManualFundOrderMutationRequest request, DateTime nowUtc, string principal) =>
+        ChangeManualComposition(commandId, nowUtc, principal, () => _compositions.CloseManualOrder(request));
+
     public PortfolioFundDomainEvent MarkCompositionComposing(Guid commandId, long expectedRevision, int orderId, long expectedOrderVersion, DateTime nowUtc, string principal) =>
         ChangeComposition(commandId, expectedRevision, nowUtc, principal, () => _compositions.MarkComposing(orderId, expectedOrderVersion));
 
@@ -267,6 +324,20 @@ public sealed class PortfolioFundAggregate
         Revision = domainEvent.Revision;
         return domainEvent;
     }
+    PortfolioFundDomainEvent ChangeManualComposition(
+        Guid commandId,
+        DateTime nowUtc,
+        string principal,
+        Func<FundCompositionReservationResult> change,
+        int removedTradeId = 0)
+    {
+        RequireCurrent(Revision);
+        ValidateCommand(commandId, nowUtc, principal);
+        var reservation = change();
+        return CommitAlreadyApplied(new FundManualOrderChanged(
+            Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation, removedTradeId));
+    }
+
 
     void Apply(PortfolioFundDomainEvent domainEvent, bool isReplay)
     {
@@ -293,6 +364,12 @@ public sealed class PortfolioFundAggregate
                 break;
             case FundCompositionStateChanged changed:
                 _compositions.ApplyOrder(changed.Order);
+                break;
+            case FundManualOrderChanged manual:
+                _compositions.ApplyManualChange(manual.Reservation);
+                break;
+            case FundManualOrderDeleted deleted:
+                _compositions.ApplyManualDeletion(deleted.OrderId);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(domainEvent));

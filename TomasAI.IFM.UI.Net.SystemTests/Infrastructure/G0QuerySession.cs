@@ -26,8 +26,6 @@ public sealed class G0QuerySession : IAsyncDisposable
         MarketDataAnalyticsCommands = new MarketDataAnalyticsCommandApi(_producer);
         Reference = new ReferenceQueryApi(_producer);
         ReferenceCommands = new ReferenceCommandApi(_producer);
-        Fund = new FundQueryApi(_producer);
-        FundCommands = new FundCommandApi(_producer);
         Trade = new OptionTradeQueryApi(_producer);
         StrategyPositions = new StrategyPositionQueryApi(_producer);
         StrategyPositionCommands = new StrategyPositionCommandApi(_producer);
@@ -44,8 +42,6 @@ public sealed class G0QuerySession : IAsyncDisposable
     public MarketDataAnalyticsCommandApi MarketDataAnalyticsCommands { get; }
     public ReferenceQueryApi Reference { get; }
     public ReferenceCommandApi ReferenceCommands { get; }
-    public FundQueryApi Fund { get; }
-    public FundCommandApi FundCommands { get; }
     public OptionTradeQueryApi Trade { get; }
     /// <summary>Gets the canonical strategy-position query client.</summary>
     public StrategyPositionQueryApi StrategyPositions { get; }

@@ -279,7 +279,7 @@ public sealed class LivePipelineProbeIntegrationTests
                 .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
             f.AnalyticsCommands.StartFuturesMacdSignalAsync(Arg.Any<FuturesMacdSignalEntityId>())
                 .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
-            f.Probe = new(new(f.market, session, Substitute.For<IFuturesContractRolloverStore>(), Substitute.For<IFuturesExchangeBusinessCalendar>(), TimeProvider.System),
+            f.Probe = new(new(f.market, session, Substitute.For<IFuturesExchangeBusinessCalendar>(), TimeProvider.System),
                 new(actors, actorRegistry), f.market, session, f.Timer, f.FeedCommands, f.AnalyticsCommands,
                 f.Storage, operations, f.Evidence,
                 f.ItiTelemetry,

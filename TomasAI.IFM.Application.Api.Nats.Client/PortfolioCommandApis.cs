@@ -103,6 +103,186 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         };
     }
 
+    /// <summary>
+    /// Adds a trade to a manually managed Portfolio fund order and waits for its durable projection.
+    /// </summary>
+    /// <param name="request">The manual trade addition request.</param>
+    /// <param name="cancellationToken">A token that cancels command publication or projection polling.</param>
+    /// <returns>The committed order composition, including the added trade.</returns>
+    public async Task<ServiceResult<FundCompositionReservationResult>> AddManualTradeAsync(
+        AddManualFundOrderTradeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var acknowledged = await Send(
+            new(request.PortfolioId, request.FundId),
+            PortfolioCommandVerbs.AddManualFundOrderTrade,
+            new AddManualFundOrderTradePayload(request),
+            PortfolioErrorCodes.VersionConflict,
+            cancellationToken,
+            access: AdministratorAccess).ConfigureAwait(false);
+        if (!acknowledged.Success)
+            return new ServiceFailed<FundCompositionReservationResult>(acknowledged.ErrorCode, acknowledged.ErrorMessage);
+        if (queries is null)
+            return new ServiceFailed<FundCompositionReservationResult>(
+                PortfolioErrorCodes.Unavailable,
+                "Portfolio query API is required to observe the committed manual trade.");
+
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var order = await queries.GetOrderAsync(request.OrderId, cancellationToken).ConfigureAwait(false);
+            var trades = await queries.GetOrderTradesAsync(
+                request.OrderId,
+                200,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (order.Success && order.Value is not null &&
+                order.Value.AggregateVersion >= request.ExpectedOrderVersion + 1 &&
+                trades.Success && trades.Value is not null &&
+                trades.Value.Items.Any(x => x.TradeId == request.TradeId))
+            {
+                return new ServiceOk<FundCompositionReservationResult>(new()
+                {
+                    Order = order.Value,
+                    Trades = trades.Value.Items,
+                    AggregateVersion = order.Value.AggregateVersion,
+                    CommittedOnUtc = DateTime.UtcNow,
+                    Disposition = ReservationDisposition.Committed,
+                    CanonicalRequestSha256 = order.Value.CanonicalRequestHash,
+                });
+            }
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+        return new ServiceFailed<FundCompositionReservationResult>(
+            PortfolioErrorCodes.Unavailable,
+            "Manual trade committed but its projection was not visible before the bounded query timeout.");
+    }
+
+    /// <summary>Removes an economically inactive trade from a manual Portfolio Fund order.</summary>
+    /// <param name="request">The scoped trade-removal request.</param>
+    /// <param name="cancellationToken">A token that cancels publication or projection polling.</param>
+    /// <returns>The committed canonical order composition.</returns>
+    public Task<ServiceResult<FundCompositionReservationResult>> RemoveManualTradeAsync(
+        ManualFundOrderTradeMutationRequest request,
+        CancellationToken cancellationToken = default) =>
+        SendManualMutationAsync(
+            new(request.PortfolioId, request.FundId),
+            PortfolioCommandVerbs.RemoveManualFundOrderTrade,
+            new RemoveManualFundOrderTradePayload(request),
+            request.OrderId,
+            request.ExpectedOrderVersion + 1,
+            trades => trades.All(x => x.TradeId != request.TradeId),
+            cancellationToken);
+
+    /// <summary>Changes a trade lifecycle state on a manual Portfolio Fund order.</summary>
+    /// <param name="request">The scoped trade-state mutation request.</param>
+    /// <param name="cancellationToken">A token that cancels publication or projection polling.</param>
+    /// <returns>The committed canonical order composition.</returns>
+    public Task<ServiceResult<FundCompositionReservationResult>> ChangeManualTradeStateAsync(
+        ManualFundOrderTradeMutationRequest request,
+        CancellationToken cancellationToken = default) =>
+        SendManualMutationAsync(
+            new(request.PortfolioId, request.FundId),
+            PortfolioCommandVerbs.ChangeManualFundOrderTradeState,
+            new ChangeManualFundOrderTradeStatePayload(request),
+            request.OrderId,
+            request.ExpectedOrderVersion + 1,
+            trades => trades.Any(x => x.TradeId == request.TradeId && x.TradeState == request.TradeState),
+            cancellationToken);
+
+    /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>
+    /// <param name="request">The scoped order-close request.</param>
+    /// <param name="cancellationToken">A token that cancels publication or projection polling.</param>
+    /// <returns>The committed canonical order composition.</returns>
+    public Task<ServiceResult<FundCompositionReservationResult>> CloseManualOrderAsync(
+        ManualFundOrderMutationRequest request,
+        CancellationToken cancellationToken = default) =>
+        SendManualMutationAsync(
+            new(request.PortfolioId, request.FundId),
+            PortfolioCommandVerbs.CloseManualFundOrder,
+            new CloseManualFundOrderPayload(request),
+            request.OrderId,
+            request.ExpectedOrderVersion + 1,
+            _ => true,
+            cancellationToken,
+            nameof(FundCompositionState.Executed));
+
+    /// <summary>Deletes an empty draft manual Portfolio Fund order and waits for its projection to disappear.</summary>
+    /// <param name="request">The scoped order-deletion request.</param>
+    /// <param name="cancellationToken">A token that cancels command publication or projection polling.</param>
+    /// <returns>The accepted deletion command identifier.</returns>
+    public async Task<ServiceResult<Guid>> DeleteManualOrderAsync(
+        ManualFundOrderMutationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var acknowledged = await Send(
+            new(request.PortfolioId, request.FundId),
+            PortfolioCommandVerbs.DeleteManualFundOrder,
+            new DeleteManualFundOrderPayload(request),
+            PortfolioErrorCodes.VersionConflict,
+            cancellationToken,
+            access: AdministratorAccess).ConfigureAwait(false);
+        if (!acknowledged.Success || queries is null)
+            return acknowledged;
+
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var order = await queries.GetOrderAsync(request.OrderId, cancellationToken).ConfigureAwait(false);
+            if (!order.Success || order.Value is null)
+                return acknowledged;
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+        return new ServiceFailed<Guid>(
+            PortfolioErrorCodes.Unavailable,
+            "Manual order was deleted but its projection remained visible beyond the bounded query timeout.");
+    }
+    async Task<ServiceResult<FundCompositionReservationResult>> SendManualMutationAsync<TPayload>(
+        PortfolioFundId fundId,
+        string verb,
+        TPayload payload,
+        int orderId,
+        long minimumVersion,
+        Func<IReadOnlyList<FundOrderTradeProjectionReadModel>, bool> tradeCondition,
+        CancellationToken cancellationToken,
+        string? requiredStatus = null)
+    {
+        var acknowledged = await Send(
+            fundId, verb, payload, PortfolioErrorCodes.VersionConflict, cancellationToken,
+            access: AdministratorAccess).ConfigureAwait(false);
+        if (!acknowledged.Success)
+            return new ServiceFailed<FundCompositionReservationResult>(
+                acknowledged.ErrorCode, acknowledged.ErrorMessage);
+        if (queries is null)
+            return new ServiceFailed<FundCompositionReservationResult>(
+                PortfolioErrorCodes.Unavailable,
+                "Portfolio query API is required to observe the committed manual-order mutation.");
+
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var order = await queries.GetOrderAsync(orderId, cancellationToken).ConfigureAwait(false);
+            var trades = await queries.GetOrderTradesAsync(
+                orderId, 200, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (order.Success && order.Value is not null &&
+                order.Value.AggregateVersion >= minimumVersion &&
+                (requiredStatus is null || order.Value.Status == requiredStatus) &&
+                trades.Success && trades.Value is not null &&
+                tradeCondition(trades.Value.Items))
+            {
+                return new ServiceOk<FundCompositionReservationResult>(new()
+                {
+                    Order = order.Value,
+                    Trades = trades.Value.Items,
+                    AggregateVersion = order.Value.AggregateVersion,
+                    CommittedOnUtc = DateTime.UtcNow,
+                    Disposition = ReservationDisposition.Committed,
+                    CanonicalRequestSha256 = order.Value.CanonicalRequestHash,
+                });
+            }
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+        return new ServiceFailed<FundCompositionReservationResult>(
+            PortfolioErrorCodes.Unavailable,
+            "Manual-order mutation committed but its projection was not visible before the bounded query timeout.");
+    }
+
     public async Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default)
     {
         var wasAlreadyProjected = queries is not null && await FindReservationAsync(request, cancellationToken).ConfigureAwait(false) is not null;

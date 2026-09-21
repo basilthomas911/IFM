@@ -2,8 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Domain.Fund.Shared;
-using TomasAI.IFM.Domain.Fund.Shared.Commands;
+using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Event.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -25,7 +24,7 @@ public sealed class FuturesOptionTradeEventActorTests : IClassFixture<TradeFixtu
         IStatusConsoleWriter statusConsole,
         ILogger<FuturesOptionTradeEventActor> logger)
         : FuturesOptionTradeEventActor(
-            new FuturesOptionTradeEventContext(supervisor, statusConsole, logger))
+            new FuturesOptionTradeEventContext(supervisor, Substitute.For<IPortfolioTradeValuationApi>(), statusConsole, logger))
     {
         public IEvent Parse(
             IEventActorContext<FuturesOptionTradeEventActor> context,
@@ -57,52 +56,48 @@ public sealed class FuturesOptionTradeEventActorTests : IClassFixture<TradeFixtu
     }
 
     [Fact]
-    public async Task End_of_day_source_event_dispatches_one_correlated_unrealized_fund_transaction()
+    public async Task End_of_day_source_event_dispatches_one_canonical_portfolio_valuation()
     {
         var source = SourceEvent();
         var actor = CreateActor();
         var context = Substitute.For<IFuturesOptionTradeEventContext>();
-        context.RequestAsync<ProcessEndOfDayFundTransactionCommand, FundTransactionEntityId>(
-                Arg.Any<ProcessEndOfDayFundTransactionCommand>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceOk<GuidResult>(new GuidResult(source.CommandId))));
+        context.PortfolioValuation.PostAsync(
+                Arg.Any<PortfolioTradeValuationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<ServiceResult<Guid>>(
+                new ServiceOk<Guid>(source.CommandId)));
 
         await actor.Receive(context, source);
 
-        await context.Received(1)
-                .RequestAsync<ProcessEndOfDayFundTransactionCommand, FundTransactionEntityId>(
-                Arg.Is<ProcessEndOfDayFundTransactionCommand>(command =>
-                    command.CommandId != Guid.Empty
-                    && command.CommandId != source.CommandId
-                    && command.CorrelationId == source.CommandId
-                    && command.PostEvents
-                    && command.FundTransaction.FundId == source.FundId
-                    && command.FundTransaction.OrderId == source.OrderId
-                    && command.FundTransaction.TradeId == source.EntityId.TradeId
-                    && command.FundTransaction.TradeType == source.EodKey.TradeType
-                    && command.FundTransaction.ValueDate == source.EodKey.ValueDate
-                    && command.FundTransaction.TransactionType == FundTransactionType.UnrealizedTradePnl
-                    && command.FundTransaction.Amount == source.TradePnl
-                    && command.FundTransaction.Description == source.Reference));
+        await context.PortfolioValuation.Received(1).PostAsync(
+            Arg.Is<PortfolioTradeValuationRequest>(request =>
+                request.FundId == source.FundId
+                && request.OrderId == source.OrderId
+                && request.TradeId == source.EntityId.TradeId
+                && request.ValueDate == source.EodKey.ValueDate
+                && request.AbsoluteUnrealizedPnl == source.TradePnl
+                && request.Description == source.Reference
+                && request.SourceEventId == source.Id
+                && request.SourceSequence == 0
+                && request.ObservedAtUtc.Kind == DateTimeKind.Utc),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Rejected_fund_continuation_fails_the_event_handler()
+    public async Task Rejected_portfolio_valuation_fails_the_event_handler()
     {
         var source = SourceEvent();
         var actor = CreateActor();
         var context = Substitute.For<IFuturesOptionTradeEventContext>();
-        context.RequestAsync<ProcessEndOfDayFundTransactionCommand, FundTransactionEntityId>(
-                Arg.Any<ProcessEndOfDayFundTransactionCommand>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceFailed<GuidResult>(2009, "fund continuation rejected")));
+        context.PortfolioValuation.PostAsync(
+                Arg.Any<PortfolioTradeValuationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<ServiceResult<Guid>>(
+                new ServiceFailed<Guid>(2009, "portfolio valuation rejected")));
 
         var action = () => actor.Receive(context, source).AsTask();
 
         await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("fund continuation rejected");
+            .WithMessage("portfolio valuation rejected");
     }
-
     static TestableOptionTradeEventActor CreateActor()
         => new(
             Substitute.For<IActorSupervisor>(),

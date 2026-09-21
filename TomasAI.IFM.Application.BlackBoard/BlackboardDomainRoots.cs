@@ -11,11 +11,6 @@ public interface IEventSourcingBlackboard
     EventProjectorStateCacheModel EventProjectorState { get; }
 }
 
-public interface IFundBlackboard
-{
-    FundBalanceCacheModel FundBalance { get; }
-}
-
 public interface IMarketDataBlackboard
 {
     RiskFreeRateCacheModel RiskFreeRate { get; }
@@ -80,13 +75,6 @@ internal sealed class EventSourcingBlackboard(
     public EventNameIdCacheModel EventNameId { get; } = new(redisCache, jsonSerializer);
     public EventProjectorStateCacheModel EventProjectorState { get; } =
         new(redisCache, jsonSerializer);
-}
-
-internal sealed class FundBlackboard(
-    IRedisCache redisCache,
-    IJsonSerializer jsonSerializer) : IFundBlackboard
-{
-    public FundBalanceCacheModel FundBalance { get; } = new(redisCache, jsonSerializer);
 }
 
 internal sealed class MarketDataBlackboard(

@@ -30,7 +30,6 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.UI.Net.Views.Presentation;
-using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -39,7 +38,6 @@ using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.Services;
 using TomasAI.IFM.UI.Net.Services.Analytics;
 using TomasAI.IFM.UI.Net.Services.Application;
-using TomasAI.IFM.UI.Net.Services.Fund;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
@@ -150,7 +148,6 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, MarketConditionAssessmentQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi.IIntrinsicTimeStrategyWorkflowQueryApi, IntrinsicTimeStrategyWorkflowQueryApi>();
             _container!.RegisterSingleton<IReferenceQueryApi, ReferenceQueryApi>();
-            _container!.RegisterSingleton<IFundQueryApi, FundQueryApi>();
             _container!.RegisterSingleton<ITradeQueryApi, OptionTradeQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountQueryApi,
                 BrokerAccountQueryApi>();
@@ -185,7 +182,6 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
             _container!.RegisterSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
             _container!.RegisterSingleton<IMarketDataAnalyticsCommandApi, MarketDataAnalyticsCommandApi>();
-            _container!.RegisterSingleton<IFundCommandApi, FundCommandApi>();
             _container!.RegisterSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             _container!.RegisterSingleton<IReferenceCommandApi, ReferenceCommandApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi, ParameterSetsApi>();
@@ -266,7 +262,6 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IFuturesTradeSignalUIEventConsumer, FuturesTradeSignalUIEventConsumer>();
             _container!.RegisterSingleton<IMarketOutlookUIEventConsumer, MarketOutlookUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesRsiSignalUIEventConsumer, FuturesRsiSignalUIEventConsumer>();
-            _container!.RegisterSingleton<IFundRiskMarginUIEventConsumer, FundRiskMarginUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesBarDataUIEventConsumer, FuturesBarDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesOptionTickDataUIEventConsumer, FuturesOptionTickDataUIEventConsumer>();
             _container!.RegisterSingleton<ITradePositionUIEventConsumer, TradePositionUIEventConsumer>();
@@ -274,10 +269,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IMarketDataFeedStatusUIEventConsumer, MarketDataFeedStatusUIEventConsumer>();
             _container!.RegisterSingleton<ITradePlanUIEventConsumer, TradePlanUIEventConsumer>();
             _container!.RegisterSingleton<ITradePlacementUIEventConsumer, TradePlacementUIEventConsumer>();
-            _container!.RegisterSingleton<IFundOrderTradeStateUIEventConsumer, FundOrderTradeStateUIEventConsumer>();
             _container!.RegisterSingleton<ITradePlanActionUIEventConsumer, TradePlanActionUIEventConsumer>();
-            _container!.RegisterSingleton<IFundUIEventConsumer, FundUIEventConsumer>();
-            _container!.RegisterSingleton<IFundOrderUIEventConsumer, FundOrderUIEventConsumer>();
             _container!.RegisterSingleton<IMarketDataUIEventConsumer, MarketDataUIEventConsumer>();
             _container!.RegisterSingleton<IStatusConsoleEventConsumer, StatusConsoleEventConsumer>();
             _container!.RegisterSingleton<ICommandResponseUIEventConsumer, CommandResponseUIEventConsumer>();
@@ -303,10 +295,6 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<ApplicationEventService>();
             _container.RegisterSingleton<ApplicationQueryService>();
             _container.RegisterSingleton<StatusConsoleService>();
-            _container.RegisterSingleton<FundCommandService>();
-            _container.RegisterSingleton<FundQueryService>();
-            _container.RegisterSingleton<FundEventService>();
-            _container.RegisterSingleton<FundOrderEventService>();
             _container.RegisterSingleton<MarketDataCommandService>();
             _container.RegisterSingleton<MarketDataQueryService>();
             _container.RegisterSingleton<IMarketDataOperationsHealthQueryService>(() =>

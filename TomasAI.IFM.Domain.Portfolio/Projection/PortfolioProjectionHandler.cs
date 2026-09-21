@@ -69,6 +69,17 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
             await ApplyCompositionAsync(reserved.Reservation, domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
         if (domainEvent is FundCompositionStateChanged changed)
             await ApplyCompositionAsync(aggregate.Composition(changed.Order.OrderId), domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
+        if (domainEvent is FundManualOrderDeleted deleted)
+        {
+            await projections.DeleteOrderAsync(deleted.OrderId, domainEvent.EventId, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (domainEvent is FundManualOrderChanged manual)
+        {
+            if (manual.RemovedTradeId > 0)
+                await projections.DeleteTradeAsync(manual.RemovedTradeId, domainEvent.EventId, cancellationToken).ConfigureAwait(false);
+            await ApplyCompositionAsync(manual.Reservation, domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task ApplyAsync(PortfolioFinancialPolicyDomainEvent domainEvent, CancellationToken cancellationToken = default)

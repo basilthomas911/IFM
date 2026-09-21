@@ -28,9 +28,6 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Shared.WebService;
-using TomasAI.IFM.Domain.Fund.Shared;
-using TomasAI.IFM.Domain.Fund.Shared.CommandParameters;
-using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 
@@ -44,8 +41,6 @@ static public class CommandMaps
         // Chain all command mapping methods here
         return endpoints
             .MapApplicationCommands()
-            .MapFundCommands()
-            .MapFundTransactionCommands()
             .MapMarketDataCommands()
             .MapFmpMarketDataEndpoints()
             .MapMarketDataAnalyticsCommands()
@@ -95,168 +90,6 @@ public static class ApplicationCommands
 /// adding or removing orders and trades, changing trade states, closing fund orders, and generating maximum profit for
 /// a fund. These endpoints are intended to be used with an actor-based service architecture and facilitate
 /// command-based interactions for fund entities within the application.</remarks>
-public static class FundCommands
-{
-    public static IEndpointRouteBuilder MapFundCommands(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapPost(FundUriPath.Create, async (IActorService e, CreateFundParameter cmdParam)
-            => {
-                var entityId = new FundId(cmdParam.Fund.FundId);
-                CreateFundCommand cmd = new(cmdParam.Fund)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, CreateFundCommand.Actor, CreateFundCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<CreateFundCommand, FundId>(cmd);
-            });
-
-        endpoints.MapPost(FundUriPath.AddOrderToFund, async (IActorService e, AddOrderToFundParameter cmdParam)
-           => {
-               var entityId = new FundId(cmdParam.FundOrder.FundId);
-               AddOrderToFundCommand cmd = new(cmdParam.FundOrder)
-               {
-                   CommandId = Guid.NewGuid(),
-                   Subject = new ActorSubject(ActorType.Command, AddOrderToFundCommand.Actor, AddOrderToFundCommand.Verb, entityId.Format()),
-                   EntityId = entityId
-               };
-               return await e.RequestAsync<AddOrderToFundCommand, FundId>(cmd!);
-           });
-
-        endpoints.MapPost(FundUriPath.AddTradeToFundOrder, async (IActorService e, AddTradeToFundOrderParameter cmdParam)
-            => {
-                var entityId = new FundId(cmdParam.FundOrderTrade.FundId);
-                AddTradeToFundOrderCommand cmd = new(cmdParam.FundOrderTrade)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, AddTradeToFundOrderCommand.Actor, AddTradeToFundOrderCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<AddTradeToFundOrderCommand, FundId>(cmd!);
-            });
-
-        endpoints.MapPost(FundUriPath.ChangeFundOrderTradeState, async (IActorService e, ChangeFundOrderTradeStateParameter cmdParam)
-            => {
-                var entityId = new FundId(cmdParam.FundOrderTradeId.FundId);
-                ChangeFundOrderTradeStateCommand cmd = new(cmdParam.FundOrderTradeId, cmdParam.TradeState)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<ChangeFundOrderTradeStateCommand, FundId>(cmd!);
-            });
-
-        endpoints.MapPost(FundUriPath.RemoveOrderFromFund, async (IActorService e, RemoveOrderFromFundParameter cmdParam)
-            => {
-                var entityId = new FundId(cmdParam.FundOrderId.FundId);
-                RemoveOrderFromFundCommand cmd = new(cmdParam.FundOrderId)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, RemoveOrderFromFundCommand.Actor, RemoveOrderFromFundCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<RemoveOrderFromFundCommand, FundId>(cmd!);
-            });
-
-        endpoints.MapPost(FundUriPath.RemoveTradeFromFundOrder, async (IActorService e, RemoveTradeFromFundOrderParameter cmdParam)
-            => {
-                var entityId = new FundId(cmdParam.FundOrderTradeId.FundId);
-                RemoveTradeFromFundOrderCommand cmd = new(cmdParam.FundOrderTradeId)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, RemoveTradeFromFundOrderCommand.Actor, RemoveTradeFromFundOrderCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<RemoveTradeFromFundOrderCommand, FundId>(cmd!);
-            });
-
-        endpoints.MapPost(FundUriPath.CloseFundOrder, async (IActorService e, CloseFundOrderParameter cmdParam)
-            => {
-                var entityId = new FundId(cmdParam.FundOrderId.FundId);
-                CloseFundOrderCommand cmd = new(cmdParam.FundOrderId)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, CloseFundOrderCommand.Actor, CloseFundOrderCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<CloseFundOrderCommand, FundId>(cmd!);
-            });
-
-        endpoints.MapPost(FundUriPath.GenerateFundMaxProfit, async (IActorService e, GenerateFundMaxProfitParameter cp)
-            => {
-                var entityId = new FundId(cp.FundOrder.FundId);
-                GenerateFundMaxProfitCommand cmd = new(cp.FundOrder, cp.TimePeriod)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<GenerateFundMaxProfitCommand, FundId>(cmd!);
-            });
-
-        return endpoints;
-    }
-}
-
-/// <summary>
-/// Provides extension methods for mapping fund transaction-related command endpoints to an ASP.NET Core routing builder.
-/// </summary>
-/// <remarks>Use this class to register HTTP endpoints for fund transaction management operations, such as creating fund transactions,
-/// creating multiple transactions, and processing end-of-day transactions. These endpoints are intended to be used with an actor-based 
-/// service architecture and facilitate command-based interactions for fund transaction entities within the application.</remarks>
-public static class FundTransactionCommands
-{
-    public static IEndpointRouteBuilder MapFundTransactionCommands(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapPost(FundTransactionUriPath.Create, async (IActorService e, CreateFundTransactionParameter cmdParam)
-            => {
-                var entityId = cmdParam.FundTransaction.EntityId;
-                CreateFundTransactionCommand cmd = new(cmdParam.FundTransaction)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, CreateFundTransactionCommand.Actor, CreateFundTransactionCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<CreateFundTransactionCommand, FundTransactionEntityId>(cmd!);
-            });
-
-        endpoints.MapPost(FundTransactionUriPath.CreateTransactions, async (IActorService e, CreateFundTransactionsParameter cmdParam)
-            => {
-                var entityId = cmdParam.TransactionsId;
-                CreateFundTransactionsCommand cmd = new(cmdParam.TransactionsId, cmdParam.FundTransactions)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, CreateFundTransactionsCommand.Actor, CreateFundTransactionsCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<CreateFundTransactionsCommand, FundTransactionEntityId>(cmd!);
-            });
-
-        endpoints.MapPost(FundTransactionUriPath.ProcessEndOfDay, async (IActorService e, ProcessEndOfDayFundTransactionParameter cmdParam)
-            => {
-                var entityId = cmdParam.FundTransaction.EntityId;
-                ProcessEndOfDayFundTransactionCommand cmd = new(cmdParam.FundTransaction)
-                {
-                    CommandId = Guid.NewGuid(),
-                    CorrelationId = cmdParam.CorrelationId,
-                    Subject = new ActorSubject(ActorType.Command, ProcessEndOfDayFundTransactionCommand.Actor, ProcessEndOfDayFundTransactionCommand.Verb, entityId.Format()),
-                    EntityId = entityId
-                };
-                return await e.RequestAsync<ProcessEndOfDayFundTransactionCommand, FundTransactionEntityId>(cmd!);
-            });
-
-        return endpoints;
-    }
-}
-
-/// <summary>
-/// Provides extension methods for mapping reference-related command endpoints to an ASP.NET Core routing builder.
-/// </summary>
-/// <remarks>Use this class to register HTTP endpoints for reference management operations, such as adding, changing,
-/// and removing economic calendars and lookup types, as well as importing economic calendars. These endpoints are intended
-/// to be used with an actor-based service architecture and facilitate command-based interactions for reference entities
-/// within the application.</remarks>
 public static class ReferenceCommands
 {
     public static IEndpointRouteBuilder MapReferenceCommands(this IEndpointRouteBuilder endpoints)

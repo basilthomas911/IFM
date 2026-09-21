@@ -2,17 +2,12 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Fund.Shared;
-using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
 namespace TomasAI.IFM.Service.TradePosition;
 
@@ -20,8 +15,6 @@ public class TradePositionService : ITradePositionService
 {
     readonly ITradeEventProducer _tradeEventProducer;
     readonly IOptionPricerCommandApi _optionPricerCommandApi;
-    readonly IFundCommandApi _fundCommandApi;
-    readonly IFundQueryApi _fundQueryApi;
     readonly IStatusConsoleWriter _statusConsoleWriter;
     readonly ILogger<TradePositionService> _logger;
 
@@ -30,23 +23,17 @@ public class TradePositionService : ITradePositionService
     /// </summary>
     /// <param name="tradeEventProducer"></param>
     /// <param name="optionPricerCommandApi"></param>
-    /// <param name="fundCommandApi"></param>
-    /// <param name="fundQueryApi"></param>
     /// <param name="statusConsoleWriter"></param>
     /// <param name="logger"></param>
     /// <exception cref="ArgumentNullException"></exception>
     public TradePositionService(
         ITradeEventProducer tradeEventProducer, 
         IOptionPricerCommandApi optionPricerCommandApi,
-        IFundCommandApi fundCommandApi,
-        IFundQueryApi fundQueryApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<TradePositionService> logger)
     {
         _tradeEventProducer = tradeEventProducer ?? throw new ArgumentNullException(nameof(tradeEventProducer));
         _optionPricerCommandApi = optionPricerCommandApi ?? throw new ArgumentNullException(nameof(optionPricerCommandApi));
-        _fundCommandApi = fundCommandApi ?? throw new ArgumentNullException(nameof(fundCommandApi));
-        _fundQueryApi = fundQueryApi ?? throw new ArgumentNullException(nameof(fundQueryApi));
         _statusConsoleWriter = statusConsoleWriter ?? throw new ArgumentNullException(nameof(statusConsoleWriter));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _logger.LogInformation("TradePositionService started");
@@ -97,79 +84,6 @@ public class TradePositionService : ITradePositionService
     }
 
     /// <summary>
-    /// execute option trade order placed event
-    /// </summary>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    public async Task ExecuteAsync(OptionTradeOrderPlacedEvent e)
-    {
-        try
-        {
-            var serviceResult = await _fundQueryApi.GetFundBalanceAsync(e.FundId);
-            if (!serviceResult.Success)
-                throw new InvalidOperationException(serviceResult.ErrorMessage);
-            var fundBalance = serviceResult.Value.Value;
-            var fundTransactions = e.OrderAction switch
-            {
-                OrderActionType.Open => new FundTransactionReadModel[] {
-                    FundTransactionReadModel
-                        .AsOpeningTradeTransaction(
-                            fundId: e.FundId,
-                            orderId: e.OptionTrade.OrderId,
-                            tradeId: e.OptionTrade.TradeId,
-                            tradeType: e.OptionTrade.TradeType,
-                            valueDate: e.ValueDate,
-                            description: string.Empty,
-                            amount: fundBalance
-                        ),
-                    FundTransactionReadModel
-                        .AsTradeCommissionTransaction(
-                            fundId: e.FundId,
-                            orderId: e.OptionTrade.OrderId,
-                            tradeId: e.OptionTrade.TradeId,
-                            tradeType: e.OptionTrade.TradeType,
-                            valueDate: e.ValueDate,
-                            tradeStatus: TradeStatus.Open,
-                            description: string.Empty,
-                            amount: e.TradeCommission
-                    )},
-                OrderActionType.Close => new FundTransactionReadModel[] {
-                    FundTransactionReadModel
-                        .AsRealizedTradePnlTransaction(
-                            fundId: e.FundId,
-                            orderId: e.OptionTrade.OrderId,
-                            tradeId: e.OptionTrade.TradeId,
-                            tradeType: e.OptionTrade.TradeType,
-                            valueDate: e.ValueDate,
-                            description: string.Empty,
-                            amount: e.TradePnl
-                        ),
-                    FundTransactionReadModel
-                        .AsTradeCommissionTransaction(
-                            fundId: e.FundId,
-                            orderId: e.OptionTrade.OrderId,
-                            tradeId: e.OptionTrade.TradeId,
-                            tradeType: e.OptionTrade.TradeType,
-                            valueDate: e.ValueDate,
-                            tradeStatus: TradeStatus.Close,
-                            description: string.Empty,
-                            amount: e.TradeCommission
-                    )},
-                _ => throw new InvalidOperationException($"Unknown OrderAction: {e.OrderAction}")
-            };
-            var fundTransactionIds = new FundTransactionEntityId(e.FundId, e.OptionTrade.OrderId);
-            await _fundCommandApi.CreateFundTransactionsAsync(fundTransactionIds, fundTransactions, e.CommandId);
-            await _fundCommandApi.ChangeFundOrderTradeStateAsync(new FundOrderTradeId(e.FundId, e.OptionTrade.OrderId, e.OptionTrade.TradeId), e.OptionTrade.TradeState, e.CommandId);
-        }
-        catch(Exception ex)
-        {
-            await _tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeOrderPlacedFailEvent, OptionTradeEntityId>(ex));
-            await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex.GetErrorMessage()}");
-            _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex.GetErrorMessage()}");
-        }
-    }
-
-    /// <summary>
     /// execute option trade leg data changed event
     /// </summary>
     /// <param name="e"></param>
@@ -197,35 +111,6 @@ public class TradePositionService : ITradePositionService
             await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, ex.GetErrorMessage());
             _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex.GetErrorMessage()}");
         }
-    }
-
-    /// <summary>
-    /// execute option trade end of day processed event
-    /// </summary>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    public async Task ExecuteAsync(OptionTradeEndOfDayProcessedEvent e)
-    {
-        try
-        {
-            await _fundCommandApi.ProcessEndOfDayFundTransactionAsync(e.CommandId, FundTransactionReadModel
-                .AsUnrealizedTradePnlTransaction(
-                    fundId: e.FundId,
-                    orderId: e.EodKey.OrderId,
-                    tradeId: e.EodKey.TradeId,
-                    tradeType: e.EodKey.TradeType,
-                    valueDate: e.EodKey.ValueDate,
-                    description: e.Reference,
-                    amount: e.TradePnl
-                ));
-        }
-        catch(Exception ex)
-        {
-            await _tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeEndOfDayProcessedFailEvent, OptionTradeEntityId>(ex));
-            await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, ex.GetErrorMessage());
-            _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex.GetErrorMessage()}");
-        }
-
     }
 
     /// <summary>

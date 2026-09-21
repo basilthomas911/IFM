@@ -13,11 +13,11 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
 public sealed record LedgerConfigurationCommandServices(ILedgerConfigurationStore Store,
     IPortfolioDbReadContext Database,IPortfolioEventStore Sources,IEventProjector<LedgerConfigurationCommandActor> Projector,
-    ILogger<LedgerConfigurationCommandActor> Logger,LegacyFinancialWriterFence? WriterFence=null,
-    TomasAI.IFM.Application.Storage.FundDb.IFundDbContext? LegacySource=null,FinancialDevelopmentPolicy? DevelopmentPolicy=null);
+    ILogger<LedgerConfigurationCommandActor> Logger,FinancialDevelopmentPolicy? DevelopmentPolicy=null);
 
 public static class ConfigureLedger
 {
+    /// <summary>Executes a canonical ledger configuration command.</summary>
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this ConfigureLedgerCommand request,LedgerConfigurationCommandServices services,CancellationToken token)
     {
         var replay=await services.Database.ReadOperationAsync<LedgerConfigurationCompletedEvent>(request.PortfolioId,request.OperationId,request.InputSha256,token);
@@ -33,27 +33,20 @@ public static class ConfigureLedger
         return await result.NotifyAsync(services.Projector,services.Logger);
     }
 
-    /// <summary>Fences only fresh development scopes and verifies legacy absence before entering the financial transaction.</summary>
+    /// <summary>Verifies that an empty development book is eligible for financial qualification.</summary>
     public static async Task PrepareDevelopmentQualificationAsync(this ConfigureLedgerCommand request,LedgerConfigurationCommandServices services,CancellationToken token)
     {
         FinancialRequestValidation.Demand(request,"LedgerImport",DateTime.UtcNow);
-        if(services.DevelopmentPolicy?.IsDevelopmentEnvironment!=true || services.WriterFence is null || services.LegacySource is null)
+        if(services.DevelopmentPolicy?.IsDevelopmentEnvironment!=true)
             throw new FinancialOperationException(FinancialReasons.AuthorityDenied,"Development qualification services are unavailable.");
         var book=await services.Database.ReadBookAsync(request.PortfolioId,token);
         if(book is not { Environment:"Emulator",MigrationQualified:false } || book.Funds.Any(x=>x.CanSpend) ||
             request.Body.Book is null || FinancialCanonicalHash.Compute(book)!=FinancialCanonicalHash.Compute(request.Body.Book))
             throw new FinancialOperationException(FinancialReasons.AuthorityDenied,"Qualification requires the exact unqualified development book.");
         await request.ValidateAuthoritySourcesAsync(services.Sources,token);
-        foreach(var fund in book.Funds.OrderBy(x=>x.FundId))
-        {
-            // AccountingEntityId is stable across expired command attempts; a pending fence is never reassigned to another book.
-            await services.WriterFence.FreezeFreshScopeAsync(book.PortfolioId,fund.FundId,book.AccountingEntityId,token);
-            if(await services.LegacySource.HasLegacyFinancialStateAsync(fund.FundId,token))
-                throw new FinancialOperationException(FinancialReasons.AuthorityDenied,"Legacy source data requires reconciled migration; fresh-scope qualification is prohibited.");
-            await services.WriterFence.VerifyEmptySourceAsync(book.PortfolioId,fund.FundId,book.AccountingEntityId,token);
-        }
     }
 
+    /// <summary>Validates financial authority against current Portfolio event streams.</summary>
     public static async Task ValidateAuthoritySourcesAsync(this ConfigureLedgerCommand request,IPortfolioEventStore sources,CancellationToken token)
     {
         var book=request.Body.Book??throw new FinancialOperationException(FinancialReasons.InvalidContract,"Book configuration is required.");
@@ -69,6 +62,7 @@ public static class ConfigureLedger
         FinancialAuthorityModel.Validate(book,portfolio,funds,policies,DateTime.UtcNow);
     }
 
+    /// <summary>Creates the completion event for a committed ledger configuration.</summary>
     public static LedgerConfigurationCompletedEvent Complete(this ConfigureLedgerCommand request,LedgerConfigurationReceipt receipt)=>new()
     {
         Id=Guid.NewGuid(),Subject=new(ActorType.Event,ConfigureLedgerCommand.Actor,nameof(LedgerConfigurationCompletedEvent),request.EntityId.Format()),

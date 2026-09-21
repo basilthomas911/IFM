@@ -1,6 +1,7 @@
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
@@ -190,22 +191,22 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
     {
         try
         {
-            FundReadModel[] funds = [];
             FuturesEodDataV2ReadModel? marketData = null;
             _position = await _appRoot.Services.StrategyPositions
                 .GetCurrentAsync(PositionId, StrategyKind, cancellationToken).ConfigureAwait(false);
-            await _appRoot.Services.FundQueries.ExecuteObservableAsync(
-                model => model.GetFundsAsync(value => funds = value), cancellationToken);
             await _appRoot.Services.FeedQueries.ExecuteObservableAsync(
                 model => model.GetFuturesEodDataAsync(_parameter.BaseContractId, ValueDate,
                     value => marketData = value), cancellationToken);
-            var fund = funds.SingleOrDefault(value => value.FundId == FundId)
-                ?? throw new InvalidOperationException($"Fund {FundId} was not found.");
+            var scope = new FinancialReadScope { PortfolioId = PortfolioId, FundId = FundId,
+                Access = new(Environment.UserName, ["LedgerRead"], [PortfolioId]) };
+            var balanceResult = await _appRoot.Services.PortfolioFinancial.GetAccountBalancesAsync(scope, new(), cancellationToken);
+            var fundBalance = balanceResult.Success && balanceResult.Value?.Value is { } balance
+                ? balance.AvailableCash : throw new InvalidOperationException($"Portfolio Fund {FundId} balance was not found.");
             var eod = marketData ?? throw new InvalidOperationException(
                 $"Futures EOD data for {_parameter.BaseContractId} on {ValueDate:yyyy-MM-dd} was not found.");
             var pnl = _position.RealizedPnl + _position.UnrealizedPnl;
             Snapshot = new(eod.OpenPrice, eod.HighPrice, eod.LowPrice, eod.ClosePrice,
-                eod.Volume, pnl, fund.Balance + pnl);
+                eod.Volume, pnl, fundBalance + pnl);
             IsCompleted = _position.Phase == StrategyPositionPhase.EndOfDay;
             LastStatusMessage = $"End-of-day inputs loaded for {PositionId.Format()} on {ValueDate:yyyy-MM-dd}.";
         }

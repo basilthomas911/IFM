@@ -54,7 +54,6 @@ namespace TomasAI.IFM.UI.Net.Views.App
             btnCloseOrder = new ToolStripButton();
             toolStrip1 = new ToolStrip();
             menuBarSeparator = new Panel();
-            fundButton = new ToolStripButton();
             portfolioButton = new ToolStripButton();
             referenceButton = new ToolStripButton();
             systemAdminButton = new ToolStripButton();
@@ -370,18 +369,6 @@ namespace TomasAI.IFM.UI.Net.Views.App
             menuBarSeparator.Size = new Size(2637, 1);
             menuBarSeparator.TabIndex = 5;
             // 
-            // fundButton
-            // 
-            fundButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            fundButton.Enabled = true;
-            fundButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            fundButton.Image = (Image)resources.GetObject("fundButton.Image");
-            fundButton.ImageTransparentColor = Color.Magenta;
-            fundButton.Name = "fundButton";
-            fundButton.Size = new Size(51, 24);
-            fundButton.Text = "Funds";
-            fundButton.Click += fundButton_Click;
-            //
             // portfolioButton
             //
             portfolioButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -484,7 +471,6 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.ToolStripButton btnCloseOrder;
         private System.Windows.Forms.ToolStrip toolStrip1;
         private System.Windows.Forms.Panel menuBarSeparator;
-        private System.Windows.Forms.ToolStripButton fundButton;
         private System.Windows.Forms.ToolStripButton portfolioButton;
         private System.Windows.Forms.ToolStripButton systemAdminButton;
         private System.Windows.Forms.ToolStripButton referenceButton;

@@ -137,7 +137,7 @@ public sealed partial class PortfolioAdministrationForm
 
     Task LoadMetricsAsync()
         => _metrics is not null && _viewModel?.SelectedFund is { } fund
-            ? _metrics.LoadAsync(fund.FundId, DateOnly.FromDateTime(_metricsFrom.Value), DateOnly.FromDateTime(_metricsTo.Value))
+            ? _metrics.LoadAsync(fund.PortfolioId, fund.FundId, DateOnly.FromDateTime(_metricsFrom.Value), DateOnly.FromDateTime(_metricsTo.Value))
             : Task.CompletedTask;
 
     void RenderMetrics()

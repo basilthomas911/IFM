@@ -78,7 +78,10 @@ public sealed class PortfolioProjectionRebuilderTests
         public Task UpsertAllocationAsync(PortfolioProjection<FundAllocationReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertRiskEnvelopeAsync(PortfolioProjection<FundRiskEnvelopeReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> row, DateOnly orderMonth, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        /// <inheritdoc />
+        public Task DeleteOrderAsync(int orderId, long sourceEventId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteTradeAsync(int tradeId, long sourceEventId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;

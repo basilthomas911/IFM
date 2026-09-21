@@ -1,8 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.FundDb;
-using TomasAI.IFM.Application.Storage.FundDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -44,20 +42,6 @@ internal static class Program
         "securities_symbol_projection_state_v3",
         "securities_projection_operation_v3",
         "securities_projection_operation_scope_v3"
-    ];
-
-    static readonly string[] FundProjectionObjects =
-    [
-        "fund_order_by_order_id_v3",
-        "fund_order_write_ownership_v3",
-        "fund_transaction_identity_v4",
-        "fund_transaction_timeline_v3",
-        "fund_balance_by_status_day_v3",
-        "fund_transaction_amount_v3",
-        "fund_transaction_projection_state_v3",
-        "fund_transaction_projection_mutation_v3",
-        "fund_transaction_write_mutation_v3",
-        "fund_transaction_write_ownership_v3"
     ];
 
     static readonly string[] MarketProjectionObjects =
@@ -154,7 +138,6 @@ internal static class Program
         {
             ProjectionMigrationTarget.Reference => RunReferenceAsync(options, cancellationToken),
             ProjectionMigrationTarget.Securities => RunSecuritiesAsync(options, cancellationToken),
-            ProjectionMigrationTarget.Fund => RunFundAsync(options, cancellationToken),
             ProjectionMigrationTarget.Market => RunMarketAsync(options, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(options.Target), options.Target, null)
         };
@@ -236,59 +219,6 @@ internal static class Program
             $"missing/unexpected={reconciliation.FuturesOptionContractMissingKeys}/{reconciliation.FuturesOptionContractUnexpectedKeys}.");
 
         return Complete(reconciliation.IsConsistent);
-    }
-
-    static async Task<int> RunFundAsync(
-        ProjectionMigrationOptions options,
-        CancellationToken cancellationToken)
-    {
-        var settings = CreateConnectionSettings(
-            FundDbContext.FundDbConnection,
-            options.ConnectionEnvironmentVariable);
-        var repositories = new Dictionary<Type, object>();
-        var factory = CreateFactory(repositories);
-        var context = new FundDbContext(
-            settings,
-            factory,
-            UnavailableSequenceIdGenerator.Instance,
-            Logger);
-        repositories.Add(typeof(IObjectRepository<FundDbContext>), context);
-
-        if (options.ApplySchema)
-        {
-            await ApplySchemaAsync(
-                new FundSchemaDb(settings, Logger),
-                FundProjectionObjects,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        var orderBackfill = await context.BackfillFundOrderByOrderIdProjectionAsync(
-                cancellationToken,
-                options.StaleOperationCutoffUtc)
-            .ConfigureAwait(false);
-        var transactionBackfill = await context.BackfillFundTransactionProjectionsAsync(
-            options.FundId!.Value,
-            options.StartDate!.Value,
-            options.EndDate!.Value,
-            options.BatchSize,
-            cancellationToken,
-            options.StaleOperationCutoffUtc).ConfigureAwait(false);
-
-        Console.WriteLine(
-            $"Fund order reconciliation: source/projected={orderBackfill.SourceRows}/{orderBackfill.ProjectedRows}, " +
-            $"missing/conflicting/tokenless={orderBackfill.MissingRows}/{orderBackfill.ConflictingRows}/{orderBackfill.TokenlessRows}.");
-        Console.WriteLine(
-            $"Fund transaction reconciliation: read/projected={transactionBackfill.TransactionsRead}/{transactionBackfill.TransactionsProjected}, " +
-            $"timeline/status/amount={transactionBackfill.TimelineRows}/{transactionBackfill.StatusBalanceRows}/{transactionBackfill.TransactionAmountRows}, " +
-            $"completedMonths={transactionBackfill.CompletedMonths}/{transactionBackfill.TotalMonths}, batches={transactionBackfill.BatchesExecuted}.");
-        Console.WriteLine(
-            $"Fund transaction identities: logical/reserved={transactionBackfill.LogicalTransactionKeys}/{transactionBackfill.IdentityRows}, " +
-            $"missing/conflicting/duplicateCanonical={transactionBackfill.MissingIdentityRows}/{transactionBackfill.ConflictingIdentityRows}/{transactionBackfill.DuplicateCanonicalRows}.");
-        Console.WriteLine(
-            $"Fund fingerprints: source={transactionBackfill.SourceFingerprint}, timeline={transactionBackfill.TimelineFingerprint}, " +
-            $"status={transactionBackfill.StatusBalanceFingerprint}, amount={transactionBackfill.TransactionAmountFingerprint}.");
-
-        return Complete(orderBackfill.IsReconciled && transactionBackfill.IsReconciled);
     }
 
     static async Task<int> RunMarketAsync(
@@ -446,11 +376,6 @@ internal static class Program
         Console.WriteLine(
             $"Starting {options.Target.ToString().ToLowerInvariant()} projection migration; " +
             $"connection source={options.ConnectionEnvironmentVariable}; applySchema={options.ApplySchema}; batchSize={options.BatchSize}.");
-        if (options.Target == ProjectionMigrationTarget.Fund)
-        {
-            Console.WriteLine(
-                $"Fund scope: fundId={options.FundId}, dates={options.StartDate:yyyy-MM-dd}..{options.EndDate:yyyy-MM-dd}.");
-        }
         if (options.StaleOperationCutoffUtc is { } cutoff)
         {
             Console.WriteLine(
@@ -482,7 +407,6 @@ internal static class Program
         public static UnavailableBlackboardService Instance { get; } = new();
 
         public IEventSourcingBlackboard EventSourcing => Unavailable<IEventSourcingBlackboard>();
-        public IFundBlackboard Fund => Unavailable<IFundBlackboard>();
         public IMarketDataBlackboard MarketData => Unavailable<IMarketDataBlackboard>();
         public IMarketDataAnalyticsBlackboard MarketDataAnalytics => Unavailable<IMarketDataAnalyticsBlackboard>();
         public IMarketDataFeedBlackboard MarketDataFeed => Unavailable<IMarketDataFeedBlackboard>();

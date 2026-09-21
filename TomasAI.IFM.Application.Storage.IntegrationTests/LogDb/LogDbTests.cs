@@ -13,7 +13,6 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.SequenceId;
 

@@ -1,6 +1,5 @@
 using TomasAI.IFM.UI.Net.Services.Analytics;
 using TomasAI.IFM.UI.Net.Services.Application;
-using TomasAI.IFM.UI.Net.Services.Fund;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
@@ -32,12 +31,7 @@ public sealed class UiServiceCatalog(
     CommandResponseEventService commandResponses,
     ApplicationEventService applicationEvents,
     ApplicationQueryService applicationQueries,
-    StatusConsoleService statusConsole,
-    FundCommandService fundCommands,
-    FundQueryService fundQueries,
-    FundEventService fundEvents,
-    FundOrderEventService fundOrderEvents,
-    MarketDataCommandService marketDataCommands,
+    StatusConsoleService statusConsole,    MarketDataCommandService marketDataCommands,
     MarketDataQueryService marketDataQueries,
     MarketDataEventService marketDataEvents,
     OptionTradeSpreadBarDataEventService spreadBarEvents,
@@ -90,14 +84,6 @@ public sealed class UiServiceCatalog(
     public ApplicationQueryService ApplicationQueries { get; } = applicationQueries;
     /// <inheritdoc />
     public StatusConsoleService StatusConsole { get; } = statusConsole;
-    /// <inheritdoc />
-    public FundCommandService FundCommands { get; } = fundCommands;
-    /// <inheritdoc />
-    public FundQueryService FundQueries { get; } = fundQueries;
-    /// <inheritdoc />
-    public FundEventService FundEvents { get; } = fundEvents;
-    /// <inheritdoc />
-    public FundOrderEventService FundOrderEvents { get; } = fundOrderEvents;
     /// <inheritdoc />
     public MarketDataCommandService MarketDataCommands { get; } = marketDataCommands;
     /// <inheritdoc />

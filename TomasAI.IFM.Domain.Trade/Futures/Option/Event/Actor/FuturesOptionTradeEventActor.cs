@@ -2,6 +2,8 @@ using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
+using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
+using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -80,21 +82,45 @@ public class FuturesOptionTradeEventActor(
 public interface IFuturesOptionTradeEventContext :
     IEventActorContext<FuturesOptionTradeEventActor>
 {
+    /// <summary>Gets the Portfolio-owned trade valuation boundary.</summary>
+    IPortfolioTradeValuationApi PortfolioValuation { get; }
+
+    /// <summary>Gets the status console writer.</summary>
     IStatusConsoleWriter StatusConsoleWriter { get; }
+
+    /// <summary>Gets the actor logger.</summary>
     ILogger<FuturesOptionTradeEventActor> Logger { get; }
 }
 
 /// <summary>Provides the runtime context for the futures-option event actor.</summary>
-public sealed class FuturesOptionTradeEventContext(
-    IActorSupervisor supervisor,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesOptionTradeEventActor> logger)
-    : EventActorContext(
-        supervisor,
-        new ActorMailboxId(ActorType.Event, FuturesOptionTradeEventActor.ActorName)),
+public sealed class FuturesOptionTradeEventContext
+    : EventActorContext,
         IEventActorContext<FuturesOptionTradeEventActor>,
         IFuturesOptionTradeEventContext
 {
-    public IStatusConsoleWriter StatusConsoleWriter { get; } = statusConsoleWriter;
-    public ILogger<FuturesOptionTradeEventActor> Logger { get; } = logger;
+    /// <summary>Initializes the futures-option event actor context.</summary>
+    /// <param name="supervisor">The actor supervisor.</param>
+    /// <param name="portfolioValuation">The Portfolio trade valuation boundary.</param>
+    /// <param name="statusConsoleWriter">The status console writer.</param>
+    /// <param name="logger">The actor logger.</param>
+    public FuturesOptionTradeEventContext(
+        IActorSupervisor supervisor,
+        IPortfolioTradeValuationApi portfolioValuation,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger<FuturesOptionTradeEventActor> logger)
+        : base(supervisor, new ActorMailboxId(ActorType.Event, FuturesOptionTradeEventActor.ActorName))
+    {
+        PortfolioValuation = portfolioValuation;
+        StatusConsoleWriter = statusConsoleWriter;
+        Logger = logger;
+    }
+
+    /// <inheritdoc />
+    public IPortfolioTradeValuationApi PortfolioValuation { get; }
+
+    /// <inheritdoc />
+    public IStatusConsoleWriter StatusConsoleWriter { get; }
+
+    /// <inheritdoc />
+    public ILogger<FuturesOptionTradeEventActor> Logger { get; }
 }

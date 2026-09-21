@@ -107,6 +107,51 @@ public sealed record CreateManualFundOrderRequest
     [Key(10)] public DateTime ExpiresAtUtc { get; init; }
 }
 
+/// <summary>Describes one operator-authored trade to add to a manual Portfolio Fund order.</summary>
+[MessagePackObject(AllowPrivate = true)]
+public sealed record AddManualFundOrderTradeRequest
+{
+    [Key(0)] public int PortfolioId { get; init; }
+    [Key(1)] public int FundId { get; init; }
+    [Key(2)] public int OrderId { get; init; }
+    [Key(3)] public long ExpectedOrderVersion { get; init; }
+    [Key(4)] public int TradeId { get; init; }
+    [Key(5)] public string TradeType { get; init; } = string.Empty;
+    [Key(6)] public DateOnly TradeDate { get; init; }
+    [Key(7)] public DateOnly MaturityDate { get; init; }
+    [Key(8)] public string TradeState { get; init; } = string.Empty;
+    [Key(9)] public string TradeAction { get; init; } = string.Empty;
+    [Key(10)] public string Reference { get; init; } = string.Empty;
+    [Key(11)] public bool PrimaryTrade { get; init; }
+    [Key(12)] public string BaseContractSymbol { get; init; } = string.Empty;
+    [Key(13)] public DateTime RequestedAtUtc { get; init; }
+}
+
+/// <summary>Identifies a manual Portfolio Fund trade mutation at an expected order version.</summary>
+[MessagePackObject(AllowPrivate = true)]
+public sealed record ManualFundOrderTradeMutationRequest
+{
+    [Key(0)] public int PortfolioId { get; init; }
+    [Key(1)] public int FundId { get; init; }
+    [Key(2)] public int OrderId { get; init; }
+    [Key(3)] public long ExpectedOrderVersion { get; init; }
+    [Key(4)] public int TradeId { get; init; }
+    [Key(5)] public string TradeState { get; init; } = string.Empty;
+    [Key(6)] public DateTime RequestedAtUtc { get; init; }
+}
+
+/// <summary>Identifies a manual Portfolio Fund order transition at an expected version.</summary>
+[MessagePackObject(AllowPrivate = true)]
+public sealed record ManualFundOrderMutationRequest
+{
+    [Key(0)] public int PortfolioId { get; init; }
+    [Key(1)] public int FundId { get; init; }
+    [Key(2)] public int OrderId { get; init; }
+    [Key(3)] public long ExpectedOrderVersion { get; init; }
+    [Key(4)] public string Reason { get; init; } = string.Empty;
+    [Key(5)] public DateTime RequestedAtUtc { get; init; }
+}
+
 [MessagePackObject(AllowPrivate = true)]
 public sealed record FundCompositionReservationResult
 {

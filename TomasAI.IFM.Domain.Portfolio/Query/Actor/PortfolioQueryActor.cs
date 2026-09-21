@@ -26,10 +26,6 @@ using GetFundRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.Portfol
 using GetFundRiskEnvelopeQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetEnvelopeRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel>;
 using GetFundsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel>>;
 using GetFundTemplateAssignmentsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetAssignmentsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel[]>;
-using GetLegacyFundCatalogQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyFundCatalogRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyFundHistoryReadModel[]>;
-using GetLegacyFundOrdersQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyFundOrdersRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyFundOrderHistoryReadModel[]>;
-using GetLegacyFundOrderTradesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyFundOrderTradesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyFundTradeHistoryReadModel[]>;
-using GetLegacyPortfolioScopesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetLegacyPortfolioScopesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.LegacyPortfolioScopeReadModel[]>;
 using GetPortfolioFinancialPoliciesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPoliciesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>>;
 using GetPortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPolicyRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>;
 using GetPortfolioFundStrategyReferenceCombinationsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategyReferenceCombinationsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioFundStrategyReferenceCombination[]>;
@@ -86,10 +82,6 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         [PortfolioQueryVerbs.GetPortfolioFinancialPolicy] = static message => message.AsQuery<GetPortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
         [PortfolioQueryVerbs.GetPortfolioFinancialPolicies] = static message => message.AsQuery<GetPortfolioFinancialPoliciesQuery, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
         [PortfolioQueryVerbs.GetActivePortfolioFinancialPolicy] = static message => message.AsQuery<GetActivePortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
-        [PortfolioQueryVerbs.GetLegacyPortfolioScopes] = static message => message.AsQuery<GetLegacyPortfolioScopesQuery, LegacyPortfolioScopeReadModel[]>()!,
-        [PortfolioQueryVerbs.GetLegacyFundCatalog] = static message => message.AsQuery<GetLegacyFundCatalogQuery, LegacyFundHistoryReadModel[]>()!,
-        [PortfolioQueryVerbs.GetLegacyFundOrders] = static message => message.AsQuery<GetLegacyFundOrdersQuery, LegacyFundOrderHistoryReadModel[]>()!,
-        [PortfolioQueryVerbs.GetLegacyFundOrderTrades] = static message => message.AsQuery<GetLegacyFundOrderTradesQuery, LegacyFundTradeHistoryReadModel[]>()!,
     };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
@@ -136,15 +128,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
             [typeof(GetPortfolioFinancialPoliciesQuery)] = static (parameters, context, query, cancellationToken) =>
                 ((GetPortfolioFinancialPoliciesQuery)query).ExecuteAsync(context, parameters, cancellationToken),
             [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, cancellationToken),
-            [typeof(GetLegacyPortfolioScopesQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetLegacyPortfolioScopesQuery)query).ExecuteAsync(context, parameters, cancellationToken),
-            [typeof(GetLegacyFundCatalogQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetLegacyFundCatalogQuery)query).ExecuteAsync(context, parameters, cancellationToken),
-            [typeof(GetLegacyFundOrdersQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetLegacyFundOrdersQuery)query).ExecuteAsync(context, parameters, cancellationToken),
-            [typeof(GetLegacyFundOrderTradesQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetLegacyFundOrderTradesQuery)query).ExecuteAsync(context, parameters, cancellationToken)
+                ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, cancellationToken)
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

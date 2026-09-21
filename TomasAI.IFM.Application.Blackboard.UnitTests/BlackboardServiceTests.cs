@@ -51,8 +51,6 @@ public class BlackboardServiceTests
         sut.EventSourcing.EventStreamId.Should().NotBeNull();
         sut.EventSourcing.EventNameId.Should().NotBeNull();
         sut.EventSourcing.EventProjectorState.Should().NotBeNull();
-
-        sut.Fund.FundBalance.Should().NotBeNull();
         sut.MarketData.RiskFreeRate.Should().NotBeNull();
 
         sut.MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDelta
@@ -110,7 +108,6 @@ public class BlackboardServiceTests
         properties.Should().BeEquivalentTo(
         [
             nameof(IBlackboardService.EventSourcing),
-            nameof(IBlackboardService.Fund),
             nameof(IBlackboardService.MarketData),
             nameof(IBlackboardService.MarketDataAnalytics),
             nameof(IBlackboardService.MarketDataFeed),

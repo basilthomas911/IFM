@@ -1,8 +1,7 @@
-﻿using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.PredictiveModelDb;
@@ -10,7 +9,6 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.FundDb.Schema;
 using TomasAI.IFM.Application.Storage.LogDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
@@ -39,14 +37,11 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
 {
     readonly IDbContextResolver _dbContextResolver = dbContextResolver;
     readonly Dictionary<Type, object> _dbContextPoolMap = [];
-    IFundLegacyDbContext? _fundLegacyDb;
 
     // DbContext properties
     public IObjectRepository<EventSourceActorDbContext> ActorEventSourceDb => _dbContextResolver.Resolve<EventSourceActorDbContext>();
     public IObjectRepository<LogDbContext> LogDb => _dbContextResolver.Resolve<LogDbContext>();
     public IObjectRepository<SequenceIdDbContext> SequenceIdDb => _dbContextResolver.Resolve<SequenceIdDbContext>();
-    public IFundDbContext FundDb => _dbContextResolver.Resolve<FundDbContext>() as IFundDbContext;
-    public IFundLegacyDbContext FundLegacyDb => _fundLegacyDb ??= new FundLegacyDbContext(FundDb);
     public IMarketDataDbContext MarketDataDb => _dbContextResolver.Resolve<MarketDataDbContext>() as IMarketDataDbContext;
     public IOptionPricerDbContext OptionPricerDb => _dbContextResolver.Resolve<OptionPricerDbContext>() as IOptionPricerDbContext;
     public IObjectRepository<PredictiveModelDbContext> PredictiveModelDb => _dbContextResolver.Resolve<PredictiveModelDbContext>();
@@ -63,7 +58,6 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;
     public LogSchemaDb LogSchema => (_dbContextResolver.Resolve<LogSchemaDb>() as LogSchemaDb)!;
     public SequenceIdSchemaDb SequenceIdSchema => (_dbContextResolver.Resolve<SequenceIdSchemaDb>() as SequenceIdSchemaDb)!;
-    public FundSchemaDb FundSchema => (_dbContextResolver.Resolve<FundSchemaDb>() as FundSchemaDb)!;
     public MarketDataSchemaDb MarketDataSchema => (_dbContextResolver.Resolve<MarketDataSchemaDb>() as MarketDataSchemaDb)!;
     public OptionPricerSchemaDb OptionPricerSchema => (_dbContextResolver.Resolve<OptionPricerSchemaDb>() as OptionPricerSchemaDb)!;
     public PredictiveModelSchemaDb PredictiveModelSchema => (_dbContextResolver.Resolve<PredictiveModelSchemaDb>() as PredictiveModelSchemaDb)!;

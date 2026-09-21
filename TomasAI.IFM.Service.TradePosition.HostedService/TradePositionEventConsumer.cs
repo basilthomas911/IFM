@@ -24,7 +24,8 @@ public class TradePositionEventConsumer : NatsEventConsumer, ITradePositionEvent
     /// </summary>
     /// <param name="tradePositionService"></param>
     /// <param name="options"></param>
-    /// <param name="logger"></param>
+    /// <param name="logger">The consumer logger.</param>
+    /// <param name="connectionManager">The optional shared NATS connection manager.</param>
     public TradePositionEventConsumer(
         ITradePositionService tradePositionService,
         INatsEventListenerOptions options,
@@ -46,9 +47,6 @@ public class TradePositionEventConsumer : NatsEventConsumer, ITradePositionEvent
             new TradePositionChangedEvent{ },
             new OptionTradeLegDataChangedEvent{ },
             new OptionTradeSpreadDistributionStatisticsChangedEvent{ },
-            new OptionTradeOrderPlacedEvent{ },
-            new OptionTradePositionOpenedEvent{ },
-            new OptionTradePositionClosedEvent{ },
         };
         @events.ForEach(e => e.SetEventSource($"{EventTopic.TradeEvents}"));
         Subscribe($"{_siteId}", @events, async e => await _tradePositionService.ExecuteAsync((dynamic )e));

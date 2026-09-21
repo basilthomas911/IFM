@@ -23,12 +23,11 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources,IPortf
         foreach(var id in portfolio.FundIds.Order())
         {
             var fund=await sources.LoadFundAsync(new(scope.PortfolioId,id),token);
-            // Historical imported Funds stay read-only and do not become spending authorities.
-            if(fund.Current is null || fund.Current.IsLegacyHistory) continue;
+            if(fund.Current is null) continue;
             fundAuthorities.Add(new() { FundId=id,CanSpend=false,PortfolioStreamVersion=portfolio.Revision,FundStreamVersion=fund.Revision });
             names.Add(fund.Current.Name);
         }
-        Require(fundAuthorities.Count>0,"Create a current Fund before setting up this book; historical Funds remain read-only.");
+        Require(fundAuthorities.Count>0,"Create a current Fund before setting up this book.");
         var accounts=portfolio.Current!.BrokerAccountRefs.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if(string.IsNullOrEmpty(request.ExecutionAccountReference)) return Result(new(accounts,names.ToArray(),null));
         Require(accounts.Contains(request.ExecutionAccountReference,StringComparer.Ordinal),"Select an execution account configured on this Portfolio.");

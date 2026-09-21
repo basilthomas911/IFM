@@ -7,7 +7,7 @@ public static partial class TradeSelectionContracts
         var p=snapshot.Portfolio;var f=snapshot.Fund;var policy=snapshot.FinancialPolicy;var allocation=snapshot.Allocation;var envelope=snapshot.RiskEnvelope;var at=binding.FrozenAtUtc;
         Require(p.Validate().Count==0 && policy.Validate(forActivation:true).Count==0 && allocation.Validate().Count==0 && envelope.Validate().Count==0,"TS.CONFIG.AUTHORITY","Invalid authority objects.");
         Require(Enum.IsDefined(p.OperatingState) && Enum.IsDefined(f.OperatingState) && f.OperatingState!=FundOperatingState.Unknown && Enum.IsDefined(envelope.CapacityState)
-            && f.FundId>0 && f.FundMandateVersion>0 && f.SchemaVersion==3 && !f.IsLegacyHistory && f.PortfolioId==p.PortfolioId && f.TradingYear==binding.RequestedTradeDate.Year
+            && f.FundId>0 && f.FundMandateVersion>0 && f.SchemaVersion==3 && f.PortfolioId==p.PortfolioId && f.TradingYear==binding.RequestedTradeDate.Year
             && Utc(f.CreatedOnUtc) && !string.IsNullOrWhiteSpace(f.CreatedBy),"TS.CONFIG.AUTHORITY","Invalid Fund scope/state/schema.");
         Require(policy.PortfolioId==p.PortfolioId && policy.PolicyId==p.ActivePolicyId && policy.PolicyVersion==p.ActivePolicyVersion && policy.OperatingState==PortfolioFinancialPolicyState.Active
             && allocation.PortfolioId==p.PortfolioId && allocation.PortfolioVersion==p.PortfolioVersion && allocation.FundId==f.FundId && allocation.FundMandateVersion==f.FundMandateVersion

@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
-﻿using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;

@@ -1,5 +1,5 @@
-﻿using System.Collections.Concurrent;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using System.Collections.Concurrent;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -87,10 +88,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     IAppRoot _appRoot;
     readonly int _portfolioId;
     Guid _siteId;
-    FundReadModel _fund;
-    FundOrderReadModel _fundOrder;
-    FundOrderTradeReadModel _fundOrderTrade;
-    List<FundOrderTradeReadModel> _fundOrderTrades;
+    PortfolioFundEditorModel _fund;
+    PortfolioFundOrderEditorModel _fundOrder;
+    PortfolioFundOrderTradeEditorModel _fundOrderTrade;
+    List<PortfolioFundOrderTradeEditorModel> _fundOrderTrades;
     DateOnly? _valueDate;
     ICollection<FuturesContractV3ReadModel> _baseContracts;
     OptionTradeReadModel _optionTrade = null!;
@@ -157,7 +158,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <param name="timeProvider">The optional clock used by live presentation timers.</param>
     /// <param name="historicalReadOnly">Whether the monitor is restricted to historical display.</param>
     /// <param name="portfolioId">The Portfolio component of the canonical trade identity.</param>
-    public IronCondorViewModel(IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate,
+    public IronCondorViewModel(IAppRoot appRoot, PortfolioFundEditorModel fund,  PortfolioFundOrderEditorModel fundOrder, PortfolioFundOrderTradeEditorModel fundOrderTrade, DateOnly? valueDate,
         ICollection<FuturesContractV3ReadModel> baseContracts,
         TimeProvider? timeProvider = null,
         bool historicalReadOnly = false,
@@ -187,9 +188,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     public IAppRoot AppRoot => _appRoot;
-    public FundReadModel Fund => _fund;
-    public FundOrderReadModel FundOrder => _fundOrder;
-    public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade;
+    public PortfolioFundEditorModel Fund => _fund;
+    public PortfolioFundOrderEditorModel FundOrder => _fundOrder;
+    public PortfolioFundOrderTradeEditorModel FundOrderTrade => _fundOrderTrade;
     public DateOnly? ValueDate => _valueDate;
     public ICollection<FuturesContractV3ReadModel> BaseContracts => _baseContracts;
     public int OrderId => _fundOrder.OrderId;
@@ -740,16 +741,16 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     Task LoadTradeLimits(int orderId, int tradeId)
         => _appRoot.ExecuteAsync(async cancellationToken => {
             cancellationToken.ThrowIfCancellationRequested();
-            var tradeModel = _appRoot.Services.TradeQueries;
-            var tradeLimit = default(TradeLimitReadModel);
-            await tradeModel.GetTradeLimitsAsync(tradeId, e => tradeLimit = e);
-            var fundModel = _appRoot.Services.FundQueries;
-            await fundModel.GetFundBalanceAsync(_fundOrder.FundId, fundBalance =>
-            {
-                _tradeLimits = tradeLimit!;
-                _fundBalance = fundBalance;
-                TradeLimitSnapshot = new IronCondorTradeLimitSnapshot(orderId, tradeLimit!, fundBalance);
-            });
+            TradeLimitReadModel? tradeLimit = null;
+            await _appRoot.Services.TradeQueries.GetTradeLimitsAsync(tradeId, value => tradeLimit = value);
+            var scope = new FinancialReadScope { PortfolioId = _portfolioId, FundId = _fundOrder.FundId,
+                Access = new(Environment.UserName, ["LedgerRead"], [_portfolioId]) };
+            var result = await _appRoot.Services.PortfolioFinancial.GetAccountBalancesAsync(scope, new(), cancellationToken);
+            var fundBalance = result.Success && result.Value?.Value is { } balance ? balance.AvailableCash
+                : throw new InvalidOperationException($"Portfolio Fund {_fundOrder.FundId} balance was not found.");
+            _tradeLimits = tradeLimit ?? throw new InvalidOperationException($"Trade limits for {tradeId} were not found.");
+            _fundBalance = fundBalance;
+            TradeLimitSnapshot = new IronCondorTradeLimitSnapshot(orderId, _tradeLimits, fundBalance);
         });
 
     Task LoadOptionTradeSpreadBarData(

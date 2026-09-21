@@ -15,8 +15,9 @@ namespace TomasAI.IFM.Application.Api.Client;
 
 /// <summary>
 /// REST API client for MarketDataFeed queries that delegates to an <see cref="IQueryServiceApi"/>.
-/// Mirrors the pattern used by <see cref="FundQueryApi"/>.
+/// Delegates market-data feed queries to the configured query service.
 /// </summary>
+/// <param name="querySvc">The query service used to execute market-data feed requests.</param>
 public class MarketDataFeedQueryApi(IQueryServiceApi querySvc) : IMarketDataFeedQueryApi
 {
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);

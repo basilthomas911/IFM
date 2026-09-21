@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStoreFixture fixture):IClassFixture<PortfolioEventStoreFixture>
 {
     [Fact]
-    public async Task Fresh_development_book_qualifies_after_explicit_capital_reconciliation_and_real_legacy_absence_checks()
+    public async Task Fresh_development_book_qualifies_after_explicit_capital_reconciliation_and_portfolio_authority_checks()
     {
         var (preparation,scope,sources)=await Setup();
         var draft=(await preparation.PrepareAsync(scope,new($"DEV-ACCOUNT-{scope.PortfolioId}",new(2026,1,1),new(2026,12,31)),default)).Value!.Draft!;
@@ -39,33 +39,17 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
             ReconciliationId=reconcile.OperationId,SourceCut=reconcile.Body.SourceCut,Reason="Qualify fresh development scope" });
         await FluentActions.Awaiting(()=>store.ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute)).Should().ThrowAsync<FinancialOperationException>();
 
-        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TomasAI.IFM.Application.Storage.FundDb.FundDbContext.FundDbConnection,
-            "Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db","System.Data.ScyllaDb");
-        var logger=Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Framework.Storage.DbProvider>>();
-        await new TomasAI.IFM.Application.Storage.FundDb.Schema.FundSchemaDb(settings,logger).CreateAllAsync();
-        var repositories=new Dictionary<Type,object>();
-        var factory=new TomasAI.IFM.Application.Storage.DbContextFactory(new TomasAI.IFM.Application.Storage.DbContextResolver(type=>repositories[type]));
-        var fence=new LegacyFinancialWriterFence(Transactions());
-        var legacy=new TomasAI.IFM.Application.Storage.FundDb.FundDbContext(settings,factory,Substitute.For<ISequenceIdGenerator>(),logger,fence);
-        repositories.Add(typeof(TomasAI.IFM.Framework.Storage.IObjectRepository<TomasAI.IFM.Application.Storage.FundDb.FundDbContext>),legacy);
-        var services=new LedgerConfigurationCommandServices(store,new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),sources,
+        var services=new LedgerConfigurationCommandServices(store,
+            new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),sources,
             Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),fence,legacy,new(true));
-        await command.PrepareDevelopmentQualificationAsync(services,default);
-        await FluentActions.Awaiting(()=>new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute))
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),new(true));
+        await command.PrepareDevelopmentQualificationAsync(services,default);        await FluentActions.Awaiting(()=>new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute))
             .Should().ThrowAsync<FinancialOperationException>();
         var result=await store.ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute);
         result.Receipt.OperatingState.Should().Be("NeedsRefresh");
         var saved=(await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadBookAsync(book.PortfolioId))!;
         saved.MigrationQualified.Should().BeTrue();saved.Funds.Should().OnlyContain(x=>!x.CanSpend);
-        var migration=await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT cutover_state FROM portfolio_financial.ledger_migration WHERE migration_id=$1;",[command.OperationId],ct));
-        migration.Should().Be("Qualified");
-        var mutation=await FluentActions.Awaiting(()=>Transactions().ExecuteAsync((db,ct)=>db.ExecuteAsync(
-            "UPDATE portfolio_financial.ledger_migration SET manifest_hash='changed' WHERE migration_id=$1;",[command.OperationId],ct)))
-            .Should().ThrowAsync<Npgsql.PostgresException>();
-        mutation.Which.SqlState.Should().Be("23514");
         (await new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute)).Id.Should().Be(result.Id);
-        await FluentActions.Awaiting(()=>fence.BeginWriteAsync([book.Funds[0].FundId])).Should().ThrowAsync<FinancialOperationException>();
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Workflow;
 
@@ -95,6 +96,133 @@ public sealed class PortfolioWorkflowTests
         new[] { FundCompositionState.ExecutionRequested, FundCompositionState.Executing, FundCompositionState.Executed }
             .Should().NotContain(state);
     }
+    [Fact]
+    [Trait("Category", "Portfolio")]
+    public void Empty_manual_draft_can_be_deleted_and_replayed_as_absent()
+    {
+        var request = new CreateManualFundOrderRequest
+        {
+            PortfolioId = 101,
+            PortfolioVersion = 4,
+            FundId = 202,
+            FundMandateVersion = 3,
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)),
+            Reference = "operator draft",
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddDays(1),
+        };
+        var aggregate = new PortfolioFundCompositionAggregate();
+        var draft = aggregate.CreateManualDraft(request, 16001, Now, "operator");
+        var deletion = new ManualFundOrderMutationRequest
+        {
+            PortfolioId = request.PortfolioId,
+            FundId = request.FundId,
+            OrderId = draft.Order.OrderId,
+            ExpectedOrderVersion = draft.AggregateVersion,
+            Reason = "operator delete",
+            RequestedAtUtc = Now,
+        };
+
+        aggregate.DeleteManualOrder(deletion);
+
+        aggregate.Orders.Should().BeEmpty();
+        var replay = new PortfolioFundCompositionAggregate();
+        replay.ApplyReservation(draft);
+        replay.ApplyManualDeletion(draft.Order.OrderId);
+        replay.Orders.Should().BeEmpty();
+    }
+    [Fact]
+    [Trait("Category", "Portfolio")]
+    public void Empty_manual_order_supports_the_complete_canonical_trade_lifecycle()
+    {
+        var request = new CreateManualFundOrderRequest
+        {
+            PortfolioId = 101,
+            PortfolioVersion = 4,
+            FundId = 202,
+            FundMandateVersion = 3,
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)),
+            Reference = "operator draft",
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddDays(1),
+        };
+        var aggregate = new PortfolioFundCompositionAggregate();
+        var draft = aggregate.CreateManualDraft(request, 16001, Now, "operator");
+
+        var opened = aggregate.AddManualTrade(new AddManualFundOrderTradeRequest
+        {
+            PortfolioId = 101,
+            FundId = 202,
+            OrderId = 16001,
+            ExpectedOrderVersion = draft.AggregateVersion,
+            TradeId = 17001,
+            TradeType = nameof(TradeType.ShortIronCondor),
+            TradeDate = request.RequestedTradeDate,
+            MaturityDate = request.RequestedMaturityDate ?? request.RequestedTradeDate,
+            TradeState = nameof(TradeState.TradeToOpen),
+            TradeAction = nameof(TradeAction.Sell),
+            Reference = "manual-16001",
+            PrimaryTrade = true,
+            BaseContractSymbol = "ES",
+            RequestedAtUtc = Now,
+        }, "operator");
+
+        opened.Trades.Should().ContainSingle();
+        opened.Trades[0].PrimaryTrade.Should().BeTrue();
+        opened.Order.AggregateVersion.Should().Be(2);
+
+        var closed = aggregate.AddManualTrade(new AddManualFundOrderTradeRequest
+        {
+            PortfolioId = 101,
+            FundId = 202,
+            OrderId = 16001,
+            ExpectedOrderVersion = opened.AggregateVersion,
+            TradeId = 17002,
+            TradeType = nameof(TradeType.LongIronCondor),
+            TradeDate = request.RequestedTradeDate,
+            MaturityDate = request.RequestedMaturityDate ?? request.RequestedTradeDate,
+            TradeState = nameof(TradeState.NewTrade),
+            TradeAction = nameof(TradeAction.Buy),
+            Reference = "manual-16001",
+            PrimaryTrade = false,
+            BaseContractSymbol = "ES",
+            RequestedAtUtc = Now,
+        }, "operator");
+
+        closed.Trades.Should().HaveCount(2);
+        closed.Order.AggregateVersion.Should().Be(3);
+        var completed = aggregate.ChangeManualTradeState(new ManualFundOrderTradeMutationRequest
+        {
+            PortfolioId = 101,
+            FundId = 202,
+            OrderId = 16001,
+            ExpectedOrderVersion = closed.AggregateVersion,
+            TradeId = 17002,
+            TradeState = nameof(TradeState.OrderCompleted),
+            RequestedAtUtc = Now,
+        });
+        var finalized = aggregate.CloseManualOrder(new ManualFundOrderMutationRequest
+        {
+            PortfolioId = 101,
+            FundId = 202,
+            OrderId = 16001,
+            ExpectedOrderVersion = completed.AggregateVersion,
+            Reason = "operator close",
+            RequestedAtUtc = Now,
+        });
+
+        completed.Trades.Single(x => x.TradeId == 17002).TradeState.Should().Be(nameof(TradeState.OrderCompleted));
+        finalized.Order.Status.Should().Be(nameof(FundCompositionState.Executed));
+        finalized.Order.AggregateVersion.Should().Be(5);
+
+    }
+
 
     [Fact]
     [Trait("Gate", "PF-14")]

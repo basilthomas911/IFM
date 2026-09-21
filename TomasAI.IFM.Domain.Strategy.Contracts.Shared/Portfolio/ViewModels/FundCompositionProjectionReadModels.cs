@@ -35,6 +35,9 @@ public sealed record FundOrderProjectionReadModel
     /// <summary>Only this exact financial reference can enter the consumption handoff.</summary>
     [Key(26)] public Financial.FundRiskAuthorizationReference? RiskAuthorization { get; init; }
     [Key(27)] public Financial.RiskTerminalEvidence? TerminalRisk { get; init; }
+    [Key(28)] public string UnderlyingRoot { get; init; } = string.Empty;
+    [Key(29)] public DateOnly RequestedTradeDate { get; init; }
+    [Key(30)] public DateOnly? RequestedMaturityDate { get; init; }
 }
 
 [MessagePackObject(AllowPrivate = true)]
@@ -53,6 +56,12 @@ public sealed record FundOrderTradeProjectionReadModel
     [Key(10)] public string UnderlyingRoot { get; init; } = string.Empty;
     [Key(11)] public DateOnly RequestedTradeDate { get; init; }
     [Key(12)] public DateOnly? RequestedMaturityDate { get; init; }
+    [Key(13)] public string TradeType { get; init; } = string.Empty;
+    [Key(14)] public string TradeState { get; init; } = string.Empty;
+    [Key(15)] public bool PrimaryTrade { get; init; }
+    [Key(16)] public string BaseContractSymbol { get; init; } = string.Empty;
+    [Key(17)] public DateTime CreatedOnUtc { get; init; }
+    [Key(18)] public string CreatedBy { get; init; } = string.Empty;
 }
 
 [MessagePackObject(AllowPrivate = true)]

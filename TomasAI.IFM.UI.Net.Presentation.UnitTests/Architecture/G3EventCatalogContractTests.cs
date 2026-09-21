@@ -39,12 +39,6 @@ public sealed class G3EventCatalogContractTests
                 ["TradePositionUpdatedEvent"],
             ["TomasAI.IFM.UI.EventConsumer/TradePlacementUIEventConsumer.cs"] =
                 ["TradePlacementSetEvent", "TradePlacementWaitEvent", "TradePlacementClearedEvent"],
-            ["TomasAI.IFM.UI.EventConsumer/FundUIEventConsumer.cs"] =
-                ["FundTransactionCreatedCompleteEvent", "EndOfDayFundTransactionProcessedCompleteEvent"],
-            ["TomasAI.IFM.UI.EventConsumer/FundOrderUIEventConsumer.cs"] =
-                ["OrderAddedToFundCompleteEvent", "OrderRemovedFromFundCompleteEvent", "TradeAddedToFundOrderCompleteEvent", "TradeRemovedFromFundOrderCompleteEvent"],
-            ["TomasAI.IFM.UI.EventConsumer/FundOrderTradeStateUIEventConsumer.cs"] =
-                ["FundOrderTradeStateChangedCompleteEvent", "FundOrderTradeStateChangedFailEvent"],
             ["TomasAI.IFM.UI.EventConsumer/MarketDataFeedResetUIEventConsumer.cs"] =
                 ["MarketDataFeedResetStreamingEvent"],
             ["TomasAI.IFM.UI.EventConsumer/FuturesOptionTickDataUIEventConsumer.cs"] =

@@ -17,6 +17,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using TomasAI.IFM.Framework.OptionPricer.Black76;
+using TomasAI.IFM.Framework.OptionPricer.Pricing;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
@@ -126,7 +127,7 @@ public sealed partial class CompositionBusinessProjectionTests
             EffectiveFromUtc = at.AddDays(-1), EffectiveUntilUtc = at.AddDays(30) };
         var curve = new TreasuryCurveSnapshot(DateOnly.FromDateTime(at.UtcDateTime), [new(TreasuryTenor.OneMonth, 5m)], at, "FinancialModelingPrep");
         var rate = TreasuryRateConversion.Convert(curve, TreasuryTenor.OneMonth, plan.Conversion!).Value!;
-        return new(new(contract, plan.Calendar, rate, at.AddHours(1), generation, OptionCalculator.EngineVersion, 1000, 250, "fixture/v1"), candidate.Definition.StrikePrice, true);
+        return new(new(contract, plan.Calendar, rate, at.AddHours(1), generation, OptionCalculator.Version, 1000, 250, "fixture/v1"), candidate.Definition.StrikePrice, true);
     }
     sealed class PricingClock : TimeProvider
     { public DateTimeOffset Now = new(2026, 9, 8, 16, 0, 0, TimeSpan.Zero); public override DateTimeOffset GetUtcNow() => Now; }

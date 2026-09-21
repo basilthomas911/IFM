@@ -101,8 +101,7 @@ public sealed class FundMandateEditorForm : DarkTradingForm
             DecisionHorizon = PortfolioUiStyle.SelectedStrategyTimeFrameName(_horizon), Objective = _objective.Text.Trim(), UnderlyingUniverse = _underlyings.SelectedValues,
             EligibleAssetTypes = _assets.SelectedValues, PermittedDirections = _directions.SelectedValues, PermittedConditions = _conditions.SelectedValues,
             SchemaVersion = 3, PermittedTradeStrategyFamilies = choices.Select(x => x.Reference!).ToArray(),
-            PermittedTradeFamilies = choices.Select(x => x.SystemKey).Distinct(StringComparer.Ordinal).ToArray(), CreatedOnUtc = now, CreatedBy = Environment.UserName,
-            HistoricalSource = _source?.HistoricalSource ?? string.Empty, HistoricalSourceFundId = _source?.HistoricalSourceFundId,
+            PermittedTradeFamilies = choices.Select(x => x.SystemKey).Distinct(StringComparer.Ordinal).ToArray(), CreatedOnUtc = now, CreatedBy = Environment.UserName
         };
         var errors = value.Validate(); if (errors.Count != 0) { _error.Text = string.Join("; ", errors); return; }
         Value = value; DialogResult = DialogResult.OK; Close();

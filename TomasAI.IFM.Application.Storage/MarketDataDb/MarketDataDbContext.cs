@@ -6,7 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;

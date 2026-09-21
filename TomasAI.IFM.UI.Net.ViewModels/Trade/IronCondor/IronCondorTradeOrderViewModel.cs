@@ -1,14 +1,14 @@
-﻿using TomasAI.IFM.Domain.Fund.Shared;
-using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using System.Security.Cryptography;
 using System.Text;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
@@ -43,7 +43,6 @@ public sealed record IronCondorTradeOrderLiveStreamMetricsSnapshot(
 /// strategies.</remarks>
 public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
-    readonly AsyncLifecycleCoordinator _riskMarginLifecycle;
     readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
     readonly TimeProvider _timeProvider;
     readonly IReferenceDataService _referenceDataService;
@@ -59,8 +58,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     DateOnly _valueDate;
     int _fundId;
     FuturesContractV3ReadModel _baseContract;
-    FundOrderReadModel _fundOrder;
-    FundOrderTradeReadModel _fundOrderTrade;
+    PortfolioFundOrderEditorModel _fundOrder;
+    PortfolioFundOrderTradeEditorModel _fundOrderTrade;
     OrderActionType _orderActionType;
     DefaultFuturesContractDefinitionsUiModel _defaultFuturesContractDefinitions = null!;
     double _riskFreeRate;
@@ -114,8 +113,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         DateOnly valueDate,
         int fundId,
         FuturesContractV3ReadModel baseContract,
-        FundOrderReadModel fundOrder,
-        FundOrderTradeReadModel fundOrderTrade,
+        PortfolioFundOrderEditorModel fundOrder,
+        PortfolioFundOrderTradeEditorModel fundOrderTrade,
         OrderActionType orderActionType,
         IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null,
@@ -159,7 +158,6 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         _putSpreadStrikeWidth = 30; // change to get strike width from reference data...
         _callSpreadStrikeWidth = 15; // change to get strike width from reference data...
         _liveFeedQuoteId = Guid.Empty;
-        _riskMarginLifecycle = new AsyncLifecycleCoordinator(StartFundRiskMarginConsumerCoreAsync, StopFundRiskMarginConsumerCoreAsync);
         _liveFeedLifecycle = new AsyncLifecycleCoordinator(StartLiveFeedCoreAsync, StopLiveFeedCoreAsync);
     }
 
@@ -183,7 +181,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// <summary>Gets the Portfolio authority used for order-composition evaluation.</summary>
     public int PortfolioId => _portfolioId;
     public FuturesContractV3ReadModel BaseContract => _baseContract;
-    public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade;
+    public PortfolioFundOrderTradeEditorModel FundOrderTrade => _fundOrderTrade;
     public DefaultFuturesContractDefinitionsUiModel DefaultFuturesContractDefinitions => _defaultFuturesContractDefinitions;
     public double RiskFreeRate => _riskFreeRate;
     public RiskPositionType RiskPositionType
@@ -389,63 +387,15 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// <remarks>This method triggers the execution of a series of asynchronous operations to update the
     /// fund's maximum profit. It handles errors by displaying an error message if any issues occur during the
     /// process.</remarks>
-    public async Task SetFundMaxProfit()
+    public Task SetFundMaxProfit()
     {
         ThrowIfHistoricalReadOnly();
-        try
-        {
-            await _riskMarginLifecycle.InitializeAsync(CancellationToken.None);
-            await _appRoot.Services.FundCommands.ExecuteObservableAsync(async model =>
-            {
-                await Task.Delay(TimeSpan.FromSeconds(1));
-                await model.GenerateFundRiskMarginAsync(
-                    _fundOrder,
-                    Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds);
-            });
-        }
-        catch (UiServiceOperationException exception)
-        {
-            PublishError(exception, "Setting Fund Max Profit Error");
-            throw;
-        }
+        FundMaxProfit = _ironCondorTrade?.TradeLimit?.MaxProfit;
+        return Task.CompletedTask;
     }
 
-    Task StartFundRiskMarginConsumerCoreAsync(CancellationToken cancellationToken)
-        => _appRoot.Services.FundCommands.ExecuteAsync(async model =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await model.StartFundRiskMarginEventConsumerAsync(
-                HandleFundMaxProfitChanged,
-                HandleFundMaxProfitFailed);
-        });
-
-    void HandleFundMaxProfitChanged(FundMaxProfitGeneratedCompleteEvent @event)
-    {
-        FundMaxProfit = @event.FundMaxProfit.FundMaxProfit;
-        _ = StopFundRiskMarginEventConsumer();
-    }
-
-    void HandleFundMaxProfitFailed(FundMaxProfitGeneratedFailEvent @event)
-    {
-        PublishError(@event.ErrorCode, @event.ErrorMessage, "Setting Risk Margin Failed");
-        _ = StopFundRiskMarginEventConsumer();
-    }
-
-    /// <summary>
-    /// Stops the consumer responsible for processing fund risk margin events.
-    /// </summary>
-    /// <remarks>This method halts the operation of the fund risk margin event consumer, preventing it from
-    /// processing further events. Ensure that stopping the consumer is appropriate for the application's current state,
-    /// as it will cease handling incoming events.</remarks>
-    public Task StopFundRiskMarginEventConsumer()
-         => _riskMarginLifecycle.StopAsync(CancellationToken.None);
-
-    Task StopFundRiskMarginConsumerCoreAsync(CancellationToken cancellationToken)
-         => _appRoot.Services.FundCommands.ExecuteAsync(async model => {
-             cancellationToken.ThrowIfCancellationRequested();
-             await model.StopFundRiskMarginEventConsumerAsync();
-         });
-
+    /// <summary>Completes the removed legacy Fund risk-margin listener lifecycle.</summary>
+    public Task StopFundRiskMarginEventConsumer() => Task.CompletedTask;
     /// <inheritdoc />
     public Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -457,13 +407,11 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         await _liveFeedLifecycle.StopAsync(cancellationToken);
-        await _riskMarginLifecycle.StopAsync(cancellationToken);
     }
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await _liveFeedLifecycle.DisposeAsync();
-        await _riskMarginLifecycle.DisposeAsync();
     }
 
     /// <summary>
@@ -654,16 +602,21 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             MapOptionLegData();
             MapOptionPriceFromTradeReference(_fundOrderTrade.TradeAction, _fundOrderTrade.Reference);
 
-            await _appRoot.Services.FundQueries.ExecuteObservableAsync(async fundModel =>
+            if (_portfolioId > 0)
             {
-                await fundModel.GetFundBalanceAsync(_fundId, fundBalance =>
+                var scope = new FinancialReadScope
                 {
-                    FundBalance = fundBalance;
-                    StrikePrices = strikePrices;
-                    SelectedStrikePriceIndex = strikePrices.Length / 2;
-                });
-            });
-
+                    PortfolioId = _portfolioId,
+                    FundId = _fundId,
+                    Access = new(Environment.UserName, ["LedgerRead"], [_portfolioId])
+                };
+                var balanceResult = await _appRoot.Services.PortfolioFinancial
+                    .GetAccountBalancesAsync(scope, new(), CancellationToken.None);
+                if (balanceResult.Success && balanceResult.Value?.Value is { } snapshot)
+                    FundBalance = snapshot.AvailableCash;
+            }
+            StrikePrices = strikePrices;
+            SelectedStrikePriceIndex = strikePrices.Length / 2;
             await _appRoot.Services.FeedQueries.ExecuteObservableAsync(async marketDataFeedModel =>
             {
                 await marketDataFeedModel.GetFuturesEodDataAsync(_baseContract.ContractId, _valueDate, futuresEodData =>
@@ -721,28 +674,6 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                             mappedLegData);
                 }
             }
-    }
-
-    /// <summary>
-    /// Removes a trade from a fund order.
-    /// </summary>
-    /// <remarks>This method executes asynchronously and removes the specified trade from the associated fund
-    /// order. Ensure that the <paramref name="fundOrderTradeId"/> is valid and corresponds to an existing
-    /// trade.</remarks>
-    /// <param name="fundOrderTradeId">The identifier of the trade to be removed from the fund order. Cannot be null.</param>
-    public async Task RemoveTradeFromFundOrder(FundOrderTradeId fundOrderTradeId)
-    {
-        ThrowIfHistoricalReadOnly();
-        try
-        {
-            await _appRoot.Services.FundCommands.ExecuteObservableAsync(
-                async model => _ = await model.RemoveTradeFromFundOrderAsync(fundOrderTradeId));
-        }
-        catch (UiServiceOperationException exception)
-        {
-            PublishError(exception, "Removing Trade From Fund Order Error");
-            throw;
-        }
     }
 
     /// <summary>
@@ -1366,6 +1297,29 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     /// <summary>Loads the selectable option strikes for the current underlying and maturity.</summary>
     /// <returns>The ordered strike-price values displayed by the editor.</returns>
+    /// <summary>Removes this economically inactive trade from its canonical Portfolio fund order.</summary>
+    /// <param name="tradeId">The trade identifier to remove.</param>
+    /// <returns>A task that completes after the canonical order projection is updated.</returns>
+    public async Task RemoveTradeFromFundOrder(PortfolioFundOrderTradeEditorId tradeId)
+    {
+        if (_portfolioId <= 0)
+            throw new InvalidOperationException("Select a Portfolio before removing the order trade.");
+        var orderResult = await _appRoot.Services.PortfolioQueries.GetOrderAsync(_fundOrder.OrderId);
+        if (!orderResult.Success || orderResult.Value is null)
+            throw new InvalidOperationException(orderResult.ErrorMessage ?? "Unable to load the Portfolio order.");
+        var request = new ManualFundOrderTradeMutationRequest
+        {
+            PortfolioId = _portfolioId,
+            FundId = _fundOrder.FundId,
+            OrderId = _fundOrder.OrderId,
+            ExpectedOrderVersion = orderResult.Value.AggregateVersion,
+            TradeId = tradeId.TradeId,
+            RequestedAtUtc = DateTime.UtcNow,
+        };
+        var result = await _appRoot.Services.PortfolioFundCommands.RemoveManualTradeAsync(request);
+        if (!result.Success)
+            throw new InvalidOperationException(result.ErrorMessage ?? "Unable to remove the Portfolio order trade.");
+    }
     public async Task<object[]> LoadStrikePrices()
     {
         var definition = (await _referenceDataService.GetFuturesOptionStrikePriceDefinitionsAsync())
@@ -1402,27 +1356,13 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     {
         ThrowIfHistoricalReadOnly();
         SetOrderAction(orderActionType);
-        FundReadModel[] funds = [];
-        FundOrderReadModel[] fundOrders = [];
-        FundOrderTradeReadModel[] fundOrderTrades = [];
         try
         {
-            await _appRoot.Services.FundQueries.ExecuteObservableAsync(async model =>
-            {
-                await model.GetFundsAsync(values => funds = values);
-                fundOrders = await model.GetFundOrdersAsync();
-                fundOrderTrades = await model.GetFundOrderTradesAsync();
-            });
-
-            var fund = funds.FirstOrDefault(value => value.FundId == FundId);
-            var fundOrder = fund is null
-                ? null
-                : fundOrders.FirstOrDefault(value => value.OrderId == FundOrderTrade.OrderId);
-            var parent = fundOrder is null
-                ? null
-                : fundOrderTrades.FirstOrDefault(value =>
-                    value.OrderId == fundOrder.OrderId
-                    && value.TradeState == TradeState.TradeToOpen);
+            var result = await _appRoot.Services.PortfolioQueries.GetOrderTradesAsync(
+                FundOrderTrade.OrderId, 200, cancellationToken: CancellationToken.None);
+            var parent = result.Success && result.Value is not null
+                ? result.Value.Items.FirstOrDefault(value => value.TradeState == TradeState.TradeToOpen.ToString())
+                : null;
             if (parent is null)
                 return false;
 

@@ -90,9 +90,6 @@ public class UiArchitectureBaselineTests
             // Only Shown, Click/Timer.Tick, and FormClosing are async-void adapters.
             "TomasAI.IFM.UI.Net.Views/App/ActorHealthForm.cs",
             "TomasAI.IFM.UI.Net.Views/App/MarketDataOperationsHealthForm.cs",
-            "TomasAI.IFM.UI.Net.Views/Fund/AdjustFundTransactionEditor.cs",
-            "TomasAI.IFM.UI.Net.Views/Fund/FundCashTransactionEditor.cs",
-            "TomasAI.IFM.UI.Net.Views/Fund/FundTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/MarketDataForm.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/YieldCurveRateEditForm.cs",
             "TomasAI.IFM.UI.Net.Views/Reference/ReferenceForm.cs",
@@ -102,7 +99,6 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/Trade/BrokerManualTradeOrderView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderForm.cs",
-            "TomasAI.IFM.UI.Net.Views/Trade/CreateFundForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorTradeOrderView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/TradeEndOfDayForm.cs",
@@ -423,32 +419,4 @@ public class UiArchitectureBaselineTests
         monitor.Should().Contain("LatestValueAsyncChannel<OptionTradeSpreadBarDataInsertedCompleteEvent>");
     }
 
-    [Fact]
-    public void FundUiConsumer_RoutesEveryAdjustmentCompletionAndFailureEvent()
-    {
-        var sourcePath = Path.Combine(
-            SolutionSource.RootPath,
-            "TomasAI.IFM.UI.EventConsumer",
-            "FundUIEventConsumer.cs");
-        var source = File.ReadAllText(sourcePath);
-        source.Should().Contain(
-            "new ActorMailboxId(ActorType.Event, FundTransactionCreatedCompleteEvent.Actor)",
-            "generic fund-transaction terminal events publish from the FundTransactionEvent mailbox");
-        var eventTypes = new[]
-        {
-            "FundTransactionCreatedCompleteEvent",
-            "FundTransactionCreatedFailEvent",
-            "OpeningTradeFundTransactionAdjustmentCreatedCompleteEvent",
-            "OpeningTradeFundTransactionAdjustmentCreatedFailEvent",
-            "RealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent",
-            "RealizedTradePnlFundTransactionAdjustmentCreatedFailEvent",
-            "TradeCommissionFundTransactionAdjustmentCreatedCompleteEvent",
-            "TradeCommissionFundTransactionAdjustmentCreatedFailEvent",
-            "UnrealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent",
-            "UnrealizedTradePnlFundTransactionAdjustmentCreatedFailEvent"
-        };
-
-        foreach (var eventType in eventTypes)
-            source.Should().Contain($"AsEvent<{eventType}>");
-    }
 }

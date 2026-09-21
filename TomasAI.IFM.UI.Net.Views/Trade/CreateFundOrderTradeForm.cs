@@ -2,19 +2,19 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
-using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFundOrderTradeForm>, IFormControl
 {
     TradeOrderEditorViewModel? _viewModel;
-    FundOrderTradeReadModel? _fundOrderTrade;
-    FundOrderTradeReadModel? _openingTrade;
+    PortfolioFundOrderTradeEditorModel? _fundOrderTrade;
+    PortfolioFundOrderTradeEditorModel? _openingTrade;
     Dictionary<string, LookupTypeUiModel> _baseSymbolMap;
 
-    public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade!;
+    public PortfolioFundOrderTradeEditorModel FundOrderTrade => _fundOrderTrade!;
 
     public CreateFundOrderTradeForm()
     {
@@ -23,9 +23,13 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         ddlBaseSymbol.SelectedIndexChanged += ddlBaseSymbol_SelectedIndexChanged;
     }
 
+    /// <summary>Assigns the canonical trade-order editor view model.</summary>
+    /// <param name="viewModel">The editor view model.</param>
     public void SetViewModel(TradeOrderEditorViewModel viewModel) => _viewModel = viewModel;
 
-    public void SetFundOrder(FundOrderReadModel fundOrder)
+    /// <summary>Assigns the canonical Portfolio Fund order being edited.</summary>
+    /// <param name="fundOrder">The selected order.</param>
+    public void SetFundOrder(PortfolioFundOrderEditorModel fundOrder)
     {
         _openingTrade = fundOrder.Trades.FirstOrDefault(trade => trade.PrimaryTrade);
         dtpTradeDate.Value = fundOrder.TradeDate.ToDateTime(TimeOnly.MinValue);
@@ -73,7 +77,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
 
     void SetClosingTradeType(TradeType openingTradeType)
     {
-        var closingTradeType = FundOrderTradingPolicy.ClosingType(openingTradeType);
+        var closingTradeType = PortfolioFundOrderEditorPolicy.ClosingType(openingTradeType);
         for (var index = 0; index < ddlTradeType.Items.Count; index++)
             if ($"{ddlTradeType.Items[index]}" == $"{closingTradeType}")
             {
@@ -130,7 +134,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
     }
 
-    FundOrderTradeReadModel? ValidateNewFundOrderTrade()
+    PortfolioFundOrderTradeEditorModel? ValidateNewFundOrderTrade()
     {
         if (!int.TryParse(txtTradeId.Text, out int tradeId))
         {
@@ -163,7 +167,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             return null;
         }
 
-        return new FundOrderTradeReadModel(
+        return new PortfolioFundOrderTradeEditorModel(
             fundId: 0,
             orderId: 0,
             tradeId: tradeId,

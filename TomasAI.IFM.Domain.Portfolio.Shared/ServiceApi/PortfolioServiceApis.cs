@@ -97,7 +97,25 @@ public interface IPortfolioFundCommandApi
     Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundCompositionReservationResult>> CreateManualOrderAsync(CreateManualFundOrderRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Adds one operator-authored trade to an existing manual Portfolio Fund order.</summary>
+    Task<ServiceResult<FundCompositionReservationResult>> AddManualTradeAsync(
+        AddManualFundOrderTradeRequest request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> MarkComposingAsync(PortfolioFundOrderId orderId, long expectedVersion, Guid invocationId, CancellationToken cancellationToken = default);
+    /// <summary>Removes an economically inactive trade from a manual Portfolio Fund order.</summary>
+    Task<ServiceResult<FundCompositionReservationResult>> RemoveManualTradeAsync(
+        ManualFundOrderTradeMutationRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Changes a trade lifecycle state on a manual Portfolio Fund order.</summary>
+    Task<ServiceResult<FundCompositionReservationResult>> ChangeManualTradeStateAsync(
+        ManualFundOrderTradeMutationRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>
+    Task<ServiceResult<FundCompositionReservationResult>> CloseManualOrderAsync(
+        ManualFundOrderMutationRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Deletes an empty draft manual Portfolio Fund order.</summary>
+    /// <param name="request">The scoped order-deletion request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The accepted deletion command identifier.</returns>
+    Task<ServiceResult<Guid>> DeleteManualOrderAsync(
+        ManualFundOrderMutationRequest request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> RecordComposedAsync(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> AuthorizeRiskAsync(Guid commandId, PortfolioFundOrderId orderId, long expectedVersion,
         Financial.FundRiskAuthorizationReference authorization, CancellationToken cancellationToken = default)
@@ -138,8 +156,4 @@ public interface IPortfolioQueryApi
     Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<ServiceResult<PortfolioPage<PortfolioFinancialPolicyReadModel>>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    Task<ServiceResult<LegacyPortfolioScopeReadModel[]>> GetLegacyPortfolioScopesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    Task<ServiceResult<LegacyFundHistoryReadModel[]>> GetLegacyFundCatalogAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    Task<ServiceResult<LegacyFundOrderHistoryReadModel[]>> GetLegacyFundOrdersAsync(int legacyFundId, DateOnly fromDate, DateOnly toDate, int pageSize = 1000, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    Task<ServiceResult<LegacyFundTradeHistoryReadModel[]>> GetLegacyFundOrderTradesAsync(int legacyFundId, int orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }

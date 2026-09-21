@@ -24,7 +24,7 @@ public static class FinancialAuthorityModel
                 "Prepared Portfolio/Fund source versions are stale.");
             if(!proposed.CanSpend) continue;
             Require(book.MigrationQualified && portfolio.Current.OperatingState==PortfolioOperatingState.Active &&
-                fund.Current!.OperatingState==FundOperatingState.Active && !fund.Current.IsLegacyHistory &&
+                fund.Current!.OperatingState==FundOperatingState.Active &&
                 Effective(portfolio.Current.EffectiveFromUtc,portfolio.Current.EffectiveUntilUtc,now) &&
                 Effective(fund.Current.EffectiveFromUtc,fund.Current.EffectiveUntilUtc,now),"Portfolio/Fund is not active and effective.");
             Require(policies.TryGetValue(proposed.Reference.PolicyId,out var value) && value.Current is not null,"Financial policy does not exist.");

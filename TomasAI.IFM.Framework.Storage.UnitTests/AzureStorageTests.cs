@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,8 +29,6 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests
             storageOptions.BackupFiles.Should().HaveCountGreaterThan(0);
             storageOptions.GetStorageFile("eventdb", "diff").Should().NotBeNull();
             storageOptions.GetStorageFile("eventdb", "full").Should().NotBeNull();
-            storageOptions.GetStorageFile("funddb", "diff").Should().NotBeNull();
-            storageOptions.GetStorageFile("funddb", "full").Should().NotBeNull();
             storageOptions.GetStorageFile("logdb", "diff").Should().NotBeNull();
             storageOptions.GetStorageFile("logdb", "full").Should().NotBeNull();
             storageOptions.GetStorageFile("marketdatadb", "diff").Should().NotBeNull();

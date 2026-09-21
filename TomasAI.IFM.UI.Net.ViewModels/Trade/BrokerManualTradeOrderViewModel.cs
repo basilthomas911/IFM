@@ -2,9 +2,10 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -18,15 +19,15 @@ public sealed class BrokerManualTradeOrderViewModel
     const string EmulatorAccountAlias = "IFM-EMULATOR-PAPER";
     readonly IAppRoot _appRoot;
     readonly int _portfolioId;
-    readonly FundOrderReadModel _fundOrder;
-    readonly FundOrderTradeReadModel _trade;
+    readonly PortfolioFundOrderEditorModel _fundOrder;
+    readonly PortfolioFundOrderTradeEditorModel _trade;
     readonly FuturesContractV3ReadModel _baseContract;
     BrokerOrderType _brokerOrderType = BrokerOrderType.Limit;
     BrokerAlgorithm _brokerAlgorithm = BrokerAlgorithm.None;
 
     /// <summary>Creates an editor model for one existing Fund order trade composition.</summary>
     public BrokerManualTradeOrderViewModel(IAppRoot appRoot, int portfolioId,
-        FundOrderReadModel fundOrder, FundOrderTradeReadModel trade,
+        PortfolioFundOrderEditorModel fundOrder, PortfolioFundOrderTradeEditorModel trade,
         FuturesContractV3ReadModel baseContract)
     {
         _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
@@ -45,10 +46,10 @@ public sealed class BrokerManualTradeOrderViewModel
         : TradeStrategyKind.VerticalSpread;
 
     /// <summary>Gets the selected trade composition.</summary>
-    public FundOrderTradeReadModel Trade => _trade;
+    public PortfolioFundOrderTradeEditorModel Trade => _trade;
 
     /// <summary>Gets the selected Fund order.</summary>
-    public FundOrderReadModel FundOrder => _fundOrder;
+    public PortfolioFundOrderEditorModel FundOrder => _fundOrder;
 
     /// <summary>Gets the exact synthetic broker account controlled by this editor.</summary>
     public BrokerAccountId BrokerAccountId => new(EmulatorAccountAlias);
@@ -107,8 +108,22 @@ public sealed class BrokerManualTradeOrderViewModel
             DateTime.UtcNow, cancellationToken);
 
     /// <summary>Removes this unsubmitted composition from its Fund order.</summary>
-    public Task RemoveAsync() => _appRoot.Services.FundCommands.ExecuteObservableAsync(
-        async model => _ = await model.RemoveTradeFromFundOrderAsync(_trade.Id));
+    public async Task RemoveAsync()
+    {
+        var orders = await _appRoot.Services.PortfolioQueries.GetOrdersAsync(_portfolioId, _trade.FundId,
+            new DateOnly(_fundOrder.TradeDate.Year, _fundOrder.TradeDate.Month, 1), 200);
+        var order = orders.Success && orders.Value is not null
+            ? orders.Value.Items.SingleOrDefault(value => value.OrderId == _trade.OrderId)
+            : null;
+        if (order is null) throw new InvalidOperationException($"Portfolio order {_trade.OrderId} was not found.");
+        var request = new ManualFundOrderTradeMutationRequest
+        {
+            PortfolioId = _portfolioId, FundId = _trade.FundId, OrderId = _trade.OrderId,
+            ExpectedOrderVersion = order.AggregateVersion, TradeId = _trade.TradeId, RequestedAtUtc = DateTime.UtcNow
+        };
+        var result = await _appRoot.Services.PortfolioFundCommands.RemoveManualTradeAsync(request);
+        if (!result.Success) throw new InvalidOperationException(result.ErrorMessage ?? "Unable to remove the Portfolio order trade.");
+    }
 
     /// <summary>Confirms and submits one opening order through Portfolio and the Trade Order lifecycle.</summary>
     public async Task<Guid> SubmitAsync(int quantity, decimal signedNetDebitLimit,

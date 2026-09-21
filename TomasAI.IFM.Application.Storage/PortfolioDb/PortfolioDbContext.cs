@@ -168,6 +168,26 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
         return Put(nameof(PortfolioDbSql.Orders.UpsertComposition), PortfolioDbSql.Orders.UpsertComposition,
             Values(x.WorkflowId, x.OrderId, x.PortfolioId, x.FundId, x.Status, Common(row)), ct);
     }
+
+    /// <summary>Deletes an order projection and its subordinate trades when the source event is current or newer.</summary>
+    /// <param name="orderId">The canonical order identifier.</param>
+    /// <param name="sourceEventId">The committed event sequence authorizing deletion.</param>
+    /// <param name="ct">A token that cancels the database operation.</param>
+    public Task DeleteOrderAsync(int orderId, long sourceEventId, CancellationToken ct = default)
+    {
+        if (orderId <= 0 || sourceEventId <= 0) throw new ArgumentOutOfRangeException(nameof(orderId));
+        return Put(nameof(PortfolioDbSql.Orders.DeleteOrder), PortfolioDbSql.Orders.DeleteOrder,
+            Values(orderId, sourceEventId), ct);
+    }
+    /// <summary>Deletes a trade projection when the source event is current or newer.</summary>
+    /// <param name="tradeId">The canonical trade identifier.</param>
+    /// <param name="sourceEventId">The committed event sequence authorizing deletion.</param>
+    /// <param name="ct">A token that cancels the database operation.</param>
+    public Task DeleteTradeAsync(int tradeId, long sourceEventId, CancellationToken ct = default)
+    {
+        if (tradeId <= 0 || sourceEventId <= 0) throw new ArgumentOutOfRangeException(nameof(tradeId));
+        return Put(nameof(PortfolioDbSql.Orders.DeleteTrade), PortfolioDbSql.Orders.DeleteTrade, Values(tradeId, sourceEventId), ct);
+    }
     public Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken ct = default)
     {
         Check(row); var x = row.Value;

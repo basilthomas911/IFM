@@ -6,7 +6,6 @@ internal enum ProjectionMigrationTarget
 {
     Reference,
     Securities,
-    Fund,
     Market
 }
 
@@ -14,9 +13,6 @@ internal sealed record ProjectionMigrationOptions(
     ProjectionMigrationTarget Target,
     bool ApplySchema,
     int BatchSize,
-    int? FundId,
-    DateOnly? StartDate,
-    DateOnly? EndDate,
     DateTime? StaleOperationCutoffUtc,
     bool WritersDrainedConfirmed,
     bool RepairFuturesTradeSignals)
@@ -25,7 +21,6 @@ internal sealed record ProjectionMigrationOptions(
     {
         ProjectionMigrationTarget.Reference => "IFM_STORAGE_MIGRATION_REFERENCE_SCYLLA_CONNECTION",
         ProjectionMigrationTarget.Securities => "IFM_STORAGE_MIGRATION_SECURITIES_SCYLLA_CONNECTION",
-        ProjectionMigrationTarget.Fund => "IFM_STORAGE_MIGRATION_FUND_SCYLLA_CONNECTION",
         ProjectionMigrationTarget.Market => "IFM_STORAGE_MIGRATION_MARKET_DATA_SCYLLA_CONNECTION",
         _ => throw new ArgumentOutOfRangeException(nameof(Target), Target, null)
     };
@@ -37,14 +32,13 @@ internal static class ProjectionMigrationCommandLine
         Usage:
           dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- reference [options]
           dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- securities [options]
-          dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- fund --fund-id <id> --start-date <yyyy-MM-dd> --end-date <yyyy-MM-dd> [options]
           dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- market [options]
 
         Options:
           --apply-schema
               Create only the additive projection/state tables used by this migration.
           --batch-size <count>
-              Rows per write batch (default: 256; Fund: 500).
+              Rows per write batch (default: 256).
           --stale-operation-cutoff-utc <UTC timestamp>
               Recover journaled operations at or before an explicit UTC instant.
           --confirm-writers-drained
@@ -55,15 +49,9 @@ internal static class ProjectionMigrationCommandLine
               Canonical source rows are retained.
           --help
 
-        Fund-only options:
-          --fund-id <id>
-          --start-date <yyyy-MM-dd>
-          --end-date <yyyy-MM-dd>
-
         Connection-string environment variables (must not contain credentials):
           IFM_STORAGE_MIGRATION_REFERENCE_SCYLLA_CONNECTION
           IFM_STORAGE_MIGRATION_SECURITIES_SCYLLA_CONNECTION
-          IFM_STORAGE_MIGRATION_FUND_SCYLLA_CONNECTION
           IFM_STORAGE_MIGRATION_MARKET_DATA_SCYLLA_CONNECTION
 
         Credentials remain in SCYLLADB_DEV_KEY, SCYLLADB_TEST_KEY,
@@ -94,9 +82,6 @@ internal static class ProjectionMigrationCommandLine
         var confirmWritersDrained = false;
         var repairFuturesTradeSignals = false;
         int? batchSize = null;
-        int? fundId = null;
-        DateOnly? startDate = null;
-        DateOnly? endDate = null;
         DateTime? staleOperationCutoffUtc = null;
 
         for (var index = 1; index < args.Length; index++)
@@ -130,47 +115,6 @@ internal static class ProjectionMigrationCommandLine
                     }
                     batchSize = parsedBatchSize;
                     break;
-                case "--fund-id":
-                    if (!TryReadValue(args, ref index, optionName, out var rawFundId, out error))
-                        return false;
-                    if (!int.TryParse(rawFundId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedFundId) ||
-                        parsedFundId < 1)
-                    {
-                        error = "--fund-id must be a positive integer.";
-                        return false;
-                    }
-                    fundId = parsedFundId;
-                    break;
-                case "--start-date":
-                    if (!TryReadValue(args, ref index, optionName, out var rawStartDate, out error))
-                        return false;
-                    if (!DateOnly.TryParseExact(
-                        rawStartDate,
-                        "yyyy-MM-dd",
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.None,
-                        out var parsedStartDate))
-                    {
-                        error = "--start-date must use yyyy-MM-dd.";
-                        return false;
-                    }
-                    startDate = parsedStartDate;
-                    break;
-                case "--end-date":
-                    if (!TryReadValue(args, ref index, optionName, out var rawEndDate, out error))
-                        return false;
-                    if (!DateOnly.TryParseExact(
-                        rawEndDate,
-                        "yyyy-MM-dd",
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.None,
-                        out var parsedEndDate))
-                    {
-                        error = "--end-date must use yyyy-MM-dd.";
-                        return false;
-                    }
-                    endDate = parsedEndDate;
-                    break;
                 case "--stale-operation-cutoff-utc":
                     if (!TryReadValue(args, ref index, optionName, out var rawCutoff, out error))
                         return false;
@@ -195,24 +139,6 @@ internal static class ProjectionMigrationCommandLine
             return false;
         }
 
-        if (target == ProjectionMigrationTarget.Fund)
-        {
-            if (!fundId.HasValue || !startDate.HasValue || !endDate.HasValue)
-            {
-                error = "The fund command requires --fund-id, --start-date, and --end-date.";
-                return false;
-            }
-            if (endDate < startDate)
-            {
-                error = "--end-date cannot precede --start-date.";
-                return false;
-            }
-        }
-        else if (fundId.HasValue || startDate.HasValue || endDate.HasValue)
-        {
-            error = "--fund-id, --start-date, and --end-date are valid only for the fund command.";
-            return false;
-        }
         if (repairFuturesTradeSignals && target != ProjectionMigrationTarget.Market)
         {
             error = "--repair-futures-trade-signals is valid only for the market command.";
@@ -222,10 +148,7 @@ internal static class ProjectionMigrationCommandLine
         options = new ProjectionMigrationOptions(
             target,
             applySchema,
-            batchSize ?? (target == ProjectionMigrationTarget.Fund ? 500 : 256),
-            fundId,
-            startDate,
-            endDate,
+            batchSize ?? 256,
             staleOperationCutoffUtc,
             confirmWritersDrained,
             repairFuturesTradeSignals);
@@ -238,13 +161,11 @@ internal static class ProjectionMigrationCommandLine
         {
             "reference" => ProjectionMigrationTarget.Reference,
             "securities" => ProjectionMigrationTarget.Securities,
-            "fund" => ProjectionMigrationTarget.Fund,
             "market" => ProjectionMigrationTarget.Market,
             _ => default
         };
         return value.Equals("reference", StringComparison.OrdinalIgnoreCase) ||
             value.Equals("securities", StringComparison.OrdinalIgnoreCase) ||
-            value.Equals("fund", StringComparison.OrdinalIgnoreCase) ||
             value.Equals("market", StringComparison.OrdinalIgnoreCase);
     }
 

@@ -7,7 +7,6 @@ using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 
@@ -68,70 +67,6 @@ public class FuturesEodDataModelTests
 
         // Act
         _sut.Set("ESZ4", new DateOnly(2024, 12, 1), data);
-
-        // Assert
-        _jsonSerializer.Received(1).Serialize(data);
-        _redisCache.Received(1).Set(expectedKey, serializedValue);
-    }
-}
-
-public class FundBalanceModelTests
-{
-    private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
-    private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FundBalanceCacheModel _sut;
-
-    public FundBalanceModelTests()
-    {
-        _sut = new FundBalanceCacheModel(_redisCache, _jsonSerializer);
-    }
-
-    [Fact]
-    public void Get_WhenCacheHit_ReturnsDeserializedValue()
-    {
-        // Arrange
-        var expectedKey = "FundBalanceByOrderId:1";
-        var cachedJson = "{}";
-        var expected = new FundBalanceReadModel();
-        _redisCache.Get(expectedKey).Returns(cachedJson);
-        _jsonSerializer.Deserialize<FundBalanceReadModel>(cachedJson).Returns(expected);
-
-        // Act
-        var result = _sut.Get(1);
-
-        // Assert
-        result.Should().Be(expected);
-        _redisCache.Received(1).Get(expectedKey);
-        _jsonSerializer.Received(1).Deserialize<FundBalanceReadModel>(cachedJson);
-    }
-
-    [Fact]
-    public void Get_WhenCacheMiss_ReturnsDefault()
-    {
-        // Arrange
-        var expectedKey = "FundBalanceByOrderId:1";
-        _redisCache.Get(expectedKey).Returns((string?)null);
-
-        // Act
-        var result = _sut.Get(1);
-
-        // Assert
-        result.Should().BeNull();
-        _redisCache.Received(1).Get(expectedKey);
-        _jsonSerializer.DidNotReceive().Deserialize<FundBalanceReadModel>(Arg.Any<string>());
-    }
-
-    [Fact]
-    public void Set_SerializesAndCachesValue()
-    {
-        // Arrange
-        var data = new FundBalanceReadModel();
-        var expectedKey = "FundBalanceByOrderId:1";
-        var serializedValue = "value";
-        _jsonSerializer.Serialize(data).Returns(serializedValue);
-
-        // Act
-        _sut.Set(1, data);
 
         // Assert
         _jsonSerializer.Received(1).Serialize(data);

@@ -22,7 +22,7 @@ public static class FinancialAuthorityPreparationModel
         foreach(var owned in book.Funds.OrderBy(x=>x.FundId))
         {
             var fund=funds[owned.FundId];var mandate=fund.Current;
-            if(mandate is null || !portfolio.FundIds.Contains(owned.FundId) || mandate.IsLegacyHistory) throw new InvalidOperationException("Financial membership no longer matches a current Fund.");
+            if(mandate is null || !portfolio.FundIds.Contains(owned.FundId)) throw new InvalidOperationException("Financial membership no longer matches a current Fund.");
             var disabled=owned with { CanSpend=false,PortfolioStreamVersion=portfolio.Revision,FundStreamVersion=fund.Revision,
                 PolicyStreamVersion=policies?.Revision??0,Reference=new() { AuthorityEpoch=financial.Epoch },Deployments=[],Limits=[] };
             bool active=permitNewSpending && book.MigrationQualified && financial.State is not ("Overdrawn" or "NeedsReconciliation") &&

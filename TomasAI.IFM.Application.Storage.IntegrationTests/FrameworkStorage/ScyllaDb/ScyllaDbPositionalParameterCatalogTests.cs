@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Framework.Storage;
 using Xunit;
 
@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Scyl
 
 public sealed class ScyllaDbPositionalParameterCatalogTests
 {
-    static readonly Assembly StorageAssembly = typeof(FundDbContext).Assembly;
+    static readonly Assembly StorageAssembly = typeof(MarketDataDbContext).Assembly;
 
     static readonly IReadOnlyDictionary<string, string> CqlAliases =
         new Dictionary<string, string>(StringComparer.Ordinal)

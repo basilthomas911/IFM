@@ -1,6 +1,5 @@
 using TomasAI.IFM.UI.Net.Services.Analytics;
 using TomasAI.IFM.UI.Net.Services.Application;
-using TomasAI.IFM.UI.Net.Services.Fund;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
@@ -50,19 +49,6 @@ public interface IUiServiceCatalog
 
     /// <summary>Gets the status-console service.</summary>
     StatusConsoleService StatusConsole { get; }
-
-    /// <summary>Gets the Fund command service.</summary>
-    FundCommandService FundCommands { get; }
-
-    /// <summary>Gets the Fund query service.</summary>
-    FundQueryService FundQueries { get; }
-
-    /// <summary>Gets the Fund event service.</summary>
-    FundEventService FundEvents { get; }
-
-    /// <summary>Gets the Fund-order event service.</summary>
-    FundOrderEventService FundOrderEvents { get; }
-
     /// <summary>Gets the Market Data command service.</summary>
     MarketDataCommandService MarketDataCommands { get; }
 

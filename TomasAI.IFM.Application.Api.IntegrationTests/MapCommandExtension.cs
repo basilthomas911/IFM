@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using TomasAI.IFM.Application.Api.IntegrationTests.CommandApiResults;
 using TomasAI.IFM.Shared.Application;
@@ -14,19 +14,6 @@ public static class MapCommandExtension
         // application command api paths...
         app.MapPost(ApplicationUriPath.Start, async (HttpResponse resp) => await ApplicationCommandApiResult.FromStartAsync(resp));
         app.MapPost(ApplicationUriPath.Shutdown, async (HttpResponse resp) => await ApplicationCommandApiResult.FromShutdownAsync(resp));
-
-        // fund command api paths...
-        app.MapPost(FundUriPath.Create, async (HttpResponse resp) => await FundCommandApiResult.FromCreateFundAsync(resp));
-        app.MapPost(FundUriPath.AddOrderToFund, async (HttpResponse resp) => await FundCommandApiResult.FromAddOrderToFundAsync(resp));
-        app.MapPost(FundUriPath.RemoveOrderFromFund, async (HttpResponse resp) => await FundCommandApiResult.FromRemoveOrderFromFundAsync(resp));
-        app.MapPost(FundUriPath.AddTradeToFundOrder, async (HttpResponse resp) => await FundCommandApiResult.FromAddTradeToFundOrderAsync(resp));
-        app.MapPost(FundUriPath.RemoveTradeFromFundOrder, async (HttpResponse resp) => await FundCommandApiResult.FromRemoveTradeFromFundOrderAsync(resp));
-        app.MapPost(FundUriPath.CloseFundOrder, async (HttpResponse resp) => await FundCommandApiResult.FromCloseFundOrderAsync(resp));
-        app.MapPost(FundUriPath.ChangeFundOrderTradeState, async (HttpResponse resp) => await FundCommandApiResult.FromChangeFundOrderTradeStateAsync(resp));
-        app.MapPost(FundUriPath.GenerateFundMaxProfit, async (HttpResponse resp) => await FundCommandApiResult.FromGenerateFundMaxProfitAsync(resp));
-        app.MapPost(FundTransactionUriPath.Create, async (HttpResponse resp) => await FundCommandApiResult.FromCreateFundTransactionAsync(resp));
-        app.MapPost(FundTransactionUriPath.CreateTransactions, async (HttpResponse resp) => await FundCommandApiResult.FromCreateFundTransactionsAsync(resp));
-        app.MapPost(FundTransactionUriPath.ProcessEndOfDay, async (HttpResponse resp) => await FundCommandApiResult.FromProcessEndOfDayFundTransactionAsync(resp));
 
         // market data analytics command api paths...
         app.MapPost(MarketDataAnalyticsUriPath.StartFuturesRsiSignal, async (HttpResponse resp) => await MarketDataAnalyticsCommandApiResult.FromStartFuturesRsiSignalAsync(resp));

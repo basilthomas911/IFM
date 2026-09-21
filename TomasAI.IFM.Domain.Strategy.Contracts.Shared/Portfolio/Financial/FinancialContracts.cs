@@ -79,8 +79,6 @@ public sealed record LedgerSourceReference
     [Key(3)] public long SourceSequence { get; init; }
     [Key(4)] public string SourceContentHash { get; init; } = string.Empty;
     [Key(5)] public DateTime OccurredAtUtc { get; init; }
-    [Key(6)] public long? LegacyTransactionId { get; init; }
-    [Key(7)] public int? LegacyFundId { get; init; }
     [Key(8)] public int? OrderId { get; init; }
     [Key(9)] public int? TradeId { get; init; }
     [Key(10)] public string? FillId { get; init; }

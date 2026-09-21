@@ -107,7 +107,10 @@ public sealed class PortfolioProjectionHandlerTests
         public PortfolioProjection<FundCompositionWorkflowProjectionReadModel>? Composition { get; private set; }
         public DateOnly Month { get; private set; }
         public Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> row, DateOnly orderMonth, CancellationToken cancellationToken = default) { Order = row; Month = orderMonth; return Task.CompletedTask; }
+        /// <inheritdoc />
+        public Task DeleteOrderAsync(int orderId, long sourceEventId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> row, CancellationToken cancellationToken = default) { Trades.Add(row); return Task.CompletedTask; }
+        public Task DeleteTradeAsync(int tradeId, long sourceEventId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> row, CancellationToken cancellationToken = default) { Composition = row; return Task.CompletedTask; }
         public Task UpsertPortfolioAsync(PortfolioProjection<PortfolioReadModel> row, int stateBucket, CancellationToken cancellationToken = default) { Portfolio = row; return Task.CompletedTask; }
         public Task UpsertFundAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;

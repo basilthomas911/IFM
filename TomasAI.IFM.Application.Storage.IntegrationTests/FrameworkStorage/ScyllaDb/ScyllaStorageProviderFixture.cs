@@ -1,141 +1,55 @@
 using System;
 using System.Threading.Tasks;
+using Xunit;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.FundDb;
-using TomasAI.IFM.Application.Storage.FundDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.ScyllaDb;
 
+/// <summary>Defines the shared ScyllaDB integration-test collection.</summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class ScyllaStorageProviderCollection : ICollectionFixture<ScyllaStorageProviderFixture>
 {
+    /// <summary>Gets the shared collection name.</summary>
     public const string Name = "Framework.Storage ScyllaDB integration";
 }
 
+/// <summary>Provides a neutral ScyllaDB repository for integration tests.</summary>
 public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
 {
     const string ConnectionVariable = "IFM_SCYLLA_TEST_CONNECTION";
     const string ProviderName = "System.Data.ScyllaDb";
-
-    const string DeleteFund = "DELETE FROM fund WHERE fundId = :fundId;";
-    const string DeleteFundOrders = "DELETE FROM fund_order WHERE fundId = :fundId;";
-    const string DeleteFundOrderTrades = "DELETE FROM fund_order_trade WHERE fundId = :fundId AND orderId = :orderId;";
-    const string DeleteFundTransactions = "DELETE FROM fund_transaction WHERE fundId = :fundId;";
-
-    const string CountFunds = "SELECT count(*) FROM fund WHERE fundId = :fundId;";
-    const string CountFundOrders = "SELECT count(*) FROM fund_order WHERE fundId = :fundId;";
-    const string CountFundOrderTrades = "SELECT count(*) FROM fund_order_trade WHERE fundId = :fundId AND orderId = :orderId;";
-    const string CountFundTransactions = "SELECT count(*) FROM fund_transaction WHERE fundId = :fundId;";
-
     readonly ILogger<DbProvider> _logger = Substitute.For<ILogger<DbProvider>>();
 
+    /// <summary>Gets the initialized test repository.</summary>
     public ScyllaTestRepository Repository { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    /// <summary>Initializes the shared ScyllaDB repository.</summary>
+    public Task InitializeAsync()
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable);
         if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                $"Set {ConnectionVariable} to a credential-free ScyllaDB connection string whose default keyspace is dedicated to integration tests.");
-        }
-
-        var settings = new DbConnectionSettings()
-            .Add(FundDbContext.FundDbConnection, connectionString, ProviderName);
-
-        await new FundSchemaDb(settings, _logger).CreateAllAsync();
-        Repository = new ScyllaTestRepository(settings[FundDbContext.FundDbConnection], _logger);
-
-        await CleanupAllScopesAsync();
+            throw new InvalidOperationException($"Set {ConnectionVariable} to a credential-free ScyllaDB connection string whose default keyspace is dedicated to integration tests.");
+        var settings = new DbConnectionSettings().Add("ScyllaIntegrationDbConnection", connectionString, ProviderName);
+        Repository = new ScyllaTestRepository(settings["ScyllaIntegrationDbConnection"], _logger);
+        return Task.CompletedTask;
     }
 
-    public async Task DisposeAsync()
-    {
-        if (Repository is null)
-            return;
-
-        await CleanupAllScopesAsync();
-    }
-
-    internal async Task RunIsolatedAsync(ScyllaFundTestScope scope, Func<ScyllaTestRepository, Task> test)
-    {
-        await CleanupAndVerifyAsync(scope);
-        try
-        {
-            await test(Repository);
-        }
-        finally
-        {
-            await CleanupAndVerifyAsync(scope);
-        }
-    }
-
-    async Task CleanupAllScopesAsync()
-    {
-        for (var slot = 1; slot <= ScyllaFundTestData.SlotCount; slot++)
-            await CleanupAndVerifyAsync(ScyllaFundTestData.Scope(slot));
-    }
-
-    async Task CleanupAndVerifyAsync(ScyllaFundTestScope scope)
-    {
-        await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFundTransactions)}", DeleteFundTransactions)
-            .SetParameters(new FundKey(scope.FundId))
-            .ExecuteCommandAsync();
-
-        foreach (var orderId in scope.OrderIds)
-        {
-            await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFundOrderTrades)}", DeleteFundOrderTrades)
-                .SetParameters(new FundOrderKey(scope.FundId, orderId))
-                .ExecuteCommandAsync();
-        }
-
-        await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFundOrders)}", DeleteFundOrders)
-            .SetParameters(new FundKey(scope.FundId))
-            .ExecuteCommandAsync();
-
-        await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFund)}", DeleteFund)
-            .SetParameters(new FundKey(scope.FundId))
-            .ExecuteCommandAsync();
-
-        await EnsureEmptyAsync(CountFundTransactions, new FundKey(scope.FundId), "fund_transaction");
-        foreach (var orderId in scope.OrderIds)
-            await EnsureEmptyAsync(CountFundOrderTrades, new FundOrderKey(scope.FundId, orderId), "fund_order_trade");
-        await EnsureEmptyAsync(CountFundOrders, new FundKey(scope.FundId), "fund_order");
-        await EnsureEmptyAsync(CountFunds, new FundKey(scope.FundId), "fund");
-    }
-
-    async Task EnsureEmptyAsync<TParam>(string cql, TParam parameters, string table)
-        where TParam : struct, IBindValue
-    {
-        var count = await Repository.Use(
-                $"{nameof(ScyllaStorageProviderFixture)}.{nameof(EnsureEmptyAsync)}.{table}",
-                cql)
-            .SetParameters(parameters)
-            .ExecuteScalarAsync(static row => row.GetLong(0));
-
-        if (count != 0)
-            throw new InvalidOperationException($"Scylla integration cleanup left {count} row(s) in {table}.");
-    }
-
-    readonly record struct FundKey(int fundId) : IBindValue
-    {
-        public object Bind() => new object?[] { fundId };
-    }
-
-    readonly record struct FundOrderKey(int fundId, int orderId) : IBindValue
-    {
-        public object Bind() => new object?[] { fundId, orderId };
-    }
+    /// <summary>Releases fixture resources.</summary>
+    public Task DisposeAsync() => Task.CompletedTask;
 }
 
-public sealed class ScyllaTestRepository(
-    IDbConnectionSetting connectionSetting,
-    ILogger<DbProvider> logger)
-    : ObjectDataRepository<ScyllaTestRepository>(connectionSetting, logger)
+/// <summary>Exposes object-data operations against the integration-test ScyllaDB keyspace.</summary>
+public sealed class ScyllaTestRepository : ObjectDataRepository<ScyllaTestRepository>
 {
+    /// <summary>Initializes a ScyllaDB test repository.</summary>
+    /// <param name="connectionSetting">The dedicated integration-test connection.</param>
+    /// <param name="logger">The database provider logger.</param>
+    public ScyllaTestRepository(IDbConnectionSetting connectionSetting, ILogger<DbProvider> logger)
+        : base(connectionSetting, logger) { }
+
+    /// <summary>Gets this repository through the common repository contract.</summary>
     public override IObjectRepository Database => this;
 }
