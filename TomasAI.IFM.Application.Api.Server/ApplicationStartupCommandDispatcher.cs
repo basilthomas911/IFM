@@ -112,7 +112,9 @@ public sealed class ApplicationStartupCommandDispatcher(
                 if (await WaitForLifecycleObservationAsync(
                         valueDate, acceptedCommands, stoppingToken).ConfigureAwait(false) is { } observed)
                 {
-                    var observedAcceptedAtUtc = acceptedCommands[observed.CommandId];
+                    var observedAcceptedAtUtc = acceptedCommands.TryGetValue(observed.CommandId, out var acceptedAt)
+                        ? acceptedAt
+                        : observed.StartedAtUtc;
                     SetHandoff(new()
                     {
                         State = ApplicationStartupHandoffState.LifecycleObserved,
@@ -193,13 +195,18 @@ public sealed class ApplicationStartupCommandDispatcher(
         CancellationToken stoppingToken)
     {
         var started = timeProvider.GetTimestamp();
+        var earliestAcceptedAtUtc = acceptedCommands.Values.Min();
         while (timeProvider.GetElapsedTime(started) < options.HandoffObservationTimeout)
         {
             stoppingToken.ThrowIfCancellationRequested();
             var status = startupStatusStore.Current;
             if (status.State != ApplicationLifecycleState.Bootstrapped
                 && status.ValueDate == valueDate
-                && acceptedCommands.ContainsKey(status.CommandId))
+                // A command durably accepted before a process failure can still be delivered after
+                // this handoff begins. Its process-local lifecycle is valid if it started after the
+                // current handoff; status that predates this handoff remains ineligible.
+                && (acceptedCommands.ContainsKey(status.CommandId)
+                    || status.StartedAtUtc >= earliestAcceptedAtUtc))
                 return status;
             if (!await HostedServiceLifecycle.DelayAsync(
                     TimeSpan.FromMilliseconds(100), timeProvider, stoppingToken).ConfigureAwait(false))

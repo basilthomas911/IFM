@@ -43,6 +43,24 @@ public sealed class ApplicationLifecycleOwnershipTests
     }
 
     [Fact]
+    public void Market_data_health_is_operational_readiness_not_ui_launch_readiness()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            root,
+            "TomasAI.IFM.Application.Api.Server",
+            "Startup.cs"));
+
+        Assert.Contains(
+            """AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])""",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            """AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "launch", "ready"])""",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Actor_startup_is_concurrent_and_actor_health_gates_application_readiness()
     {
         var actorStartup = File.ReadAllText(Path.Combine(

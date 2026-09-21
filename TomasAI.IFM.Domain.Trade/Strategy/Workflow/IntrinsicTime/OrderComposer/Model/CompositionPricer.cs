@@ -15,7 +15,14 @@ public interface IFuturesOptionComposerPricer
 
 public sealed class Black76ComposerPricer : IFuturesOptionComposerPricer
 {
-    public string Version => OptionCalculator.Version + "/Decimal12-ToEven-v1";
+    static readonly OptionPricingRequest VersionRequest = new(
+        UnderlyingKind.Futures, ExerciseKind.European, PremiumKind.PaidUpfront,
+        OptionSide.Call, 1, 1, 1, 0);
+
+    // Catalog provenance identifies the concrete engine whose outputs are rounded here. The
+    // model-neutral calculator facade is not itself a pricing algorithm and may evolve without
+    // changing this immutable composition contract.
+    public string Version => OptionCalculator.EngineVersionFor(VersionRequest) + "/Decimal12-ToEven-v1";
     public CompositionValuation Calculate(CompositionMarketInstrument instrument, DateTimeOffset at)
     {
         if (instrument.Pricing is null || instrument.Underlying is null || instrument.Strike is null || instrument.IsCall is null)

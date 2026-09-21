@@ -22,6 +22,7 @@ else {
 
 $repositoryPrefix = [IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\') + '\'
 $entryRoles = @{
+    "IFMServerManager.dll" = "manager"
     "TomasAI.IFM.Application.Api.Server.dll" = "api"
     "TomasAI.IFM.UI.Net.dll" = "ui"
 }

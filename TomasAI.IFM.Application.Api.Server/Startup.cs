@@ -290,7 +290,7 @@ public static class Startup
                 .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["actor", "bootstrap", "launch", "ready"])
                 .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["application", "ready"])
                 .AddCheck<LivePipelineHealthCheck>("live_pipeline", tags: ["application", "ready"])
-                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "launch", "ready"])
+                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])
                 .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["bootstrap", "launch", "ready"])
                 .AddCheck<ApplicationLifecycleHealthCheck>("application_lifecycle", tags: ["application", "launch", "ready"]);
             var fmpEnabled = config.GetValue("AppSettings:Fmp:Enabled", true);

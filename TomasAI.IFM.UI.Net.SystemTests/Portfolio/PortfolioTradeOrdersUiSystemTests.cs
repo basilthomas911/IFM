@@ -19,11 +19,89 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 using TomasAI.IFM.UI.Net.Views.Portfolio;
 using TomasAI.IFM.UI.Net.Services.Application;
+using TomasAI.IFM.UI.Net.Models.Reference;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 
 public sealed class PortfolioTradeOrdersUiSystemTests
 {
+    [Fact]
+    [Trait("Category", "TradeOrders")]
+    public void Add_closing_trade_preserves_and_locks_opening_trade_identity()
+    {
+        var openingTrade = new FundOrderTradeReadModel
+        {
+            FundId = 1004,
+            OrderId = 1084,
+            TradeId = 1090,
+            TradeType = TradeType.ShortIronCondor,
+            TradeDate = new DateOnly(2026, 9, 18),
+            MaturityDate = new DateOnly(2026, 10, 16),
+            TradeState = TradeState.TradeToOpen,
+            TradeAction = TradeAction.Sell,
+            Reference = "P5800:5900 x C6100:6200",
+            PrimaryTrade = true,
+            BaseContractSymbol = "ES",
+        };
+        var order = new FundOrderReadModel(
+            1004, 1084, DateTime.UtcNow, TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open, "ES",
+            openingTrade.TradeDate, openingTrade.MaturityDate, openingTrade.Reference,
+            DateTime.UtcNow, "test", null, string.Empty);
+        order.Add(openingTrade);
+        using var form = new CreateFundOrderTradeForm();
+        form.SetFundOrder(order);
+
+        Invoke(form, "LoadTradeTypes");
+        Invoke(form, "LoadSymbols", (object)new LookupTypeUiModel[]
+        {
+            new LookupTypeUiModel("Symbol", "NQ", 1, "Nasdaq 100", DateTime.UtcNow, "test"),
+            new LookupTypeUiModel("Symbol", "ES", 2, "S&P 500", DateTime.UtcNow, "test"),
+        });
+        Invoke(form, "ConfigureClosingTrade");
+
+        var tradeType = Field<ComboBox>(form, "ddlTradeType");
+        var baseSymbol = Field<ComboBox>(form, "ddlBaseSymbol");
+        var reference = Field<TextBox>(form, "txtReference");
+        tradeType.SelectedItem.Should().Be(nameof(TradeType.LongIronCondor));
+        tradeType.Enabled.Should().BeFalse();
+        baseSymbol.SelectedItem.Should().Be("S&P 500");
+        baseSymbol.Enabled.Should().BeFalse();
+        reference.Text.Should().Be(openingTrade.Reference);
+        reference.ReadOnly.Should().BeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "TradeOrders")]
+    public void Add_closing_trade_retains_a_symbol_missing_from_the_current_catalog()
+    {
+        var openingTrade = new FundOrderTradeReadModel
+        {
+            TradeType = TradeType.FuturesOutright,
+            TradeState = TradeState.TradeToOpen,
+            Reference = "ESZ6",
+            PrimaryTrade = true,
+            BaseContractSymbol = "ES",
+        };
+        var order = new FundOrderReadModel(
+            1004, 1084, DateTime.UtcNow, TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open, "ES",
+            new DateOnly(2026, 9, 18), new DateOnly(2026, 12, 18), openingTrade.Reference,
+            DateTime.UtcNow, "test", null, string.Empty);
+        order.Add(openingTrade);
+        using var form = new CreateFundOrderTradeForm();
+        form.SetFundOrder(order);
+
+        Invoke(form, "LoadTradeTypes");
+        Invoke(form, "LoadSymbols", (object)new LookupTypeUiModel[]
+        {
+            new LookupTypeUiModel("Symbol", "NQ", 1, "Nasdaq 100", DateTime.UtcNow, "test"),
+        });
+        Invoke(form, "ConfigureClosingTrade");
+
+        var baseSymbol = Field<ComboBox>(form, "ddlBaseSymbol");
+        baseSymbol.SelectedItem.Should().Be("ES");
+        baseSymbol.Enabled.Should().BeFalse();
+    }
+
     [Fact]
     [Trait("Category", "PortfolioTypography")]
     public void Portfolio_administration_uses_Microsoft_Sans_Serif_ten_point_throughout()

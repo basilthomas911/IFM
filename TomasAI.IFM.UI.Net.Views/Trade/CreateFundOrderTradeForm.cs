@@ -11,6 +11,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
 {
     TradeOrderEditorViewModel? _viewModel;
     FundOrderTradeReadModel? _fundOrderTrade;
+    FundOrderTradeReadModel? _openingTrade;
     Dictionary<string, LookupTypeUiModel> _baseSymbolMap;
 
     public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade!;
@@ -26,6 +27,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
 
     public void SetFundOrder(FundOrderReadModel fundOrder)
     {
+        _openingTrade = fundOrder.Trades.FirstOrDefault(trade => trade.PrimaryTrade);
         dtpTradeDate.Value = fundOrder.TradeDate.ToDateTime(TimeOnly.MinValue);
         dtpTradeDate.Enabled = false;
         dtpMaturityDate.Value = fundOrder.MaturityDate.ToDateTime(TimeOnly.MinValue);
@@ -59,31 +61,25 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
                 txtTradeId.Text = $"{tradeId}";
                 txtTradeState.Text = $"{TradeState.NewTrade}";
                 LoadTradeTypes();
-                var openingFundOrderTrade = _viewModel.GetOpeningFundOrderTrade();
-                if (openingFundOrderTrade != null)
-                {
-                    SetClosingTradeType(openingFundOrderTrade.TradeType);
-                    txtReference.Text = openingFundOrderTrade.Reference;
-                }
                 LoadSymbols([.. symbols]);
+                ConfigureClosingTrade();
             });
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Create Fund Order Trade Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        return;
+    }
 
-        void SetClosingTradeType(TradeType openingTradeType)
-        {
-            var closingTradeType = FundOrderTradingPolicy.ClosingType(openingTradeType);
-            for (var index = 0; index < ddlTradeType.Items.Count; index++)
-                if ($"{ddlTradeType.Items[index]}" == $"{closingTradeType}")
-                {
-                    ddlTradeType.SelectedIndex = index;
-                    break;
-                }
-        }
+    void SetClosingTradeType(TradeType openingTradeType)
+    {
+        var closingTradeType = FundOrderTradingPolicy.ClosingType(openingTradeType);
+        for (var index = 0; index < ddlTradeType.Items.Count; index++)
+            if ($"{ddlTradeType.Items[index]}" == $"{closingTradeType}")
+            {
+                ddlTradeType.SelectedIndex = index;
+                break;
+            }
     }
 
     void CreateFundOrderTradeForm_FormClosed(object sender, FormClosedEventArgs e)
@@ -94,6 +90,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     {
         ddlBaseSymbol.Enabled = false;
         ddlBaseSymbol.Items.Clear();
+        _baseSymbolMap.Clear();
         if (lookupTypes?.Length > 0)
         {
             foreach (var e in lookupTypes)
@@ -105,6 +102,32 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
             ddlBaseSymbol.Enabled = true;
         }
+    }
+
+    void ConfigureClosingTrade()
+    {
+        if (_openingTrade is null)
+            return;
+
+        SetClosingTradeType(_openingTrade.TradeType);
+        ddlTradeType.Enabled = false;
+        txtReference.Text = _openingTrade.Reference;
+        txtReference.ReadOnly = true;
+
+        var matchingSymbol = _baseSymbolMap
+            .FirstOrDefault(entry => string.Equals(
+                entry.Value.ShortCode,
+                _openingTrade.BaseContractSymbol,
+                StringComparison.OrdinalIgnoreCase));
+        if (matchingSymbol.Value is not null)
+            ddlBaseSymbol.SelectedItem = matchingSymbol.Key;
+        else
+        {
+            ddlBaseSymbol.Items.Add(_openingTrade.BaseContractSymbol);
+            ddlBaseSymbol.SelectedItem = _openingTrade.BaseContractSymbol;
+        }
+        ddlBaseSymbol.Enabled = false;
+        UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
     }
 
     FundOrderTradeReadModel? ValidateNewFundOrderTrade()
@@ -129,8 +152,12 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             MessageBox.Show("Invalid Trade Action", "Fund Order Trade Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
         }
-        var lookupType = _baseSymbolMap.SingleOrDefault(e => e.Key == $"{ddlBaseSymbol.SelectedItem}").Value;
-        if (lookupType is null)
+        var baseContractSymbol = _openingTrade?.BaseContractSymbol;
+        if (string.IsNullOrWhiteSpace(baseContractSymbol))
+            baseContractSymbol = _baseSymbolMap
+                .SingleOrDefault(e => e.Key == $"{ddlBaseSymbol.SelectedItem}")
+                .Value?.ShortCode;
+        if (string.IsNullOrWhiteSpace(baseContractSymbol))
         {
             MessageBox.Show("Invalid Base Symbol", "Fund Order Trade Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
@@ -147,7 +174,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             tradeAction: tradeAction,
             reference: txtReference.Text,
             primaryTrade: true,
-            baseContractSymbol: lookupType.ShortCode,
+            baseContractSymbol: baseContractSymbol,
             createdBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
             createdOn: DateTime.UtcNow,
             updatedBy: $"{Environment.UserDomainName}\\{Environment.UserName}",

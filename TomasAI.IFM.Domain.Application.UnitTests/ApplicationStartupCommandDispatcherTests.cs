@@ -207,6 +207,49 @@ public sealed class ApplicationStartupCommandDispatcherTests
         await dispatcher.StopAsync(CancellationToken.None);
     }
 
+    [Fact]
+    public async Task Queued_command_observed_after_handoff_satisfies_current_process_startup()
+    {
+        var lifetime = new TestLifetime();
+        var valueDate = new DateOnly(2026, 9, 2);
+        var queuedCommandId = Guid.NewGuid();
+        var startupStore = new ApplicationStartupStatusStore();
+        var handoffStore = new ApplicationStartupHandoffStatusStore();
+        var commandApi = new RecordingCommandApi
+        {
+            OnAccepted = (acceptedCommandId, acceptedValueDate) => _ = Task.Run(async () =>
+            {
+                await Task.Delay(20);
+                startupStore.Set(new()
+                {
+                    State = ApplicationLifecycleState.Starting,
+                    ValueDate = acceptedValueDate,
+                    ProcessBootId = Guid.NewGuid(),
+                    CommandId = queuedCommandId,
+                    StartedAtUtc = DateTime.UtcNow,
+                    Summary = "A previously accepted command started in this process."
+                });
+            })
+        };
+        var dispatcher = Create(
+            lifetime,
+            new ConstantReadiness(true),
+            commandApi,
+            enabled: true,
+            statusStore: startupStore,
+            handoffStore: handoffStore,
+            handoffObservationTimeout: TimeSpan.FromSeconds(1));
+
+        await dispatcher.StartAsync(CancellationToken.None);
+        lifetime.SignalStarted();
+        await dispatcher.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, commandApi.Count);
+        Assert.Equal(ApplicationStartupHandoffState.LifecycleObserved, handoffStore.Current.State);
+        Assert.Equal(queuedCommandId, handoffStore.Current.CommandId);
+        await dispatcher.StopAsync(CancellationToken.None);
+    }
+
     static ApplicationStartupCommandDispatcher Create(
         IHostApplicationLifetime lifetime,
         IApplicationBootstrapReadiness readiness,

@@ -110,7 +110,9 @@ internal static class CompositionFixture
                 var spread = Math.Min(.02m, mark / 4);
                 var quote = forward with { ContractId = name, Bid = mark - spread, Ask = mark + spread };
                 items.Add(new(new(name, quote, new(contract, calendar, treasury, at.AddSeconds(1), generation,
-                    OptionCalculator.EngineVersion, 1000, 250, "fixture-publication/v1"), k, call, forward), null));
+                    TomasAI.IFM.Application.MarketData.Pricing.Black76PricingModel.EngineFor(
+                        CompositionSnapshotAdapter.To(contract)),
+                    1000, 250, "fixture-publication/v1"), k, call, forward), null));
             }
         }
         var snapshot = new MarketCompositionSnapshot(1, Guid.NewGuid(), new('d', 64), "complete-fixture/v1", binding.Rules.SupportedHorizon.ToString(),
