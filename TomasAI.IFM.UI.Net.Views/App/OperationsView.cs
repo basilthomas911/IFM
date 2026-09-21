@@ -92,6 +92,9 @@ public partial class OperationsView : DarkTradingView
         lblItiStatus.ForeColor = strategy.LastError is not null
             ? Color.Gold
             : strategy.IsListening ? Color.LimeGreen : Color.Silver;
+        lblWorkflowPage.Text = strategy.WorkflowPageText;
+        btnWorkflowPreviousPage.Enabled = strategy.CanMoveToPreviousWorkflowPage;
+        btnWorkflowNextPage.Enabled = strategy.CanMoveToNextWorkflowPage;
 
         if (!ReferenceEquals(_renderedEvents, strategy.Events))
         {
@@ -185,6 +188,25 @@ public partial class OperationsView : DarkTradingView
         }
 
         _viewModel.Strategy.SelectedTimeFrame = timeFrame;
+        RefreshView(_viewModel);
+    }
+
+    void btnWorkflowPreviousPage_Click(object? sender, EventArgs e)
+        => _ = MoveWorkflowPageAsync(previous: true);
+
+    void btnWorkflowNextPage_Click(object? sender, EventArgs e)
+        => _ = MoveWorkflowPageAsync(previous: false);
+
+    async Task MoveWorkflowPageAsync(bool previous)
+    {
+        if (_viewModel is null)
+            return;
+        btnWorkflowPreviousPage.Enabled = false;
+        btnWorkflowNextPage.Enabled = false;
+        if (previous)
+            await _viewModel.Strategy.MoveToPreviousWorkflowPageAsync();
+        else
+            await _viewModel.Strategy.MoveToNextWorkflowPageAsync();
         RefreshView(_viewModel);
     }
 

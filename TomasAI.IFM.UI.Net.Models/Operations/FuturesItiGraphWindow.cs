@@ -8,23 +8,24 @@ public readonly record struct FuturesItiGraphWindow(DateTime StartUtc, DateTime 
     /// <summary>Resolves the graph interval ending at the supplied current instant.</summary>
     public static FuturesItiGraphWindow Resolve(
         DateTimeOffset currentUtc,
+        DateOnly valueDate,
         TimeFrameType timeFrame)
     {
         if (currentUtc == default)
             throw new ArgumentOutOfRangeException(nameof(currentUtc));
+        if (valueDate == default)
+            throw new ArgumentOutOfRangeException(nameof(valueDate));
 
         var endUtc = currentUtc.UtcDateTime;
         if (timeFrame == TimeFrameType.Daily)
             return new(endUtc.AddHours(-8), endUtc);
 
-        var easternNow = EasternTime.FromUtc(currentUtc).DateTime;
         var easternStart = timeFrame switch
         {
-            TimeFrameType.Weekly => easternNow.Date.AddDays(
-                -(((int)easternNow.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7)),
+            TimeFrameType.Weekly => valueDate.AddDays(-6).ToDateTime(TimeOnly.MinValue),
             TimeFrameType.Monthly => new DateTime(
-                easternNow.Year,
-                easternNow.Month,
+                valueDate.Year,
+                valueDate.Month,
                 1,
                 0,
                 0,

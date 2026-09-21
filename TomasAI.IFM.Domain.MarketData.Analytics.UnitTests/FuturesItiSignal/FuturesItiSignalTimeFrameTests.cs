@@ -17,7 +17,7 @@ public sealed class FuturesItiSignalTimeFrameTests
 
     [Theory]
     [InlineData(TimeFrameType.Daily, "2026-09-08", "2026-09-08")]
-    [InlineData(TimeFrameType.Weekly, "2026-09-07", "2026-09-08")]
+    [InlineData(TimeFrameType.Weekly, "2026-09-02", "2026-09-08")]
     [InlineData(TimeFrameType.Monthly, "2026-09-01", "2026-09-08")]
     public void HistoryWindow_ResolvesCalendarDisplayPeriod(
         TimeFrameType timePeriod,

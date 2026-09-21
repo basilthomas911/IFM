@@ -8,11 +8,12 @@ public sealed class FuturesItiGraphWindowTests
 {
     static readonly DateTimeOffset WednesdayNow =
         new(2026, 9, 16, 17, 45, 0, TimeSpan.Zero);
+    static readonly DateOnly ValueDate = new(2026, 9, 16);
 
     [Fact]
     public void Daily_IsTheRollingEightHoursEndingNow()
     {
-        var window = FuturesItiGraphWindow.Resolve(WednesdayNow, TimeFrameType.Daily);
+        var window = FuturesItiGraphWindow.Resolve(WednesdayNow, ValueDate, TimeFrameType.Daily);
 
         window.StartUtc.Should().Be(new DateTime(2026, 9, 16, 9, 45, 0, DateTimeKind.Utc));
         window.EndUtc.Should().Be(WednesdayNow.UtcDateTime);
@@ -21,18 +22,18 @@ public sealed class FuturesItiGraphWindowTests
     }
 
     [Fact]
-    public void Weekly_StartsAtEasternMondayAndEndsNow()
+    public void Weekly_CoversSevenCalendarDatesEndingOnValueDate()
     {
-        var window = FuturesItiGraphWindow.Resolve(WednesdayNow, TimeFrameType.Weekly);
+        var window = FuturesItiGraphWindow.Resolve(WednesdayNow, ValueDate, TimeFrameType.Weekly);
 
-        window.StartUtc.Should().Be(new DateTime(2026, 9, 14, 4, 0, 0, DateTimeKind.Utc));
+        window.StartUtc.Should().Be(new DateTime(2026, 9, 10, 4, 0, 0, DateTimeKind.Utc));
         window.EndUtc.Should().Be(WednesdayNow.UtcDateTime);
     }
 
     [Fact]
     public void Monthly_StartsAtEasternMonthBeginningAndEndsNow()
     {
-        var window = FuturesItiGraphWindow.Resolve(WednesdayNow, TimeFrameType.Monthly);
+        var window = FuturesItiGraphWindow.Resolve(WednesdayNow, ValueDate, TimeFrameType.Monthly);
 
         window.StartUtc.Should().Be(new DateTime(2026, 9, 1, 4, 0, 0, DateTimeKind.Utc));
         window.EndUtc.Should().Be(WednesdayNow.UtcDateTime);
@@ -41,6 +42,6 @@ public sealed class FuturesItiGraphWindowTests
     [Fact]
     public void UnsupportedTimeFrame_IsRejected()
         => FluentActions.Invoking(() =>
-                FuturesItiGraphWindow.Resolve(WednesdayNow, TimeFrameType.OneMinute))
+                FuturesItiGraphWindow.Resolve(WednesdayNow, ValueDate, TimeFrameType.OneMinute))
             .Should().Throw<ArgumentOutOfRangeException>();
 }

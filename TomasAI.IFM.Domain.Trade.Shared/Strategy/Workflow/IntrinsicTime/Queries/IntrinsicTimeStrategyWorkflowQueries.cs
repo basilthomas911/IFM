@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 
@@ -226,4 +227,24 @@ public sealed record GetIntrinsicTimeStrategyWorkflowObservationQuery
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     [IgnoreMember] public string? QueryParams { get; init; }
     [Key(2)] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntity { get; init; } = new();
+}
+
+/// <summary>Gets a page of workflows for one symbol, timeframe, and exact UTC range.</summary>
+[MessagePackObject(AllowPrivate = true)]
+public sealed record GetIntrinsicTimeStrategyWorkflowHistoryPageQuery
+    : IQuery<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>
+{
+    [IgnoreMember] public const string Actor = GetIntrinsicTimeStrategyWorkflowByIdQuery.Actor;
+    [IgnoreMember] public const string Verb = "GetHistoryPage";
+    [IgnoreMember] public const int ErrorId = 25011;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
+    [Key(2)] public string Symbol { get; init; } = string.Empty;
+    [Key(3)] public TimeFrameType TimePeriod { get; init; }
+    [Key(4)] public DateTime FromUtc { get; init; }
+    [Key(5)] public DateTime ToUtc { get; init; }
+    [Key(6)] public int PageNumber { get; init; } = 1;
+    [Key(7)] public int PageSize { get; init; } = 50;
 }

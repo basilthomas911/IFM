@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi;
 
@@ -21,6 +22,14 @@ public interface IIntrinsicTimeStrategyWorkflowQueryApi
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowTimelineReadModel[]>> GetTimelineAsync(StrategyWorkflowId workflowId, long afterEventId, int pageSize);
     /// <summary>Gets recent workflows for an entity.</summary>
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> GetRecentAsync(string workflowEntityId, DateTime beforeUtc, int pageSize);
+    /// <summary>Gets one symbol/timeframe workflow-history page in an exact UTC range.</summary>
+    Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>> GetHistoryPageAsync(
+        string symbol,
+        TimeFrameType timePeriod,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int pageNumber,
+        int pageSize);
     /// <summary>Gets completed workflows in a date range.</summary>
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> GetCompletedAsync(DateOnly startDate, DateOnly endDate, int pageSize);
     /// <summary>Gets stopped workflows in a date range.</summary>

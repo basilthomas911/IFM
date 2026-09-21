@@ -57,8 +57,21 @@ public sealed class CompositionContractTests
         Assert.Equal(CompositionHash.Compute(new Diagnostic { Value = 12, LocalUser = "host-a" }),
             CompositionHash.Compute(new Diagnostic { Value = 12, LocalUser = "host-b" }));
         Assert.NotEqual(CompositionHash.Compute(new Diagnostic { Value = 12 }), CompositionHash.Compute(new Diagnostic { Value = 13 }));
+        var timestamp = new DateTime(2026, 9, 21, 14, 30, 0, DateTimeKind.Unspecified);
+        Assert.Equal(
+            CompositionHash.Compute(new Diagnostic { Value = 12, ObservedAtUtc = timestamp }),
+            CompositionHash.Compute(new Diagnostic
+            {
+                Value = 12,
+                ObservedAtUtc = DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+            }));
     }
-    sealed record Diagnostic { public int Value { get; init; } [IgnoreMember] public string LocalUser { get; init; } = ""; }
+    sealed record Diagnostic
+    {
+        public int Value { get; init; }
+        public DateTime ObservedAtUtc { get; init; }
+        [IgnoreMember] public string LocalUser { get; init; } = "";
+    }
     static string[] Keys(Type type) => type.GetProperties().Select(p => (Property: p, Key: p.GetCustomAttribute<KeyAttribute>()?.IntKey))
         .Where(x => x.Key is not null).OrderBy(x => x.Key).Select(x => x.Property.Name).ToArray();
 }

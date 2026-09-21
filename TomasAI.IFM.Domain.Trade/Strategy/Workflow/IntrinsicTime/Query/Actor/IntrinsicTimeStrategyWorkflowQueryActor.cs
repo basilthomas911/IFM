@@ -1,6 +1,7 @@
 using MessagePack;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
@@ -31,7 +32,8 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
             [GetRecentIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetRecentIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
             [GetCompletedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetCompletedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
             [GetStoppedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetStoppedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
-            [GetIntrinsicTimeStrategyWorkflowObservationQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowObservationQuery, IntrinsicTimeStrategyWorkflowObservationReadModel>()!
+            [GetIntrinsicTimeStrategyWorkflowObservationQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowObservationQuery, IntrinsicTimeStrategyWorkflowObservationReadModel>()!,
+            [GetIntrinsicTimeStrategyWorkflowHistoryPageQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowHistoryPageQuery, IntrinsicTimeStrategyWorkflowHistoryPageReadModel>()!
         };
 
     /// <summary>Gets the Query actor name.</summary>
@@ -81,7 +83,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
             ((GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken)
+            ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) =>
+            IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(
+                services, context, (GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query, cancellationToken)
     };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

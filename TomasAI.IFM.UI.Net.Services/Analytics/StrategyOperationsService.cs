@@ -14,6 +14,16 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi
 
 namespace TomasAI.IFM.UI.Net.Services.Analytics;
 
+/// <summary>Hydrated Strategy workflow page used by the Operations view.</summary>
+public sealed record StrategyWorkflowPage(
+    IntrinsicTimeStrategyWorkflowView[] Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount)
+{
+    public bool HasNextPage => PageNumber * PageSize < TotalCount;
+}
+
 /// <summary>
 /// Provides the framework-neutral query and notification boundary used by the Strategy Operations view.
 /// </summary>
@@ -112,6 +122,55 @@ public sealed class StrategyOperationsService(
         })).ConfigureAwait(false);
 
         return UiOperationResult<IntrinsicTimeStrategyWorkflowView[]>.Success(hydrated);
+    }
+
+    /// <summary>Gets and hydrates one symbol/timeframe workflow page for an exact UTC range.</summary>
+    public async ValueTask<UiOperationResult<StrategyWorkflowPage>> GetWorkflowHistoryPageAsync(
+        string symbol,
+        TimeFrameType timePeriod,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var history = await _workflowQueryApi.GetHistoryPageAsync(
+            symbol, timePeriod, fromUtc, toUtc, pageNumber, pageSize);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!history.Success || history.Value is null)
+            return UiOperationResult<StrategyWorkflowPage>.Failure(
+                history.ErrorCode, history.ErrorMessage);
+
+        using var hydrationGate = new SemaphoreSlim(8, 8);
+        var hydrated = await Task.WhenAll(history.Value.Items.Select(async item =>
+        {
+            if (TryGetTerminal(item.WorkflowId, item.WorkflowRevision, out var cached))
+                return cached;
+            await hydrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var detail = await _workflowQueryApi.GetByIdAsync(item.WorkflowId, item.WorkflowRevision)
+                    .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!detail.Success || detail.Value is null)
+                    throw new UiOperationException(new UiOperationError(detail.ErrorCode, detail.ErrorMessage));
+                var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(
+                    detail.Value.StatePayload);
+                CacheTerminal(view);
+                return view;
+            }
+            finally
+            {
+                hydrationGate.Release();
+            }
+        })).ConfigureAwait(false);
+
+        return UiOperationResult<StrategyWorkflowPage>.Success(new(
+            hydrated,
+            history.Value.PageNumber,
+            history.Value.PageSize,
+            history.Value.TotalCount));
     }
 
     bool TryGetTerminal(

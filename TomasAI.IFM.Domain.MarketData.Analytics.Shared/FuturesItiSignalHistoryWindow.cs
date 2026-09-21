@@ -13,11 +13,10 @@ public readonly record struct FuturesItiSignalHistoryWindow(
         if (valueDate == default)
             throw new ArgumentOutOfRangeException(nameof(valueDate));
 
-        var daysSinceMonday = ((int)valueDate.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
         return timePeriod switch
         {
             TimeFrameType.Daily => new(valueDate, valueDate),
-            TimeFrameType.Weekly => new(valueDate.AddDays(-daysSinceMonday), valueDate),
+            TimeFrameType.Weekly => new(valueDate.AddDays(-6), valueDate),
             TimeFrameType.Monthly => new(new DateOnly(valueDate.Year, valueDate.Month, 1), valueDate),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(timePeriod),

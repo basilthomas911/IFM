@@ -4,6 +4,7 @@ using MessagePack;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 
@@ -22,7 +23,9 @@ public static class CompositionSemanticHash
                 if (info.Properties[i].AttributeProvider is MemberInfo member && member.IsDefined(typeof(IgnoreMemberAttribute)))
                     info.Properties.RemoveAt(i);
         });
-        return new() { TypeInfoResolver = resolver };
+        var options = new JsonSerializerOptions { TypeInfoResolver = resolver };
+        options.Converters.Add(new CanonicalUtcDateTimeConverter());
+        return options;
     }
     public static string Compute<T>(T value)
     {
@@ -30,6 +33,25 @@ public static class CompositionSemanticHash
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer)) Write(document.RootElement, writer);
         return Convert.ToHexStringLower(SHA256.HashData(buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length))));
+    }
+
+    // MessagePack timestamps deserialize as UTC, including optional/default DateTime values.
+    // Semantic identity must not depend on DateTime.Kind for the same clock value.
+    sealed class CanonicalUtcDateTimeConverter : JsonConverter<DateTime>
+    {
+        public override DateTime Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options)
+            => reader.GetDateTime();
+
+        public override void Write(
+            Utf8JsonWriter writer,
+            DateTime value,
+            JsonSerializerOptions options)
+            => writer.WriteStringValue(value.Kind == DateTimeKind.Local
+                ? value.ToUniversalTime()
+                : DateTime.SpecifyKind(value, DateTimeKind.Utc));
     }
 
     static void Write(JsonElement value, Utf8JsonWriter writer)

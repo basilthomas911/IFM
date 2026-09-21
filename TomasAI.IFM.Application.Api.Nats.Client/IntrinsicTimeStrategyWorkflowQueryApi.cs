@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
@@ -89,6 +90,39 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
                 EntityId = new ActorEntityId(workflowEntityId), WorkflowEntityId = workflowEntityId,
                 BeforeUtc = beforeUtc, PageSize = pageSize
             }).AsTask();
+
+    /// <inheritdoc />
+    public Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>> GetHistoryPageAsync(
+        string symbol,
+        TimeFrameType timePeriod,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int pageNumber,
+        int pageSize)
+    {
+        var entity = string.Join(
+            ".",
+            symbol,
+            timePeriod,
+            fromUtc.ToString("yyyyMMddHHmmss"),
+            toUtc.ToString("yyyyMMddHHmmss"),
+            pageNumber);
+        var subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery.Verb, entity);
+        return RequestAsync<GetIntrinsicTimeStrategyWorkflowHistoryPageQuery,
+            IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+            subject,
+            new GetIntrinsicTimeStrategyWorkflowHistoryPageQuery
+            {
+                Subject = subject,
+                EntityId = new ActorEntityId(entity),
+                Symbol = symbol,
+                TimePeriod = timePeriod,
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            }).AsTask();
+    }
 
     /// <inheritdoc />
     public Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> GetCompletedAsync(

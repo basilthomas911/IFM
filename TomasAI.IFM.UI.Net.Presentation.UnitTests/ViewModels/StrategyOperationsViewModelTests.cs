@@ -130,12 +130,15 @@ public sealed class StrategyOperationsViewModelTests
         subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, TimeFrameType.Monthly)
             .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
                 new ServiceOk<FuturesItiSignalV2ReadModel[]>([previousSignal])));
-        subject.WorkflowQueryApi.GetRecentAsync(
-                previousEntity.Format(),
+        subject.WorkflowQueryApi.GetHistoryPageAsync(
+                Symbol,
+                TimeFrameType.Monthly,
                 Arg.Any<DateTime>(),
+                Arg.Any<DateTime>(),
+                1,
                 Arg.Any<int>())
-            .Returns(Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>>(
-                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>([History(previousWorkflow)])));
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+                new([History(previousWorkflow)], 1, 50, 1)));
         subject.WorkflowQueryApi.GetByIdAsync(
                 previousWorkflow.WorkflowId,
                 previousWorkflow.WorkflowRevision)
@@ -146,9 +149,12 @@ public sealed class StrategyOperationsViewModelTests
 
         subject.ViewModel.Workflows.Should().ContainSingle()
             .Which.WorkflowId.Should().Be(previousWorkflow.WorkflowId);
-        await subject.WorkflowQueryApi.Received(1).GetRecentAsync(
-            previousEntity.Format(),
+        await subject.WorkflowQueryApi.Received(1).GetHistoryPageAsync(
+            Symbol,
+            TimeFrameType.Monthly,
             Arg.Any<DateTime>(),
+            Arg.Any<DateTime>(),
+            1,
             Arg.Any<int>());
         await subject.ViewModel.DisposeAsync();
     }
@@ -660,15 +666,19 @@ public sealed class StrategyOperationsViewModelTests
         };
         var subject = CreateSubject(timeProvider, interval);
         var historyCalls = 0;
-        subject.WorkflowQueryApi.GetRecentAsync(
-                terminal.EntityId.Format(),
+        subject.WorkflowQueryApi.GetHistoryPageAsync(
+                Symbol,
+                TimeFrameType.Daily,
                 Arg.Any<DateTime>(),
+                Arg.Any<DateTime>(),
+                1,
                 Arg.Any<int>())
-            .Returns(_ => Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>>(
-                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>(
+            .Returns(_ => Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>>(
+                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+                    new(
                     Interlocked.Increment(ref historyCalls) == 1
                         ? []
-                        : [History(terminal)])));
+                        : [History(terminal)], 1, 50, historyCalls == 1 ? 0 : 1))));
         subject.WorkflowQueryApi.GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision)
             .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(terminal)));
 
@@ -685,7 +695,45 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
-    public async Task WorkflowRows_AreBoundedFilteredByTimeframeAndRejectUpdatesAfterStop()
+    public async Task WorkflowHistory_CanPageForwardAndBackWithinSelectedTimeframe()
+    {
+        var first = Workflow(1);
+        var second = Workflow(2) with { WorkflowId = new StrategyWorkflowId(Guid.NewGuid()) };
+        var subject = CreateSubject();
+        subject.WorkflowQueryApi.GetHistoryPageAsync(
+                Symbol,
+                TimeFrameType.Daily,
+                Arg.Any<DateTime>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>(),
+                Arg.Any<int>())
+            .Returns(call =>
+            {
+                var pageNumber = call.ArgAt<int>(4);
+                var item = pageNumber == 1 ? first : second;
+                return new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+                    new([History(item)], pageNumber, 50, 51));
+            });
+        subject.WorkflowQueryApi.GetByIdAsync(first.WorkflowId, first.WorkflowRevision)
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(first)));
+        subject.WorkflowQueryApi.GetByIdAsync(second.WorkflowId, second.WorkflowRevision)
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(second)));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(first.WorkflowId);
+        subject.ViewModel.WorkflowPageText.Should().Be("Page 1 of 2");
+
+        await subject.ViewModel.MoveToNextWorkflowPageAsync();
+        subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(second.WorkflowId);
+        subject.ViewModel.CanMoveToPreviousWorkflowPage.Should().BeTrue();
+
+        await subject.ViewModel.MoveToPreviousWorkflowPageAsync();
+        subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(first.WorkflowId);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task WorkflowRows_ArePageBoundedFilteredByTimeframeAndRejectUpdatesAfterStop()
     {
         var subject = CreateSubject();
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
@@ -695,7 +743,9 @@ public sealed class StrategyOperationsViewModelTests
                 WorkflowId = new StrategyWorkflowId(Guid.NewGuid()),
                 StartedAtUtc = new DateTime(2026, 8, 21, 13, 0, 0, DateTimeKind.Utc).AddSeconds(index)
             });
-        subject.ViewModel.Workflows.Should().HaveCount(500);
+        subject.ViewModel.Workflows.Should().HaveCount(50);
+        subject.ViewModel.WorkflowPageCount.Should().Be(11);
+        subject.ViewModel.CanMoveToNextWorkflowPage.Should().BeTrue();
 
         var weekly = Workflow(1) with
         {
@@ -732,11 +782,15 @@ public sealed class StrategyOperationsViewModelTests
             Outcome = StrategyWorkflowOutcome.Completed
         };
         var subject = CreateSubject();
-        subject.WorkflowQueryApi.GetRecentAsync(
-                terminal.EntityId.Format(),
+        subject.WorkflowQueryApi.GetHistoryPageAsync(
+                Symbol,
+                TimeFrameType.Daily,
                 Arg.Any<DateTime>(),
+                Arg.Any<DateTime>(),
+                1,
                 Arg.Any<int>())
-            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>([History(terminal)]));
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+                new([History(terminal)], 1, 50, 1)));
         subject.WorkflowQueryApi.GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision)
             .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(terminal)));
 
@@ -786,9 +840,16 @@ public sealed class StrategyOperationsViewModelTests
         var consumer = Substitute.For<IFuturesItiSignalUIEventConsumer>();
         var eventSource = new TestEventSource(consumer);
         var workflowApi = Substitute.For<IIntrinsicTimeStrategyWorkflowQueryApi>();
-        workflowApi.GetRecentAsync(Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<int>())
-            .Returns(Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>>(
-                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>([])));
+        workflowApi.GetHistoryPageAsync(
+                Arg.Any<string>(),
+                Arg.Any<TimeFrameType>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>(),
+                Arg.Any<int>())
+            .Returns(Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>>(
+                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+                    new([], 1, 50, 0))));
         var workflowConsumer = Substitute.For<IIntrinsicTimeStrategyWorkflowUIEventConsumer>();
         var workflowEventSource = new TestWorkflowEventSource(workflowConsumer);
         var model = new StrategyOperationsService(queryApi, consumer, workflowApi, workflowConsumer);

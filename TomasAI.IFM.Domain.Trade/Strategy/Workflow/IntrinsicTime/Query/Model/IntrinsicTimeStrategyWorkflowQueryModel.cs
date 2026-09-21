@@ -1,6 +1,8 @@
 using MessagePack;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
@@ -88,6 +90,40 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         await ReplyArray(context, query, query.Subject.Verb, result).ConfigureAwait(false);
     }
 
+    internal static async ValueTask ExecuteAsync(
+        IIntrinsicTimeStrategyWorkflowQueryContext services,
+        IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query,
+        CancellationToken cancellationToken)
+    {
+        RequireHistoryPage(query);
+        var signals = await services.DbFactory.MarketDataDb.GetFuturesItiSignalsAsync(
+            query.Symbol.Trim().ToUpperInvariant(),
+            DateOnly.FromDateTime(query.FromUtc),
+            DateOnly.FromDateTime(query.ToUtc)).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var entities = signals
+            .Where(signal => signal.TimePeriod == query.TimePeriod)
+            .Select(signal => IntrinsicTimeStrategyWorkflowEntityId.Create(signal.EntityId).Format())
+            .Distinct(StringComparer.Ordinal);
+        var history = new List<IntrinsicTimeStrategyWorkflowHistoryReadModel>();
+        foreach (var entity in entities)
+            await AddHistoryAsync(services, query, entity, history, cancellationToken).ConfigureAwait(false);
+        var ordered = history
+            .GroupBy(static item => item.WorkflowId)
+            .Select(static group => group.OrderByDescending(item => item.WorkflowRevision).First())
+            .OrderByDescending(static item => item.StartedAtUtc)
+            .ThenByDescending(static item => item.WorkflowId.Value)
+            .ToArray();
+        var pageSize = RequirePageSize(query.PageSize);
+        var offset = checked((query.PageNumber - 1) * pageSize);
+        var page = new IntrinsicTimeStrategyWorkflowHistoryPageReadModel(
+            ordered.Skip(offset).Take(pageSize).ToArray(),
+            query.PageNumber, pageSize, ordered.Length);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(page)).ConfigureAwait(false);
+    }
+
     internal static async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, GetCompletedIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
     {
         var result = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
@@ -111,6 +147,47 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
             new ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>(result)).ConfigureAwait(false);
     }
 
+
+    static void RequireHistoryPage(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(query.Symbol);
+        if (query.TimePeriod is not (TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly))
+            throw new ArgumentOutOfRangeException(nameof(query.TimePeriod));
+        if (query.FromUtc.Kind != DateTimeKind.Utc || query.ToUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Workflow history bounds must be UTC.");
+        if (query.ToUtc < query.FromUtc)
+            throw new ArgumentOutOfRangeException(nameof(query.ToUtc));
+        if (query.PageNumber < 1)
+            throw new ArgumentOutOfRangeException(nameof(query.PageNumber));
+        RequirePageSize(query.PageSize);
+    }
+
+    static async Task AddHistoryAsync(
+        IIntrinsicTimeStrategyWorkflowQueryContext services,
+        GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query,
+        string entity,
+        ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel> history,
+        CancellationToken cancellationToken)
+    {
+        var beforeUtc = query.ToUtc == DateTime.MaxValue ? query.ToUtc : query.ToUtc.AddTicks(1);
+        while (beforeUtc > query.FromUtc)
+        {
+            var batch = await services.DbFactory.TradeDb
+                .GetIntrinsicTimeStrategyWorkflowsByEntityAsync(entity, beforeUtc, 1000, cancellationToken)
+                .ConfigureAwait(false);
+            if (batch.Count == 0)
+                break;
+            foreach (var item in batch.Where(item =>
+                         item.StartedAtUtc >= query.FromUtc && item.StartedAtUtc <= query.ToUtc))
+                history.Add(item);
+            if (batch.Count < 1000)
+                break;
+            var nextBefore = batch.Min(static item => item.StartedAtUtc);
+            if (nextBefore >= beforeUtc || nextBefore <= query.FromUtc)
+                break;
+            beforeUtc = nextBefore;
+        }
+    }
 
     static async ValueTask ReplyArray<T>(
         IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,

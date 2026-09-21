@@ -17,8 +17,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Operations;
 public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     internal static readonly TimeSpan DefaultReconciliationInterval = TimeSpan.FromSeconds(30);
-    const int MaximumWorkflowRows = 500;
-    const int WorkflowHistoryPageSize = 500;
+    const int WorkflowHistoryPageSize = 50;
     static readonly IReadOnlyList<TimeFrameType> SupportedPeriods = Array.AsReadOnly(
         new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly });
     readonly object _stateGate = new();
@@ -33,6 +32,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     readonly List<FuturesItiSignalEventRow> _eventBuffer = [];
     readonly HashSet<string> _eventIdentities = new(StringComparer.Ordinal);
     readonly Dictionary<StrategyWorkflowId, IntrinsicTimeStrategyWorkflowView> _workflowViews = [];
+    readonly Dictionary<TimeFrameType, int> _workflowPageNumbers = [];
+    readonly Dictionary<TimeFrameType, int> _workflowTotalCounts = [];
     IReadOnlyList<FuturesItiSignalEventRow> _events = [];
     IReadOnlyList<StrategyWorkflowRow> _workflows = [];
     StrategyWorkflowId? _selectedWorkflowId;
@@ -87,7 +88,16 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     /// <summary>Gets the exact current UTC interval rendered by the selected ITI graph.</summary>
     public FuturesItiGraphWindow SelectedGraphWindow =>
-        FuturesItiGraphWindow.Resolve(_timeProvider.GetUtcNow(), SelectedTimeFrame);
+        FuturesItiGraphWindow.Resolve(_timeProvider.GetUtcNow(), _valueDate, SelectedTimeFrame);
+
+    public int WorkflowPageNumber => _workflowPageNumbers.GetValueOrDefault(SelectedTimeFrame, 1);
+    public int WorkflowPageCount => Math.Max(
+        1,
+        (int)Math.Ceiling(_workflowTotalCounts.GetValueOrDefault(SelectedTimeFrame) /
+                          (double)WorkflowHistoryPageSize));
+    public string WorkflowPageText => $"Page {WorkflowPageNumber} of {WorkflowPageCount}";
+    public bool CanMoveToPreviousWorkflowPage => WorkflowPageNumber > 1;
+    public bool CanMoveToNextWorkflowPage => WorkflowPageNumber < WorkflowPageCount;
 
     public TimeFrameType SelectedTimeFrame
     {
@@ -101,9 +111,22 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
             PublishSelectedEvents();
             PublishSelectedWorkflows();
+            PublishWorkflowPaging();
             PublishStatus();
         }
     }
+
+    public Task MoveToPreviousWorkflowPageAsync(CancellationToken cancellationToken = default)
+        => LoadWorkflowPageAsync(
+            SelectedTimeFrame,
+            Math.Max(1, WorkflowPageNumber - 1),
+            cancellationToken);
+
+    public Task MoveToNextWorkflowPageAsync(CancellationToken cancellationToken = default)
+        => LoadWorkflowPageAsync(
+            SelectedTimeFrame,
+            Math.Min(WorkflowPageCount, WorkflowPageNumber + 1),
+            cancellationToken);
 
     /// <summary>Gets the ITI observations used exclusively by the existing chart.</summary>
     public IReadOnlyList<FuturesItiSignalEventRow> Events
@@ -309,44 +332,35 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     }
 
     async Task ReconcileWorkflowPeriodAsync(TimeFrameType period, CancellationToken cancellationToken)
+        => await LoadWorkflowPageAsync(
+            period,
+            _workflowPageNumbers.GetValueOrDefault(period, 1),
+            cancellationToken);
+
+    async Task LoadWorkflowPageAsync(
+        TimeFrameType period,
+        int pageNumber,
+        CancellationToken cancellationToken)
     {
         try
         {
-            IntrinsicTimeStrategyWorkflowEntityId[] workflowEntities;
-            lock (_stateGate)
+            var window = FuturesItiGraphWindow.Resolve(
+                _timeProvider.GetUtcNow(), _valueDate, period);
+            var result = await _model.GetWorkflowHistoryPageAsync(
+                _symbol,
+                period,
+                window.StartUtc,
+                window.EndUtc,
+                pageNumber,
+                WorkflowHistoryPageSize,
+                cancellationToken);
+            if (!result.IsSuccess)
             {
-                workflowEntities = _eventBuffer
-                    .Where(row => row.TimePeriod == period)
-                    .Select(row => IntrinsicTimeStrategyWorkflowEntityId.Create(
-                        new FuturesItiSignalEntityId(
-                            row.ContractId,
-                            row.TimeFrameStartValueDate,
-                            period)))
-                    .Append(IntrinsicTimeStrategyWorkflowEntityId.Create(
-                        new FuturesItiSignalEntityId(
-                            _contractId,
-                            FuturesItiSignalHistoryWindow.Resolve(_valueDate, period).StartValueDate,
-                            period)))
-                    .Distinct()
-                    .ToArray();
+                PublishError(result.Error!.Code, result.Error.Message,
+                    $"{period} Strategy Workflow History Unavailable");
+                return;
             }
-
-            foreach (var entity in workflowEntities)
-            {
-                var result = await _model.GetRecentWorkflowsAsync(
-                    entity,
-                    DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc),
-                    WorkflowHistoryPageSize,
-                    cancellationToken);
-                if (!result.IsSuccess)
-                {
-                    PublishError(result.Error!.Code, result.Error.Message,
-                        $"{period} Strategy Workflow History Unavailable");
-                    continue;
-                }
-
-                AddWorkflowRange(result.Value ?? []);
-            }
+            SetWorkflowPage(period, result.Value!);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -358,6 +372,28 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         }
     }
 
+    void SetWorkflowPage(TimeFrameType period, StrategyWorkflowPage page)
+    {
+        lock (_stateGate)
+        {
+            foreach (var workflowId in _workflowViews.Values
+                         .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == period)
+                         .Select(view => view.WorkflowId)
+                         .ToArray())
+                _workflowViews.Remove(workflowId);
+            foreach (var view in page.Items.Where(IsRelevantWorkflow))
+                _workflowViews[view.WorkflowId] = view;
+            _workflowPageNumbers[period] = page.PageNumber;
+            _workflowTotalCounts[period] = page.TotalCount;
+        }
+        if (period == SelectedTimeFrame)
+        {
+            PublishSelectedWorkflows();
+            PublishWorkflowPaging();
+            PublishStatus();
+        }
+    }
+
     void OnSignalNotification(FuturesItiSignalUpdatedNotifyEvent notification)
     {
         if (Volatile.Read(ref _acceptEvents) != 0)
@@ -366,8 +402,16 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     void OnWorkflowNotification(IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent notification)
     {
-        if (Volatile.Read(ref _acceptEvents) != 0)
-            AddWorkflowRange([notification.State]);
+        if (Volatile.Read(ref _acceptEvents) == 0)
+            return;
+        var period = notification.State.EntityId.ItiSignalEntityId.TimePeriod;
+        lock (_stateGate)
+        {
+            if (_workflowPageNumbers.GetValueOrDefault(period, 1) != 1
+                && !_workflowViews.ContainsKey(notification.State.WorkflowId))
+                return;
+        }
+        AddWorkflowRange([notification.State]);
     }
 
     void AddSignalRange(IEnumerable<FuturesItiSignalEventRow> rows)
@@ -416,7 +460,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         {
             foreach (var view in accepted)
             {
-                if (_workflowViews.TryGetValue(view.WorkflowId, out var current))
+                var isNew = !_workflowViews.TryGetValue(view.WorkflowId, out var current);
+                if (!isNew)
                 {
                     if (current.WorkflowRevision > view.WorkflowRevision)
                         continue;
@@ -431,21 +476,29 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                     }
                 }
                 _workflowViews[view.WorkflowId] = view;
+                if (isNew)
+                {
+                    var period = view.EntityId.ItiSignalEntityId.TimePeriod;
+                    _workflowTotalCounts[period] =
+                        _workflowTotalCounts.GetValueOrDefault(period) + 1;
+                }
                 changed = true;
             }
 
-            if (_workflowViews.Count > MaximumWorkflowRows)
+            foreach (var period in accepted
+                         .Select(view => view.EntityId.ItiSignalEntityId.TimePeriod)
+                         .Distinct())
             {
+                if (_workflowPageNumbers.GetValueOrDefault(period, 1) != 1)
+                    continue;
                 foreach (var workflowId in _workflowViews.Values
+                             .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == period)
                              .OrderByDescending(WorkflowTime)
                              .ThenByDescending(view => view.WorkflowId.Value)
-                             .Skip(MaximumWorkflowRows)
-                    .Select(view => view.WorkflowId)
-                    .ToArray())
-                {
+                             .Skip(WorkflowHistoryPageSize)
+                             .Select(view => view.WorkflowId)
+                             .ToArray())
                     _workflowViews.Remove(workflowId);
-                    changed = true;
-                }
             }
         }
 
@@ -458,6 +511,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         if (changed)
         {
             PublishSelectedWorkflows();
+            PublishWorkflowPaging();
             PublishStatus();
         }
     }
@@ -521,7 +575,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             || !SupportedPeriods.Contains(row.TimePeriod))
             return false;
 
-        var graphWindow = FuturesItiGraphWindow.Resolve(_timeProvider.GetUtcNow(), row.TimePeriod);
+        var graphWindow = FuturesItiGraphWindow.Resolve(
+            _timeProvider.GetUtcNow(), _valueDate, row.TimePeriod);
         return graphWindow.Contains(row.OccurredOn);
     }
 
@@ -531,9 +586,18 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         if (!iti.ContractId.StartsWith(_symbol, StringComparison.Ordinal)
             || !SupportedPeriods.Contains(iti.TimePeriod))
             return false;
-        var window = FuturesItiSignalHistoryWindow.Resolve(_valueDate, iti.TimePeriod);
-        return iti.TimeFrameStartValueDate >= window.StartValueDate
-               && iti.TimeFrameStartValueDate <= window.EndValueDate;
+        var window = FuturesItiGraphWindow.Resolve(
+            _timeProvider.GetUtcNow(), _valueDate, iti.TimePeriod);
+        return window.Contains(WorkflowTime(view));
+    }
+
+    void PublishWorkflowPaging()
+    {
+        OnPropertyChanged(nameof(WorkflowPageNumber));
+        OnPropertyChanged(nameof(WorkflowPageCount));
+        OnPropertyChanged(nameof(WorkflowPageText));
+        OnPropertyChanged(nameof(CanMoveToPreviousWorkflowPage));
+        OnPropertyChanged(nameof(CanMoveToNextWorkflowPage));
     }
 
     void PublishStatus()

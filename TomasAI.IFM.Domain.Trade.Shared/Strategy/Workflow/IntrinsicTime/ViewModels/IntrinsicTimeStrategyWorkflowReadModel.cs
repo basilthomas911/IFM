@@ -54,3 +54,14 @@ public sealed record IntrinsicTimeStrategyWorkflowHistoryReadModel(
     long WorkflowRevision,
     DateTime? TerminalAtUtc,
     string StopReasonCode);
+
+/// <summary>Represents one bounded page of workflow history for a symbol and timeframe.</summary>
+public sealed record IntrinsicTimeStrategyWorkflowHistoryPageReadModel(
+    IntrinsicTimeStrategyWorkflowHistoryReadModel[] Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount)
+{
+    /// <summary>Gets whether another page is available.</summary>
+    public bool HasNextPage => PageNumber * PageSize < TotalCount;
+}
