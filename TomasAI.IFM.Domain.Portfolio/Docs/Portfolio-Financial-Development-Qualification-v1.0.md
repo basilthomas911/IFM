@@ -1,5 +1,7 @@
 # Portfolio financial development qualification
 
+> **Legacy Fund removal (2026-09-21):** The retained-history command, legacy inventory/migration records, and writer-fence procedure described in the historical section below were removed with the legacy Fund subsystem. Portfolio financial schema version 2 drops those database objects during initialization. Current development qualification uses only canonical Portfolio sources, reconciliation, and financial authority.
+
 This record concerns the local Windows/.NET 10 development workstation and its local PostgreSQL test database. It is not a production capacity estimate. The broker emulator and production security remain separate deliveries.
 
 ## Load budget declared before execution
@@ -24,7 +26,7 @@ Run the actual GeneralLedgerStore/CapacityReservationStore, shared PostgresEvent
 4. Overdrawn and NeedsReconciliation books cannot admit new spending. Record actual financial facts through their normal commands, reconcile journals against balances, then prepare fresh authority from current policy, mandates, assignments and envelopes. An old approval cannot restore capacity.
 5. Unconsumed reservations may expire through the durable expiry dispatcher. Consumed, working, filled or unknown execution obligations require matching execution/reconciliation facts; never clear them manually to make cash appear available.
 6. Book setup creates no money and enables no spending. Development opening capital is a separate explicit operation on an unqualified Emulator book with Development host policy. Reconcile, qualify the source scope, and review authority separately. Qualification does not publish a policy/deployment or create an active Fund.
-7. Fresh-scope qualification installs the legacy writer fence before testing absence. If legacy state exists, stop that qualification and retain the fence/evidence. Do not remove the fence or relabel old balances to bypass migration. Historical scope migration requires the selected migration mode and qualified source disposition.
+7. Development qualification verifies the trusted host, reconciled canonical ledger, and exact committed Portfolio/Fund source versions. It never imports or relabels historical balances and leaves spending disabled until authority is separately reviewed.
 8. Authority refresh preserves qualified book membership. Adding a Fund to a Portfolio does not qualify it for that book. Do not edit the stored book JSON; the separate membership/migration workflow is still required.
 9. Internal accounting exports retain the original immutable payload and source inclusion after an unknown delivery. Corrections are new linked journals. No QuickBooks delivery is implemented or claimed.
 
@@ -59,15 +61,9 @@ Additional correctness qualification: a 256-line adjustment committed within the
 
 ## Retained legacy history maintenance - 2026-09-09
 
-Selected mode: `ReadOnlyHistoryWithDevelopmentCapital`. Original source records remain in FundLegacyDb and are displayed through the explicit PF-31 HistoricalSourceFundId mapping. Portfolio Admin Financials includes a read-only Legacy history tab for those mappings. The displayed original amount/balance keeps source precision and is labelled with unrecorded currency. These values never enter available cash, capacity or a new journal. Unknown kinds/invalid identities remain visibly unqualified.
+This section records the retired 2026-09-09 procedure for audit context only. The `--retain-legacy-history-manifest` entry point, its request types, the legacy history UI/import path, and the legacy writer-fence/inventory/migration stores no longer exist. Do not use this section as an operator runbook.
 
-The development maintenance entry point is `--retain-legacy-history-manifest=<reviewed-json-path>` on the API executable, run from the API project directory with ASPNETCORE_ENVIRONMENT=Development. It starts no actors, feeds or HTTP listener. Its JSON is a LegacyFinancialRetentionRequest containing Scope, Access and Reason. Scope carries a generated stable InventoryId, the existing SourceFundId and exact permanent-Draft destination Portfolio/Fund mapping, Start/End covering all canonical source dates, SourceEnvironment and ImportMode=ReadOnlyHistoryWithDevelopmentCapital. Use the generated mapping identities from the existing historical import; do not repurpose a current trading Fund or infer a mapping from equal numbers.
-
-Retention validates the committed historical mapping, installs the source writer fence, checks PostgreSQL pending write intents plus Scylla write ownership/mutation and in-range projection journals, and streams original canonical records into immutable inventory rows. It verifies full date coverage before preparation and after the source scan. A successful seal records RetainedReadOnly in the immutable migration manifest with zero recognized capital and no financial book change. Repeating the original request returns the original seal even after unrelated configuration advances. A different request cannot replace that identity.
-
-Pending/unknown writes prevent the seal and leave the fence installed. Recover the original writes using their evidence before retry; never delete pending markers to force success. A source range that changes during fencing requires operator investigation; no partial inventory is represented as complete. An unupgraded process bypassing the registered FundDb writer boundary must be stopped before cutover. No application source has been retained or funded automatically by the qualification tests.
-
-Development capital remains an explicit new-ledger operation on an unqualified Emulator book. Reconcile and qualify the new book and separately review authority before enabling spending. The retained legacy mapping remains Draft and is not that spending Fund.
+Development capital remains an explicit canonical-ledger operation on an unqualified Emulator book. Reconcile and qualify the book, then separately review current Portfolio authority before enabling spending.
 
 ## Final development qualification — 2026-09-09
 

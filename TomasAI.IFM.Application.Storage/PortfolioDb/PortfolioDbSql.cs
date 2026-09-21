@@ -398,15 +398,6 @@ public static class PortfolioDbSql
         public static class LedgerConfigurationStore
         {
             public const string Select01 = "SELECT pg_advisory_xact_lock(34100,$1);";
-            public const string Select02 = """
-                            SELECT empty_verified FROM portfolio_financial.legacy_writer_scope
-                            WHERE fund_id=$1 AND portfolio_id=$2 AND qualification_id=$3 AND state='Fenced' FOR SHARE;
-                            """;
-            public const string Insert01 = """
-                        INSERT INTO portfolio_financial.ledger_migration(migration_id,portfolio_id,mappings,mode,source_watermark,destination_watermark,
-                            manifest_hash,verified_totals,writer_fence,cutover_state)
-                        VALUES($1,$2,$3,'DevelopmentFreshScope',$4,$5,$6,$7,$8,'Qualified');
-                        """;
             public const string Update01 = """
                         UPDATE portfolio_financial.financial_authority SET policy_source_versions=$2,migration_state='QualifiedDevelopmentFresh',operating_state=$3 WHERE portfolio_id=$1;
                         """;
@@ -472,65 +463,6 @@ public static class PortfolioDbSql
             """;
         }
 
-        public static class LegacyFinancialInventoryStore
-        {
-            public const string Insert01 = """
-                INSERT INTO portfolio_financial.legacy_financial_inventory(inventory_id,scope,scope_hash,state)
-                VALUES($1,$2,$3,'Incomplete') ON CONFLICT(inventory_id) DO NOTHING;
-                """;
-            public const string Select01 = "SELECT scope_hash FROM portfolio_financial.legacy_financial_inventory WHERE inventory_id=$1 FOR UPDATE;";
-            public const string Select02 = "SELECT state FROM portfolio_financial.legacy_financial_inventory WHERE inventory_id=$1 FOR UPDATE;";
-            public const string Select03 = "SELECT row_hash FROM portfolio_financial.legacy_financial_inventory_row WHERE inventory_id=$1 AND source_key=$2;";
-            public const string Insert02 = """
-                INSERT INTO portfolio_financial.legacy_financial_inventory_row(inventory_id,source_key,source_hash,payload,disposition,reason,amount,row_hash)
-                VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8);
-                """;
-            public const string Select04 = """
-                SELECT source_key,row_hash FROM portfolio_financial.legacy_financial_inventory_row
-                WHERE inventory_id=$1 AND source_key>$2 ORDER BY source_key LIMIT 128;
-                """;
-            public const string Select05 = "SELECT state FROM portfolio_financial.legacy_financial_inventory WHERE inventory_id=$1 FOR UPDATE;";
-            public const string Select06 = """
-                SELECT count(*),count(*) FILTER(WHERE disposition='HistoricalOnly'),count(*) FILTER(WHERE disposition='Quarantined'),coalesce(sum(amount),0)
-                FROM portfolio_financial.legacy_financial_inventory_row WHERE inventory_id=$1;
-                """;
-            public const string Update01 = "UPDATE portfolio_financial.legacy_financial_inventory SET state='UnfencedInventory',result=$2 WHERE inventory_id=$1;";
-        }
-
-        public static class LegacyFinancialRetentionStore
-        {
-            public const string Select01 = "SELECT verified_totals::text FROM portfolio_financial.ledger_migration WHERE migration_id=$1 AND cutover_state='RetainedReadOnly';";
-            public const string Select02 = "SELECT pg_advisory_xact_lock(34101,$1);";
-            public const string Select03 = "SELECT scope_hash,result::text FROM portfolio_financial.legacy_financial_inventory WHERE inventory_id=$1 AND state='UnfencedInventory' FOR SHARE;";
-            public const string Select04 = "SELECT count(*) FROM portfolio_financial.legacy_write_intent WHERE fund_id=$1 AND state='Pending';";
-            public const string Select05 = "SELECT count(*) FROM portfolio_financial.legacy_writer_scope WHERE fund_id=$1 AND portfolio_id=$2 AND qualification_id=$3 AND state='Fenced';";
-            public const string Select06 = "SELECT currentversion FROM event_stream_id WHERE eventstream=$1 FOR SHARE;";
-            public const string Select07 = "SELECT currentversion FROM event_stream_id WHERE eventstream=$1 FOR SHARE;";
-            public const string Select08 = "SELECT manifest_hash FROM portfolio_financial.ledger_migration WHERE migration_id=$1;";
-            public const string Insert01 = """
-            INSERT INTO portfolio_financial.ledger_migration(migration_id,portfolio_id,mappings,mode,source_watermark,destination_watermark,
-              manifest_hash,verified_totals,writer_fence,cutover_state)
-            VALUES($1,$2,$3,'ReadOnlyHistoryWithDevelopmentCapital',$4,'NoFinancialPosting',$5,$6,$7,'RetainedReadOnly');
-            """;
-        }
-
-        public static class LegacyFinancialWriterFence
-        {
-            public const string Select01 = "SELECT state FROM portfolio_financial.legacy_writer_scope WHERE fund_id=$1;";
-            public const string Insert01 = "INSERT INTO portfolio_financial.legacy_write_intent(ticket_id,fund_id,state) VALUES($1,$2,'Pending');";
-            public const string Update01 = "UPDATE portfolio_financial.legacy_write_intent SET state='Completed' WHERE ticket_id=$1;";
-            public const string Select02 = "SELECT state,portfolio_id,qualification_id FROM portfolio_financial.legacy_writer_scope WHERE fund_id=$1;";
-            public const string Select03 = "SELECT count(*) FROM portfolio_financial.legacy_write_intent WHERE fund_id=$1;";
-            public const string Select04 = "SELECT count(*) FROM event_stream_id WHERE eventstream LIKE $1 OR eventstream=$2 OR eventstream LIKE $3;";
-            public const string Update02 = "UPDATE portfolio_financial.legacy_writer_scope SET state='Fenced',portfolio_id=$2,qualification_id=$3 WHERE fund_id=$1;";
-            public const string Select05 = "SELECT pg_advisory_xact_lock(34101,$1);";
-            public const string Insert02 = "INSERT INTO portfolio_financial.legacy_writer_scope(fund_id,state) VALUES($1,'Legacy') ON CONFLICT DO NOTHING;";
-            public const string Select06 = "SELECT state,portfolio_id,qualification_id FROM portfolio_financial.legacy_writer_scope WHERE fund_id=$1;";
-            public const string Update03 = "UPDATE portfolio_financial.legacy_writer_scope SET state='Fenced',portfolio_id=$2,qualification_id=$3 WHERE fund_id=$1;";
-            public const string Select07 = "SELECT count(*) FROM portfolio_financial.legacy_write_intent WHERE fund_id=$1 AND state='Pending';";
-            public const string Update04 = "UPDATE portfolio_financial.legacy_writer_scope SET empty_verified=true WHERE fund_id=$1 AND portfolio_id=$2 AND qualification_id=$3 AND state='Fenced';";
-        }
-
         public static class PortfolioAuthorityFence
         {
             public const string Select01 = "SELECT pg_advisory_xact_lock(34100,$1);";
@@ -552,8 +484,20 @@ public static class PortfolioDbSql
             public const string Select01 = "SELECT version FROM portfolio_financial.schema_version WHERE singleton=true;";
             public const string Create01 = """
         CREATE SCHEMA IF NOT EXISTS portfolio_financial;
+        DROP TRIGGER IF EXISTS financial_legacy_event_fence ON event_log;
+        DO $$ BEGIN
+          IF to_regclass('public.event_log_v2') IS NOT NULL THEN
+            EXECUTE 'DROP TRIGGER IF EXISTS financial_legacy_event_fence ON public.event_log_v2';
+          END IF;
+        END $$;
+        DROP FUNCTION IF EXISTS portfolio_financial.guard_legacy_event_writer();
+        DROP TABLE IF EXISTS portfolio_financial.legacy_write_intent CASCADE;
+        DROP TABLE IF EXISTS portfolio_financial.legacy_financial_inventory_row CASCADE;
+        DROP TABLE IF EXISTS portfolio_financial.legacy_financial_inventory CASCADE;
+        DROP TABLE IF EXISTS portfolio_financial.legacy_writer_scope CASCADE;
+        DROP TABLE IF EXISTS portfolio_financial.ledger_migration CASCADE;
         CREATE TABLE IF NOT EXISTS portfolio_financial.schema_version(singleton boolean PRIMARY KEY CHECK(singleton), version int NOT NULL);
-        INSERT INTO portfolio_financial.schema_version VALUES(true,1) ON CONFLICT DO NOTHING;
+        INSERT INTO portfolio_financial.schema_version VALUES(true,2) ON CONFLICT(singleton) DO UPDATE SET version=EXCLUDED.version;
         CREATE TABLE IF NOT EXISTS portfolio_financial.financial_history_receipt(
           event_version bigint PRIMARY KEY REFERENCES event_log(eventVersion), projected_at_utc timestamptz NOT NULL);
         CREATE TABLE IF NOT EXISTS portfolio_financial.financial_operation_receipt(
@@ -702,43 +646,6 @@ public static class PortfolioDbSql
           reconciliation_id uuid PRIMARY KEY, book_id int NOT NULL REFERENCES portfolio_financial.ledger_book,
           portfolio_id int NOT NULL, fund_id int, source_cut text NOT NULL, counts jsonb NOT NULL, totals jsonb NOT NULL,
           content_hash text NOT NULL, differences jsonb NOT NULL, resolution_links jsonb NOT NULL, status text NOT NULL);
-        CREATE TABLE IF NOT EXISTS portfolio_financial.ledger_migration(
-          migration_id uuid PRIMARY KEY, portfolio_id int NOT NULL, mappings jsonb NOT NULL, mode text NOT NULL,
-          source_watermark text NOT NULL, destination_watermark text NOT NULL, manifest_hash text NOT NULL,
-          verified_totals jsonb NOT NULL, writer_fence text NOT NULL, cutover_state text NOT NULL);
-        CREATE TABLE IF NOT EXISTS portfolio_financial.legacy_financial_inventory(
-          inventory_id uuid PRIMARY KEY,scope jsonb NOT NULL,scope_hash text NOT NULL,
-          state text NOT NULL CHECK(state IN ('Incomplete','UnfencedInventory')),result jsonb);
-        CREATE TABLE IF NOT EXISTS portfolio_financial.legacy_financial_inventory_row(
-          inventory_id uuid NOT NULL REFERENCES portfolio_financial.legacy_financial_inventory,
-          source_key text NOT NULL,source_hash text NOT NULL,payload jsonb NOT NULL,disposition text NOT NULL,
-          reason text NOT NULL,amount numeric NOT NULL,row_hash text NOT NULL,
-          PRIMARY KEY(inventory_id,source_key),CHECK(disposition IN ('HistoricalOnly','Quarantined')));
-        CREATE TABLE IF NOT EXISTS portfolio_financial.legacy_writer_scope(
-          fund_id int PRIMARY KEY CHECK(fund_id>0),state text NOT NULL CHECK(state IN ('Legacy','Fenced')),
-          portfolio_id int,qualification_id uuid,
-          CHECK((state='Legacy' AND portfolio_id IS NULL AND qualification_id IS NULL) OR
-                (state='Fenced' AND portfolio_id>0 AND qualification_id IS NOT NULL)));
-        ALTER TABLE portfolio_financial.legacy_writer_scope ADD COLUMN IF NOT EXISTS empty_verified boolean NOT NULL DEFAULT false;
-        CREATE TABLE IF NOT EXISTS portfolio_financial.legacy_write_intent(
-          ticket_id uuid NOT NULL,fund_id int NOT NULL REFERENCES portfolio_financial.legacy_writer_scope,
-          state text NOT NULL CHECK(state IN ('Pending','Completed')),PRIMARY KEY(ticket_id,fund_id));
-        CREATE OR REPLACE FUNCTION portfolio_financial.guard_legacy_event_writer() RETURNS trigger LANGUAGE plpgsql AS $$
-        DECLARE stream text; fund int;
-        BEGIN
-          SELECT eventstream INTO stream FROM event_stream_id WHERE eventstreamid=NEW.eventstreamid;
-          IF stream LIKE 'Command.FundTransactionCommand.%' OR stream LIKE 'Command.FundCommand.%' THEN
-            fund:=split_part(stream,'.',3)::int;
-            PERFORM pg_advisory_xact_lock(34101,fund);
-            IF EXISTS(SELECT 1 FROM portfolio_financial.legacy_writer_scope WHERE fund_id=fund AND state='Fenced') THEN
-              RAISE EXCEPTION 'Legacy Fund writer is fenced' USING ERRCODE='23514';
-            END IF;
-          END IF;
-          RETURN NEW;
-        END $$;
-        DROP TRIGGER IF EXISTS financial_legacy_event_fence ON event_log;
-        CREATE TRIGGER financial_legacy_event_fence BEFORE INSERT ON event_log
-          FOR EACH ROW EXECUTE FUNCTION portfolio_financial.guard_legacy_event_writer();
         CREATE TABLE IF NOT EXISTS portfolio_financial.accounting_export(
           destination_company text NOT NULL, export_id uuid NOT NULL, source_set jsonb NOT NULL, source_cut text NOT NULL,
           payload_hash text NOT NULL, mapping_version bigint NOT NULL, delivery_status text NOT NULL,
@@ -796,12 +703,6 @@ public static class PortfolioDbSql
         CREATE TRIGGER immutable_entry BEFORE UPDATE OR DELETE ON portfolio_financial.ledger_entry FOR EACH ROW EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
         DROP TRIGGER IF EXISTS immutable_transaction ON portfolio_financial.ledger_transaction;
         CREATE TRIGGER immutable_transaction BEFORE UPDATE OR DELETE ON portfolio_financial.ledger_transaction FOR EACH ROW EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
-        DROP TRIGGER IF EXISTS immutable_qualified_migration ON portfolio_financial.ledger_migration;
-        CREATE TRIGGER immutable_qualified_migration BEFORE UPDATE OR DELETE ON portfolio_financial.ledger_migration
-          FOR EACH ROW WHEN (OLD.cutover_state IN ('Qualified','RetainedReadOnly')) EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
-        DROP TRIGGER IF EXISTS immutable_legacy_inventory_row ON portfolio_financial.legacy_financial_inventory_row;
-        CREATE TRIGGER immutable_legacy_inventory_row BEFORE UPDATE OR DELETE ON portfolio_financial.legacy_financial_inventory_row
-          FOR EACH ROW EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
         DROP TRIGGER IF EXISTS immutable_funding_receipt ON portfolio_financial.capacity_funding_receipt;
         CREATE TRIGGER immutable_funding_receipt BEFORE UPDATE OR DELETE ON portfolio_financial.capacity_funding_receipt FOR EACH ROW EXECUTE FUNCTION portfolio_financial.reject_history_mutation();
         CREATE OR REPLACE FUNCTION portfolio_financial.require_new_journal() RETURNS trigger LANGUAGE plpgsql AS $$

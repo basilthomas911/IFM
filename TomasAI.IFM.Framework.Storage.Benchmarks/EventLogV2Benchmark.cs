@@ -421,9 +421,7 @@ public static class EventLogV2Benchmark
         var expectedPrimaryKey = ConsolidatesIndexes(variant)
             ? "PRIMARY KEY (eventstreamid, streamversion)" : "PRIMARY KEY (eventstreamid, eventnameid, eventversion)";
         if (primaryKey != expectedPrimaryKey) throw new InvalidOperationException("Unexpected event-log primary key: " + primaryKey);
-        var triggers = Convert.ToInt32(await Scalar(connection,
-            "SELECT count(*) FROM pg_trigger WHERE tgrelid=$1::regclass AND tgname='financial_legacy_event_fence' AND tgenabled='O'", table));
-        if (triggers != 1) throw new InvalidOperationException("Financial fence is not enabled.");
+
         var fks = Convert.ToInt32(await Scalar(connection,
             "SELECT count(*) FROM pg_constraint WHERE contype='f' AND confrelid=$1::regclass", table));
         if (fks < 5) throw new InvalidOperationException($"Missing event identity foreign keys: {fks}.");
@@ -506,17 +504,6 @@ public static class EventLogV2Benchmark
             await using var restarted = CreateAppender(restartConnection.ConnectionString, scenario, layout);
             await MustFail(() => restarted.AppendAsync(request).AsTask(), e => e is CommandAuditDuplicateException);
         }
-        var fencedId = Convert.ToInt64(await Scalar(connection,
-            "INSERT INTO event_stream_id(eventstream) VALUES('Command.FundCommand.999999') RETURNING eventstreamid"));
-        await Execute(connection, """
-            INSERT INTO portfolio_financial.legacy_writer_scope(fund_id,state,portfolio_id,qualification_id)
-            VALUES(999999,'Fenced',1,'11111111-1111-1111-1111-111111111111')
-            """);
-        var fencedBefore = await Snapshot(connection, table);
-        await MustFail(() => appender.AppendAsync(Request(("Command.FundCommand.999999", fencedId), 0, eventNameId, scenario)).AsTask(),
-            e => e is PostgresException { SqlState: "23514" });
-        if (fencedBefore != await Snapshot(connection, table))
-            throw new InvalidOperationException("Financial fence failure left durable side effects.");
     }
 
     static async Task<string> Snapshot(NpgsqlConnection connection, string table) =>

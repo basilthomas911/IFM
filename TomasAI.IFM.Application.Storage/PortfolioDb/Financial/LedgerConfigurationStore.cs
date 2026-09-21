@@ -6,16 +6,21 @@ using static TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbFinancialSup
 
 namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
 
+/// <summary>Persists canonical Portfolio ledger configuration operations.</summary>
 public interface ILedgerConfigurationStore
 {
+    /// <summary>Configures a canonical Portfolio ledger operation atomically.</summary>
     Task<LedgerConfigurationCompletedEvent> ConfigureAsync(ConfigureLedgerCommand request,
         Func<LedgerConfigurationReceipt,LedgerConfigurationCompletedEvent> complete,
         Func<LedgerReconciliationResult,string> hash,CancellationToken token=default);
 }
 
-/// <summary>Configuration, period control and independent reconciliation share the financial admission fence.</summary>
+/// <summary>Configuration, period control, and independent reconciliation share canonical Portfolio authority.</summary>
+/// <param name="transactions">The transactional event-store boundary.</param>
+/// <param name="developmentPolicy">The optional development-only qualification policy.</param>
 public sealed class LedgerConfigurationStore(IPostgresEventTransaction transactions,FinancialDevelopmentPolicy? developmentPolicy=null):ILedgerConfigurationStore
 {
+    /// <inheritdoc />
     public async Task<LedgerConfigurationCompletedEvent> ConfigureAsync(ConfigureLedgerCommand request,
         Func<LedgerConfigurationReceipt,LedgerConfigurationCompletedEvent> complete,
         Func<LedgerReconciliationResult,string> hash,CancellationToken token=default)
@@ -58,14 +63,8 @@ public sealed class LedgerConfigurationStore(IPostgresEventTransaction transacti
                     {
                         await CheckSource($"Portfolio.{request.PortfolioId}",fund.PortfolioStreamVersion);
                         await CheckSource($"PortfolioFund.{request.PortfolioId}.{fund.FundId}",fund.FundStreamVersion);
-                        Require(await db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select02,[fund.FundId,request.PortfolioId,current.Book.AccountingEntityId],ct) is true,
-                            FinancialReasons.AuthorityDenied,"Fresh legacy scope has not been fenced and independently verified empty.");
                     }
                     state="NeedsRefresh";
-                    var manifest=new { Mode="DevelopmentFreshScope",Book=current.Book,body.ReconciliationId,body.SourceCut,
-                        LegacyRows=0,WriterFence=current.Book.AccountingEntityId,FinancialRevision=revision };
-                    await db.ExecuteAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Insert01,[request.OperationId,request.PortfolioId,Json(current.Book.Funds.Select(x=>new { x.FundId,LegacySource="VerifiedAbsent" }).ToArray()),
-                            body.SourceCut,$"FinancialRevision:{revision}",FinancialCanonicalHash.Compute(manifest),Json(manifest),current.Book.AccountingEntityId.ToString("N")],ct);
                     await db.ExecuteAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Update01,[request.PortfolioId,Json(current.Book with { MigrationQualified=true }),state],ct);
                     break;
                 case LedgerConfigurationAction.AddAccountVersion:

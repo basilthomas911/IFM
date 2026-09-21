@@ -1,5 +1,7 @@
 # Event-log write-performance review and implementation plan
 
+> **Historical baseline notice (2026-09-21):** This review records the pre-cutover event-log shape observed on 2026-09-19. The `financial_legacy_event_fence` and its supporting legacy Fund objects were subsequently removed by Portfolio financial schema version 2. References to that fence below describe the measured historical baseline, not the current schema.
+
 Date: 2026-09-19
 Status: Proposed; no implementation or database migration authorized by this review.
 

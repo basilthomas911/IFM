@@ -129,7 +129,6 @@ internal static class EventLogIndexMigrationQualification
                     Require((string)(await Sql(db, "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='event_log'::regclass AND contype='p'"))!
                         == (candidate ? "PRIMARY KEY (eventstreamid, streamversion)" : "PRIMARY KEY (eventstreamid, eventnameid, eventversion)"), "PK " + stage);
                     Require(Convert.ToInt64(await Sql(db, "SELECT count(*) FROM pg_constraint WHERE confrelid='event_log'::regclass AND contype='f'")) >= 5, "Identity FKs");
-                    Require(Convert.ToInt64(await Sql(db, "SELECT count(*) FROM pg_trigger WHERE tgrelid='event_log'::regclass AND tgname='financial_legacy_event_fence' AND tgenabled='O'")) == 1, "Fence");
                     results.Add($"{(populated ? "populated" : "empty")}: {stage} passed");
                     Console.WriteLine(results[^1]);
                     await File.WriteAllTextAsync(Path.Combine(output, "results.json"), JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));

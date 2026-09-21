@@ -37,19 +37,27 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         await store.ConfigureAsync(reconcile,reconcile.Complete,FinancialCanonicalHash.Compute);
         var command=LedgerConfigurationIntegrationTests.Command(book,3,new() { Action=LedgerConfigurationAction.QualifyDevelopmentBook,BookId=book.BookId,Book=book,
             ReconciliationId=reconcile.OperationId,SourceCut=reconcile.Body.SourceCut,Reason="Qualify fresh development scope" });
-        await FluentActions.Awaiting(()=>store.ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute)).Should().ThrowAsync<FinancialOperationException>();
-
         var services=new LedgerConfigurationCommandServices(store,
             new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),sources,
             Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor.LedgerConfigurationCommandActor>>(),new(true));
-        await command.PrepareDevelopmentQualificationAsync(services,default);        await FluentActions.Awaiting(()=>new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute))
+        await command.PrepareDevelopmentQualificationAsync(services,default);
+        await FluentActions.Awaiting(()=>new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute))
             .Should().ThrowAsync<FinancialOperationException>();
         var result=await store.ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute);
         result.Receipt.OperatingState.Should().Be("NeedsRefresh");
         var saved=(await new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())).ReadBookAsync(book.PortfolioId))!;
         saved.MigrationQualified.Should().BeTrue();saved.Funds.Should().OnlyContain(x=>!x.CanSpend);
         (await new LedgerConfigurationStore(Transactions()).ConfigureAsync(command,command.Complete,FinancialCanonicalHash.Compute)).Id.Should().Be(result.Id);
+        var removedLegacyObjects=await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync("""
+            SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname='portfolio_financial' AND c.relname IN
+              ('legacy_write_intent','legacy_financial_inventory_row','legacy_financial_inventory','legacy_writer_scope','ledger_migration');
+            """,[],ct));
+        removedLegacyObjects.Should().Be(0L);
+        var schemaVersion=await Transactions().ExecuteAsync((db,ct)=>db.ScalarAsync(
+            "SELECT version FROM portfolio_financial.schema_version WHERE singleton=true;",[],ct));
+        schemaVersion.Should().Be(2);
     }
 
     [Fact]

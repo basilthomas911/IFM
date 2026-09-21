@@ -154,11 +154,6 @@ internal static class EventLogV2CutoverQualification
                 await schema.CreateAllAsync();
                 await Execute(db, PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01);
                 await Execute(db, EventSourceSchemaSql.CreateEventLogV2Table);
-                await Execute(db, """
-                    DROP TRIGGER IF EXISTS financial_legacy_event_fence ON public.event_log_v2;
-                    CREATE TRIGGER financial_legacy_event_fence BEFORE INSERT ON public.event_log_v2
-                      FOR EACH ROW EXECUTE FUNCTION portfolio_financial.guard_legacy_event_writer();
-                    """);
                 await VerifyV2Shape(db);
                 await evidence.SchemaAsync(db, "schema-before-cutover.json");
                 return "Legacy schema initialized through EventSourceSchemaDb; v2 has one PK backing index and exactly three secondary indexes.";
