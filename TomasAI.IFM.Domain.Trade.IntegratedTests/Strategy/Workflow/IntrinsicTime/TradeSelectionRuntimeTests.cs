@@ -179,7 +179,7 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         public ValueTask SaveCompletedStateAsync(IFunctionActorContext context,TradeSelectionFunctionState state,ExecuteTradeSelectionPipelineCommand c,CancellationToken t=default)
             =>Fail?ValueTask.FromException(new InvalidOperationException("Injected completed append failure")):Resolve().SaveCompletedStateAsync(context,state,c,t);
     }
-    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure=null,string? brokerUrl=null,bool actualPortfolio=false)=>sourceFactory.WithWebHostBuilder(builder=>builder.UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
+    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure=null,string? brokerUrl=null,bool actualPortfolio=false)=>sourceFactory.WithWebHostBuilder(builder=>EventLogEngineQualification.Configure(builder).UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
         .UseSetting("IFM_TEST_NATS_URL",brokerUrl??"nats://127.0.0.1:14222").ConfigureServices(services=>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions{Enabled=false});

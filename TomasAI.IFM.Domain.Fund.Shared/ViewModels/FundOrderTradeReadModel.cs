@@ -78,6 +78,12 @@ public record FundOrderTradeReadModel
     [Key(14)]
     public string UpdatedBy { get; init; } = string.Empty;
 
+    /// <summary>
+    /// True when a fill has been observed, false when zero fills are confirmed, and null when fill evidence is unknown.
+    /// </summary>
+    [Key(15)]
+    public bool? HasFillEvidence { get; init; }
+
     /// <summary>Parameterless constructor for serializers.</summary>
     public FundOrderTradeReadModel() { }
 
@@ -99,7 +105,8 @@ public record FundOrderTradeReadModel
         DateTime createdOn,
         string createdBy,
         DateTime? updatedOn,
-        string updatedBy)
+        string updatedBy,
+        bool? hasFillEvidence = null)
     {
         FundId = fundId;
         OrderId = orderId;
@@ -116,6 +123,7 @@ public record FundOrderTradeReadModel
         CreatedBy = createdBy ?? string.Empty;
         UpdatedOn = updatedOn;
         UpdatedBy = updatedBy ?? string.Empty;
+        HasFillEvidence = hasFillEvidence;
     }
 
     /// <summary>True when basic identifiers are set to positive values.</summary>

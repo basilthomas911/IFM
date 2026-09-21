@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Command.Model;
 
 namespace TomasAI.IFM.Domain.Fund.Command.State;
@@ -80,6 +81,14 @@ public sealed class FundCommandState
     /// <returns></returns>
     public bool FundOrderTradeExists(int fundId, int orderId, int tradeId)
         => TryGetFundOrderTrade(fundId, orderId, tradeId, out _, out _);
+
+    public FundOrderReadModel? GetFundOrder(int fundId, int orderId)
+        => TryGetFundOrder(fundId, orderId, out var order) ? order!.ToViewModel() : null;
+
+    public FundOrderTradeReadModel? GetFundOrderTrade(int fundId, int orderId, int tradeId)
+        => TryGetFundOrderTrade(fundId, orderId, tradeId, out _, out var trade)
+            ? trade!.ToViewModel()
+            : null;
 
     bool TryGetFundOrder(int fundId, int orderId, out IFundOrder? order)
     {

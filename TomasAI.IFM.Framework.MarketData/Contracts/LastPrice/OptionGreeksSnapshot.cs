@@ -7,7 +7,8 @@ namespace TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 public enum OptionGreeksPriceSource
 {
     None = 0,
-    QuoteMidpoint = 1
+    QuoteMidpoint = 1,
+    Trade = 2
 }
 
 /// <summary>

@@ -9,6 +9,9 @@ public enum FrameworkOrderShape : byte
     IronCondor = 3
 }
 
+public enum FrameworkOrderType : byte { Unknown = 0, Market = 1, Limit = 2 }
+public enum FrameworkOrderAlgorithm : byte { None = 0, Adaptive = 1 }
+
 /// <summary>A local dispatch receipt, never an acknowledgement or execution.</summary>
 public enum FrameworkDispatchOutcome : byte
 {
@@ -59,7 +62,9 @@ public sealed record FrameworkOrderRequest(
     string ApprovalHash,
     string ContractReferenceHash,
     decimal RequiredCapital,
-    decimal MaximumLoss);
+    decimal MaximumLoss,
+    FrameworkOrderType OrderType = FrameworkOrderType.Limit,
+    FrameworkOrderAlgorithm Algorithm = FrameworkOrderAlgorithm.None);
 
 /// <summary>The bounded price-only change authorized by the current order envelope.</summary>
 public sealed record FrameworkLimitUpdate(

@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 /// identifiers, trading symbol, security type, currency, exchange, and other relevant details. It also provides a
 /// derived property to generate a composite identifier for the contract.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesContractV3ReadModel
+public partial record FuturesContractV3ReadModel
 {
     [Key(0)]
     public string ContractId { get; init; } 

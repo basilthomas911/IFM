@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.OptionPricer.Black76;
+using TomasAI.IFM.Framework.OptionPricer.Pricing;
 using TomasAI.IFM.UI.Net.Models.OptionPricing;
 
 namespace TomasAI.IFM.UI.Net.Services.OptionPricing;
@@ -17,20 +17,25 @@ public sealed class OptionPricingService : IOptionPricingService
         double riskFreeRate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(optionType);
-        var result = new OptionCalculator(valueDate, maturityDate).GetOptionGreeks(
-            optionType,
+        var request = new OptionPricingRequest(
+            UnderlyingKind.Futures,
+            ExerciseKind.European,
+            PremiumKind.PaidUpfront,
+            optionType switch { "CALL" => OptionSide.Call, "PUT" => OptionSide.Put, _ => OptionSide.Unknown },
             assetPrice,
             strikePrice,
-            optionValue,
+            (maturityDate.DayNumber - valueDate.DayNumber) / 365d,
             riskFreeRate);
+        var result = new OptionCalculator().ImpliedVolatility(request, optionValue);
+        var values = result.Value;
         return new OptionGreeksUiModel(
             result.Success,
-            result.ImpliedVolatility,
-            result.Delta,
-            result.Gamma,
-            result.Theta,
-            result.Vega,
-            result.Rho);
+            values?.Volatility ?? 0,
+            values?.Delta ?? 0,
+            values?.Gamma ?? 0,
+            values?.Theta ?? 0,
+            values?.Vega ?? 0,
+            values?.Rho ?? 0);
     }
 }
 

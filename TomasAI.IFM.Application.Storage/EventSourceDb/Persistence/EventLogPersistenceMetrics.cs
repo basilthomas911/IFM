@@ -24,6 +24,17 @@ internal static class EventLogPersistenceMetrics
         return tags;
     }
 
+    static readonly Counter<long> MarkerCommands = Meter.CreateCounter<long>("ifm.event_log.marker.commands");
+    static readonly Counter<long> MarkerRows = Meter.CreateCounter<long>("ifm.event_log.marker.rows");
+    static readonly Histogram<double> MarkerDuration = Meter.CreateHistogram<double>("ifm.event_log.marker.duration", "ms");
+
+    internal static void ProjectionMarkersWritten(int rows, long started)
+    {
+        MarkerCommands.Add(1);
+        MarkerRows.Add(rows);
+        MarkerDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    }
+
     internal static void Queued(in TagList tags) => QueueDepth.Add(1, tags);
     internal static void Dequeued(in TagList tags) => QueueDepth.Add(-1, tags);
 

@@ -36,6 +36,7 @@ try
         return;
     }
     builder.ConfigureApiServer(out var logger);
+    EventLogQualification.Configure(builder, args);
     builder.Services.RegisterServices(builder.Configuration, logger);
     var app = builder.Build();
     var deploymentIdentity = app.Services.GetRequiredService<DeploymentIdentityMonitor>()
@@ -110,6 +111,8 @@ try
         await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb>().CreateAllAsync();
+        if (EventLogQualification.Active is { } qualification)
+            await qualification.InitializeCandidateAsync(CancellationToken.None);
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>().InitializeAsync();
         await app.Services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
@@ -135,10 +138,20 @@ try
         // a service provider that is immediately torn down.
         await app.StartAsync();
         var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var actorStartupSignal = app.Services.GetRequiredService<ActorRuntimeStartupSignal>();
         var actorsStarted = false;
         try
         {
-            await app.MapEventModelActorsAsync(logger);
+            try
+            {
+                await app.MapEventModelActorsAsync(logger);
+                actorStartupSignal.Complete();
+            }
+            catch (Exception exception)
+            {
+                actorStartupSignal.Fail(exception);
+                throw;
+            }
             actorsStarted = true;
             var developmentPortfolio = app.Services.GetRequiredService<DevelopmentTradingPortfolioOptions>();
             if (app.Environment.IsDevelopment()

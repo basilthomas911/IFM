@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -27,14 +28,20 @@ public sealed class DatabentoContractAuthority(
     {
         if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
         ArgumentException.ThrowIfNullOrWhiteSpace(changedBy);
+        var persisted = await store.ListAssignmentsAsync(cancellationToken).ConfigureAwait(false);
+        if (CanReuse(persisted, valueDate))
+        {
+            PublishRegistrations(persisted);
+            return persisted;
+        }
+
         var esSources = Eligible(await sourceCatalog.GetByRootAsync("ES", cancellationToken).ConfigureAwait(false), valueDate)
             .Where(value => value.LastTradeDate.Month is 3 or 6 or 9 or 12).ToArray();
         var vxSources = Eligible(await sourceCatalog.GetByRootAsync("VX", cancellationToken).ConfigureAwait(false), valueDate);
         if (esSources.Length == 0 || vxSources.Length < 2)
             throw new InvalidOperationException("The source catalog must contain one eligible ES and two ordered VX contracts.");
 
-        var existing = (await store.ListAssignmentsAsync(cancellationToken).ConfigureAwait(false))
-            .ToDictionary(value => value.ContractRole);
+        var existing = persisted.ToDictionary(value => value.ContractRole);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var es = Copy(DatabentoContractRole.EsQuarterly, esSources[0], existing, now, changedBy);
         var front = Copy(DatabentoContractRole.VxFrontMonth, vxSources[0], existing, now, changedBy);
@@ -61,17 +68,61 @@ public sealed class DatabentoContractAuthority(
             second = existing[DatabentoContractRole.VxSecondMonth];
         }
 
-        registrations.ReplaceFuturesRolloverSet("ES", [esSources[0] with { OnTheRun = true, Rollover = true }]);
-        registrations.ReplaceFuturesRolloverSet("VX", [
-            vxSources[0] with { OnTheRun = true, Rollover = true },
-            vxSources[1] with { OnTheRun = false, Rollover = true }
-        ]);
-        return [es, front, second];
+        FuturesRolloverContractAssignment[] reconciled = [es, front, second];
+        PublishRegistrations(reconciled);
+        return reconciled;
     }
 
+    static bool CanReuse(IReadOnlyList<FuturesRolloverContractAssignment> assignments, DateOnly valueDate)
+        => assignments.Count == 3
+            && assignments.Select(value => value.ContractRole).Distinct().Count() == 3
+            && assignments.All(value => value.NextRolloverDate > valueDate
+                && value.LastTradeDate > valueDate
+                && !string.IsNullOrWhiteSpace(value.ContractId)
+                && !string.IsNullOrWhiteSpace(value.LocalSymbol))
+            && assignments.Single(value => value.ContractRole == DatabentoContractRole.EsQuarterly).RootSymbol == "ES"
+            && assignments.Where(value => value.ContractRole is DatabentoContractRole.VxFrontMonth
+                    or DatabentoContractRole.VxSecondMonth)
+                .All(value => value.RootSymbol == "VX");
+
+    void PublishRegistrations(IReadOnlyCollection<FuturesRolloverContractAssignment> assignments)
+    {
+        var es = assignments.Single(value => value.ContractRole == DatabentoContractRole.EsQuarterly);
+        var front = assignments.Single(value => value.ContractRole == DatabentoContractRole.VxFrontMonth);
+        var second = assignments.Single(value => value.ContractRole == DatabentoContractRole.VxSecondMonth);
+        registrations.ReplaceFuturesRolloverSet("ES", [ToContract(es, true)]);
+        registrations.ReplaceFuturesRolloverSet("VX", [ToContract(front, true), ToContract(second, false)]);
+    }
+
+    static FuturesContractV3ReadModel ToContract(FuturesRolloverContractAssignment value, bool onTheRun)
+        => new(value.ContractId, value.Description, value.RootSymbol, value.LocalSymbol,
+            value.SecurityType, value.Currency, value.Exchange, value.Multiplier,
+            value.LastTradeDate, onTheRun, true);
+
     static FuturesContractV3ReadModel[] Eligible(IReadOnlyList<FuturesContractV3ReadModel> values, DateOnly valueDate)
-        => [.. values.Where(value => value.IsValid && value.LastTradeDate > valueDate)
+        => [.. values.Where(value => value.IsValid
+                && value.LastTradeDate > valueDate
+                && HasConsistentProviderIdentity(value))
             .OrderBy(value => value.LastTradeDate).ThenBy(value => value.ContractId, StringComparer.Ordinal)];
+
+    static bool HasConsistentProviderIdentity(FuturesContractV3ReadModel contract)
+    {
+        try
+        {
+            var identity = new FuturesContractIdParser(contract.ContractId);
+            return string.Equals(identity.Symbol, contract.Symbol, StringComparison.Ordinal)
+                && identity.MaturityDate == contract.LastTradeDate
+                && contract.LocalSymbol.StartsWith(contract.Symbol, StringComparison.Ordinal);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
 
     static FuturesRolloverContractAssignment Copy(DatabentoContractRole role, FuturesContractV3ReadModel source,
         IReadOnlyDictionary<DatabentoContractRole, FuturesRolloverContractAssignment> existing,

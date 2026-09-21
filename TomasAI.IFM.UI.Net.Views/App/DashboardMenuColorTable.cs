@@ -9,7 +9,6 @@ sealed class DashboardMenuRenderer() : ToolStripProfessionalRenderer(new Dashboa
     {
         "tradeButton",
         "marketDataButton",
-        "fundButton",
         "referenceButton",
         "systemAdminButton"
     };

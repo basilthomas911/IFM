@@ -11,19 +11,26 @@ public sealed record CommandAuditEnvelope(
     CommandAuditPayload Payload)
 {
     public int PayloadBytes => Payload.Bytes.Length;
+    internal Type? RetryCommandType { get; init; }
+    internal byte[] RetrySha256 { get; init; } = Payload.Sha256;
 
     public static CommandAuditEnvelope Create(ICommand command, CommandAuditMessagePackCodec codec)
     {
         ArgumentNullException.ThrowIfNull(command);
         if (command.CommandId == Guid.Empty) throw new ArgumentException("Command ID is required.", nameof(command));
         ArgumentException.ThrowIfNullOrWhiteSpace(command.StreamId);
+        var payload = codec.Serialize(command);
         return new CommandAuditEnvelope(
             command.CommandId,
             command.StreamId,
             command.RouteTo.ToString(),
             command.CommandName,
             DateTime.UtcNow,
-            codec.Serialize(command));
+            payload)
+        {
+            RetryCommandType = command is ICommandRetryIdentity ? command.GetType() : null,
+            RetrySha256 = command is ICommandRetryIdentity retry ? codec.Serialize(retry.ForRetryIdentity()).Sha256 : payload.Sha256
+        };
     }
 }
 

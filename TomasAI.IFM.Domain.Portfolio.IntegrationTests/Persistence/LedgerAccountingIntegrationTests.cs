@@ -11,6 +11,57 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 public sealed class LedgerAccountingIntegrationTests
 {
     [Fact]
+    public async Task Failed_remaining_MTM_restoration_rolls_back_realization_and_original_batch_can_retry()
+    {
+        var (book,rules)=await Book();
+        await Post(book,rules,LedgerTransactionKind.Valuation,100,2,sequence:1);
+        var template=Request(book,LedgerTransactionKind.DepositConfirmed,20,3);
+        LedgerPostingRequest Item(LedgerTransactionKind kind,decimal amount,long sequence)
+        {
+            var rule=rules[kind];
+            return template.Body with { TransactionKind=kind,Amount=amount,
+                PostingRule=new() { RuleId=rule.RuleId,Version=rule.Version,ContentHash=rule.ContentHash },
+                Source=template.Body.Source with { SourceEventId=Guid.NewGuid(),OrderId=10,TradeId=20,SourceSequence=sequence } };
+        }
+        var items=new[] { Item(LedgerTransactionKind.RealizedPnl,20,2),Item(LedgerTransactionKind.Valuation,50,3) };
+        var command=new PostFundTransactionsCommand
+        {
+            CommandId=template.CommandId,OperationId=template.OperationId,PortfolioId=template.PortfolioId,EntityId=template.EntityId,
+            Subject=new(TomasAI.IFM.Shared.EventModelActor.ActorType.Command,PostFundTransactionsCommand.Actor,
+                PostFundTransactionsCommand.Verb,template.EntityId.Format()),
+            CorrelationId=template.CorrelationId,CausationId=template.CausationId,RequestedAtUtc=template.RequestedAtUtc,
+            ExpiresAtUtc=template.ExpiresAtUtc,ExpectedFinancialRevision=3,Access=template.Access,
+            Body=new() { BookId=book.BookId,Items=items,ManifestHash=FinancialCanonicalHash.Compute(items) }
+        };
+        command=command with { InputSha256=FinancialCanonicalHash.Request(command) };
+        var prepared=items.Select(item=>new PreparedLedgerPosting(Random.Shared.NextInt64(100000,long.MaxValue),
+            Random.Shared.NextInt64(100000,long.MaxValue),item)).ToArray();
+        var before=await Balance(book);
+        var reachedRestore=false;
+        await FluentActions.Awaiting(()=>new GeneralLedgerStore(Transactions()).PostAsync(command,prepared,
+            (item,rule,prior,original,remaining)=>
+            {
+                if(item.TransactionKind==LedgerTransactionKind.Valuation)
+                {
+                    reachedRestore=true;
+                    throw new InvalidOperationException("Synthetic remaining-MTM restore failure");
+                }
+                return LedgerPostingModel.Calculate(item,rule,prior,original,remaining);
+            },info=>command.Complete(info))).Should().ThrowAsync<InvalidOperationException>();
+        reachedRestore.Should().BeTrue();
+        (await Balance(book)).Should().BeEquivalentTo(before);
+        (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingBatchCompletedEvent>(
+            book.PortfolioId,command.OperationId)).Should().BeNull();
+        var committed=await new GeneralLedgerStore(Transactions()).PostAsync(command,prepared,
+            (item,rule,prior,original,remaining)=>LedgerPostingModel.Calculate(item,rule,prior,original,remaining),info=>command.Complete(info));
+        committed.Receipt.FinancialRevision.Should().Be(4);
+        var after=await Balance(book);
+        after.Accounts.Single(x=>x.AccountId==104).Balance.Should().Be(50);
+        after.Accounts.Single(x=>x.AccountId==105).Balance.Should().Be(-50);
+        after.AvailableCash.Should().Be(20);
+    }
+
+    [Fact]
     public async Task Replenished_overdrawn_book_requires_reconciliation_and_fresh_authority_before_spending()
     {
         var book=await CreateBook();await GeneralLedgerPostingIntegrationTests.Post(Request(book,LedgerTransactionKind.DepositConfirmed,100,0));

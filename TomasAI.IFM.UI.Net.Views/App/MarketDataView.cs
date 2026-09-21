@@ -1,4 +1,5 @@
 using System.Windows.Forms.DataVisualization.Charting;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.App;
@@ -15,6 +16,7 @@ public partial class MarketDataView : DarkTradingView
         InitializeComponent();
         DashboardTypography.ApplyFamilyAndSize(this);
         ConfigureChartGrid(graphES);
+        ConfigureChartGrid(graphEsBollinger);
         ConfigureChartGrid(graphVIX);
     }
 
@@ -42,6 +44,86 @@ public partial class MarketDataView : DarkTradingView
             title.Font = DashboardTypography.Create(FontStyle.Bold);
         foreach (var series in chart.Series)
             series.Font = DashboardTypography.Create();
+    }
+
+    /// <summary>Refreshes the 40-day daily ES Bollinger Band chart.</summary>
+    /// <param name="snapshot">The selected value date and ordered daily Bollinger observations.</param>
+    public bool RefreshView(FuturesBollingerBandChartSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Signals.Length == 0)
+            return false;
+
+        var signals = snapshot.Signals
+            .OrderBy(signal => signal.Metadata.ValueDate)
+            .ToArray();
+        var plottedValues = signals
+            .SelectMany(signal => new decimal?[]
+            {
+                signal.Price,
+                signal.Ema20Center,
+                signal.Upper20,
+                signal.Lower20
+            })
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .ToArray();
+        if (plottedValues.Length == 0)
+            return false;
+
+        graphEsBollinger.AccessibleName = "ES daily Bollinger Band chart";
+        graphEsBollinger.AccessibleDescription =
+            $"{signals.Length} daily ES Bollinger observation(s) ending {snapshot.ValueDate:yyyy-MM-dd}";
+        graphEsBollinger.SuspendLayout();
+        try
+        {
+            var area = graphEsBollinger.ChartAreas[0];
+            area.AxisY2.Interval = 0;
+            area.AxisY2.IntervalType = DateTimeIntervalType.Number;
+            area.AxisY2.LabelStyle.Format = "N0";
+            area.AxisY2.IsStartedFromZero = false;
+            var minimum = Convert.ToDouble(plottedValues.Min());
+            var maximum = Convert.ToDouble(plottedValues.Max());
+            var padding = Math.Max(1d, (maximum - minimum) * 0.05d);
+            area.AxisY2.Minimum = minimum - padding;
+            area.AxisY2.Maximum = maximum + padding;
+            area.AxisX.ScaleView.ZoomReset(0);
+            area.AxisX.LabelStyle.Format = "MMM d";
+            area.AxisX.IntervalType = DateTimeIntervalType.Days;
+            area.AxisX.Interval = Math.Max(1d, Math.Ceiling(signals.Length / 8d));
+
+            foreach (var series in graphEsBollinger.Series)
+                series.Points.Clear();
+
+            foreach (var signal in signals)
+            {
+                var date = signal.Metadata.ValueDate.ToDateTime(TimeOnly.MinValue);
+                graphEsBollinger.Series["ES Close"].Points.AddXY(date, signal.Price);
+                AddOptionalPoint(graphEsBollinger.Series["20 EMA"], date, signal.Ema20Center);
+                AddOptionalPoint(graphEsBollinger.Series["Upper Band"], date, signal.Upper20);
+                AddOptionalPoint(graphEsBollinger.Series["Lower Band"], date, signal.Lower20);
+            }
+
+            var firstDate = signals[0].Metadata.ValueDate.ToDateTime(TimeOnly.MinValue);
+            var lastDate = snapshot.ValueDate.ToDateTime(TimeOnly.MinValue);
+            if (lastDate <= firstDate)
+                lastDate = firstDate.AddDays(1);
+            area.AxisX.Minimum = firstDate.ToOADate();
+            area.AxisX.Maximum = lastDate.ToOADate();
+            area.RecalculateAxesScale();
+            graphEsBollinger.Update();
+            return true;
+        }
+        finally
+        {
+            graphEsBollinger.ResumeLayout();
+        }
+    }
+
+    static void AddOptionalPoint(Series series, DateTime date, decimal? value)
+    {
+        if (value.HasValue)
+            series.Points.AddXY(date, value.Value);
     }
 
     /// <summary>

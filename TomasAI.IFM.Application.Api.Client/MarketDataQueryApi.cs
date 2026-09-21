@@ -20,6 +20,13 @@ namespace TomasAI.IFM.Application.Api.Client;
 public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketDataQueryApi
 {
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);
+    public Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        request.Validate();
+        return _querySvc.ExecuteQueryAsync<InstrumentDefinitionPage>(MarketDataQueryUriPath.GetInstrumentDefinitions,
+            request, GetInstrumentDefinitionsQuery.ErrorId).WaitAsync(cancellationToken);
+    }
 
     public Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
         TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)

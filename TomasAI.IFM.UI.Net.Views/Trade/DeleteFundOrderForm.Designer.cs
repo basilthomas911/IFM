@@ -106,7 +106,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.MinimizeBox = false;
             this.Name = "DeleteFundOrderForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
-            this.Text = "Delete Fund Order";
+            this.Text = "Remove Fund Order";
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.ResumeLayout(false);

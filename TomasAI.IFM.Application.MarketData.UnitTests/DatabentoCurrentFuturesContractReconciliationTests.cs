@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using NSubstitute;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -11,6 +12,51 @@ public sealed class DatabentoCurrentFuturesContractReconciliationTests
 {
     static readonly DateOnly ValueDate = new(2026, 8, 21);
     static readonly DateOnly RolloverDate = new(2026, 9, 18);
+
+    [Fact]
+    public async Task Startup_check_does_not_call_provider_when_all_roll_dates_are_in_the_future()
+    {
+        var store = Substitute.For<IFuturesContractRolloverStore>();
+        var api = Substitute.For<IMarketDataApi>();
+        FuturesContractRolloverReadModel[] rows =
+        [
+            Rollover(),
+            Rollover() with
+            {
+                Symbol = "VX",
+                ContractId = "VX20260916",
+                NextRolloverDate = new DateOnly(2026, 9, 16)
+            }
+        ];
+        store.GetFuturesContractRolloversAsync(Arg.Any<CancellationToken>()).Returns(rows);
+        store.GetFuturesRolloverSetAsync("ES", Arg.Any<CancellationToken>())
+            .Returns([Contract(onTheRun: true)]);
+        store.GetFuturesRolloverSetAsync("VX", Arg.Any<CancellationToken>())
+            .Returns([
+                VxContract("VX20260916", "VX/U6", new(2026, 9, 16)),
+                VxContract("VX20261021", "VX/V6", new(2026, 10, 21), false)
+            ]);
+        var options = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
+                FeedDeploymentProfile.Development, "GLBX.MDP3") with
+            {
+                DataSource = FeedDataSourceMode.DatabentoLive
+            },
+            Contracts = []
+        };
+        var check = new FuturesContractRolloverStartupCheck(
+            api, store, TimeProvider.System, options);
+
+        var result = await check.ExecuteAsync(ValueDate);
+
+        result.Should().HaveCount(2);
+        await store.Received(1).GetFuturesContractRolloversAsync(Arg.Any<CancellationToken>());
+        await api.DidNotReceiveWithAnyArgs()
+            .UpdateOnTheRunFuturesContractAsync(default!, default, default);
+        await api.DidNotReceiveWithAnyArgs()
+            .UpdateFuturesTermStructureContractsAsync(default!, default, default);
+    }
 
     [Fact]
     public async Task ReusesNonExpiredAssignmentOnlyWhenPersistedContractIsCurrent()
@@ -36,6 +82,7 @@ public sealed class DatabentoCurrentFuturesContractReconciliationTests
     [InlineData(PersistedAssignmentProblem.Missing)]
     [InlineData(PersistedAssignmentProblem.NotCurrent)]
     [InlineData(PersistedAssignmentProblem.WrongSymbol)]
+    [InlineData(PersistedAssignmentProblem.InconsistentIdentity)]
     public async Task RepairsNonExpiredAssignmentWhenPersistedContractIsInvalid(
         PersistedAssignmentProblem problem)
     {
@@ -52,6 +99,11 @@ public sealed class DatabentoCurrentFuturesContractReconciliationTests
                 PersistedAssignmentProblem.WrongSymbol => Contract(onTheRun: true) with
                 {
                     Symbol = "NQ"
+                },
+                PersistedAssignmentProblem.InconsistentIdentity => Contract(onTheRun: true) with
+                {
+                    ContractId = "ES20250321",
+                    LocalSymbol = "ESH25"
                 },
                 _ => null
             });
@@ -227,6 +279,7 @@ public sealed class DatabentoCurrentFuturesContractReconciliationTests
     {
         Missing,
         NotCurrent,
-        WrongSymbol
+        WrongSymbol,
+        InconsistentIdentity
     }
 }

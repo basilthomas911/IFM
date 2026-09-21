@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 
 public enum CompositionOutcome : byte { Undefined=0, Composed=1, NoCandidate=2 }
@@ -44,6 +45,7 @@ public sealed record CompositionCandidate
     [Key(28)] public DateTime ValidUntilUtc { get; init; }
     [Key(29)] public string ApprovalState { get; init; } = "Unapproved";
     [Key(30)] public string CandidateHash { get; init; } = "";
+    [Key(31)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 }
 
 [MessagePackObject]
@@ -146,6 +148,7 @@ public sealed record CompositionDecisionContext
     [Key(7)] public string AlgorithmVersion { get; init; } = "";
     [Key(8)] public int PortfolioId { get; init; }
     [Key(9)] public int FundId { get; init; }
+    [Key(10)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 }
 
 [MessagePackObject]

@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.EventPro
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.EventProjector;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -98,6 +99,23 @@ public sealed class EventProjectorDescriptorTests
         descriptor.FailedEventFactory(source, new IOException("test")).Should().BeNull();
     }
 
+    [Fact]
+    public void Futures_vwap_projection_does_not_durably_replay_rebuildable_values()
+    {
+        var projector = new FuturesVwapSignalEventProjector(
+            Substitute.For<IDbContextFactory>(),
+            Substitute.For<IDurableReplayQueue>(),
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<ILogger<FuturesVwapSignalEventProjector>>());
+
+        var descriptor = projector.ProjectionDescriptors.Should().ContainSingle().Subject;
+
+        descriptor.SourceEventType.Should().Be(typeof(FuturesVwapSignalUpdatedEvent));
+        descriptor.UseDurableReplay.Should().BeFalse();
+        descriptor.PublishProcessingEvent.Should().BeTrue();
+        descriptor.PublishTerminalEvent.Should().BeTrue();
+    }
     [Fact]
     public async Task Futures_trade_signal_replay_uses_the_persisted_event_id_as_its_stable_sequence_key()
     {

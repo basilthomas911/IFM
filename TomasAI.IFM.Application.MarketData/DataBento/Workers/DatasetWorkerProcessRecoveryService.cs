@@ -52,8 +52,11 @@ public sealed class DatasetWorkerProcessRecoveryService :
             publicationIngress is null
                 ? null
                 : async (publication, cancellationToken) =>
-                    _ = await publicationIngress.AcceptAsync(publication, cancellationToken)
-                        .ConfigureAwait(false);
+                {
+                    var accepted = await publicationIngress.AcceptAsync(publication, cancellationToken).ConfigureAwait(false);
+                    if (!accepted && publication.Kind == DatasetPublicationKind.OptionTradeEvidence)
+                        throw new InvalidOperationException("Option trade evidence failed worker-generation admission.");
+                };
         this.supervisorFactory = supervisorFactory
             ?? (value => new DatasetWorkerProcessSupervisor(value, ingress));
     }

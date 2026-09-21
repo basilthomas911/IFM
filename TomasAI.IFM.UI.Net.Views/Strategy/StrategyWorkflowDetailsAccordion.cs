@@ -1,9 +1,10 @@
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.Strategy;
 
 /// <summary>Reusable read-only workflow details accordion.</summary>
-public sealed class StrategyWorkflowDetailsAccordion : UserControl
+public sealed class StrategyWorkflowDetailsAccordion : DarkTradingView
 {
     readonly Label _header = new() { AutoSize = true, ForeColor = Color.White, Font = new("Consolas", 9F), Padding = new(8) };
     readonly FlowLayoutPanel _content = new BufferedFlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.Black };

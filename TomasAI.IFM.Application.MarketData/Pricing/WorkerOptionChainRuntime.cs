@@ -23,6 +23,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     readonly OptionChainPricingInputStore inputs = new();
     readonly OptionChainStateStore state = new();
     readonly DatabentoOptionChainSessionManager sessions;
+    readonly CoalescedOptionChainPricing pricing;
     readonly SemaphoreSlim gate = new(1);
     readonly Dictionary<string, Scope> scopes = new(StringComparer.Ordinal);
     readonly HashSet<Guid> endedLeases = [];
@@ -30,18 +31,24 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     readonly CancellationTokenSource stopping = new();
     readonly Task expiryLoop;
     readonly Action<string>? terminalFault;
+    readonly OptionPricingRefreshPolicy refreshPolicy;
+    readonly bool production;
     int disposed;
 
     public WorkerOptionChainRuntime(Guid generation, DateOnly valueDate, IDatabentoFeedFactory feeds,
         DatabentoFeedOptions options, ITickAggregationService aggregation, IDatabentoLastPriceStore prices,
-        TimeProvider? time = null, Action<string>? terminalFault = null)
+        TimeProvider? time = null, Action<string>? terminalFault = null, OptionPricingRefreshPolicy? refreshPolicy = null,
+        IOptionTradeEvidenceWriter? tradeEvidence = null)
     {
         if (generation == Guid.Empty) throw new ArgumentException("A dataset generation is required.");
         this.generation = generation; this.valueDate = valueDate; dataset = options.Dataset;
         this.prices = prices; clock = time ?? TimeProvider.System;
         this.terminalFault = terminalFault;
-        sessions = new(feeds, options, aggregation, prices,
-            new Black76OptionChainGreeksEnricher(inputs, generation, clock, ReadUnderlying), new TransientSink(), state);
+        this.refreshPolicy = refreshPolicy ?? new();
+        this.refreshPolicy.Validate();
+        production = options.DeploymentProfile == FeedDeploymentProfile.Production;
+        pricing = new(inputs, generation, this.refreshPolicy, ReadUnderlying, clock, terminalFault, tradeEvidence);
+        sessions = new(feeds, options, aggregation, prices, pricing, new TransientSink(), state);
         expiryLoop = ExpireAsync();
     }
 
@@ -55,6 +62,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
             await RemoveExpiredAsync().ConfigureAwait(false);
             var at = clock.GetUtcNow();
+            if (production && !refreshPolicy.IsProductionQualified) return Failure("PricingRefreshPolicyUnreviewed");
             if (request.GenerationId != generation || request.ValueDate != valueDate) return Failure("Recovering");
             if (string.IsNullOrWhiteSpace(request.ScopeId) || request.ScopeId.Length > 128 || request.LeaseId == Guid.Empty
                 || request.LeaseExpiresAtUtc.Offset != TimeSpan.Zero || request.LeaseExpiresAtUtc <= at
@@ -75,6 +83,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 if (failure is not null) return new(false, failure);
                 var contract = context.Contract;
                 if (context.GenerationId != generation || contract.Dataset != dataset || option.Strike <= 0
+                    || contract.SchemaVersion == 3 && (contract.Strike != option.Strike
+                        || contract.Right != (option.IsCall ? PricingOptionRight.Call : PricingOptionRight.Put))
                     || !ids.Add(contract.ContractId) || !instrumentIds.Add(contract.InstrumentId)
                     || underlying is not null && underlying != contract.UnderlyingContractId
                     || DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(contract.ExpirationUtc,
@@ -124,6 +134,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             foreach (var option in ordered) inputs.Set(new(option.Pricing, quote));
             try
             {
+                foreach (var route in routes) pricing.Register(route);
                 await sessions.StartAsync(new()
                 {
                     FuturesContractId = underlying!, ValueDate = valueDate, Routes = routes,
@@ -141,7 +152,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             catch
             {
                 try { await sessions.StopAsync(underlying!, request.MaturityDate).ConfigureAwait(false); }
-                finally { foreach (var option in ordered) inputs.Remove(option.Pricing.Contract.ContractId); }
+                finally { foreach (var option in ordered) { inputs.Remove(option.Pricing.Contract.ContractId); pricing.Remove(option.Pricing.Contract.ContractId); } }
                 throw;
             }
         }
@@ -180,6 +191,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 scope.OwnershipRevision = ownership.Revision;
                 scope.OwnershipDigest = digest;
                 scope.BusinessOwners = ownership.Owners;
+                foreach (var option in scope.Options)
+                    pricing.RequireRisk(option.Pricing.Contract.ContractId,
+                        ownership.Owners.Any(owner => owner.ContractIds.Contains(option.Pricing.Contract.ContractId)));
                 ownershipWatermarks[release.ScopeId] = (ownership.AuthorityScope, ownership.Revision, digest);
                 // This operation installs the complete business union. It never implicitly releases a discovery lease.
                 if (scope.Leases.Count == 0 && scope.BusinessOwners.IsEmpty) await RemoveAsync(release.ScopeId, scope).ConfigureAwait(false);
@@ -208,6 +222,15 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             foreach (var option in scope.Options)
             {
                 var id = option.Pricing.Contract.ContractId;
+                if (request.SelectionOnly)
+                {
+                    var selection = pricing.ReadSelection(id);
+                    if (selection is null || selection.Failure is not null || selection.Delta is null || selection.Iv is null)
+                        throw new CompositionMarketSourceException(selection?.Failure?.Code ?? "SelectionCalculationPending");
+                    values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
+                        { Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds) });
+                    continue;
+                }
                 if (!current.TryGetValue(id, out var item) || item.Quote is not { } quote)
                     throw new CompositionMarketSourceException("QuoteUnavailable");
                 values.Add(new(id, Convert(quote.Tick), option.Pricing, option.Strike, option.IsCall, underlying));
@@ -216,6 +239,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         }
         finally { gate.Release(); }
     }
+
+    public ChainSelectionCalculation? ReadSelection(string contractId) => pricing.ReadSelection(contractId);
+    public OptionPricingPassResult? ReadRisk(string contractId) => pricing.ReadRisk(contractId);
 
     OptionPricingQuote? ReadUnderlying(string id)
     {
@@ -279,7 +305,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             terminalFault?.Invoke($"Option-chain shutdown failed: {exception.GetType().Name}");
             throw;
         }
-        finally { foreach (var option in scope.Options) inputs.Remove(option.Pricing.Contract.ContractId); }
+        finally { foreach (var option in scope.Options) { inputs.Remove(option.Pricing.Contract.ContractId); pricing.Remove(option.Pricing.Contract.ContractId); } }
     }
 
     public async ValueTask DisposeAsync()
@@ -290,7 +316,11 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         finally
         {
             await gate.WaitAsync().ConfigureAwait(false);
-            try { await sessions.DisposeAsync().ConfigureAwait(false); scopes.Clear(); }
+            try
+            {
+                try { await sessions.DisposeAsync().ConfigureAwait(false); }
+                finally { await pricing.DisposeAsync().ConfigureAwait(false); scopes.Clear(); }
+            }
             finally { gate.Release(); }
             stopping.Dispose();
         }

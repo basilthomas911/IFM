@@ -29,6 +29,12 @@ public sealed record ExactInstrumentDefinition
         string Text(string name) => root.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null ? value.ToString() : "";
         ulong Number(string name) => ulong.Parse(Text(name), CultureInfo.InvariantCulture);
         ulong? Timestamp(string name) => ulong.TryParse(Text(name), out var value) && value != ulong.MaxValue ? value : null;
+        long? Price(string name) => long.TryParse(Text(name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            && value != long.MaxValue ? value : null;
+        int? Multiplier() => int.TryParse(Text("contract_multiplier"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            && value != int.MaxValue ? value : null;
+        byte? Week() => byte.TryParse(Text("maturity_week"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            && value != byte.MaxValue ? value : null;
         var publisher = header.GetProperty("publisher_id").GetUInt16();
         var id = header.GetProperty("instrument_id").GetUInt32();
         var rawSymbol = Text("raw_symbol");
@@ -47,7 +53,10 @@ public sealed record ExactInstrumentDefinition
             Underlying = Text("underlying"), UnderlyingInstrumentId = checked((uint)Number("underlying_id")),
             ContractKind = kind, Currency = Text("currency"), Exchange = Text("exchange"),
             SettlementCurrency = Text("settl_currency"), SecurityType = Text("security_type"), Cfi = Text("cfi"), UnitOfMeasure = Text("unit_of_measure"),
-            ActivationTimestampNanoseconds = Timestamp("activation"), ExpirationTimestampNanoseconds = expiry, MaturityDate = maturity
+            ActivationTimestampNanoseconds = Timestamp("activation"), ExpirationTimestampNanoseconds = expiry, MaturityDate = maturity,
+            StrikePrice = Price("strike_price"), MinimumPriceIncrement = Price("min_price_increment"),
+            MinimumPriceIncrementAmount = Price("min_price_increment_amount"), ContractMultiplier = Multiplier(),
+            MaturityWeek = Week()
         };
         return new()
         {

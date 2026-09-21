@@ -58,7 +58,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblDaysToExpiry = new Label();
             dtpTradeDate = new IronCondor.DarkDateTimePicker();
             lblTradeDate = new Label();
-            pnlTradeControl = new Panel();
+            pnlTradeBlotter = new Panel();
             lblOrderAction = new Label();
             btnSubmitOrder = new Button();
             ddlOrderActionType = new ComboBox();
@@ -252,7 +252,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnDeleteOrder.Name = "btnDeleteOrder";
             btnDeleteOrder.Size = new Size(174, 40);
             btnDeleteOrder.TabIndex = 3;
-            btnDeleteOrder.Text = "Delete Order...";
+            btnDeleteOrder.Text = "Remove Order...";
             btnDeleteOrder.UseVisualStyleBackColor = true;
             btnDeleteOrder.Click += btnCancelOrder_Click;
             // 
@@ -265,7 +265,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnCreateOrder.Name = "btnCreateOrder";
             btnCreateOrder.Size = new Size(174, 42);
             btnCreateOrder.TabIndex = 2;
-            btnCreateOrder.Text = "Create Order...";
+            btnCreateOrder.Text = "Add Order...";
             btnCreateOrder.UseVisualStyleBackColor = true;
             btnCreateOrder.Click += btnCreateOrder_Click;
             // 
@@ -359,7 +359,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTradePosition.Controls.Add(lblDaysToExpiry);
             pnlTradePosition.Controls.Add(dtpTradeDate);
             pnlTradePosition.Controls.Add(lblTradeDate);
-            pnlTradePosition.Controls.Add(pnlTradeControl);
+            pnlTradePosition.Controls.Add(pnlTradeBlotter);
             pnlTradePosition.Controls.Add(lblOrderAction);
             pnlTradePosition.Controls.Add(btnSubmitOrder);
             pnlTradePosition.Controls.Add(ddlOrderActionType);
@@ -465,13 +465,13 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblTradeDate.Text = "Trade Date:";
             lblTradeDate.TextAlign = ContentAlignment.MiddleRight;
             // 
-            // pnlTradeControl
+            // pnlTradeBlotter
             // 
-            pnlTradeControl.Location = new Point(94, 52);
-            pnlTradeControl.Margin = new Padding(3, 2, 3, 2);
-            pnlTradeControl.Name = "pnlTradeControl";
-            pnlTradeControl.Size = new Size(1150, 419);
-            pnlTradeControl.TabIndex = 24;
+            pnlTradeBlotter.Location = new Point(94, 52);
+            pnlTradeBlotter.Margin = new Padding(3, 2, 3, 2);
+            pnlTradeBlotter.Name = "pnlTradeBlotter";
+            pnlTradeBlotter.Size = new Size(1150, 419);
+            pnlTradeBlotter.TabIndex = 24;
             // 
             // lblOrderAction
             // 
@@ -765,7 +765,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         private System.Windows.Forms.Button btnChangeTradeState;
         private System.Windows.Forms.ComboBox ddlTradeState;
         private System.Windows.Forms.Label lblTradeStateTarget;
-        private System.Windows.Forms.Panel pnlTradeControl;
+        private System.Windows.Forms.Panel pnlTradeBlotter;
         private System.Windows.Forms.TextBox txtDaysToExpiry;
         private System.Windows.Forms.Label lblDaysToExpiry;
         private System.Windows.Forms.DateTimePicker dtpTradeDate;

@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared; // For FuturesTradeSignalId, FuturesRsiSignalType
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
@@ -34,6 +35,25 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
                 entityId.Format())
         };
         return await RequestAsync<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>(
+            query.Subject, query);
+    }
+
+    /// <summary>Gets the bounded daily Bollinger history for one roll-aware futures root.</summary>
+    public async Task<ServiceResult<FuturesBbSignalReadModel[]>> GetFuturesBollingerBandHistoryAsync(
+        string rootSymbol,
+        DateOnly valueDate,
+        int maxDays)
+    {
+        var entityId = new GetFuturesBollingerBandHistoryParameter(rootSymbol, valueDate, maxDays);
+        var query = new GetFuturesBollingerBandHistoryQuery(rootSymbol, valueDate, maxDays)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesBollingerBandHistoryQuery.Actor,
+                GetFuturesBollingerBandHistoryQuery.Verb,
+                entityId.Format())
+        };
+        return await RequestAsync<GetFuturesBollingerBandHistoryQuery, FuturesBbSignalReadModel[]>(
             query.Subject, query);
     }
 
@@ -154,12 +174,12 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// Gets the complete Futures ITI signal history represented by a display timeframe.
     /// </summary>
     public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(
-        string contractId,
+        string symbol,
         DateOnly valueDate,
         TimeFrameType timePeriod)
     {
-        var entityId = new GetFuturesItiSignalHistoryParameter(contractId, valueDate, timePeriod);
-        var query = new GetFuturesItiSignalHistoryQuery(contractId, valueDate, timePeriod)
+        var entityId = new GetFuturesItiSignalHistoryParameter(symbol, valueDate, timePeriod);
+        var query = new GetFuturesItiSignalHistoryQuery(symbol, valueDate, timePeriod)
         {
             Subject = new ActorSubject(
                 ActorType.Query,

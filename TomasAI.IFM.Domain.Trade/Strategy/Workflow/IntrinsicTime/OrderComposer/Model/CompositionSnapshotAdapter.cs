@@ -1,9 +1,17 @@
 using System.Collections.Immutable;
+using AppPricing = TomasAI.IFM.Application.MarketData.Pricing;
+using DomainPricing = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 
 /// <summary>Explicit application/domain adapter; preserves every frozen pricing field without encoded copies.</summary>
 public static class CompositionSnapshotAdapter
 {
+    public static DomainPricing.OptionSelectionValue From(AppPricing.OptionSelectionValue x) =>
+        new(x.Price, x.Delta, x.ImpliedVolatility, From(x.IvUnderlying), From(x.IvOption), x.IvCalculatedAtUtc,
+            x.CalculatedAtUtc, x.ValidUntilUtc, x.PolicyVersion, x.ContextDigest);
+    public static AppPricing.OptionSelectionValue To(DomainPricing.OptionSelectionValue x) =>
+        new(x.Price, x.Delta, x.ImpliedVolatility, To(x.IvUnderlying), To(x.IvOption), x.IvCalculatedAtUtc,
+            x.CalculatedAtUtc, x.ValidUntilUtc, x.PolicyVersion, x.ContextDigest);
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingQuote From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote x) => new(x.ContractId, x.Bid, x.Ask, x.BidSize, x.AskSize, x.EventAtUtc, x.ReceivedAtUtc, x.Sequence, x.GenerationId);
     public static TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingQuote x) => new(x.ContractId, x.Bid, x.Ask, x.BidSize, x.AskSize, x.EventAtUtc, x.ReceivedAtUtc, x.Sequence, x.GenerationId);
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingCalendar From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar x) => new(x.Version, x.TimeZoneId, x.CoverageFrom, x.CoverageUntil, x.ValueDateRollover, x.TradingDates);
@@ -18,8 +26,10 @@ public static class CompositionSnapshotAdapter
     public static TomasAI.IFM.Application.MarketData.Pricing.CompositionFutureDefinition To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionFutureDefinition x) => new(x.ContractId, x.Root, x.Dataset, x.Exchange, x.Currency, x.LastTradingUtc, x.Multiplier, x.TickSize, x.DefinitionDigest);
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingValue From(TomasAI.IFM.Application.MarketData.Pricing.OptionPricingValue x) => new(x.ImpliedVolatility, x.Delta, x.Gamma, x.Theta, x.Vega, x.Rho, x.TheoreticalPrice, x.TimeToExpiry, x.ContextDigest);
     public static TomasAI.IFM.Application.MarketData.Pricing.OptionPricingValue To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingValue x) => new(x.ImpliedVolatility, x.Delta, x.Gamma, x.Theta, x.Vega, x.Rho, x.TheoreticalPrice, x.TimeToExpiry, x.ContextDigest);
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionMarketInstrument From(TomasAI.IFM.Application.MarketData.Pricing.CompositionMarketInstrument x) => new(x.ContractId, From(x.Quote), x.Pricing is null ? null : From(x.Pricing), x.Strike, x.IsCall, x.Underlying is null ? null : From(x.Underlying), x.FutureDefinition is null ? null : From(x.FutureDefinition));
-    public static TomasAI.IFM.Application.MarketData.Pricing.CompositionMarketInstrument To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionMarketInstrument x) => new(x.ContractId, To(x.Quote), x.Pricing is null ? null : To(x.Pricing), x.Strike, x.IsCall, x.Underlying is null ? null : To(x.Underlying), x.FutureDefinition is null ? null : To(x.FutureDefinition));
+    public static DomainPricing.CompositionMarketInstrument From(AppPricing.CompositionMarketInstrument x) => new(x.ContractId, From(x.Quote), x.Pricing is null ? null : From(x.Pricing), x.Strike, x.IsCall, x.Underlying is null ? null : From(x.Underlying), x.FutureDefinition is null ? null : From(x.FutureDefinition))
+        { Selection = x.Selection is null ? null : From(x.Selection) };
+    public static AppPricing.CompositionMarketInstrument To(DomainPricing.CompositionMarketInstrument x) => new(x.ContractId, To(x.Quote), x.Pricing is null ? null : To(x.Pricing), x.Strike, x.IsCall, x.Underlying is null ? null : To(x.Underlying), x.FutureDefinition is null ? null : To(x.FutureDefinition))
+        { Selection = x.Selection is null ? null : To(x.Selection) };
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionInstrumentSnapshot From(TomasAI.IFM.Application.MarketData.Pricing.CompositionInstrumentSnapshot x) => new(From(x.Instrument), x.Valuation is null ? null : From(x.Valuation));
     public static TomasAI.IFM.Application.MarketData.Pricing.CompositionInstrumentSnapshot To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionInstrumentSnapshot x) => new(To(x.Instrument), x.Valuation is null ? null : To(x.Valuation));
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.MarketCompositionSnapshot From(TomasAI.IFM.Application.MarketData.Pricing.MarketCompositionSnapshot x) => new(x.SchemaVersion, x.SnapshotId, x.ScopeId, x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc, x.Instruments.Select(From).ToImmutableArray(), x.Digest);
@@ -51,6 +61,10 @@ public static class CompositionSnapshotAdapter
         EffectiveFromUtc = x.EffectiveFromUtc,
         EffectiveUntilUtc = x.EffectiveUntilUtc,
         PremiumTickRule = (TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPremiumTickRule)x.PremiumTickRule,
+        PremiumStyle = (TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPremiumStyle)x.PremiumStyle,
+        UnderlyingKind = (TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.PricingUnderlyingKind)x.UnderlyingKind,
+        Strike = x.Strike,
+        Right = (TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.PricingOptionRight)x.Right,
     };
     public static TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention x) => new()
     {
@@ -79,5 +93,9 @@ public static class CompositionSnapshotAdapter
         EffectiveFromUtc = x.EffectiveFromUtc,
         EffectiveUntilUtc = x.EffectiveUntilUtc,
         PremiumTickRule = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPremiumTickRule)x.PremiumTickRule,
+        PremiumStyle = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPremiumStyle)x.PremiumStyle,
+        UnderlyingKind = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingUnderlyingKind)x.UnderlyingKind,
+        Strike = x.Strike,
+        Right = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingOptionRight)x.Right,
     };
 }

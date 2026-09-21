@@ -23,7 +23,7 @@ public sealed class OptionPricingContextProvider(TreasuryPricingProvider treasur
         cancellationToken.ThrowIfCancellationRequested();
         var invalid = OptionPricingQualification.Validate(contract, at);
         if (invalid is not null) return new(null, invalid);
-        if (generation == Guid.Empty || pricerVersion is not ("Black76.Managed/v1" or "Black76.Rust/v1"))
+        if (generation == Guid.Empty || pricerVersion != Black76PricingModel.EngineFor(contract))
             return new(null, new("PricingModelUnsupported", "Generation/Pricer", contract.ContractId, "An exact pricing engine and generation are required."));
         int count;
         try { count = OptionPricingQualification.CountTradingDays(calendar, contract, at); }

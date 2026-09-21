@@ -7,6 +7,9 @@ public enum OptionExerciseStyle { Unknown = 0, European = 1, American = 2 }
 public enum OptionSettlementStyle { Unknown = 0, DeliveryOfFuture = 1, Cash = 2 }
 public enum PricingDayCount { Unknown = 0, Actual365Fixed = 1, Actual360 = 2 }
 public enum OptionPremiumTickRule { Unspecified = 0, Fixed = 1, CmeEsGlobex358A = 2 }
+public enum OptionPremiumStyle { Unknown = 0, PaidUpfront = 1, FuturesStyle = 2 }
+public enum PricingUnderlyingKind { Unknown = 0, Futures = 1, Equity = 2 }
+public enum PricingOptionRight { Unknown = 0, Call = 1, Put = 2 }
 
 /// <summary>Safe diagnostic data; failed pricing never supplies usable numeric output.</summary>
 [MessagePackObject]
@@ -49,6 +52,18 @@ public sealed record OptionPricingConvention
     [Key(24)]
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public OptionPremiumTickRule PremiumTickRule { get; init; }
+    [Key(25)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public OptionPremiumStyle PremiumStyle { get; init; }
+    [Key(26)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public PricingUnderlyingKind UnderlyingKind { get; init; }
+    [Key(27)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public decimal? Strike { get; init; }
+    [Key(28)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public PricingOptionRight Right { get; init; }
 }
 
 /// <summary>Explicit complete calendar coverage, including exchange value dates and pricing convention.</summary>

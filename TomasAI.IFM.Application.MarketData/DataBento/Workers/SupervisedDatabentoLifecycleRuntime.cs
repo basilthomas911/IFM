@@ -12,10 +12,12 @@ public sealed record DatabentoSupervisedWorkerOptions
     public FeedDeploymentProfile DeploymentProfile { get; init; } = FeedDeploymentProfile.Development;
     public FeedDataSourceMode DataSource { get; init; } = FeedDataSourceMode.Synthetic;
     public SyntheticFeedOptions Synthetic { get; init; } = new();
+    public Pricing.OptionPricingRefreshPolicy OptionPricingRefresh { get; init; } = new();
     public TimeSpan HostPublisherStopTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
     public DatabentoSupervisedWorkerOptions Validate()
     {
+        OptionPricingRefresh.Validate();
         if (HostPublisherStopTimeout <= TimeSpan.Zero || HostPublisherStopTimeout > TimeSpan.FromMinutes(1))
             throw new InvalidOperationException("The host publisher stop timeout must be positive and no greater than one minute.");
         if (!Path.IsPathFullyQualified(DotNetHostPath) || !File.Exists(DotNetHostPath))
@@ -84,6 +86,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
                     PrefixArguments = [launch.WorkerAssemblyPath,
                         "--deployment-profile", launch.DeploymentProfile.ToString(),
                         "--data-source", launch.DataSource.ToString(),
+                        "--option-pricing-refresh", System.Text.Json.JsonSerializer.Serialize(launch.OptionPricingRefresh),
                         "--synthetic-record-count", launch.Synthetic.RecordCount.ToString(),
                         "--synthetic-records-per-second", launch.Synthetic.RecordsPerSecond.ToString(),
                         "--synthetic-start-sequence", launch.Synthetic.StartSequence.ToString()],

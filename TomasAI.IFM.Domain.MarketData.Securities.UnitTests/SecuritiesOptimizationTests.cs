@@ -83,7 +83,7 @@ public class SecuritiesOptimizationTests
             .Returns(new[] { SampleData.FuturesOptionContract1, SampleData.FuturesOptionContract2 });
         var query = new GetFuturesOptionContractIdsQuery(input);
 
-        var result = await query.GetFuturesOptionContractIdsAsync(dbFactory);
+        var result = await query.ExecuteAsync(dbFactory);
 
         result.Should().Equal(
             SampleData.FuturesOptionContract2.ContractId,
@@ -102,7 +102,7 @@ public class SecuritiesOptimizationTests
         dbFactory.SecuritiesDb.Returns(db);
         var query = new GetFuturesOptionContractIdsQuery([]);
 
-        var result = await query.GetFuturesOptionContractIdsAsync(dbFactory);
+        var result = await query.ExecuteAsync(dbFactory);
 
         result.Should().BeEmpty();
         await db.DidNotReceive().GetFuturesOptionContractsByIdsAsync(Arg.Any<ICollection<string>>());
@@ -130,6 +130,42 @@ public class SecuritiesOptimizationTests
         await db.Received(1).InsertFuturesOptionContractsAsync(
             Arg.Is<ICollection<FuturesOptionContractReadModel>>(values => values.Count == contracts.Length));
         await db.DidNotReceive().InsertFuturesOptionContractAsync(Arg.Any<FuturesOptionContractReadModel>());
+    }
+
+    [Fact]
+    public async Task Imported_option_reference_bypasses_legacy_broker_enrichment_without_losing_metadata()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<ISecuritiesDbContext>();
+        dbFactory.SecuritiesDb.Returns(db);
+        var contract = SampleData.FuturesOptionContract1 with
+        {
+            ContractId = "ES20260918C6500.5", StrikePrice = 6500.5, StrikePriceDecimal = 6500.5m,
+            SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft,
+            RawSymbol = "provider-symbol", InstrumentId = 42, Dataset = "GLBX.MDP3"
+        };
+        var actorService = new TrackingActorService();
+        await dbFactory.InsertFuturesOptionContractsAsync(new[] { contract }, actorService);
+        actorService.RequestCount.Should().Be(0);
+        await db.Received(1).InsertFuturesOptionContractsAsync(
+            Arg.Is<ICollection<FuturesOptionContractReadModel>>(values => values.Single() == contract));
+        new FuturesOptionSecuritiesContract(contract).ToViewModel().Should().Be(contract);
+    }
+
+    [Fact]
+    public async Task Legacy_fractional_option_enrichment_retains_canonical_strike()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<ISecuritiesDbContext>();
+        dbFactory.SecuritiesDb.Returns(db);
+        var contract = SampleData.FuturesOptionContract1 with
+        {
+            ContractId = "ES20260918C6500.5", StrikePrice = 6500.5, StrikePriceDecimal = 6500.5m
+        };
+        await dbFactory.InsertFuturesOptionContractsAsync(new[] { contract }, new TrackingActorService());
+        await db.Received(1).InsertFuturesOptionContractsAsync(
+            Arg.Is<ICollection<FuturesOptionContractReadModel>>(values =>
+                values.Single().StrikePriceDecimal == 6500.5m && values.Single().LocalSymbol.EndsWith("C6500.5")));
     }
 
     [Fact]

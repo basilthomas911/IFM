@@ -30,7 +30,8 @@ internal static class CompositionFixture
     public static readonly string[] Variants = ["LongFuture", "ShortFuture", "BullCallDebit", "BearCallCredit", "BullPutCredit", "BearPutDebit",
         "ShortBalancedIronCondor", "ShortBullishIronCondor", "ShortBearishIronCondor", "LongBalancedIronCondor", "LongBullishIronCondor", "LongBearishIronCondor"];
     public static async Task<ExecuteOrderCompositionPipelineCommand> Command(string variant = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, bool integrationTiming = false, string contractId = "ESZ6",
-        ExecuteTradeSelectionPipelineCommand? actualSelectionCommand=null,TradeSelectionResult? actualSelectionResult=null)
+        ExecuteTradeSelectionPipelineCommand? actualSelectionCommand=null,TradeSelectionResult? actualSelectionResult=null,
+        int integrationWindowMilliseconds=5000)
     {
         var selection = actualSelectionCommand??await TradeSelectionFixture.Command(variant, horizon, atUtc, contractId: contractId, compositionReady: true, compositionIntegrationTiming: integrationTiming);
         var result = actualSelectionResult??new TradeSelectionEvaluator().Calculate(selection);
@@ -46,9 +47,9 @@ internal static class CompositionFixture
         var snapshot = Snapshot(binding, new(at));
         if (integrationTiming)
         {
-            snapshot = snapshot with { ValidUntilUtc = new DateTimeOffset(at.AddSeconds(5)), Digest = "",
+            snapshot = snapshot with { ValidUntilUtc = new DateTimeOffset(at.AddMilliseconds(integrationWindowMilliseconds)), Digest = "",
                 Instruments = snapshot.Instruments.Select(x => x.Instrument.Pricing is null ? x : x with { Instrument = x.Instrument with
-                { Pricing = x.Instrument.Pricing with { ValidUntilUtc = new DateTimeOffset(at.AddSeconds(5)), MaximumQuoteAgeMilliseconds = 5000 } } }).ToImmutableArray() };
+                { Pricing = x.Instrument.Pricing with { ValidUntilUtc = new DateTimeOffset(at.AddMilliseconds(integrationWindowMilliseconds)), MaximumQuoteAgeMilliseconds = 5000 } } }).ToImmutableArray() };
             snapshot = snapshot with { Digest = CompositionSemanticHash.Compute(snapshot) };
         }
         var id = new OrderCompositionExecutionId(selection.WorkflowEntityId, selection.WorkflowId, 5);
@@ -57,7 +58,7 @@ internal static class CompositionFixture
             SchemaVersion = 1, CommandId = Guid.NewGuid(), Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor,
                 ExecuteOrderCompositionPipelineCommand.Verb, id.Format()), EntityId = id, InputWorkflowRevision = 5, WorkflowView = view,
             TriggerEvent = view.TriggerEvent, CorrelationId = view.CorrelationId, CausationId = Guid.NewGuid(), RequestedAtUtc = at,
-            EvaluatedAtUtc = at, ExpiresAtUtc = integrationTiming ? at.AddSeconds(4) : at.AddMilliseconds(900), AcceptedSelectionEnvelope = envelope,
+            EvaluatedAtUtc = at, ExpiresAtUtc = integrationTiming ? at.AddMilliseconds(integrationWindowMilliseconds-1000) : at.AddMilliseconds(900), AcceptedSelectionEnvelope = envelope,
             SelectionBinding = selection.SelectionBinding, Reservation = reservation, CompositionBinding = binding, MarketSnapshot = snapshot
         };
         if(actualSelectionResult is not null)

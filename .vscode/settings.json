@@ -1,3 +1,4 @@
 {
-  "dotnet.testWindow.enableNextTest": false
+  "dotnet.testWindow.enableNextTest": false,
+  "cmake.sourceDirectory": "C:/repos/IFM/native/DatabentoFeed.Native"
 }

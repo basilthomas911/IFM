@@ -56,7 +56,8 @@ public class FundOrderTrade(
         baseContractSymbol: vm.BaseContractSymbol,
         createdOn: vm.CreatedOn,
         createdBy: vm.CreatedBy)
-    { 
+    {
+        HasFillEvidence = vm.HasFillEvidence ?? StateImpliesFill(vm.TradeState);
     }
 
     public int FundId { get; } = fundId;
@@ -72,6 +73,7 @@ public class FundOrderTrade(
     public string BaseContractSymbol { get; } = baseContractSymbol;
     public DateTime CreatedOn { get; } = createdOn;
     public string CreatedBy { get; } = createdBy;
+    public bool HasFillEvidence { get; private set; } = StateImpliesFill(tradeState);
 
     /// <summary>
     /// return fund order trade view model
@@ -93,14 +95,26 @@ public class FundOrderTrade(
             createdOn: this.CreatedOn,
             createdBy: this.CreatedBy,
             updatedOn: this.CreatedOn,
-            updatedBy: this.CreatedBy
+            updatedBy: this.CreatedBy,
+            hasFillEvidence: this.HasFillEvidence
         );
 
     /// <summary>
     /// change trade state
     /// </summary>
     /// <param name="tradeState"></param>
-    public void SetTradeState(TradeState tradeState) => TradeState = tradeState;
+    public void SetTradeState(TradeState tradeState)
+    {
+        HasFillEvidence |= StateImpliesFill(tradeState);
+        TradeState = tradeState;
+    }
+
+    static bool StateImpliesFill(TradeState tradeState)
+        => tradeState is TradeState.OrderPartiallyFilled
+            or TradeState.OrderFilled
+            or TradeState.TradeToOpen
+            or TradeState.TradeToClose
+            or TradeState.OrderCompleted;
 
     /// <summary>
     /// change reference

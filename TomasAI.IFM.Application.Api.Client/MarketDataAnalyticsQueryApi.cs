@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared; // For FuturesTradeSignalId, FuturesRsiSignalType
 
@@ -28,6 +29,19 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
             MarketDataAnalyticsQueryUriPath.GetMarketOutlookSnapshot,
             parameter,
             GetMarketOutlookSnapshotQuery.ErrorId);
+    }
+
+    /// <summary>Gets bounded daily Bollinger history for one roll-aware futures root.</summary>
+    public async Task<ServiceResult<FuturesBbSignalReadModel[]>> GetFuturesBollingerBandHistoryAsync(
+        string rootSymbol,
+        DateOnly valueDate,
+        int maxDays)
+    {
+        var parameter = new GetFuturesBollingerBandHistoryParameter(rootSymbol, valueDate, maxDays);
+        return await _querySvc.ExecuteQueryAsync<FuturesBbSignalReadModel[]>(
+            MarketDataAnalyticsQueryUriPath.GetFuturesBollingerBandHistory,
+            parameter,
+            GetFuturesBollingerBandHistoryQuery.ErrorId);
     }
 
     /// <summary>
@@ -118,11 +132,11 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
 
     /// <summary>Gets the complete Futures ITI signal history represented by a display timeframe.</summary>
     public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(
-        string contractId,
+        string symbol,
         DateOnly valueDate,
         TimeFrameType timePeriod)
     {
-        var qryParam = new GetFuturesItiSignalHistoryParameter(contractId, valueDate, timePeriod);
+        var qryParam = new GetFuturesItiSignalHistoryParameter(symbol, valueDate, timePeriod);
         return await _querySvc.ExecuteQueryAsync<FuturesItiSignalV2ReadModel[]>(
             MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalHistory,
             qryParam,

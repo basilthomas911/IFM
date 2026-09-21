@@ -24,7 +24,7 @@ public sealed class OptionPricingConventionStore(IObjectRepository db) : IOption
             .ExecuteQueryAsync(row => MessagePackBinarySerializer.Shared.Deserialize<OptionPricingConvention>(row.GetBytes(0)), cancellationToken).ConfigureAwait(false);
         var result = rows.SingleOrDefault();
         if (result is not null && (result.ContractId != contractId || result.MappingVersion != mappingVersion
-            || result.SchemaVersion is not (1 or 2) || !OptionPremiumTicks.IsValid(result)))
+            || result.SchemaVersion is not (1 or 2 or 3) || !OptionPremiumTicks.IsValid(result)))
             throw new InvalidDataException("Stored option convention identity/schema differs from its key.");
         return result;
     }

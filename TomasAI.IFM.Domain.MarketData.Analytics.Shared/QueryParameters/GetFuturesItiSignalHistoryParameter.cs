@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
 [MessagePackObject(false)]
 public record GetFuturesItiSignalHistoryParameter : IActorEntityId, IQueryParameter
 {
-    [Key(0)] public string ContractId { get; init; }
+    [Key(0)] public string Symbol { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
     [Key(2)] public TimeFrameType TimePeriod { get; init; }
     [IgnoreMember] public string? QueryParams { get; private set; }
@@ -17,15 +17,15 @@ public record GetFuturesItiSignalHistoryParameter : IActorEntityId, IQueryParame
 
     [SerializationConstructor]
     public GetFuturesItiSignalHistoryParameter(
-        string contractId,
+        string symbol,
         DateOnly valueDate,
         TimeFrameType timePeriod)
     {
-        ContractId = contractId ?? string.Empty;
+        Symbol = symbol ?? string.Empty;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
-        QueryParams = $"contractId={ContractId}&valueDate={ValueDate:yyyy-MM-dd}&timePeriod={TimePeriod}";
+        QueryParams = $"symbol={Symbol}&valueDate={ValueDate:yyyy-MM-dd}&timePeriod={TimePeriod}";
     }
 
-    public string Format() => $"{ContractId}.{ValueDate:yyyy-MM-dd}.{TimePeriod}";
+    public string Format() => $"{Symbol}.{ValueDate:yyyy-MM-dd}.{TimePeriod}";
 }

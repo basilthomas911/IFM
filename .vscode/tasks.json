@@ -36,11 +36,29 @@
       "group": "build"
     },
     {
-      "label": "IFM: Build API + UI (Debug)",
+      "label": "IFM: Build Server Manager (Debug)",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/TomasAI.IFM.Application.ServerManager/TomasAI.IFM.Application.ServerManager.csproj",
+        "--configuration",
+        "Debug",
+        "--nologo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "IFM: Build API + UI + Server Manager (Debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "IFM: Build API Server (Debug)",
-        "IFM: Build UI.Net (Debug)"
+        "IFM: Build UI.Net (Debug)",
+        "IFM: Build Server Manager (Debug)"
       ],
       "problemMatcher": []
     },
@@ -58,7 +76,7 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "IFM: Stop API + UI (Development)",
-        "IFM: Build API + UI (Debug)"
+        "IFM: Build API + UI + Server Manager (Debug)"
       ],
       "problemMatcher": []
     },

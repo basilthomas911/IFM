@@ -3,6 +3,8 @@ namespace TomasAI.IFM.Application.TradeBroker.Contracts;
 /// <summary>Account mode; Unknown cannot authorize a broker dispatch.</summary>
 public enum BrokerEnvironment : byte { Unknown = 0, Emulator = 1, Paper = 2, Live = 3 }
 public enum BrokerOrderShape : byte { Unknown = 0, FuturesOutright = 1, VerticalSpread = 2, IronCondor = 3 }
+public enum BrokerOrderType : byte { Unknown = 0, Market = 1, Limit = 2 }
+public enum BrokerAlgorithm : byte { None = 0, Adaptive = 1 }
 public enum BrokerDispatchOutcome : byte { RejectedLocally = 0, AcceptedForDispatch = 1, OutcomeUnknown = 2 }
 public enum BrokerObservationKind : byte { Unknown = 0, Acknowledged = 1, Execution = 2, Commission = 3, Rejected = 4, Cancelled = 5, AccountSnapshot = 6, GateChanged = 7, ConnectionChanged = 8, OrderCompleted = 9 }
 
@@ -13,7 +15,43 @@ public sealed record BrokerOrderLeg(Guid LegId, string ContractId, int SignedQua
 public sealed record BrokerOrderRequest(string AccountAlias, BrokerEnvironment Environment, string BrokerOrderId,
     Guid OperationId, Guid ComponentId, BrokerOrderShape Shape, bool IsClosing, BrokerOrderLeg[] Legs,
     decimal SignedNetDebitLimit, decimal MinimumLimit, decimal MaximumLimit, decimal TickIncrement,
-    DateTime ValidUntilUtc, string ApprovalHash, string ContractReferenceHash, decimal RequiredCapital, decimal MaximumLoss);
+    DateTime ValidUntilUtc, string ApprovalHash, string ContractReferenceHash, decimal RequiredCapital, decimal MaximumLoss,
+    BrokerOrderType OrderType = BrokerOrderType.Limit, BrokerAlgorithm Algorithm = BrokerAlgorithm.None);
+
+/// <summary>Explicit capabilities loaded for one adapter/account binding.</summary>
+public sealed record BrokerCapabilities(string Adapter, string AccountAlias, BrokerEnvironment Environment,
+    BrokerOrderShape[] Shapes, BrokerOrderType[] OrderTypes, BrokerAlgorithm[] Algorithms)
+{
+    public static BrokerCapabilities Emulator(string accountAlias) => new("InteractiveBrokersEmulator", accountAlias,
+        BrokerEnvironment.Emulator,
+        [BrokerOrderShape.FuturesOutright, BrokerOrderShape.VerticalSpread, BrokerOrderShape.IronCondor],
+        [BrokerOrderType.Market, BrokerOrderType.Limit],
+        [BrokerAlgorithm.None, BrokerAlgorithm.Adaptive]);
+
+    public static BrokerCapabilities InteractiveBrokers(string accountAlias, BrokerEnvironment environment)
+    {
+        if (environment is not (BrokerEnvironment.Paper or BrokerEnvironment.Live))
+            throw new ArgumentOutOfRangeException(nameof(environment), "IBKR accounts must be explicitly Paper or Live.");
+        return new("InteractiveBrokers", accountAlias, environment,
+            [BrokerOrderShape.FuturesOutright, BrokerOrderShape.VerticalSpread, BrokerOrderShape.IronCondor],
+            [BrokerOrderType.Market, BrokerOrderType.Limit],
+            [BrokerAlgorithm.None, BrokerAlgorithm.Adaptive]);
+    }
+
+    public string? Validate(BrokerOrderRequest request)
+    {
+        if (!string.Equals(request.AccountAlias, AccountAlias, StringComparison.Ordinal)
+            || request.Environment != Environment)
+            return "Broker environment or account does not match the loaded adapter/account.";
+        if (!Shapes.Contains(request.Shape)) return $"Order shape {request.Shape} is not supported.";
+        if (!OrderTypes.Contains(request.OrderType)) return $"Order type {request.OrderType} is not supported.";
+        if (!Algorithms.Contains(request.Algorithm)) return $"Algorithm {request.Algorithm} is not supported.";
+        if (request.Algorithm == BrokerAlgorithm.Adaptive
+            && request.OrderType is not (BrokerOrderType.Market or BrokerOrderType.Limit))
+            return "Adaptive is supported only for basic Market and Limit orders.";
+        return null;
+    }
+}
 
 public sealed record BrokerLimitUpdate(string AccountAlias, string BrokerOrderId, Guid OperationId, decimal NewSignedNetDebitLimit, int ExpectedRevision);
 public sealed record BrokerCancelRequest(string AccountAlias, string BrokerOrderId, Guid OperationId, int ExpectedRevision);

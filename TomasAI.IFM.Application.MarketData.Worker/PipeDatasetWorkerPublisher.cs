@@ -16,7 +16,7 @@ internal sealed class PipeDatasetWorkerPublisher(
     string dataset,
     DateOnly valueDate,
     Guid workerInstanceId,
-    long manifestRevision) : ITickAggregationEventPublisher
+    long manifestRevision, Stream? retentionAcknowledgments = null) : ITickAggregationEventPublisher, MarketData.Pricing.IOptionTradeEvidenceWriter
 {
     readonly SemaphoreSlim writer = new(1, 1);
     Guid generation;
@@ -26,6 +26,34 @@ internal sealed class PipeDatasetWorkerPublisher(
     int disposed;
 
     public bool IsRunning => Volatile.Read(ref running) != 0;
+    public async ValueTask WriteAsync(MarketData.Pricing.OptionTradeEvidence evidence, CancellationToken cancellationToken)
+    {
+        evidence.Validate();
+        if (retentionAcknowledgments is null) throw new InvalidOperationException("No durable retention acknowledgment pipe.");
+        await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsRunning || Volatile.Read(ref closed) != 0 || generation == Guid.Empty
+                || evidence.Source.GenerationId != generation || evidence.Source.Dataset != dataset || evidence.Source.ValueDate != valueDate)
+                throw new InvalidOperationException("Option trade publication is not admitted.");
+            var publication = Interlocked.Increment(ref sequence);
+            await DatasetPublicationFrameCodec.WriteAsync(stream, new()
+            {
+                Dataset = dataset, ValueDate = valueDate, WorkerInstanceId = workerInstanceId, GenerationId = generation,
+                ManifestRevision = manifestRevision, PublicationSequence = publication,
+                Kind = DatasetPublicationKind.OptionTradeEvidence, Payload = MessagePackSerializer.Serialize(evidence)
+            }, cancellationToken).ConfigureAwait(false);
+            await OptionTradeAcknowledgment.ReadAsync(retentionAcknowledgments, publication, generation, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A timeout may leave a late acknowledgment in the pipe. Never reuse that generation's writer.
+            Volatile.Write(ref closed, 1);
+            Volatile.Write(ref running, 0);
+            throw;
+        }
+        finally { writer.Release(); }
+    }
     public ValueTask StartAsync()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref closed) != 0, this);

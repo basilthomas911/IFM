@@ -55,11 +55,19 @@ public sealed class ServerManagerOptionsTests
     public void Validate_accepts_absolute_http_readiness_probe()
     {
         var options = ValidOptions();
-        options.Processes[0].ReadinessUri = "http://localhost:22543/health/ready";
+        options.Processes[0].ReadinessUri = "http://localhost:22543/health/launch-ready";
         options.Processes[0].ReadinessTimeoutSeconds = 300;
         options.Processes[0].ReadinessPollIntervalMilliseconds = 500;
 
         options.Invoking(value => value.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Readiness_timeout_defaults_to_fifteen_minutes()
+    {
+        var definition = new ManagedProcessDefinition();
+
+        definition.ReadinessTimeoutSeconds.Should().Be(900);
     }
 
     [Fact]

@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Framework.OptionPricer.UnitTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Benchmarks" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />

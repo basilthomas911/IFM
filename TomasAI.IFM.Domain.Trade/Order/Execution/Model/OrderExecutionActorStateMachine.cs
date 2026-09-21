@@ -36,6 +36,8 @@ public sealed class OrderExecutionActorStateMachine
             Order = order,
             OrderRevision = order.Revision,
             Components = order.Components,
+            OrderQuantity = order.Components.Sum(static component =>
+                component.Legs.Select(static leg => Math.Abs(leg.SignedQuantity)).DefaultIfEmpty().Max()),
             StartedAtUtc = startedAtUtc
         };
         return TradeDecision<OrderExecutionDefinition>.Accept(Current);
@@ -83,6 +85,7 @@ public sealed class OrderExecutionActorStateMachine
         {
             Status = OrderExecutionStatus.PartiallyFilled,
             Fills = [.. _fills],
+            CumulativeFilledQuantity = FilledStrategyQuantity(Current.Components, _fills),
             PendingFillCosts = PendingCosts()
         };
         return TradeDecision<OrderExecutionDefinition>.Accept(Current);
@@ -180,8 +183,25 @@ public sealed class OrderExecutionActorStateMachine
         return TradeDecision<OrderExecutionAcceptance>.Accept(new([.. trades], closedPositions));
     }
 
-    public TradeDecision<OrderExecutionDefinition> Cancel() =>
-        Move([OrderExecutionStatus.Pending, OrderExecutionStatus.Submitted, OrderExecutionStatus.PartiallyFilled], OrderExecutionStatus.Cancelled, "cancel");
+    public TradeDecision<OrderExecutionAcceptance> Cancel(DateTime completedAtUtc)
+    {
+        if (Current is null)
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.NOT_FOUND", "Execution does not exist.");
+        if (completedAtUtc.Kind != DateTimeKind.Utc)
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.INVALID_TIME", "Completion time must be UTC.");
+        if (Current.Status is not (OrderExecutionStatus.Pending or OrderExecutionStatus.Submitted or OrderExecutionStatus.PartiallyFilled))
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.INVALID_TRANSITION", $"Cannot cancel an execution in {Current.Status} state.");
+        if (_fills.Count == 0)
+        {
+            Current = Current with { Status = OrderExecutionStatus.Cancelled, CompletedAtUtc = completedAtUtc };
+            return TradeDecision<OrderExecutionAcceptance>.Accept(new([], []));
+        }
+
+        var accepted = Accept(completedAtUtc);
+        if (!accepted.Accepted || accepted.Value is null) return accepted;
+        Current = Current! with { Status = OrderExecutionStatus.Cancelled };
+        return accepted;
+    }
 
     public TradeDecision<OrderExecutionDefinition> RejectExecution() =>
         Move([OrderExecutionStatus.Pending, OrderExecutionStatus.Submitted], OrderExecutionStatus.Rejected, "reject");
@@ -217,6 +237,19 @@ public sealed class OrderExecutionActorStateMachine
         }
         scale = common ?? 0;
         return scale == 1 || component.PermitBalancedPartialAcceptance;
+    }
+
+    static int FilledStrategyQuantity(
+        IEnumerable<TradeOrderComponentDefinition> components,
+        IEnumerable<ExecutionFillEvidence> fills)
+    {
+        var evidence = fills.ToArray();
+        return components.Sum(component => component.Legs
+            .Select(leg => Math.Abs(evidence
+                .Where(fill => fill.ComponentId == component.ComponentId && fill.TradeLegId == leg.TradeLegId)
+                .Sum(static fill => fill.SignedQuantity)))
+            .DefaultIfEmpty()
+            .Min());
     }
 
     TradeDecision<OrderExecutionDefinition> Move(

@@ -17,7 +17,7 @@ public static class BrokerOrderRequestMapper
         if (order is null || order.SchemaVersion < 4 || !order.Id.IsValid || order.Status is not (TradeOrderStatus.Approved or TradeOrderStatus.Ready or TradeOrderStatus.Executing) ||
             order.PositionType is not (TradeOrderPositionType.Opening or TradeOrderPositionType.Closing) ||
             order.PortfolioApprovalId == Guid.Empty || executionAttemptId == Guid.Empty || operationId == Guid.Empty ||
-            string.IsNullOrWhiteSpace(order.BrokerAccountAlias) || order.BrokerEnvironment != TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator ||
+            string.IsNullOrWhiteSpace(order.BrokerAccountAlias) || order.BrokerEnvironment == TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Unknown ||
             string.IsNullOrWhiteSpace(order.DefinitionHash) || string.IsNullOrWhiteSpace(order.MicroExecutionProfileHash))
         {
             reason = "BO.APPROVAL.INCOMPLETE";
@@ -43,15 +43,43 @@ public static class BrokerOrderRequestMapper
             reason = "BO.SHAPE.UNSUPPORTED";
             return false;
         }
+        var environment = order.BrokerEnvironment switch
+        {
+            TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator,
+            TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Paper => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Paper,
+            TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Live => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Live,
+            _ => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Unknown
+        };
+        // Unknown is the wire default for definitions written before these append-only fields existed.
+        var orderType = order.BrokerOrderType switch
+        {
+            TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType.Unknown or TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType.Limit => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerOrderType.Limit,
+            TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType.Market => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerOrderType.Market,
+            _ => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerOrderType.Unknown
+        };
+        var algorithm = order.BrokerAlgorithm switch
+        {
+            TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm.None => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerAlgorithm.None,
+            TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm.Adaptive => global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerAlgorithm.Adaptive,
+            _ => (global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerAlgorithm)byte.MaxValue
+        };
+        if (environment == global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Unknown ||
+            orderType == global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerOrderType.Unknown ||
+            !Enum.IsDefined(algorithm))
+        {
+            reason = "BO.EXECUTION_SELECTION.UNSUPPORTED";
+            return false;
+        }
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', component.Legs.Select(l =>
             $"{l.TradeLegId:N}:{l.ContractId}:{l.SignedQuantity}:{l.Expiry}:{l.Strike}:{l.PutCall}")))));
-        request = new BrokerOrderRequest(order.BrokerAccountAlias, TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator,
+        request = new BrokerOrderRequest(order.BrokerAccountAlias, environment,
             $"{new OrderExecutionId(order.Id, executionAttemptId).Format()}.{componentId:N}",
             operationId, componentId, shape, order.PositionType == TradeOrderPositionType.Closing,
             [.. component.Legs.Select(l => new BrokerOrderLeg(l.TradeLegId, l.ContractId, l.SignedQuantity, l.Strike, l.Expiry, l.PutCall, l.CashMultiplier))],
             component.SignedNetDebitLimit.Value, component.MinimumSignedNetDebitLimit.Value,
             component.MaximumSignedNetDebitLimit.Value, component.TickIncrement.Value,
-            order.ValidUntilUtc, order.DefinitionHash, fingerprint, order.RequiredCapital, order.MaximumLoss);
+            order.ValidUntilUtc, order.DefinitionHash, fingerprint, order.RequiredCapital, order.MaximumLoss,
+            orderType, algorithm);
         return true;
     }
 }

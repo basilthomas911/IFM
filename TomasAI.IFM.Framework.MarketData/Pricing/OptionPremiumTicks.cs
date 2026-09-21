@@ -30,7 +30,7 @@ public static class OptionPremiumTicks
     public static bool IsValid(OptionPricingConvention contract) => contract.SchemaVersion switch
     {
         1 => contract.PremiumTickRule == OptionPremiumTickRule.Unspecified && contract.TickSize > 0,
-        2 => contract.PremiumTickRule switch
+        2 or 3 => contract.PremiumTickRule switch
         {
             OptionPremiumTickRule.Fixed => contract.TickSize > 0 && !string.IsNullOrWhiteSpace(contract.TickRuleVersion),
             OptionPremiumTickRule.CmeEsGlobex358A => contract.Root == "ES" && contract.Dataset == "GLBX.MDP3"

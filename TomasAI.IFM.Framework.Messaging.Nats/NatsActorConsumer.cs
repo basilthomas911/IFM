@@ -45,6 +45,7 @@ public class NatsActorConsumer(
     NatsClient? _nc;
     CancellationTokenSource _cts = new();
     Task? _loopTask;
+    TaskCompletionSource _subscriptionReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     bool _isRunning;
 
     // striped dispatch channels for concurrent mailbox delivery
@@ -147,13 +148,16 @@ public class NatsActorConsumer(
                 _dispatcherTasks[i] = DispatchLoopAsync(reader);
             }
 
-            _isRunning = true;
+            _subscriptionReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _loopTask = RunMessageLoopAsync(ctsRequestToken);
+            await _subscriptionReady.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogInformationEvent(_serviceId, "NATS {ActorType} consumer started with {DispatcherCount} dispatch stripes.", _actorType, dispatcherCount);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "NATS {ActorType} failed during consumer startup.", _actorType);
+            try { await StopCoreAsync().ConfigureAwait(false); }
+            catch (Exception cleanup) { _logger.LogError(cleanup, "NATS consumer startup cleanup failed."); }
             throw;
         }
     }
@@ -267,6 +271,7 @@ public class NatsActorConsumer(
             {
                 try { await _loopTask.ConfigureAwait(false); }
                 catch (OperationCanceledException) { /* expected */ }
+                catch (Exception ex) { _logger.LogError(ex, "NATS consumer loop failed before shutdown."); }
             }
             _loopTask = null;
 
@@ -353,12 +358,33 @@ public class NatsActorConsumer(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            _subscriptionReady.TrySetCanceled(cancellationToken);
             // Expected during shutdown.
+        }
+        catch (Exception ex)
+        {
+            _subscriptionReady.TrySetException(ex);
+            throw;
         }
         finally
         {
+            _subscriptionReady.TrySetException(new InvalidOperationException("NATS consumer loop stopped before subscription readiness."));
             _isRunning = false;
         }
+    }
+
+    async IAsyncEnumerable<NatsMsg<T>> SubscribeReadyAsync<T>(
+        string subject, INatsDeserialize<T> serializer, NatsSubOpts opts,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var subscription = await _nc!.Connection.SubscribeCoreAsync<T>(
+            subject, serializer: serializer, opts: opts, cancellationToken: cancellationToken).ConfigureAwait(false);
+        // PONG on this connection confirms the preceding SUB has reached the server.
+        await _nc.Connection.PingAsync(cancellationToken).ConfigureAwait(false);
+        _isRunning = true;
+        _subscriptionReady.TrySetResult();
+        await foreach (var message in subscription.Msgs.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            yield return message;
     }
 
     async ValueTask RealtimeMessageLoopAsync(CancellationToken cancellationToken)
@@ -369,7 +395,7 @@ public class NatsActorConsumer(
             _serviceId,
             "NATS realtime consumer started with shared owned pooled payloads");
 
-        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in _nc!.SubscribeAsync<NatsMemoryOwner<byte>>(
+        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in SubscribeReadyAsync<NatsMemoryOwner<byte>>(
             _subscriptionSubject,
             serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
             opts: _requestOptions,
@@ -450,7 +476,7 @@ public class NatsActorConsumer(
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS {ActorType} consumer waiting for messages...", _actorType);
             var messagesRead = 0;
-            await foreach (var msg in _nc!.SubscribeAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
+            await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
             {
                 try
                 {
@@ -526,7 +552,7 @@ public class NatsActorConsumer(
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(_serviceId, "NATS command consumer started with owned pooled payloads");
 
-        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in _nc!.SubscribeAsync<NatsMemoryOwner<byte>>(
+        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in SubscribeReadyAsync<NatsMemoryOwner<byte>>(
             _subscriptionSubject,
             serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
             opts: _requestOptions,
@@ -585,7 +611,7 @@ public class NatsActorConsumer(
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS {ActorType} consumer waiting for messages...", _actorType);
             var messagesRead = 0;
-            await foreach (var msg in _nc!.SubscribeAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
+            await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
             {
                 try
                 {
@@ -677,7 +703,7 @@ public class NatsActorConsumer(
             _serviceId,
             "NATS query consumer started with owned pooled payloads");
 
-        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in _nc!.SubscribeAsync<NatsMemoryOwner<byte>>(
+        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in SubscribeReadyAsync<NatsMemoryOwner<byte>>(
             _subscriptionSubject,
             serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
             opts: _requestOptions,

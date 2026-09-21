@@ -152,6 +152,16 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
 
             switch (envelope.Kind)
             {
+                case DatasetPublicationKind.OptionTradeEvidence:
+                {
+                    var evidence = MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload);
+                    evidence.Validate();
+                    if (evidence.Source.Dataset != envelope.Dataset || evidence.Source.ValueDate != envelope.ValueDate
+                        || evidence.Source.GenerationId != envelope.GenerationId
+                        || evidence.Context is { } context && !state.Contracts.ContainsKey(context.Contract.UnderlyingContractId))
+                        return false;
+                    break;
+                }
                 case DatasetPublicationKind.MarketPrice:
                 {
                     var price = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload).Price;

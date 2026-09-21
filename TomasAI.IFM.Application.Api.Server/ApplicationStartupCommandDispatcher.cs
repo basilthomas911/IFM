@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// <summary>Posts one typed StartApplication command after host and actor bootstrap are healthy.</summary>
 public sealed class ApplicationStartupCommandDispatcher(
     IHostApplicationLifetime lifetime,
+    IActorRuntimeStartupSignal actorRuntimeStartup,
     IApplicationBootstrapReadiness bootstrapReadiness,
     IFuturesMarketSessionAuthority marketSessionAuthority,
     IApplicationCommandApi commandApi,
@@ -52,28 +53,13 @@ public sealed class ApplicationStartupCommandDispatcher(
             logger.LogInformation("Application startup dispatch stopped before API bootstrap completed.");
             return;
         }
-        var started = timeProvider.GetTimestamp();
-        while (timeProvider.GetElapsedTime(started) < options.BootstrapTimeout)
-        {
-            stoppingToken.ThrowIfCancellationRequested();
-            if (await bootstrapReadiness.IsHealthyAsync(stoppingToken).ConfigureAwait(false))
-            {
-                var valueDate = marketSessionAuthority.Current.OperationalValueDate;
-                await DispatchAndObserveAsync(valueDate, stoppingToken).ConfigureAwait(false);
-                return;
-            }
-            if (!await HostedServiceLifecycle.DelayAsync(
-                    TimeSpan.FromMilliseconds(250), timeProvider, stoppingToken)
-                .ConfigureAwait(false))
-            {
-                logger.LogInformation("Application startup dispatch stopped during bootstrap qualification.");
-                return;
-            }
-        }
+        await actorRuntimeStartup.WaitAsync(stoppingToken).ConfigureAwait(false);
+        if (!await bootstrapReadiness.IsHealthyAsync(stoppingToken).ConfigureAwait(false))
+            throw new InvalidOperationException(
+                "Actor runtime completed but required bootstrap health checks are not healthy.");
 
-        await ReportAsync(
-            $"Application bootstrap did not become healthy within {options.BootstrapTimeout}; StartApplication was not submitted.",
-            10012).ConfigureAwait(false);
+        var valueDate = marketSessionAuthority.Current.OperationalValueDate;
+        await DispatchAndObserveAsync(valueDate, stoppingToken).ConfigureAwait(false);
     }
 
     async Task DispatchAndObserveAsync(DateOnly valueDate, CancellationToken stoppingToken)

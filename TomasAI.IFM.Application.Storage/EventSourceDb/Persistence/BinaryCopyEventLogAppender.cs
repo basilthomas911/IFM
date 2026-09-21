@@ -19,6 +19,10 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         FROM STDIN (FORMAT BINARY)
         """;
     readonly string _connectionString;
+    readonly string _copySql;
+    readonly string _projectionSql;
+    readonly bool _batchProjectionMarkers;
+    readonly string _batchedProjectionSql;
     readonly EventLogPersistenceOptions _options;
     readonly EventLogMessagePackCodec _codec;
     readonly Channel<PendingAppend> _queue;
@@ -29,14 +33,24 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
     int _disposed;
 
     public BinaryCopyEventLogAppender(string connectionString, bool useLz4Compression, EventLogPersistenceOptions? options = null)
+        : this(connectionString, useLz4Compression, CreateProductionConfiguration(options, useLz4Compression)) { }
+
+    internal BinaryCopyEventLogAppender(string connectionString, bool useLz4Compression,
+        EventLogPersistenceOptions? options, EventLogSqlLayout layout)
+        : this(connectionString, useLz4Compression,
+            new AppenderConfiguration((options ?? DefaultOptions(useLz4Compression)).Validate(), layout)) { }
+
+    BinaryCopyEventLogAppender(string connectionString, bool useLz4Compression, AppenderConfiguration configuration)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        var layout = configuration.Layout;
+        layout.ValidateConnection(connectionString);
+        _copySql = layout.Resolve(CopySql);
+        _projectionSql = layout.Resolve(EventSourceDbSql.TryCreateEventProjectorExecutionState);
+        _batchProjectionMarkers = layout.BatchProjectionMarkers;
+        _batchedProjectionSql = layout.Resolve(BatchedProjectionMarkerWriter.Sql);
         _connectionString = connectionString;
-        _options = (options ?? new EventLogPersistenceOptions
-        {
-            WriteMode = EventLogWriteMode.BinaryCopy,
-            UseLz4Compression = useLz4Compression
-        }).Validate();
+        _options = configuration.Options;
         UseLz4Compression = useLz4Compression;
         _codec = new EventLogMessagePackCodec(useLz4Compression);
         _metricTags = EventLogPersistenceMetrics.Tags(WriteMode, UseLz4Compression);
@@ -49,6 +63,20 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         });
         _consumer = ConsumeAsync(_lifetime.Token);
     }
+
+    static EventLogPersistenceOptions DefaultOptions(bool useLz4Compression) => new()
+    {
+        WriteMode = EventLogWriteMode.BinaryCopy,
+        UseLz4Compression = useLz4Compression
+    };
+
+    static AppenderConfiguration CreateProductionConfiguration(EventLogPersistenceOptions? options, bool useLz4Compression)
+    {
+        var validated = (options ?? DefaultOptions(useLz4Compression)).Validate();
+        return new(validated, EventLogSqlLayout.ForProduction(validated));
+    }
+
+    sealed record AppenderConfiguration(EventLogPersistenceOptions Options, EventLogSqlLayout Layout);
 
     public EventLogWriteMode WriteMode => EventLogWriteMode.BinaryCopy;
     public bool UseLz4Compression { get; }
@@ -128,10 +156,12 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         }
     }
 
-    async Task PersistBatchAsync(IReadOnlyList<PendingAppend> batch, CancellationToken cancellationToken)
+    async Task PersistBatchAsync(IReadOnlyList<PendingAppend> batch, CancellationToken cancellationToken,
+        bool alreadyDequeued = false)
     {
         var started = Stopwatch.GetTimestamp();
-        foreach (var _ in batch) EventLogPersistenceMetrics.Dequeued(_metricTags);
+        if (!alreadyDequeued)
+            foreach (var _ in batch) EventLogPersistenceMetrics.Dequeued(_metricTags);
         try
         {
             var connection = await GetOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -146,6 +176,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
                         connection, transaction, audited, cancellationToken).ConfigureAwait(false);
                     for (var index = 0; index < reservations.Length; index++)
                     {
+                        if (reservations[index].PayloadConflict)
+                            throw new CommandAuditPayloadConflictException(audited[index].CommandId);
                         if (!reservations[index].Accepted)
                             throw new CommandAuditDuplicateException(audited[index].CommandId);
                     }
@@ -155,16 +187,25 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
                 await UpdateStreamVersionsAsync(connection, transaction, current, cancellationToken).ConfigureAwait(false);
                 await ReserveEventIdsAsync(connection, transaction, planned, cancellationToken).ConfigureAwait(false);
                 await CopyEventsAsync(connection, planned, cancellationToken).ConfigureAwait(false);
+                List<ProjectionMarker>? markers = null;
                 foreach (var request in planned)
                 {
                     for (var index = 0; index < request.Pending.Request.Events.Count; index++)
                     {
                         var projection = request.Pending.Request.Events[index].RequiredProjection;
                         if (projection is not null)
-                            await EventLogAppenderSupport.InsertProjectionMarkerAsync(connection, transaction,
-                                request.Assignments[index].EventVersion, projection, cancellationToken).ConfigureAwait(false);
+                        {
+                            if (_batchProjectionMarkers)
+                                (markers ??= []).Add(new ProjectionMarker(request.Assignments[index].EventVersion, projection));
+                            else
+                                await EventLogAppenderSupport.InsertProjectionMarkerAsync(connection, transaction,
+                                    request.Assignments[index].EventVersion, projection, cancellationToken, _projectionSql).ConfigureAwait(false);
+                        }
                     }
                 }
+                if (markers is not null)
+                    await BatchedProjectionMarkerWriter.InsertAsync(connection, transaction, markers,
+                        _batchedProjectionSql, cancellationToken).ConfigureAwait(false);
                 try
                 {
                     await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -197,6 +238,15 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
             {
                 if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
                 _connection = null;
+            }
+            // Audit rejection occurs before event writes/commit. The transaction has been rolled back.
+            // Isolate requests so one duplicate/conflict cannot be reported as the outcome of another command.
+            // Never retry transport failures or an unknown commit outcome here.
+            if (batch.Count > 1 && exception is CommandAuditDuplicateException or CommandAuditPayloadConflictException)
+            {
+                foreach (var pending in batch)
+                    await PersistBatchAsync([pending], cancellationToken, alreadyDequeued: true).ConfigureAwait(false);
+                return;
             }
             foreach (var pending in batch) pending.Completion.TrySetException(exception);
         }
@@ -301,12 +351,12 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         }
     }
 
-    static async Task CopyEventsAsync(
+    async Task CopyEventsAsync(
         NpgsqlConnection connection,
         IReadOnlyList<PlannedAppend> planned,
         CancellationToken cancellationToken)
     {
-        await using var importer = await connection.BeginBinaryImportAsync(CopySql, cancellationToken).ConfigureAwait(false);
+        await using var importer = await connection.BeginBinaryImportAsync(_copySql, cancellationToken).ConfigureAwait(false);
         foreach (var request in planned)
         {
             for (var index = 0; index < request.Pending.Request.Events.Count; index++)

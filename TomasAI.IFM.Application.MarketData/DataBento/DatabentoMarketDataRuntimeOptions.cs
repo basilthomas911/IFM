@@ -33,6 +33,7 @@ public sealed record DatabentoMarketDataRuntimeOptions
     public ushort FuturesQuoteBatchCapacity { get; init; } = 64;
     public ushort FuturesOptionQuoteBatchCapacity { get; init; } = 64;
     public int MaximumConcurrentOptionChains { get; init; } = 8;
+    public Pricing.OptionPricingRefreshPolicy OptionPricingRefresh { get; init; } = new();
     public TimeSpan ProviderQueryTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public int CatalogQueryAttempts { get; init; } = 3;
     public TimeSpan CatalogQueryRetryDelay { get; init; } = TimeSpan.FromSeconds(1);

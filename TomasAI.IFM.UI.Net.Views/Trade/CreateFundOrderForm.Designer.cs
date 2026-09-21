@@ -377,7 +377,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.Name = "CreateFundOrderForm";
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
-            this.Text = "Create Fund Order";
+            this.Text = "Add Fund Order";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.CreateFundOrderForm_FormClosed);
             this.Load += new System.EventHandler(this.CreateFundOrderForm_Load);
             this.tableLayoutPanel1.ResumeLayout(false);

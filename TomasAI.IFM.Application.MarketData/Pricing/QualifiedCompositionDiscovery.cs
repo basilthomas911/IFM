@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.OptionPricer.Black76;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -59,11 +58,11 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             foreach (var option in qualified.Definitions)
             {
                 var context = await contexts.PrepareAsync(option.Convention, request.Calendar, request.Publication,
-                    request.Conversion, request.GenerationId, OptionCalculator.EngineVersion, clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+                    request.Conversion, request.GenerationId, Black76PricingModel.EngineFor(option.Convention), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
                 // A just-completed HTTP refresh cannot be admitted before its response; the next valuation may use it.
                 if (context.Failure?.Code is "TreasuryUnavailable" or "TreasuryStale")
                     context = await contexts.PrepareAsync(option.Convention, request.Calendar, request.Publication,
-                        request.Conversion, request.GenerationId, OptionCalculator.EngineVersion, clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+                        request.Conversion, request.GenerationId, Black76PricingModel.EngineFor(option.Convention), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
                 if (context.Failure is not null) return new(null, qualified.Exclusions, false, context.Failure);
                 options.Add(new(context.Context!, option.Strike, option.IsCall));
             }
@@ -123,10 +122,10 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         foreach (var option in lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal))
         {
             var prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion,
-                lease.GenerationId, OptionCalculator.EngineVersion, clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+                lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
             if (prepared.Failure?.Code is "TreasuryUnavailable" or "TreasuryStale")
                 prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion,
-                    lease.GenerationId, OptionCalculator.EngineVersion, clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+                    lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
             if (prepared.Failure is not null) return new(null, new(false, prepared.Failure));
             values.Add(option with { Pricing = prepared.Context! with
             {

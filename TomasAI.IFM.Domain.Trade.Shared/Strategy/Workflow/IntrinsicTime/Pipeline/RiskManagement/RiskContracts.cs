@@ -78,6 +78,8 @@ public static class RiskContracts
             && selection.DecisionContext.AssessmentResultEnvelope.HasSameContent(c.MarketConditionResult)
             && composition.DecisionContext.SelectionResultId == selection.ResultId
             && composition.DecisionContext.SelectionResultHash == c.SelectionResult.PayloadSha256
+            && composition.DecisionContext.VolatilityEvidence == selection.DecisionContext.VolatilityInput
+            && composition.Candidate!.VolatilityEvidence == selection.DecisionContext.VolatilityInput
             && composition.InputWorkflowRevision < c.InputWorkflowRevision, "RM.INPUT.LINEAGE");
         var intent = selection.SelectedCandidate!;
         Check(candidate.DeploymentKey == intent.DeploymentKey && candidate.StrategyKey == intent.StrategyKey

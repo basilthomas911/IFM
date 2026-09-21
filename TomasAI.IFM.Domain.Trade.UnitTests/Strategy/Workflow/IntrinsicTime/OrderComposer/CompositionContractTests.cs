@@ -23,8 +23,9 @@ public sealed class CompositionContractTests
         Assert.Equal(21, Keys(typeof(ExecuteOrderCompositionPipelineCommand)).Length);
         Assert.Equal("SchemaVersion|ResultId|WorkflowId|EntityId|InvocationId|InputWorkflowRevision|InputSha256|EvaluatedAtUtc|ProducedAtUtc|TargetHorizon|Outcome|Candidate|DecisionContext|ResolvedParameters|CandidateCounts|CandidateDiagnostics|Reasons|ValidUntilUtc|SummaryText|Ranking", string.Join("|", Keys(typeof(OrderCompositionResult))));
         Assert.Equal("InstrumentId|RawSymbol|UnderlyingInstrumentId|InstrumentClass|Side|Ratio|Right|Strike|ExpirationUtc|Multiplier|TickRuleId|Quote|Valuation|DefinitionHash", string.Join("|", Keys(typeof(CompositionLeg))));
-        Assert.Equal(31, Keys(typeof(CompositionCandidate)).Length);
-        Assert.Equal(25, Keys(typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention)).Length);
+        Assert.Equal(32, Keys(typeof(CompositionCandidate)).Length);
+        Assert.Equal("SchemaVersion|ContractId|Dataset|PublisherId|InstrumentId|RawSymbol|Root|Exchange|Currency|UnderlyingContractId|ExerciseStyle|SettlementStyle|ExpirationUtc|LastTradingUtc|DayCount|CalendarVersion|Multiplier|TickSize|TickRuleVersion|DefinitionDigest|MappingVersion|EvidenceId|EffectiveFromUtc|EffectiveUntilUtc|PremiumTickRule|PremiumStyle|UnderlyingKind|Strike|Right",
+            string.Join("|", Keys(typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention))));
     }
     [Fact]
     public async Task Domain_adapter_preserves_all_pricing_evidence_and_shared_transport_preserves_request_hash()

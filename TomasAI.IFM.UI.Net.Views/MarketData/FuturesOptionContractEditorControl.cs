@@ -1,3 +1,5 @@
+using System.Globalization;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -51,6 +53,7 @@ public partial class FuturesOptionContractEditorControl
         MarketDataInputPalette.Apply(this);
         _viewModel = viewModel;
         _mktDataViewModel = mktDataViewModel;
+        InitializeProviderSelection();
         _editMode = EditMode.View;
         lstFuturesOptionContractIds.VirtualMode = true;
         lstFuturesOptionContractIds.View = View.Details;
@@ -166,6 +169,7 @@ public partial class FuturesOptionContractEditorControl
         switch (_editMode)
         {
             case EditMode.View:
+                _providerReference = null;
                 txtDescription.ReadOnly = false;
                 txtDescription.Enabled = true;
                 dtmContractMonth.Value = EasternTime.GetNow(TimeProvider.System);
@@ -192,12 +196,20 @@ public partial class FuturesOptionContractEditorControl
                 addAction(false);
                 break;
             case EditMode.Add:
-                if (int.TryParse(txtStrikePrice.Text, out int strikePrice))
+                if (_providerReference is { } imported)
+                {
+                    var value = imported with { Description = txtDescription.Text };
+                    _viewModel.PrepareAdd(value);
+                    _ = AddPreparedContractAsync(value.ContractId);
+                    break;
+                }
+                if (FuturesOptionContractId.TryParseStrike(txtStrikePrice.Text.AsSpan(), out var strikePrice))
                 {
                     var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex).ShortCode;
-                    var maturityDate = $"{dtmContractMonth.Value:yyyyMMdd}";
                     var optionType = _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode.Substring(0, 1);
-                    txtContractId.Text = $"{symbol}{maturityDate}{optionType}{strikePrice}";
+                    txtContractId.Text = FuturesOptionContractId.Create(symbol,
+                        DateOnly.FromDateTime(dtmContractMonth.Value),
+                        optionType == "C" ? OptionType.Call : OptionType.Put, strikePrice);
                     var futuresOptionContract = new FuturesOptionContractReadModel
                     (
                         contractId: txtContractId.Text,
@@ -209,9 +221,9 @@ public partial class FuturesOptionContractEditorControl
                         multiplier: _viewModel.GetMultiplier(ddlMultiplier.SelectedIndex).ShortCode,
                         contractMonth: DateOnly.FromDateTime(dtmContractMonth.Value),
                         optionType: _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode,
-                        strikePrice: strikePrice,
+                        strikePrice: (double)strikePrice,
                         description: txtDescription.Text
-                    );
+                    ) { StrikePriceDecimal = strikePrice };
                     _viewModel.PrepareAdd(futuresOptionContract);
                     _ = AddPreparedContractAsync(futuresOptionContract.ContractId);
                 }
@@ -278,30 +290,49 @@ public partial class FuturesOptionContractEditorControl
                 txtLocalSymbol.Enabled = true;
                 _lastContractIndex = SelectedContractIndex;
                 _originalContractId = _viewModel.GetFuturesOptionContract(SelectedContractIndex)?.ContractId;
+                _providerReference = _viewModel.GetFuturesOptionContract(SelectedContractIndex) is { SchemaVersion: > 0 } current ? current : null;
+                if (_providerReference is not null)
+                    ddlSecurityType.Enabled = ddlCurrency.Enabled = ddlExchange.Enabled = ddlMultiplier.Enabled = txtLocalSymbol.Enabled = false;
+                dtmContractMonth.Enabled = false;
+                txtStrikePrice.Enabled = false;
+                ddlOptionType.Enabled = false;
+                ddlSymbol.Enabled = false;
                 _editMode = EditMode.Change;
                 changeAction(false);
                 lstFuturesOptionContractIds.Enabled = false;
                 break;
             case EditMode.Change:
-                if (int.TryParse(txtStrikePrice.Text, out int strikePrice))
+                if (_providerReference is { } imported)
+                {
+                    var value = imported with { Description = txtDescription.Text };
+                    _viewModel.PrepareChange(_originalContractId!, value);
+                    _ = ChangePreparedContractAsync(value.ContractId);
+                    break;
+                }
+                if (FuturesOptionContractId.TryParseStrike(txtStrikePrice.Text.AsSpan(), out var strikePrice))
                 {
                     var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex).ShortCode;
-                    var maturityDate = $"{dtmContractMonth.Value:yyyyMMdd}";
-                    var optionType = _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode[..1];
-                    txtContractId.Text = $"{symbol}{maturityDate}{optionType}{strikePrice}";
-                    var futuresOptionContract = new FuturesOptionContractReadModel(
-                        contractId: txtContractId.Text,
-                        symbol: symbol,
-                        localSymbol: txtLocalSymbol.Text,
-                        securityType: _viewModel.GetSecurityType(ddlSecurityType.SelectedIndex).ShortCode,
-                        currency: _viewModel.GetCurrency(ddlCurrency.SelectedIndex).ShortCode,
-                        exchange: _viewModel.GetExchange(ddlExchange.SelectedIndex).ShortCode,
-                        multiplier: _viewModel.GetMultiplier(ddlMultiplier.SelectedIndex).ShortCode,
-                        contractMonth: DateOnly.FromDateTime(dtmContractMonth.Value),
-                        optionType: _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode,
-                        strikePrice: strikePrice,
-                        description: txtDescription.Text
-                    );
+                    var original = _viewModel.GetFuturesOptionContract(_lastContractIndex);
+                    if (original is null) break;
+                    if (original.Symbol != symbol || original.ContractMonth != DateOnly.FromDateTime(dtmContractMonth.Value)
+                        || original.OptionType != _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode
+                        || original.GetExactStrikePrice() != strikePrice)
+                    {
+                        MessageBox.Show("Contract identity cannot be changed. Add a new contract instead.",
+                            "Contract identity", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        break;
+                    }
+                    txtContractId.Text = original.ContractId;
+                    var futuresOptionContract = original with
+                    {
+                        LocalSymbol = txtLocalSymbol.Text,
+                        SecurityType = _viewModel.GetSecurityType(ddlSecurityType.SelectedIndex).ShortCode,
+                        Currency = _viewModel.GetCurrency(ddlCurrency.SelectedIndex).ShortCode,
+                        Exchange = _viewModel.GetExchange(ddlExchange.SelectedIndex).ShortCode,
+                        Multiplier = _viewModel.GetMultiplier(ddlMultiplier.SelectedIndex).ShortCode,
+                        StrikePriceDecimal = strikePrice,
+                        Description = txtDescription.Text
+                    };
                     _viewModel.PrepareChange(_originalContractId!, futuresOptionContract);
                     _ = ChangePreparedContractAsync(futuresOptionContract.ContractId);
                 }
@@ -513,9 +544,9 @@ public partial class FuturesOptionContractEditorControl
     /// without making any changes. The UI fields are updated to reflect the contract's properties and are set to a
     /// read-only state where applicable.</remarks>
     /// <param name="selectedIndex">The zero-based index of the selected futures option contract in the data source.</param>
-    void ShowSelectedFuturesOptionContract(int selectedIndex)
+    void ShowSelectedFuturesOptionContract(int selectedIndex, FuturesOptionContractReadModel? imported = null)
     {
-        var foc = _viewModel.GetFuturesOptionContract(selectedIndex);
+        var foc = imported ?? _viewModel.GetFuturesOptionContract(selectedIndex);
         if (foc is   null) 
             return;
         txtContractId.ReadOnly = false;
@@ -526,7 +557,7 @@ public partial class FuturesOptionContractEditorControl
         txtDescription.ReadOnly = true;
         dtmContractMonth.Value = foc.ContractMonth.ToDateTime(TimeOnly.MinValue);
         dtmContractMonth.Enabled = false;
-        txtStrikePrice.Text = $"{foc.StrikePrice:F0}";
+        txtStrikePrice.Text = foc.GetExactStrikePrice().ToString("0.############################", CultureInfo.InvariantCulture);
         txtStrikePrice.Enabled = false;
         ddlOptionType.SelectedIndex = _viewModel.GetOptionTypeIndex(foc.OptionType);
         ddlOptionType.Enabled = false;
@@ -592,6 +623,17 @@ public partial class FuturesOptionContractEditorControl
     /// method does nothing.</remarks>
     void SetContractId()
     {
+        if (_editMode == EditMode.Add)
+        {
+            txtContractId.Text = ddlSymbol.SelectedIndex >= 0 && ddlOptionType.SelectedIndex >= 0
+                && FuturesOptionContractId.TryParseStrike(txtStrikePrice.Text.AsSpan(), out var strike)
+                ? FuturesOptionContractId.Create(_viewModel.GetSymbol(ddlSymbol.SelectedIndex).ShortCode,
+                    DateOnly.FromDateTime(dtmContractMonth.Value),
+                    _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode == "Call" ? OptionType.Call : OptionType.Put,
+                    strike)
+                : string.Empty;
+            return;
+        }
         if (lstFuturesOptionContractIds.SelectedIndices.Count == 0)
             return;
         var foc = _viewModel.GetFuturesOptionContract(lstFuturesOptionContractIds.SelectedIndices[0]);

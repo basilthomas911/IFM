@@ -10,6 +10,8 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("securities_reference_identity", ReferenceVersionStore.CreateIdentityTable, "DROP TABLE IF EXISTS securities_reference_identity;"),
+        new("securities_reference_version", ReferenceVersionStore.CreateVersionTable, "DROP TABLE IF EXISTS securities_reference_version;"),
         new("futures_contract_rollover", SecuritiesSchemaCql.CreateFuturesContractRolloverTable, "DROP TABLE IF EXISTS futures_contract_rollover;"),
         new("futures_contract_v3", SecuritiesSchemaCql.CreateFuturesContractTable, "DROP TABLE IF EXISTS futures_contract_v3;"),
         new("futures_option_contract", SecuritiesSchemaCql.CreateFuturesOptionContractTable, "DROP TABLE IF EXISTS futures_option_contract;"),
@@ -18,8 +20,18 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
         new("securities_projection_state_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionStateV3Table, "DROP TABLE IF EXISTS securities_projection_state_v3;"),
         new("securities_symbol_projection_state_v3", SecuritiesSchemaCql.CreateSecuritiesSymbolProjectionStateV3Table, "DROP TABLE IF EXISTS securities_symbol_projection_state_v3;"),
         new("securities_projection_operation_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationV3Table, "DROP TABLE IF EXISTS securities_projection_operation_v3;"),
-        new("securities_projection_operation_scope_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationScopeV3Table, "DROP TABLE IF EXISTS securities_projection_operation_scope_v3;")
+        new("securities_projection_operation_scope_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationScopeV3Table, "DROP TABLE IF EXISTS securities_projection_operation_scope_v3;"),
+        ReferencePayload("futures_contract_v3"),
+        ReferencePayload("futures_contract_by_symbol_v3"),
+        ReferencePayload("futures_option_contract"),
+        ReferencePayload("futures_option_contract_by_symbol_v2")
     ];
 
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+
+    static SchemaObjectDefinition ReferencePayload(string table) => new(
+        table + "_reference_payload",
+        $"ALTER TABLE {table} ADD referencePayload blob;",
+        $"ALTER TABLE {table} DROP referencePayload;",
+        ["conflicts with an existing column", "already exists"]);
 }

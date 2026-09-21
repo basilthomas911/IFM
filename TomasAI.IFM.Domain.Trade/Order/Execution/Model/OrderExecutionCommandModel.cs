@@ -50,6 +50,25 @@ internal static class OrderExecutionCommandModel
             : new ServiceFailed<GuidResult>(command.ErrorCode, "OE.STATE.APPLY_FAILED");
     }
 
+    internal static ServiceResult<GuidResult> Cancel(CancelOrderExecutionCommand command,
+        OrderExecutionCommandState state)
+    {
+        var machine = CreateMachine(state);
+        var accepted = machine.Cancel(command.EffectiveAtUtc);
+        if (!accepted.Accepted || accepted.Value is null)
+            return TradeCommandResult.Rejected(command.ErrorCode, accepted);
+        var applied = state.Update(new OrderExecutionChangedEvent
+        {
+            EntityId = command.EntityId,
+            State = machine.Current!,
+            CreatedTrades = accepted.Value.CreatedTrades,
+            ClosedPositions = accepted.Value.ClosedPositions
+        }, command);
+        return applied
+            ? TradeCommandResult.Accepted(command.CommandId)
+            : new ServiceFailed<GuidResult>(command.ErrorCode, "OE.STATE.APPLY_FAILED");
+    }
+
     private static OrderExecutionActorStateMachine CreateMachine(OrderExecutionCommandState state)
     {
         var machine = new OrderExecutionActorStateMachine();

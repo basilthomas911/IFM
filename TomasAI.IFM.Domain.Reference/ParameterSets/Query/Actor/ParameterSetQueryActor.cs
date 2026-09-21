@@ -9,6 +9,7 @@ public sealed class ParameterSetQueryActor(IQueryActorContext<ParameterSetQueryA
  static readonly IReadOnlyDictionary<string,Func<IActorMessage,IQuery>> _parseMap=new Dictionary<string,Func<IActorMessage,IQuery>>(StringComparer.Ordinal)
  {
  [PreviewSignalStartupPlanQuery.Verb]=m=>m.AsQuery<PreviewSignalStartupPlanQuery,ParameterSignalStartupPlan>()!,
+ [GetParameterStartupRunQuery.Verb]=m=>m.AsQuery<GetParameterStartupRunQuery,ParameterStartupRun>()!,
  [GetParameterStartupRunsQuery.Verb]=m=>m.AsQuery<GetParameterStartupRunsQuery,ParameterStartupRun[]>()!,
  [GetParameterStartupReportQuery.Verb]=m=>m.AsQuery<GetParameterStartupReportQuery,ParameterSignalStartupReport>()!,
  [ListLegacyParameterVersionsQuery.Verb]=m=>m.AsQuery<ListLegacyParameterVersionsQuery,ParameterLegacyVersion[]>()!,
@@ -25,6 +26,7 @@ public sealed class ParameterSetQueryActor(IQueryActorContext<ParameterSetQueryA
  static readonly IReadOnlyDictionary<Type,Func<IQuery,IParameterSetQueryContext,CancellationToken,ValueTask>> _receiveMap=new Dictionary<Type,Func<IQuery,IParameterSetQueryContext,CancellationToken,ValueTask>>
  {
  [typeof(PreviewSignalStartupPlanQuery)]=(q,ctx,ct)=>((PreviewSignalStartupPlanQuery)q).ExecuteAsync(ctx,ctx.Logger,ct),
+ [typeof(GetParameterStartupRunQuery)]=(q,ctx,ct)=>((GetParameterStartupRunQuery)q).ExecuteAsync(ctx,ctx.Logger,ct),
  [typeof(GetParameterStartupRunsQuery)]=(q,ctx,ct)=>((GetParameterStartupRunsQuery)q).ExecuteAsync(ctx,ctx.Logger,ct),
  [typeof(GetParameterStartupReportQuery)]=(q,ctx,ct)=>((GetParameterStartupReportQuery)q).ExecuteAsync(ctx,ctx.Logger,ct),
  [typeof(ListLegacyParameterVersionsQuery)]=(q,ctx,ct)=>((ListLegacyParameterVersionsQuery)q).ExecuteAsync(ctx,ctx.Logger,ct),

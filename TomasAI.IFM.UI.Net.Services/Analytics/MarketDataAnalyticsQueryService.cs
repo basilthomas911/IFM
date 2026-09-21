@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
@@ -19,6 +20,16 @@ public class MarketDataAnalyticsQueryService(IMarketDataAnalyticsQueryApi queryA
         Action<MarketOutlookReadModel> onCompleted)
         => await ExecuteAsync(
             () => _queryApi.GetMarketOutlookSnapshotAsync(contractId, valueDate),
+            onCompleted);
+
+    /// <summary>Loads the bounded daily Bollinger history used by the Market Outlook ES-BB chart.</summary>
+    public async Task GetFuturesBollingerBandHistoryAsync(
+        string rootSymbol,
+        DateOnly valueDate,
+        int maxDays,
+        Action<FuturesBbSignalReadModel[]> onCompleted)
+        => await ExecuteAsync(
+            () => _queryApi.GetFuturesBollingerBandHistoryAsync(rootSymbol, valueDate, maxDays),
             onCompleted);
 
     /// <summary>

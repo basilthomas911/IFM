@@ -40,7 +40,7 @@ public sealed class EventQueryRealtimeActorHandlerConventionTests
         ["FuturesVxTermStructureSignalRealtimeActor"] = "FuturesMarketPriceUpdatedRealtimeEvent",
         ["FuturesAnalyticsHistoricalDataLoaderEventActor"] = "FuturesAnalyticsHistoricalDataLoaderRequestedEvent,FuturesAnalyticsHistoricalDataLoaderCompletedEvent,FuturesAnalyticsHistoricalDataLoaderFailedEvent",
         ["FuturesAnalyticsHistoricalDataLoaderQueryActor"] = "GetFuturesAnalyticsHistoricalDataLoaderQuery",
-        ["MarketOutlookSnapshotQueryActor"] = "GetMarketOutlookSnapshotQuery",
+        ["MarketOutlookSnapshotQueryActor"] = "GetMarketOutlookSnapshotQuery,GetFuturesBollingerBandHistoryQuery",
         ["MarketOutlookSnapshotRealtimeActor"] = "MarketOutlookComponentChangedRealtimeEvent,MarketOutlookEodUpdatedRealtimeEvent,FuturesMarketPriceUpdatedRealtimeEvent,FuturesSessionStatisticsUpdatedRealtimeEvent,MarketOutlookSnapshotInsertedEvent"
     };
 

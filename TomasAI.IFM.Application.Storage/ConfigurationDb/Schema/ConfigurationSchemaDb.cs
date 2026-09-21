@@ -51,6 +51,8 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
         .Append(new SchemaObjectDefinition("market_condition_assessment_parameter_set",
             MarketConditionAssessmentSchemaSql.Create,
             "DROP TABLE IF EXISTS reference_configuration.market_condition_assessment_parameter_set;"))
+        .Append(new SchemaObjectDefinition("volatility_series_definition",
+            VolatilitySeriesDefinitionSchemaSql.Create, VolatilitySeriesDefinitionSchemaSql.Drop))
         .Append(new SchemaObjectDefinition("lookup_definition", LookupDefinitionSchemaSql.Create, LookupDefinitionSchemaSql.Drop))
         .Append(new SchemaObjectDefinition("strategy_catalog",
             StrategyCatalogSchemaSql.Create, StrategyCatalogSchemaSql.Drop))

@@ -56,8 +56,8 @@ public sealed class FuturesEodDataUIViewModelTests
     }
 
     [Theory]
-    [InlineData(5426, PresentationColorRole.Positive)]
-    [InlineData(5424, PresentationColorRole.Negative)]
+    [InlineData(5426, PresentationColorRole.Negative)]
+    [InlineData(5424, PresentationColorRole.Positive)]
     [InlineData(5425, PresentationColorRole.Caution)]
     public void Vwap_value_background_compares_vwap_with_the_close_price(
         int vwap,

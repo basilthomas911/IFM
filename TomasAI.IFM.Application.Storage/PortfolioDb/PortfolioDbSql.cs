@@ -585,6 +585,20 @@ public static class PortfolioDbSql
           operating_state text NOT NULL DEFAULT 'Disabled', policy_source_versions jsonb NOT NULL DEFAULT '{}',
           source_watermark text NOT NULL DEFAULT '', valuation_watermark text NOT NULL DEFAULT '',
           migration_state text NOT NULL DEFAULT 'Unqualified', FOREIGN KEY(book_id,portfolio_id) REFERENCES portfolio_financial.ledger_book(book_id,portfolio_id));
+        CREATE TABLE IF NOT EXISTS portfolio_financial.broker_accounting_intent(
+          portfolio_id int NOT NULL CHECK(portfolio_id>0), operation_id uuid NOT NULL,
+          evidence_hash text NOT NULL CHECK(length(evidence_hash)=64), command_payload jsonb NOT NULL,
+          command_hash text NOT NULL CHECK(length(command_hash)=64),
+          created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+          PRIMARY KEY(portfolio_id,operation_id));
+        CREATE TABLE IF NOT EXISTS portfolio_financial.broker_closing_basis_claim(
+          portfolio_id int NOT NULL, position_key text NOT NULL, opening_leg_id uuid NOT NULL,
+          operation_id uuid NOT NULL, execution_attempt_id uuid NOT NULL,
+          opening_hash text NOT NULL CHECK(length(opening_hash)=64),
+          closed_quantity numeric NOT NULL CHECK(closed_quantity>0), allocated_signed_basis numeric(28,2) NOT NULL,
+          PRIMARY KEY(portfolio_id,position_key,opening_leg_id,operation_id),
+          UNIQUE(portfolio_id,position_key,opening_leg_id,execution_attempt_id),
+          FOREIGN KEY(portfolio_id,operation_id) REFERENCES portfolio_financial.broker_accounting_intent);
         CREATE TABLE IF NOT EXISTS portfolio_financial.ledger_transaction(
           transaction_id bigint PRIMARY KEY CHECK(transaction_id>0), book_id int NOT NULL, portfolio_id int NOT NULL,
           fund_id int NOT NULL CHECK(fund_id>0), operation_id uuid NOT NULL, item_ordinal int NOT NULL CHECK(item_ordinal>0),

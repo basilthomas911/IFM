@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 public sealed partial class TradeSelectionRuntimeTests
 {
     static PostgresEventTransaction FinancialBoundaryTransactions()=>new(new DbConnectionSettings().Add(
-        EventSourceActorDbContext.EventSourceActorDbConnection,"Host=localhost;Port=5432;Database=event-source-test-db","System.Data.Postgres"));
+        EventSourceActorDbContext.EventSourceActorDbConnection,Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? "Host=localhost;Port=5432;Database=event-source-test-db","System.Data.Postgres"));
 
     static async Task<FinancialBookConfiguration> FundFinancialBoundaryAsync(ExecuteRiskManagementPipelineCommand risk)
     {
@@ -69,10 +69,19 @@ public sealed partial class TradeSelectionRuntimeTests
             PortfolioId=reserve.PortfolioId,InputHash=reserve.InputSha256,CommittedAtUtc=receipt.GrantedAtUtc,Receipt=receipt });
         grant.Receipt.RiskResultId.Should().Be(risk.ResultId);grant.Receipt.StrategyUnits.Should().Be(risk.StrategyUnits);
         var authorization=RiskFinancialHandoff.Authorize(reserve,grant);
+        output.WriteLine($"Fund authorization boundary: portfolio={book.PortfolioId}, fund={risk.FundId}, authorizationPortfolio={authorization.PortfolioId}, authorizationFund={authorization.FundId}, bookEpoch={book.AuthorityEpoch}, authorizationEpoch={authorization.AuthorityEpoch}, granted={grant.Receipt.GrantedAtUtc:O}, now={DateTime.UtcNow:O}, expires={authorization.ValidUntilUtc:O}");
         var fundEvent=new FundCompositionStateChanged(Guid.NewGuid(),RiskFinancialHandoff.Identity(risk.InvocationId,"Fund"),2,DateTime.UtcNow,"FiveStageFixture",
             new() { PortfolioId=book.PortfolioId,FundId=risk.FundId,OrderId=authorization.OrderId,Status="RiskApproved",RiskAuthorization=authorization });
-        await new PortfolioEventStore(database.ActorEventSourceDb,new PortfolioAuthorityFence(FinancialBoundaryTransactions()))
-            .AppendFundAsync(new(book.PortfolioId,risk.FundId),fundEvent,1);
+        var fundStore = new PortfolioEventStore(database.ActorEventSourceDb,new PortfolioAuthorityFence(FinancialBoundaryTransactions()));
+        var expired = new FundCompositionStateChanged(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"FiveStageExpiredFixture",
+            new() { PortfolioId=book.PortfolioId,FundId=risk.FundId,OrderId=authorization.OrderId,Status="RiskApproved",
+                RiskAuthorization=authorization with { ValidUntilUtc=DateTime.UtcNow.AddSeconds(-1) } });
+        var refusal = await FluentActions.Awaiting(() => fundStore.AppendFundAsync(new(book.PortfolioId,risk.FundId),expired,1))
+            .Should().ThrowAsync<FinancialOperationException>();
+        refusal.Which.Code.Should().Be(FinancialReasons.AuthorityRevoked);
+        refusal.Which.Disposition.Should().Be(FinancialCommitDisposition.NotCommitted);
+        // The same expected revision still succeeds: the refused append did not advance the stream.
+        await fundStore.AppendFundAsync(new(book.PortfolioId,risk.FundId),fundEvent,1);
         var accepted=await new FinancialQueryStore(FinancialBoundaryTransactions()).ReadAsync(new() { PortfolioId=book.PortfolioId,FundId=risk.FundId,Access=reserve.Access with { Roles=["LedgerRead"] } },new GetFundRiskAuthorizationRequest(fundEvent.CommandId));
         accepted.Value!.Authorization.Should().Be(authorization);
         // Store reload proves these results came from the actual persisted Risk event and one reservation.

@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 public static partial class TradeSelectionContracts
 {
@@ -24,8 +25,16 @@ public static partial class TradeSelectionContracts
             && assessment.RegimePayloadSha256==regimeEnvelope.PayloadSha256 && r.ValidUntilUtc<=assessment.Assessment.ValidUntilUtc
             && r.SelectionConfidence==Math.Round(Math.Min(regime.Decision.Confidence,assessment.Assessment.AssessmentConfidence??-1),6,MidpointRounding.ToEven)
             && r.SelectionConfidence is >=0 and <=1,"TS.RESULT.INVALID","Result upstream/confidence mismatch.");
-        Require(r.GlobalEvidence.Select(x=>x.RuleId).SequenceEqual(Enumerable.Range(1,21).Select(x=>$"G{x:D2}"))
+        var expectedGlobalCount=b.VolatilityInput is null?21:22;
+        Require(r.GlobalEvidence.Select(x=>x.RuleId).SequenceEqual(Enumerable.Range(1,expectedGlobalCount).Select(x=>$"G{x:D2}"))
             && r.CandidateDecisions.Select(x=>x.CandidateHash).SequenceEqual(b.Candidates.OrderBy(CandidateIdentity,StringComparer.Ordinal).Select(x=>x.CandidateHash)),"TS.RESULT.INVALID","Incomplete or unordered decision evidence.");
+        var volatilityGate=b.VolatilityInput is null?null:VolatilityWorkflowGate.Evaluate(b.VolatilityInput);
+        var expectedVolatility=b.VolatilityInput?.AcceptedEvidence is { } accepted && volatilityGate?.AllowsNewEntry==true
+            ? accepted with { RuleOutcomeCode=volatilityGate.ReasonCode }
+            : null;
+        Require(r.DecisionContext.VolatilityInput==b.VolatilityInput
+            && r.AcceptedVolatilityEvidence==expectedVolatility,
+            "TS.RESULT.INVALID","Volatility evidence differs from the frozen selection input.");
         foreach(var row in r.GlobalEvidence.Concat(r.CandidateDecisions.SelectMany(x=>x.RuleEvidence)))
             Require(row.Status is SelectionRuleStatus.Passed or SelectionRuleStatus.Rejected && !string.IsNullOrWhiteSpace(row.FieldPath)
                 && row.ActualJson.Length<=4096 && row.ExpectedJson.Length<=4096 && (row.Status==SelectionRuleStatus.Passed?row.ReasonCode.Length==0:row.ReasonCode.StartsWith("TS.",StringComparison.Ordinal)),"TS.RESULT.INVALID","Invalid rule evidence.");

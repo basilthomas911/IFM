@@ -36,7 +36,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         var source=new FaultingAssessmentSource(failure);
         await using var factory=sourceFactory.WithWebHostBuilder(builder=>builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222").ConfigureServices(services=>
+            .UseSetting("IFM_TEST_NATS_URL",Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL") ?? "nats://127.0.0.1:14222").ConfigureServices(services=>
             {
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled=true,MarketConditionAssessmentProfileId=profile });
                 services.RemoveAll<IMarketConditionAssessmentSnapshotProvider>();services.AddSingleton<IMarketConditionAssessmentSnapshotProvider>(source);
@@ -97,7 +97,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         byte[] acceptedPayload;
         await using(var first=sourceFactory.WithWebHostBuilder(builder=>builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222").ConfigureServices(services=>
+            .UseSetting("IFM_TEST_NATS_URL",Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL") ?? "nats://127.0.0.1:14222").ConfigureServices(services=>
             {
                 services.AddSingleton(firstOptions);
                 services.RemoveAll<IMarketConditionAssessmentSnapshotProvider>();services.AddSingleton<IMarketConditionAssessmentSnapshotProvider>(source);
@@ -130,7 +130,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         var afterRestart=new AssessmentSourceFixture();
         await using var restarted=sourceFactory.WithWebHostBuilder(builder=>builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222").ConfigureServices(services=>
+            .UseSetting("IFM_TEST_NATS_URL",Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL") ?? "nats://127.0.0.1:14222").ConfigureServices(services=>
             {
                 // Disabling new starts does not invalidate persisted assessment authority.
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled=false });
@@ -179,7 +179,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         var profile="MC-R08-"+Guid.NewGuid().ToString("N");
         var provider=new AssessmentSourceFixture {OptionalUnavailable=true,Poor=true};
         await using var factory=sourceFactory.WithWebHostBuilder(builder=>builder
-            .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics").UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222")
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics").UseSetting("IFM_TEST_NATS_URL",Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL") ?? "nats://127.0.0.1:14222")
             .ConfigureAppConfiguration((_,configuration)=>configuration.AddInMemoryCollection(new Dictionary<string,string?>
             {
                 ["AppSettings:IntrinsicTimeStrategyWorkflow:Enabled"]="true",
@@ -243,7 +243,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         var profile="MC-R08-Missing-"+Guid.NewGuid().ToString("N");
         var provider=new AssessmentSourceFixture { Unavailable=true };
         await using var factory=sourceFactory.WithWebHostBuilder(builder=>builder.UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:14222").ConfigureServices(services=>
+            .UseSetting("IFM_TEST_NATS_URL",Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL") ?? "nats://127.0.0.1:14222").ConfigureServices(services=>
             {
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled=true,MarketConditionAssessmentProfileId=profile });
                 services.RemoveAll<IMarketConditionAssessmentSnapshotProvider>(); services.AddSingleton<IMarketConditionAssessmentSnapshotProvider>(provider);

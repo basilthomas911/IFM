@@ -6,6 +6,9 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 public interface IMarketDataQueryApi
 {
+    Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Instrument definition selection is unavailable.");
     Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
         TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default);
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode);

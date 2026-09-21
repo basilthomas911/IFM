@@ -83,6 +83,32 @@ public sealed class CommandAuditLoggerTests
     }
 
     [Fact]
+    public async Task Opted_in_duplicate_reenters_authorization_and_cannot_bypass_revocation()
+    {
+        var actorId = new ActorMailboxId(ActorType.Command, TestCommandActor.ActorName);
+        var audit = new SequencedAuditLogger(true, false);
+        var supervisor = CreateSupervisor(actorId, audit);
+        var actor = new TestCommandActor(new TestCommandContext(supervisor.Object, actorId));
+        var command = new RetryTestCommand();
+        var first = new TestCommandMessage(command);
+        var duplicate = new TestCommandMessage(command);
+        await actor.StartAsync(supervisor.Object);
+        try
+        {
+            await actor.HandleMessageAsync(first);
+            first.Reply!.Success.Should().BeTrue();
+            actor.DenyAuthorization = true;
+            await actor.HandleMessageAsync(duplicate);
+            duplicate.Reply!.Success.Should().BeFalse();
+            duplicate.Reply.ErrorMessage.Should().Contain("authorization revoked");
+            actor.Validations.Should().Be(2);
+            actor.Executions.Should().Be(2);
+            actor.StateSaves.Should().Be(1);
+        }
+        finally { await actor.StopAsync(); }
+    }
+
+    [Fact]
     public async Task Unresolvable_message_does_not_reach_the_audit_logger()
     {
         var auditLogger = new SequencedAuditLogger(true);
@@ -214,6 +240,7 @@ public sealed class CommandAuditLoggerTests
         public int StateSaves { get; private set; }
         public int Exceptions { get; private set; }
         public int Completions { get; private set; }
+        public bool DenyAuthorization { get; set; }
         public Action? AfterLoad {get;init;}
         protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<TestCommandActor> context,ICommand? command)
         {Completions++;return ValueTask.CompletedTask;}
@@ -253,6 +280,7 @@ public sealed class CommandAuditLoggerTests
             ICommand command)
         {
             Executions++;
+            if (DenyAuthorization) throw new UnauthorizedAccessException("authorization revoked");
             return ValueTask.FromResult<ServiceResult<GuidResult>>(
                 new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
         }
@@ -289,7 +317,7 @@ public sealed class CommandAuditLoggerTests
         public ActorThreadId Id { get; set; }
     }
 
-    sealed record TestCommand : ICommand
+    record TestCommand : ICommand
     {
         public ActorSubject Subject { get; init; } =
             new(ActorType.Command, "DuplicateGuardTest", "Run", "entity-1");
@@ -300,6 +328,11 @@ public sealed class CommandAuditLoggerTests
         public string EventSource => "unit-test";
         public int ErrorCode => 0;
         public bool IsInvalid { get; init; }
+    }
+
+    sealed record RetryTestCommand : TestCommand, ICommandRetryIdentity
+    {
+        public ICommand ForRetryIdentity() => this;
     }
 
     sealed class TestCommandMessage(TestCommand command) : IActorMessage

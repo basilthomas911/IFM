@@ -62,7 +62,9 @@ public static class PortfolioCloseOrderCompositionModel
             MicroExecutionProfileHash = openingOrder.MicroExecutionProfileHash,
             AccountPromotionApprovalReference = openingOrder.AccountPromotionApprovalReference,
             RequiredCapital = openingOrder.RequiredCapital,
-            MaximumLoss = openingOrder.MaximumLoss
+            MaximumLoss = openingOrder.MaximumLoss,
+            BrokerOrderType = openingOrder.BrokerOrderType,
+            BrokerAlgorithm = openingOrder.BrokerAlgorithm
         };
 
         return new PortfolioCloseOrderCompositionReceipt

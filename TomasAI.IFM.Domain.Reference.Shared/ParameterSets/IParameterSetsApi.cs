@@ -7,6 +7,7 @@ public interface IParameterSetsApi
  Task<ServiceResult<ParameterSignalMonitoringSnapshot>> SignalMonitoringAsync(Guid runId,CancellationToken token=default);
  Task<ServiceResult<ParameterSignalStartupReport>> StartupReportAsync(Guid runId,CancellationToken token=default);
  Task<ServiceResult<GuidResult>> RecordStartupReportAsync(RecordSignalStartupReportCommand command,CancellationToken token=default);
+ Task<ServiceResult<ParameterStartupRun>> StartupRunAsync(Guid runId,CancellationToken token=default);
  Task<ServiceResult<ParameterStartupRun[]>> StartupRunsAsync(CancellationToken token=default);
  Task<ServiceResult<GuidResult>> ApplyStartupAsync(ApplySignalStartupPlanCommand command,CancellationToken token=default);
  Task<ServiceResult<GuidResult>> ReleaseStartupAsync(ReleaseSignalStartupPlanCommand command,CancellationToken token=default);

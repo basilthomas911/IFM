@@ -17,7 +17,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormControl, ITradeOrderControl
+public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormControl, ITradeOrderControl, ITradeExecutionSelectionControl
 {
     readonly TradeOrderEditorForm _parentControl;
     readonly IronCondorTradeOrderViewModel _viewModel;
@@ -535,6 +535,9 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
         txtLeg3ExpectedOTMProbability.Text = $"{_viewModel.OTMCallProbability:P2}";
 
     }
+
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
+        => _viewModel.SetExecutionSelection(orderType, algorithm);
 
     public void ShowAssetPrice(decimal assetPrice) => txtAssetPrice.Text = $"{assetPrice:C}";
 

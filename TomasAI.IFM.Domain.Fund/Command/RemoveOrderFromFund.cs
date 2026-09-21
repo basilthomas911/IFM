@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.Command;
 
@@ -27,6 +28,9 @@ public static class RemoveOrderFromFund
                 => e.UpdateFailed(FundDoesNotExist(e)),
             _ when !state.FundOrderExists(e.FundOrderId.FundId, e.FundOrderId.OrderId) 
             => e.UpdateFailed(FundOrderDoesNotExist(e)),
+            _ when state.GetFundOrder(e.FundOrderId.FundId, e.FundOrderId.OrderId) is not { } order
+                || !FundOrderTradingPolicy.CanDeleteOrder(order)
+                => e.UpdateFailed(FundOrderCannotBeRemoved(e)),
             _ => e.UpdatedOk( () => state.Update(e.CreateOrderRemovedFromFundEvent(), e))
         };
 
@@ -51,4 +55,6 @@ public static class RemoveOrderFromFund
         => $"{e.CommandName}: fundId {e.FundOrderId.FundId} does not exist";
     public static string FundOrderDoesNotExist(RemoveOrderFromFundCommand e) 
         => $"{e.CommandName}: orderId {e.FundOrderId.OrderId} does not exist within fund: {e.FundOrderId.FundId}";
+    public static string FundOrderCannotBeRemoved(RemoveOrderFromFundCommand e)
+        => $"{e.CommandName}: order has execution or position evidence and must be retained";
 }

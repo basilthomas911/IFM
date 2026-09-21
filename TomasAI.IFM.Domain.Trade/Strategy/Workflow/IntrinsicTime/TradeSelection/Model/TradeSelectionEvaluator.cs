@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection;
@@ -79,6 +80,17 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         Member(globals,"G19","Assessment.Volatility",assessment.VolatilityBehavior,policy.AllowedVolatilityBehavior,"TS.ASSESSMENT.VOLATILITY");
         Member(globals,"G20","Assessment.TriggerAlignment",assessment.TriggerAlignment,policy.AllowedTriggerAlignment,"TS.ASSESSMENT.TRIGGER");
         Member(globals,"G21","Assessment.DataQuality",assessment.DataQuality,policy.AllowedAssessmentDataQuality,"TS.ASSESSMENT.DATA_QUALITY");
+        VolatilityWorkflowGateResult? volatilityGate = null;
+        if (binding.VolatilityInput is { } volatilityInput)
+        {
+            volatilityGate = VolatilityWorkflowGate.Evaluate(volatilityInput);
+            Add(globals,"G22","OptionVolatility.Dependency",volatilityGate.AllowsNewEntry,
+                new { volatilityInput.FreshnessStatus, SnapshotId = volatilityInput.Snapshot?.SnapshotId,
+                    RankStatus = volatilityInput.Snapshot?.RankStatus, PercentileStatus = volatilityInput.Snapshot?.PercentileStatus },
+                new { Requirement = volatilityInput.Dependency.Requirement, volatilityInput.Dependency.DependencyPolicyId,
+                    volatilityInput.Dependency.DependencyPolicyVersion },
+                "TS." + volatilityGate.ReasonCode);
+        }
         var blocker = globals.FirstOrDefault(x=>x.Status==SelectionRuleStatus.Rejected)?.ReasonCode;
         var nodes=binding.CatalogDefinitions.ToDictionary(x=>x.Key);
         List<SelectionCandidateDecision> decisions=[];
@@ -141,9 +153,12 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
             InputWorkflowRevision=command.InputWorkflowRevision,TriggerEventId=command.WorkflowView.TriggerEventId,
             PortfolioId=portfolioNeutral?0:authority.Portfolio.PortfolioId,FundId=portfolioNeutral?0:fund.FundId,DecisionHorizon=policy.TargetHorizon,
             Outcome=intent is null?SelectionOutcome.NoTrade:SelectionOutcome.Selected,SelectedCandidate=intent,
-            DecisionContext=new(){SchemaVersion=1,RegimeResultEnvelope=command.RegimeResultEnvelope,AssessmentResultEnvelope=command.AssessmentResultEnvelope,SelectionBinding=binding},
+            DecisionContext=new(){SchemaVersion=1,RegimeResultEnvelope=command.RegimeResultEnvelope,AssessmentResultEnvelope=command.AssessmentResultEnvelope,SelectionBinding=binding,VolatilityInput=binding.VolatilityInput},
             GlobalEvidence=[..globals],CandidateDecisions=[..decisions],SelectionConfidence=confidence,PrimaryReasonCode=reason,EvaluatedAtUtc=command.EvaluatedAtUtc,ProducedAtUtc=command.EvaluatedAtUtc,
             ValidUntilUtc=new[]{command.EvaluatedAtUtc.AddSeconds(policy.ResultLifetimeSeconds),assessment.ValidUntilUtc.Value,binding.ValidUntilUtc,command.WorkflowView.ExpiresAtUtc}.Min(),CommonPolicyReference=binding.CommonPolicy,
+            AcceptedVolatilityEvidence=volatilityGate?.AllowsNewEntry==true && binding.VolatilityInput?.AcceptedEvidence is { } acceptedVolatility
+                ? acceptedVolatility with { RuleOutcomeCode = volatilityGate.ReasonCode }
+                : null,
             SummaryText=intent is null?FormattableString.Invariant($"{policy.TargetHorizon} {policy.InstrumentRoot}: NoTrade ({reason}); {candidates.Length} candidate(s) evaluated."):
                 FormattableString.Invariant($"{policy.TargetHorizon} {policy.InstrumentRoot}: selected {nodes[intent.DeploymentKey].Code}/{nodes[intent.VariantKey].Code} ({intent.Side}, {intent.Bias}, {intent.PremiumMode}); confidence {confidence:F6}.")
         };

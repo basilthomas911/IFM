@@ -214,17 +214,25 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 
     public bool CanCreateOrder => !IsLegacyHistoryMode && !IsBusy && SelectedFund is not null;
     public bool CanLoadOrder => !IsLegacyHistoryMode && !IsBusy && SelectedFundOrder is not null && SelectedFundOrderTrade is not null;
-    public bool CanDeleteOrder => !IsLegacyHistoryMode && !IsBusy && SelectedFundOrder is not null;
+    public bool CanDeleteOrder => !IsLegacyHistoryMode && !IsBusy
+        && SelectedFundOrder is { } order && FundOrderTradingPolicy.CanDeleteOrder(order);
     public bool CanCompleteOrder => !IsLegacyHistoryMode && !IsBusy
-        && SelectedFundOrder?.OrderStatus == TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open;
-    public bool CanAddTrade => CanCompleteOrder;
-    public bool CanRemoveTrade => CanCompleteOrder && SelectedFundOrderTrade is not null;
-    public bool CanChangeTradeState => CanCompleteOrder && SelectedFundOrderTrade is not null;
-    public bool CanEndOfDay => CanCompleteOrder && SelectedFundOrderTrade is not null;
-    public bool CanSubmitOrder => CanCompleteOrder
+        && SelectedFundOrder is { } order && FundOrderTradingPolicy.CanCloseOrder(order);
+    public bool CanAddTrade => !IsLegacyHistoryMode && !IsBusy
+        && SelectedFundOrder is { } order && FundOrderTradingPolicy.CanAddTrade(order);
+    public bool CanRemoveTrade => !IsLegacyHistoryMode && !IsBusy
+        && SelectedFundOrder is { } order
+        && SelectedFundOrderTrade is { } trade
+        && FundOrderTradingPolicy.CanRemoveTrade(order, trade);
+    public bool CanChangeTradeState => HasMutableOpenOrder && SelectedFundOrderTrade is not null;
+    public bool CanEndOfDay => HasMutableOpenOrder && SelectedFundOrderTrade is not null;
+    public bool CanSubmitOrder => HasMutableOpenOrder
         && SelectedFundOrderTrade?.TradeState == TradeState.NewTrade
         && CanSubmitOrderAction(OrderActionType);
     public bool CanUseLiveFeed => CanSubmitOrder;
+
+    bool HasMutableOpenOrder => !IsLegacyHistoryMode && !IsBusy
+        && SelectedFundOrder?.OrderStatus == TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open;
 
     /// <summary>
     /// Gets whether the requested order action is permitted now. Closing positions is always
@@ -270,7 +278,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 
     /// <summary>Gets the single opening trade, when present.</summary>
     public FundOrderTradeReadModel? GetOpeningFundOrderTrade()
-        => FundOrderTrades.SingleOrDefault(trade => trade.TradeState == TradeState.TradeToOpen);
+        => FundOrderTrades.SingleOrDefault(trade => trade.PrimaryTrade);
 
     /// <summary>Selects a fund and rebuilds its visible order list.</summary>
     public bool SelectFund(int index)
@@ -423,6 +431,38 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         OnPropertyChanged(nameof(SelectedFundOrderTrade));
         NotifyCapabilitiesChanged();
         return true;
+    }
+
+    /// <summary>
+    /// Resolves fill evidence before permitting removal of a cancelled trade. A failed or unavailable
+    /// lookup leaves the evidence unknown and therefore keeps removal disabled.
+    /// </summary>
+    public async Task RefreshSelectedTradeFillEvidenceAsync()
+    {
+        var selected = SelectedFundOrderTrade;
+        if (selected is null || selected.TradeState != TradeState.OrderCancelled
+            || selected.HasFillEvidence.HasValue)
+            return;
+
+        bool? hasFillEvidence = null;
+        await _appRoot.Services.TradeQueries.GetOptionTradeAsync(
+            selected.OrderId,
+            selected.TradeId,
+            trade =>
+            {
+                hasFillEvidence = trade.TradeFills?.Any(fill => fill.FillQuantity != 0) == true;
+            });
+
+        if (!hasFillEvidence.HasValue || SelectedFundOrderTrade?.Id != selected.Id)
+            return;
+
+        FundOrderTrades = FundOrderTrades
+            .Select(trade => trade.Id == selected.Id
+                ? trade with { HasFillEvidence = hasFillEvidence.Value }
+                : trade)
+            .ToArray();
+        OnPropertyChanged(nameof(SelectedFundOrderTrade));
+        NotifyCapabilitiesChanged();
     }
 
     /// <summary>Updates the visible order date range.</summary>
@@ -765,7 +805,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     {
         var (kind, status) = @event switch
         {
-            OrderAddedToFundCompleteEvent complete => (TradeOrderEditorChangeKind.OrderAdded, $"Order created: {complete.FundOrder.OrderId} {complete.FundOrder.Reference}"),
+            OrderAddedToFundCompleteEvent complete => (TradeOrderEditorChangeKind.OrderAdded, $"Order added: {complete.FundOrder.OrderId} {complete.FundOrder.Reference}"),
             OrderRemovedFromFundCompleteEvent complete => (TradeOrderEditorChangeKind.OrderRemoved, $"Order removed: {complete.FundOrderId.OrderId}"),
             FundOrderClosedCompleteEvent complete => (TradeOrderEditorChangeKind.OrderClosed, $"Order closed: {complete.FundOrderId}"),
             TradeAddedToFundOrderCompleteEvent complete => (TradeOrderEditorChangeKind.TradeAdded, $"Trade added: {complete.FundOrderTrade.TradeId} {complete.FundOrderTrade.Reference}"),

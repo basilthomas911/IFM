@@ -26,7 +26,7 @@ public sealed class FuturesOptionContractPagingTests
         var db = Substitute.For<ISecuritiesDbContext>();
         factory.SecuritiesDb.Returns(db);
         var query = new GetFuturesOptionContractsPageQuery(new(symbol, pageSize));
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => query.GetFuturesOptionContractsPageAsync(factory));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => query.ExecuteAsync(factory));
         Assert.Empty(db.ReceivedCalls());
     }
 

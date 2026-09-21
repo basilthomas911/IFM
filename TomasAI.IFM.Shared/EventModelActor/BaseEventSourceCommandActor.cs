@@ -229,7 +229,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
 
                 // Opt-in immutable aggregates can verify duplicate payloads against committed
                 // state and resume a reservation whose first execution never committed.
-                if (!accepted && !await ShouldProcessDuplicateAsync(_context!, command, cancellationToken))
+                if (!accepted && command is not ICommandRetryIdentity && !await ShouldProcessDuplicateAsync(_context!, command, cancellationToken))
                 {
                     ActorRuntimeMetrics.DuplicateCommands.Add(1);
                     result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

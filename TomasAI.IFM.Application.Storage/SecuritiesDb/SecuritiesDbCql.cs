@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
@@ -293,7 +293,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol
         AND rollover = true
@@ -314,7 +315,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol
         AND rollover = true;
@@ -332,7 +334,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_v3
         WHERE contractId = :contractId;
         """;
@@ -349,7 +352,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_v3
         WHERE contractId = :contractId
         AND symbol = :symbol
@@ -368,7 +372,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_v3;
         """;
 
@@ -384,7 +389,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_v3
         WHERE contractId in :contractIds
         AND symbol = :symbol;
@@ -402,7 +408,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
             onTheRun AS "OnTheRun",
-            rollover AS "Rollover"
+            rollover AS "Rollover",
+            referencePayload AS "ReferencePayload"
         FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol;
         """;
@@ -419,7 +426,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier", 
             contractMonth AS "ContractMonth", 
             strikePrice AS "StrikePrice", 
-            optionType AS "OptionType"
+            optionType AS "OptionType",
+            referencePayload AS "ReferencePayload"
         FROM futures_option_contract
         WHERE contractId = :contractId;
         """;
@@ -436,7 +444,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             contractMonth AS "ContractMonth",
             strikePrice AS "StrikePrice",
-            optionType AS "OptionType"
+            optionType AS "OptionType",
+            referencePayload AS "ReferencePayload"
         FROM futures_option_contract
         WHERE contractId IN :contractIds;
         """;
@@ -453,7 +462,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier", 
             contractMonth AS "ContractMonth", 
             strikePrice AS "StrikePrice", 
-            optionType AS "OptionType"
+            optionType AS "OptionType",
+            referencePayload AS "ReferencePayload"
         FROM futures_option_contract;
         """;
 
@@ -469,7 +479,8 @@ internal class SecuritiesDbCql
             multiplier AS "Multiplier",
             contractMonth AS "ContractMonth",
             strikePrice AS "StrikePrice",
-            optionType AS "OptionType"
+            optionType AS "OptionType",
+            referencePayload AS "ReferencePayload"
         FROM futures_option_contract_by_symbol_v2
         WHERE symbol = :symbol;
         """;
@@ -486,7 +497,8 @@ internal class SecuritiesDbCql
             multiplier, 
             lastTradeDate, 
             onTheRun,
-            rollover
+            rollover,
+            referencePayload
         )
         VALUES (
             :contractId, 
@@ -499,7 +511,8 @@ internal class SecuritiesDbCql
             :multiplier, 
             :lastTradeDate, 
             :onTheRun,
-            :rollover
+            :rollover,
+            :referencePayload
         )
         """;
 
@@ -515,7 +528,8 @@ internal class SecuritiesDbCql
             multiplier,
             lastTradeDate,
             onTheRun,
-            rollover
+            rollover,
+            referencePayload
         )
         VALUES (
             :contractId,
@@ -528,7 +542,8 @@ internal class SecuritiesDbCql
             :multiplier,
             :lastTradeDate,
             :onTheRun,
-            :rollover
+            :rollover,
+            :referencePayload
         );
         """;
 
@@ -544,7 +559,8 @@ internal class SecuritiesDbCql
             multiplier, 
             contractMonth, 
             strikePrice, 
-            optionType
+            optionType,
+            referencePayload
         )
         VALUES (
             :contractId, 
@@ -557,7 +573,8 @@ internal class SecuritiesDbCql
             :multiplier, 
             :contractMonth, 
             :strikePrice, 
-            :optionType
+            :optionType,
+            :referencePayload
         );
         """;
 
@@ -573,7 +590,8 @@ internal class SecuritiesDbCql
             multiplier,
             contractMonth,
             strikePrice,
-            optionType
+            optionType,
+            referencePayload
         )
         VALUES (
             :contractId,
@@ -586,7 +604,8 @@ internal class SecuritiesDbCql
             :multiplier,
             :contractMonth,
             :strikePrice,
-            :optionType
+            :optionType,
+            :referencePayload
         );
         """;
 

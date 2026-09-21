@@ -17,16 +17,16 @@ public sealed class ApplicationStartupWorkflowTests
     static readonly DateOnly ValueDate = new(2026, 9, 2);
 
     [Fact]
-    public async Task Startup_executes_every_activity_in_strict_order_and_completes()
+    public async Task Startup_executes_every_activity_by_dependency_and_completes()
     {
         var activities = new RecordingActivities();
         var context = new TestContext(activities);
 
         await Event().ExecuteAsync(context, CancellationToken.None);
 
-        Assert.Equal(
-            ApplicationStartupPlan.Activities.Select(value => value.Activity),
-            activities.Executed);
+        Assert.Equal(ApplicationStartupPlan.Activities.Count, activities.Executed.Count);
+        Assert.All(ApplicationStartupPlan.Activities,
+            definition => Assert.Contains(definition.Activity, activities.Executed));
         Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
         Assert.Equal(ApplicationStartupPlan.Activities.Count, context.StartupStatusStore.Current.Activities.Length);
         Assert.Single(context.SentEvents, value => value is ApplicationStartupCompleteEvent);
@@ -81,6 +81,27 @@ public sealed class ApplicationStartupWorkflowTests
     }
 
     [Fact]
+    public async Task Slow_optional_warmup_does_not_delay_market_data_branch()
+    {
+        var activities = new RecordingActivities
+        {
+            Block = ApplicationStartupActivity.WarmHistoricalAnalytics
+        };
+        var context = new TestContext(activities);
+        var startup = Event().ExecuteAsync(context, CancellationToken.None).AsTask();
+
+        await activities.BlockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await activities.WaitUntilExecutedAsync(
+            ApplicationStartupActivity.StartMarketData,
+            TimeSpan.FromSeconds(2));
+
+        Assert.False(startup.IsCompleted);
+        activities.BlockRelease.TrySetResult();
+        await startup;
+        Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
+    }
+
+    [Fact]
     public async Task Realtime_analytics_failure_prevents_market_data_from_starting()
     {
         var activities = new RecordingActivities
@@ -125,6 +146,21 @@ public sealed class ApplicationStartupWorkflowTests
         Assert.Equal(2, context.SentEvents.Count(value => value is ApplicationStartupCompleteEvent));
     }
 
+    [Fact]
+    public async Task Non_responsive_status_console_does_not_block_startup()
+    {
+        var activities = new RecordingActivities();
+        var context = new TestContext(activities, new NonResponsiveConsole());
+
+        await Event().ExecuteAsync(context, CancellationToken.None)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
+        Assert.Equal(ApplicationStartupPlan.Activities.Count, activities.Executed.Count);
+        Assert.Single(context.SentEvents, value => value is ApplicationStartupCompleteEvent);
+    }
+
     static ApplicationStartupEvent Event() => new()
     {
         Subject = new ActorSubject(
@@ -144,18 +180,44 @@ public sealed class ApplicationStartupWorkflowTests
 
     sealed class RecordingActivities : IApplicationStartupActivities
     {
+        readonly object gate = new();
         public List<ApplicationStartupActivity> Executed { get; } = [];
         public ApplicationStartupActivity? Failure { get; init; }
+        public ApplicationStartupActivity? Block { get; init; }
+        public TaskCompletionSource BlockStarted { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource BlockRelease { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
-        ValueTask<ApplicationStartupActivityOutcome> Execute(
+        async ValueTask<ApplicationStartupActivityOutcome> Execute(
             ApplicationStartupActivity activity,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Executed.Add(activity);
+            lock (gate) Executed.Add(activity);
+            if (Block == activity)
+            {
+                BlockStarted.TrySetResult();
+                await BlockRelease.Task.WaitAsync(cancellationToken);
+            }
             if (Failure == activity)
                 throw new TestActivityException(activity.ToString());
-            return ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
+            return ApplicationStartupActivityOutcome.AlreadySatisfied;
+        }
+
+        public async Task WaitUntilExecutedAsync(
+            ApplicationStartupActivity activity,
+            TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                lock (gate)
+                    if (Executed.Contains(activity))
+                        return;
+                await Task.Delay(10);
+            }
+            throw new TimeoutException($"Activity {activity} did not execute within {timeout}.");
         }
 
         public ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)=>Execute(ApplicationStartupActivity.ApplyParameterSets,cancellationToken);
@@ -187,7 +249,24 @@ public sealed class ApplicationStartupWorkflowTests
         }
     }
 
-    sealed class TestContext(IApplicationStartupActivities activities) : IApplicationEventContext
+    sealed class NonResponsiveConsole : IStatusConsoleWriter
+    {
+        static readonly Task Never = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously).Task;
+
+        public Task WriteConsoleAsync(LogSourceType logSourceType, string statusMsg) => Never;
+
+        public Task WriteConsoleAsync(
+            LogSourceType logSourceType,
+            int errorCode,
+            string errorMsg,
+            string dataType = "",
+            string data = "") => Never;
+    }
+
+    sealed class TestContext(
+        IApplicationStartupActivities activities,
+        IStatusConsoleWriter? statusConsoleWriter = null) : IApplicationEventContext
     {
         readonly Dictionary<ActorThreadId, ActorMessageInfo> messageInfo = [];
         public List<object> SentEvents { get; } = [];
@@ -198,7 +277,8 @@ public sealed class ApplicationStartupWorkflowTests
         public ILogger<ApplicationEventActor> Logger { get; } = NullLogger<ApplicationEventActor>.Instance;
         public IApplicationStartupActivities StartupActivities { get; } = activities;
         public IApplicationStartupStatusStore StartupStatusStore { get; } = new ApplicationStartupStatusStore();
-        public IStatusConsoleWriter StatusConsoleWriter { get; } = new RecordingConsole();
+        public IStatusConsoleWriter StatusConsoleWriter { get; } =
+            statusConsoleWriter ?? new RecordingConsole();
         public TimeProvider TimeProvider { get; } = TimeProvider.System;
 
         public bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info)

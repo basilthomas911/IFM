@@ -23,6 +23,14 @@ public sealed class ParameterSetActorVerificationTests
   receive.Keys.Cast<Type>().Should().BeEquivalentTo(validate.Keys.Cast<Type>());
   foreach(var contract in receive.Keys.Cast<Type>())parse.Contains(contract.GetField("Verb")!.GetValue(null)!).Should().BeTrue();
  }
+ [Fact] public void Query_maps_include_exact_startup_run_lookup()
+ {
+  var type=typeof(TomasAI.IFM.Domain.Reference.ParameterSets.Query.Actor.ParameterSetQueryActor);
+  var receive=(IDictionary)type.GetField("_receiveMap",BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!;
+  var parse=(IDictionary)type.GetField("_parseMap",BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!;
+  receive.Contains(typeof(GetParameterStartupRunQuery)).Should().BeTrue();
+  parse.Contains(GetParameterStartupRunQuery.Verb).Should().BeTrue();
+ }
  [Fact] public async Task Serialized_command_maps_to_extension_and_duplicate_identity_is_idempotent()
  {
   var id=Guid.NewGuid();var command=new CreateParameterSetCommand{CommandId=Guid.NewGuid(),EntityId=new(id),Name="Daily",PayloadJson=new RegimeDiscoveryParameterModel().CreateDraftPayload(id),Subject=new(ActorType.Command,CreateParameterSetCommand.Actor,CreateParameterSetCommand.Verb,id.ToString("N"))};

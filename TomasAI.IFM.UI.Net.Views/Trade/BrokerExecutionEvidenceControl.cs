@@ -1,11 +1,12 @@
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>Displays durable account, broker-order, execution, fill, and commission evidence.</summary>
-public sealed class BrokerExecutionEvidenceControl : UserControl
+public sealed class BrokerExecutionEvidenceControl : DarkTradingView
 {
     private const string EmulatorAccountAlias = "IFM-EMULATOR-PAPER";
     private readonly IAppRoot _appRoot;
@@ -72,6 +73,7 @@ public sealed class BrokerExecutionEvidenceControl : UserControl
             {
                 lines.Add($"Broker order {order.Id.ComponentId:N}: {order.Status}; " +
                     $"Limit={order.CurrentSignedNetDebitLimit}; Revision={order.BrokerRevision}; " +
+                    $"Generation={order.LastObservation?.SourceEpoch}; Operation={order.OperationId:N}; " +
                     $"Dispatch={order.DispatchCategory} {order.DispatchDetail}".TrimEnd());
                 if (order.LastObservation is { } observation)
                     lines.Add($"Latest broker fact: {observation.Kind}; Contract={observation.ContractId}; " +
@@ -87,9 +89,15 @@ public sealed class BrokerExecutionEvidenceControl : UserControl
                     lines.Add($"Execution {attempt:N}: unavailable ({execution.ErrorCode}: {execution.ErrorMessage})");
                     continue;
                 }
-                lines.Add($"Execution {attempt:N}: {execution.Value.Status}; " +
-                    $"Fills={execution.Value.Fills.Length}; " +
-                    $"Commission={execution.Value.Fills.Sum(fill => fill.Commission):N2}");
+                var requested = execution.Value.OrderQuantity;
+                var cumulative = execution.Value.CumulativeFilledQuantity;
+                var remaining = Math.Max(0, requested - cumulative);
+                var fillWeight = execution.Value.Fills.Sum(fill => Math.Abs(fill.SignedQuantity));
+                var averageFill = fillWeight == 0 ? (decimal?)null : execution.Value.Fills.Sum(fill => fill.Price * Math.Abs(fill.SignedQuantity)) / fillWeight;
+                lines.Add($"Execution {attempt:N}: {execution.Value.Status}; Requested={requested}; " +
+                    $"Cumulative={cumulative}; Remaining={remaining}; AverageFill={averageFill:N4}; " +
+                    $"Fills={execution.Value.Fills.Length}; Costs={execution.Value.Fills.Sum(fill => fill.Commission):N2}; " +
+                    $"Revision={execution.Value.OrderRevision}; Portfolio/Fund/Order={_tradeOrderId.PortfolioId}/{_tradeOrderId.FundId}/{_tradeOrderId.OrderId}");
                 foreach (var fill in execution.Value.Fills)
                     lines.Add($"  {fill.ContractId}: Quantity={fill.SignedQuantity}; Price={fill.Price}; " +
                         $"Commission={fill.Commission}; External={fill.ExternalExecutionId}; At={fill.FilledAtUtc:O}");

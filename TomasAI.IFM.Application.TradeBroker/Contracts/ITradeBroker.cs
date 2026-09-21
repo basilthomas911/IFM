@@ -6,6 +6,7 @@ public interface ITradeBroker
     BrokerEnvironment Environment { get; }
     string AccountAlias { get; }
     long Generation { get; }
+    BrokerCapabilities Capabilities { get; }
     ValueTask<BrokerDispatchReceipt> PlaceAsync(BrokerOrderRequest request, CancellationToken cancellationToken = default);
     ValueTask<BrokerDispatchReceipt> ModifyLimitAsync(BrokerLimitUpdate request, CancellationToken cancellationToken = default);
     ValueTask<BrokerDispatchReceipt> CancelAsync(BrokerCancelRequest request, CancellationToken cancellationToken = default);

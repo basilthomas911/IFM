@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Storage.CommandAudit;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
@@ -23,6 +24,9 @@ public static class FinancialCommandLifecycle
         =>ValueTask.FromResult<IActorState>(new FinancialCommandState(command.Subject.ThreadId));
     public static ValueTask<ServiceResult<GuidResult>> FinancialCommandFailure(this Exception exception,ILogger? logger=null)
     {
+        if (exception is CommandAuditPayloadConflictException)
+            return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(
+                FinancialReasons.RequestMismatch, "Financial command ID is already associated with different request content."));
         if(exception is not FinancialOperationException) logger?.LogError(exception,"Financial Command failed before a confirmed receipt could be returned.");
         var financial=exception as FinancialOperationException;
         var unknown=exception is FunctionCommitOutcomeUnknownException;

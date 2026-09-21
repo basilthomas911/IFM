@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -10,6 +11,11 @@ public interface IMarketDataAnalyticsQueryApi
     Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
         string contractId,
         DateOnly valueDate);
+    /// <summary>Gets up to <paramref name="maxDays"/> daily Bollinger observations ending on the value date.</summary>
+    Task<ServiceResult<FuturesBbSignalReadModel[]>> GetFuturesBollingerBandHistoryAsync(
+        string rootSymbol,
+        DateOnly valueDate,
+        int maxDays);
     Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(string contractId, DateOnly valueDate);
     Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync();
     Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalBySymbolAsync(string symbol, DateOnly valueDate);
@@ -27,7 +33,7 @@ public interface IMarketDataAnalyticsQueryApi
         TimeFrameType timePeriod = TimeFrameType.OneMinute,
         string configurationId = FuturesTdiConfiguration.StandardConfigurationId);
     Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
-    Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
+    Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(string symbol, DateOnly valueDate, TimeFrameType timePeriod);
     Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
     Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
     Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionAsync(string contractId, DateOnly valueDate);

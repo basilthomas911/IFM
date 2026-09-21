@@ -104,15 +104,21 @@ internal static class FuturesOptionContractDbContext
 		string routeContractId,
 		IActorService actorService)
 	{
+		// Imported reference facts must not be replaced by the legacy broker lookup.
+		if (optionContract.SchemaVersion > 0)
+		{
+			_ = optionContract.GetExactStrikePrice();
+			return optionContract;
+		}
 		var localSymbol = FuturesOptionContractReadModel.GetLocalSymbol(
 			optionContract.Symbol,
 			optionContract.ContractMonth);
 		var normalizedContract = optionContract with
 		{
-			LocalSymbol = FuturesOptionContractReadModel.GetContractLocalSymbol(
+			LocalSymbol = FuturesOptionContractReadModel.GetExactContractLocalSymbol(
 				localSymbol,
 				optionContract.OptionType,
-				optionContract.StrikePrice)
+				optionContract.GetExactStrikePrice())
 		};
 		var query = new GetFuturesOptionContractQuery(normalizedContract.ContractId, normalizedContract)
 		{
@@ -126,8 +132,12 @@ internal static class FuturesOptionContractDbContext
 		var serviceResult = await actorService.RequestAsync<
 			FuturesOptionContractReadModel,
 			GetFuturesOptionContractQuery>(query);
-		return serviceResult.Success && serviceResult.Value is not null
-			? serviceResult.Value
-			: normalizedContract;
+		if (!serviceResult.Success || serviceResult.Value is null)
+			return normalizedContract;
+		var enriched = serviceResult.Value;
+		if (enriched.ContractId != optionContract.ContractId
+			|| enriched.StrikePrice != optionContract.StrikePrice)
+			throw new InvalidOperationException("Broker enrichment changed option contract identity or strike.");
+		return enriched with { StrikePriceDecimal = optionContract.StrikePriceDecimal };
 	}
 }

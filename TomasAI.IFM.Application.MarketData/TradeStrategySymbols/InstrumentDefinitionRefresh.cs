@@ -23,19 +23,22 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
             HashSet<TradeStrategyProduct> products = [];
             foreach (var dataset in datasets)
             {
-                var latest = new Dictionary<uint, (ulong Received, ulong Event, bool Deleted, ContractDetail Detail)>();
+                var latest = new Dictionary<InstrumentKey, (ulong Received, ulong Event, bool Deleted, ContractDetail Detail,
+                    TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionSelection Selection)>();
                 List<Task> pending = []; long count = 0;
                 try
                 {
                     await foreach (var row in provider.ReadLatestAsync(dataset, cancellationToken).ConfigureAwait(false))
                     {
-                        pending.Add(store.InsertAsync(snapshot, count++, row, cancellationToken));
-                        var key = row.InstrumentId;
+                        var index = count++;
+                        pending.Add(store.InsertAsync(snapshot, index, row, cancellationToken));
+                        var key = row.Summary.Instrument;
                         if (row.Summary.ContractKind is ContractKind.Future or ContractKind.CallOption or ContractKind.PutOption || row.Deleted || latest.ContainsKey(key))
                         {
                             if (!latest.TryGetValue(key, out var old) || row.ReceivedNanoseconds > old.Received ||
                                 (row.ReceivedNanoseconds == old.Received && row.EventNanoseconds >= old.Event))
-                                latest[key] = (row.ReceivedNanoseconds, row.EventNanoseconds, row.Deleted, row.Summary);
+                                latest[key] = (row.ReceivedNanoseconds, row.EventNanoseconds, row.Deleted, row.Summary,
+                                    InstrumentDefinitionSelectionMapper.Map(snapshot, index, row));
                         }
                         if (pending.Count >= 32) { await Task.WhenAll(pending).ConfigureAwait(false); pending.Clear(); }
                         if (count % 100000 == 0) logger?.LogInformation("Stored {Count} exact definitions for {Dataset}", count, dataset);
@@ -45,6 +48,9 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
                 catch { await Task.WhenAll(pending).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing); throw; }
                 if (count == 0) throw new InvalidOperationException($"No instrument definitions returned for {dataset}.");
                 total += count;
+                await Parallel.ForEachAsync(latest.Values.Where(x => x.Selection.InstrumentClass is "F" or "C" or "P"),
+                    new ParallelOptions { MaxDegreeOfParallelism = 16, CancellationToken = cancellationToken },
+                    async (entry, token) => await store.IndexSelectionAsync(entry.Selection, token).ConfigureAwait(false)).ConfigureAwait(false);
                 products.UnionWith(Products(latest.Values.Where(x => !x.Deleted).Select(x => x.Detail), clock.GetUtcNow()));
             }
             if (products.Count == 0) throw new InvalidOperationException("No eligible futures or futures-option products were found; the previous snapshot remains active.");

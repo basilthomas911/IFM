@@ -2,7 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
-using TomasAI.IFM.Framework.OptionPricer.Black76;
+using Unified = TomasAI.IFM.Framework.OptionPricer.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -24,8 +24,8 @@ public sealed record OptionPricingPassResult(
     [property: Key(0)] OptionPricingValue? Value,
     [property: Key(1)] OptionPricingFailure? Failure);
 
-/// <summary>Pure European-futures-option calculation over frozen reference and source-time quotes.</summary>
-public static class Black76PricingModel
+/// <summary>Compatibility entry point routing qualified futures options through the unified calculator.</summary>
+public static partial class Black76PricingModel
 {
     public static OptionPricingPassResult Calculate(OptionPricingContext context, OptionPricingQuote underlying,
         OptionPricingQuote option, decimal strike, bool isCall, DateTimeOffset at)
@@ -33,14 +33,38 @@ public static class Black76PricingModel
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(underlying);
         ArgumentNullException.ThrowIfNull(option);
-        var referenceFailure = ValidateContext(context, at);
+        var referenceFailure = ValidateInputs(context, underlying, option, strike, isCall, at);
         if (referenceFailure is not null) return new(null, referenceFailure);
         var contract = context.Contract;
         OptionPricingPassResult Fail(string code, string input) => new(null,
             new(code, input, contract.ContractId, "Option pricing inputs do not satisfy the qualified context."));
+        var t = OptionPricingQualification.YearFraction(contract, at);
+        var forward = (double)(underlying.Bid / 2m + underlying.Ask / 2m);
+        var mark = (double)(option.Bid / 2m + option.Ask / 2m);
+        var rate = context.Rate.AnnualContinuousRate;
+        var request = CreateRequest(contract, forward, strike, isCall, t, rate);
+        var result = new Unified.OptionCalculator().ImpliedVolatility(request, mark);
+        if (!result.Success) return Fail("GreeksCalculationFailed", result.Failure.ToString());
+        var greeks = result.Value!.Value;
+        var digest = PricingSemanticHash.Compute(new { Version = 2, context, underlying, option, strike, isCall, at, t,
+            result.EngineVersion, result.NumericalPolicy, result.PolicyVersion });
+        return new(new(greeks.Volatility, greeks.Delta, greeks.Gamma, greeks.Theta,
+            greeks.Vega, greeks.Rho, greeks.Price, t, digest), null);
+    }
+
+    public static OptionPricingFailure? ValidateInputs(OptionPricingContext context, OptionPricingQuote underlying,
+        OptionPricingQuote option, decimal strike, bool isCall, DateTimeOffset at)
+    {
+        var invalid = ValidateContext(context, at);
+        if (invalid is not null) return invalid;
+        var contract = context.Contract;
+        OptionPricingFailure Fail(string code, string input) =>
+            new(code, input, contract.ContractId, "Option pricing inputs do not satisfy the qualified context.");
         if (underlying.GenerationId != context.GenerationId || option.GenerationId != context.GenerationId)
             return Fail("Recovering", "Generation");
-        if (option.ContractId != contract.ContractId || underlying.ContractId != contract.UnderlyingContractId || strike <= 0)
+        if (option.ContractId != contract.ContractId || underlying.ContractId != contract.UnderlyingContractId || strike <= 0
+            || contract.SchemaVersion == 3 && (contract.Strike != strike
+                || contract.Right != (isCall ? PricingOptionRight.Call : PricingOptionRight.Put)))
             return Fail("ContractMetadataUnavailable", "Identity/Strike");
         foreach (var quote in new[] { underlying, option })
         {
@@ -53,17 +77,19 @@ public static class Black76PricingModel
         }
         if (Math.Abs((underlying.EventAtUtc - option.EventAtUtc).TotalMilliseconds) > context.MaximumQuoteSkewMilliseconds)
             return Fail("IncoherentQuotes", "SourceTimeSkew");
-        var t = OptionPricingQualification.YearFraction(contract, at);
-        var forward = (double)(underlying.Bid / 2m + underlying.Ask / 2m);
-        var mark = (double)(option.Bid / 2m + option.Ask / 2m);
-        var rate = context.Rate.AnnualContinuousRate;
-        var greeks = new OptionCalculator(t).GetOptionGreeks(isCall ? "CALL" : "PUT", forward, (double)strike, mark, rate);
-        if (!greeks.Success) return Fail("GreeksCalculationFailed", "QuoteMidpoint/IVSolver");
-        var price = OptionModel.Price(forward, (double)strike, rate, greeks.ImpliedVolatility, t, isCall ? 1 : -1);
-        var digest = PricingSemanticHash.Compute(new { Version = 1, context, underlying, option, strike, isCall, at, t });
-        return new(new(greeks.ImpliedVolatility, greeks.Delta, greeks.Gamma, greeks.Theta,
-            greeks.Vega, greeks.Rho, price, t, digest), null);
+        return null;
     }
+
+    public static string EngineFor(OptionPricingConvention contract) =>
+        Unified.OptionCalculator.EngineVersionFor(CreateRequest(contract, 1, 1, true, 1, 0));
+
+    internal static Unified.OptionPricingRequest CreateRequest(OptionPricingConvention contract, double forward,
+        decimal strike, bool isCall, double time, double rate) =>
+        new(Unified.UnderlyingKind.Futures,
+            contract.ExerciseStyle == OptionExerciseStyle.American ? Unified.ExerciseKind.American : Unified.ExerciseKind.European,
+            contract.SchemaVersion < 3 || contract.PremiumStyle == OptionPremiumStyle.PaidUpfront
+                ? Unified.PremiumKind.PaidUpfront : Unified.PremiumKind.FuturesStyle,
+            isCall ? Unified.OptionSide.Call : Unified.OptionSide.Put, forward, (double)strike, time, rate);
 
     /// <summary>Validates immutable reference inputs before worker feed allocation and on each pricing pass.</summary>
     public static OptionPricingFailure? ValidateContext(OptionPricingContext context, DateTimeOffset at)
@@ -75,7 +101,7 @@ public static class Black76PricingModel
             new(code, input, contract.ContractId, "Option pricing inputs do not satisfy the qualified context.");
         var invalid = OptionPricingQualification.Validate(contract, at);
         if (invalid is not null) return invalid;
-        var engine = OptionCalculator.EngineVersion;
+        var engine = EngineFor(contract);
         if (context.PricerVersion != engine) return Fail("PricingModelUnsupported", "PricerVersion");
         if (string.IsNullOrWhiteSpace(context.PublicationPolicyVersion) || context.ValidUntilUtc.Offset != TimeSpan.Zero
             || context.ValidUntilUtc <= at || context.Rate.ObservedAtUtc.Offset != TimeSpan.Zero || context.Rate.ObservedAtUtc > at

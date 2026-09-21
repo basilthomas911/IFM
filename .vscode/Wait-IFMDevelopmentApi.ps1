@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ReadinessUri = "http://localhost:22543/health/ready",
+    [string]$ReadinessUri = "http://localhost:22543/health/launch-ready",
     [ValidateRange(1, 1800)]
     [int]$TimeoutSeconds = 300
 )

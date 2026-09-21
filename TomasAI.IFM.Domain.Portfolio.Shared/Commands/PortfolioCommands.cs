@@ -91,7 +91,7 @@ public static class PortfolioAccessScope
 
 /// <summary>Stable command envelope: repository base keys 0..5 and typed payload at key 6.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>, IPortfolioRequestMetadata where TEntityId : TomasAI.IFM.Shared.EventModelActor.Contracts.IActorEntityId
+public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>, IPortfolioRequestMetadata, ICommandRetryIdentity where TEntityId : TomasAI.IFM.Shared.EventModelActor.Contracts.IActorEntityId
 {
     [Key(0)] public Guid CommandId { get; init; }
     [Key(1)] public ActorSubject Subject { get; init; }
@@ -103,6 +103,7 @@ public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>
     [Key(7)] public Guid CorrelationId { get; init; }
     [Key(8)] public DateTime RequestedOnUtc { get; init; }
     [Key(9)] public PortfolioAccessContext Access { get; init; } = new();
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
     [IgnoreMember] public string CommandName => typeof(TPayload).Name.Replace("Payload", "Command", StringComparison.Ordinal);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;

@@ -104,7 +104,10 @@ public static class PortfolioOrderCompositionModel
                 MicroExecutionProfileHash = candidate.MicroExecutionProfileHash,
                 AccountPromotionApprovalReference = candidate.AccountPromotionApprovalReference,
                 RequiredCapital = candidate.RequiredCapital,
-                MaximumLoss = candidate.MaximumLoss
+                MaximumLoss = candidate.MaximumLoss,
+                BrokerOrderType = candidate.BrokerOrderType,
+                BrokerAlgorithm = candidate.BrokerAlgorithm,
+                VolatilityEvidence = candidate.VolatilityEvidence
             });
             effect = effect! with { OrderId = orderId };
             effects.Add(effect);
@@ -119,7 +122,8 @@ public static class PortfolioOrderCompositionModel
             CompositionId = candidate.CompositionId, WorkflowId = candidate.WorkflowId,
             Status = orders.Count == 0 ? PortfolioOrderCompositionStatus.NoTradeOrders : PortfolioOrderCompositionStatus.ExecuteTradeOrders,
             FundDecisions = [.. decisions], TradeOrders = [.. orders], FinancialRevision = nextRevision,
-            PortfolioId = request.PortfolioId, CapacityEffects = [.. effects]
+            PortfolioId = request.PortfolioId, CapacityEffects = [.. effects],
+            VolatilityEvidence = candidate.VolatilityEvidence
         };
     }
 

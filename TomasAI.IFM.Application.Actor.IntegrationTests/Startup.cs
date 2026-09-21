@@ -422,7 +422,9 @@ public static class Startup
                 .Add("OptionPricerDbConnection", config.GetConnectionString("OptionPricerDbConnection")!, "System.Data.ScyllaDb")
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
-                .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
+                .Add("TradeDbConnection", config["IFM_TEST_TRADE_CONNECTION"]
+                    ?? config.GetConnectionString("TradeDbConnection")
+                    ?? throw new InvalidOperationException("TradeDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
                 .Add("PortfolioDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("PortfolioDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
             );

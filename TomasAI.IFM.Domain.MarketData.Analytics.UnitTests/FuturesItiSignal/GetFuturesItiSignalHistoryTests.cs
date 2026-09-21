@@ -11,7 +11,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 
 public sealed class GetFuturesItiSignalHistoryTests
 {
-    const string ContractId = "ES-HISTORY-UNIT";
+    const string Symbol = "ES";
+    const string PreviousContractId = "ES20260918";
+    const string CurrentContractId = "ES20261218";
     static readonly DateOnly Tuesday = new(2026, 9, 8);
 
     [Fact]
@@ -20,27 +22,29 @@ public sealed class GetFuturesItiSignalHistoryTests
         var database = Substitute.For<IMarketDataDbContext>();
         var factory = Substitute.For<IDbContextFactory>();
         factory.MarketDataDb.Returns(database);
-        database.GetFuturesItiSignalsForContractAsync(
-                ContractId,
+        database.GetFuturesItiSignalsAsync(
+                Symbol,
                 new DateOnly(2026, 9, 7),
                 new DateOnly(2026, 9, 8))
             .Returns(Task.FromResult<ICollection<FuturesItiSignalV2ReadModel>>(
             [
-                Signal(TimeFrameType.Weekly, sequenceId: 2, Tuesday, hour: 15),
-                Signal(TimeFrameType.Daily, sequenceId: 1, Tuesday, hour: 13),
-                Signal(TimeFrameType.Weekly, sequenceId: 1, Tuesday.AddDays(-1), hour: 13)
+                Signal(CurrentContractId, TimeFrameType.Weekly, sequenceId: 2, Tuesday, hour: 15),
+                Signal(CurrentContractId, TimeFrameType.Daily, sequenceId: 1, Tuesday, hour: 13),
+                Signal(PreviousContractId, TimeFrameType.Weekly, sequenceId: 1, Tuesday.AddDays(-1), hour: 13)
             ]));
         var query = new GetFuturesItiSignalHistoryQuery(
-            ContractId,
+            Symbol,
             Tuesday,
             TimeFrameType.Weekly);
 
         var result = await query.GetFuturesItiSignalHistoryAsync(factory);
 
         result.Select(signal => signal.SequenceId).Should().Equal(1, 2);
+        result.Select(signal => signal.ContractId)
+            .Should().Equal(PreviousContractId, CurrentContractId);
         result.Should().OnlyContain(signal => signal.TimePeriod == TimeFrameType.Weekly);
-        await database.Received(1).GetFuturesItiSignalsForContractAsync(
-            ContractId,
+        await database.Received(1).GetFuturesItiSignalsAsync(
+            Symbol,
             new DateOnly(2026, 9, 7),
             new DateOnly(2026, 9, 8));
     }
@@ -51,30 +55,31 @@ public sealed class GetFuturesItiSignalHistoryTests
         var database = Substitute.For<IMarketDataDbContext>();
         var factory = Substitute.For<IDbContextFactory>();
         factory.MarketDataDb.Returns(database);
-        database.GetFuturesItiSignalsForContractAsync(
-                ContractId,
+        database.GetFuturesItiSignalsAsync(
+                Symbol,
                 Tuesday.AddDays(-1),
                 Tuesday)
             .Returns(Task.FromResult<ICollection<FuturesItiSignalV2ReadModel>>([]));
         var query = new GetFuturesItiSignalHistoryQuery(
-            ContractId,
+            Symbol,
             Tuesday,
             TimeFrameType.Daily);
 
         await query.GetFuturesItiSignalHistoryAsync(factory);
 
-        await database.Received(1).GetFuturesItiSignalsForContractAsync(
-            ContractId,
+        await database.Received(1).GetFuturesItiSignalsAsync(
+            Symbol,
             Tuesday.AddDays(-1),
             Tuesday);
     }
     static FuturesItiSignalV2ReadModel Signal(
+        string contractId,
         TimeFrameType timePeriod,
         long sequenceId,
         DateOnly valueDate,
         int hour)
         => new(
-            ContractId,
+            contractId,
             valueDate,
             timePeriod,
             sequenceId,

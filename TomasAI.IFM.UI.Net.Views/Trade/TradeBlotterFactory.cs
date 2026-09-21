@@ -28,7 +28,12 @@ public static class TradeBlotterFactory
             case TradeType.ShortIronCondor:
             case TradeType.LongIronCondor:
                 var viewModel = new IronCondorViewModel(appRoot, fund, fundOrder, fundOrderTrade, valueDate, baseContracts, historicalReadOnly: historicalReadOnly, portfolioId: portfolioId);
-                blotter = new IronCondorView(parentControl, viewModel);
+                var ironCondor = new IronCondorView(parentControl, viewModel);
+                blotter = new EsTradeBlotterControl(appRoot, fund, fundOrder, fundOrderTrade,
+                    portfolioId, historicalReadOnly, workflowControl: ironCondor)
+                {
+                    Name = "IronCondorView"
+                };
                 break;
             case TradeType.FuturesOutright:
             case TradeType.PutCreditSpread:

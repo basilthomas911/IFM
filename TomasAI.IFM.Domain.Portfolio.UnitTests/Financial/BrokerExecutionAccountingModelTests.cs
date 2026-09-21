@@ -32,6 +32,42 @@ public sealed class BrokerExecutionAccountingModelTests
         batch.Items.Single(x => x.TransactionKind == LedgerTransactionKind.Commission).Amount.Should().Be(2.50m);
     }
 
+    [Theory]
+    [InlineData(-1, 120, 122, 2100)]
+    [InlineData(-1, 80, 82, -1900)]
+    [InlineData(1, 80, 82, 1900)]
+    [InlineData(1, 120, 122, -2100)]
+    public void Split_closing_fills_consume_opening_basis_only_once_per_leg(
+        int direction, decimal firstPrice, decimal secondPrice, decimal expectedProfit)
+    {
+        // Two contracts opened at 100, closed in separate one-contract fills.
+        // A single per-leg opening basis must be consumed regardless of fragmentation.
+        var fixture = Fixture(TradeOrderPositionType.Closing, direction * 2, firstPrice, 2.50m);
+        var first = fixture.Input.Fills[0] with { SignedQuantity = direction };
+        var second = first with { ExecutionFillId = Guid.NewGuid(), ExternalExecutionId = "EM-EXEC-2", Price = secondPrice };
+        var input = fixture.Input with
+        {
+            Fills = [first, second],
+            OpeningSignedSettlementByLeg = new Dictionary<Guid, decimal> { [fixture.LegId] = -direction * 10_000m }
+        };
+        var batch = BrokerExecutionAccountingModel.Create(input);
+        batch.Items.Where(x => x.TransactionKind == LedgerTransactionKind.TradeSettlement).Sum(x => x.Amount)
+            .Should().Be(direction * (firstPrice + secondPrice) * 50m);
+        batch.Items.Where(x => x.TransactionKind == LedgerTransactionKind.Commission).Sum(x => x.Amount).Should().Be(5m);
+        batch.Items.Single(x => x.TransactionKind == LedgerTransactionKind.RealizedPnl).Amount.Should().Be(expectedProfit);
+        var reversed = BrokerExecutionAccountingModel.Create(input with { Fills = [second, first] });
+        reversed.ManifestHash.Should().Be(batch.ManifestHash);
+    }
+
+    [Fact]
+    public void Break_even_close_still_emits_realization_to_clear_existing_MTM()
+    {
+        var fixture=Fixture(TradeOrderPositionType.Closing,-1,100m,0m);
+        var input=fixture.Input with { OpeningSignedSettlementByLeg=new Dictionary<Guid,decimal> { [fixture.LegId]=5000m } };
+        BrokerExecutionAccountingModel.Create(input).Items.Single(x=>x.TransactionKind==LedgerTransactionKind.RealizedPnl)
+            .Amount.Should().Be(0m);
+    }
+
     [Fact]
     public void Missing_basis_or_unconfirmed_settlement_rule_fails_closed()
     {

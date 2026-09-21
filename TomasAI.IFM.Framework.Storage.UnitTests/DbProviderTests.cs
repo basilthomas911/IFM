@@ -7,7 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using TomasAI.IFM.Framework.Storage.Postgres;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;
 
@@ -41,18 +41,16 @@ public class DbProviderTests
     public void CreateConnectionOk()
     {
         // Arrange
-        var connString = "Data Source=DEV-SERVER;Initial Catalog=logdb;Integrated Security=True;MultipleActiveResultSets=True";
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var mockRepo = Substitute.For<IObjectRepository>();
-        mockRepo.ConnectionString.Returns(connString);
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
 
         // Act
-        var dbConn = dbProvider.CreateConnection().As<SqlConnection>(connString);
+        var dbConn = dbProvider.CreateConnection();
 
         // Assert
-        dbConn.Should().NotBeNull();
-        dbConn.ConnectionString.Should().Be(connString);
+        dbConn.Should().BeOfType<PostgresObjectDataRepositoryConnection>();
     }
 
     [Fact]
@@ -60,6 +58,7 @@ public class DbProviderTests
     {
         // Arrange
         var mockRepo = Substitute.For<IObjectRepository>();
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
 
@@ -67,7 +66,7 @@ public class DbProviderTests
         var dbParam = dbProvider.CreateParameter();
 
         // Assert
-        dbParam.Should().NotBeNull();
+        dbParam.Should().BeOfType<PostgresObjectDataRepositoryParameter>();
     }
 
     [Fact]
@@ -209,7 +208,7 @@ public class DbProviderTests
             new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
                 null,
-                "System.Data.SqlServer",
+                "System.Data.ScyllaDb",
                 null)
         ];
 

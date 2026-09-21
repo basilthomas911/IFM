@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.OrderComposition;
 
@@ -49,6 +50,42 @@ public sealed class PortfolioOrderCompositionModelTests
         result.TradeOrders.Single().Id.OrderId.Should().Be(101);
         result.TradeOrders.Single().Components.Single().ReservedTradeId.Should().Be(201);
         identities.Allocations.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Approved_order_preserves_selected_market_adaptive_execution_profile()
+    {
+        var request = Request();
+        request = request with
+        {
+            Body = request.Body with
+            {
+                BrokerOrderType = BrokerOrderType.Market,
+                BrokerAlgorithm = BrokerAlgorithm.Adaptive
+            }
+        };
+
+        var result = await PortfolioOrderCompositionModel.EvaluateAsync(
+            request, Book(true), 2, Financial(Book(true)), new TestIdentityAllocator());
+
+        result.TradeOrders.Single().BrokerOrderType.Should().Be(BrokerOrderType.Market);
+        result.TradeOrders.Single().BrokerAlgorithm.Should().Be(BrokerAlgorithm.Adaptive);
+    }
+
+    [Fact]
+    public async Task Approved_order_and_receipt_preserve_exact_volatility_evidence()
+    {
+        var request = Request();
+        var evidence = VolatilityEvidence(request.RequestedAtUtc);
+        request = request with { Body = request.Body with { VolatilityEvidence = evidence } };
+
+        var result = await PortfolioOrderCompositionModel.EvaluateAsync(
+            request, Book(true), 2, Financial(Book(true)), new TestIdentityAllocator());
+
+        result.VolatilityEvidence.Should().Be(evidence);
+        result.TradeOrders.Single().VolatilityEvidence.Should().Be(evidence);
+        result.TradeOrders.Single().VolatilityEvidence!.Snapshot!.SnapshotId.Should().Be("portfolio-snapshot");
+        result.TradeOrders.Single().VolatilityEvidence!.Snapshot!.SnapshotDigest.Should().Be(new string('d', 64));
     }
 
     [Fact]
@@ -159,6 +196,23 @@ public sealed class PortfolioOrderCompositionModelTests
             }
         };
     }
+
+    static VolatilityWorkflowInput VolatilityEvidence(DateTime at) => new()
+    {
+        Dependency = new(1, "portfolio-volatility", "v1", new("ES-ATM-30D", "method-v1"),
+            "metric-v1", VolatilityDependencyRequirement.Required),
+        FreshnessStatus = VolatilityFreshnessStatus.Accepted,
+        EvaluatedAtUtc = new DateTimeOffset(at),
+        QualificationReasonCode = "VOL.ACCEPTED",
+        Snapshot = new(1, "portfolio-snapshot", new string('d', 64), new("ES-ATM-30D", "method-v1"),
+            "metric-v1", DateOnly.FromDateTime(at), "daily-close", .25m,
+            VolatilityValueUnit.AnnualDecimal, 60m, VolatilityMetricStatus.Qualified, 65m,
+            VolatilityMetricStatus.Qualified, VolatilityMetricUnit.PercentagePoints0To100, .1m, .3m,
+            6, 0, 10, 10, 1m, DateOnly.FromDateTime(at).AddDays(-14), DateOnly.FromDateTime(at).AddDays(-1),
+            ["source"], new string('s', 64), "calculator-v1", new DateTimeOffset(at.AddMinutes(-4)),
+            new DateTimeOffset(at.AddMinutes(-3)), new DateTimeOffset(at.AddMinutes(-2)),
+            new DateTimeOffset(at.AddMinutes(-1)))
+    };
 
     static FinancialBookConfiguration Book(params bool[] enabled) => new()
     {

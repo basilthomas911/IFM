@@ -3,6 +3,7 @@ using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.Fund.Shared;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
@@ -75,17 +76,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
 
         void SetClosingTradeType(TradeType openingTradeType)
         {
-            var closingTradeType = openingTradeType switch
-            {
-                TradeType.ShortIronCondor => TradeType.LongIronCondor,
-                TradeType.LongIronCondor => TradeType.ShortIronCondor,
-                TradeType.PutCreditSpread => TradeType.PutDebitSpread,
-                TradeType.PutDebitSpread => TradeType.PutCreditSpread,
-                TradeType.CallCreditSpread => TradeType.CallDebitSpread,
-                TradeType.CallDebitSpread => TradeType.CallCreditSpread,
-                TradeType.FuturesOutright => TradeType.FuturesOutright,
-                _ => throw new NotImplementedException()
-            };
+            var closingTradeType = FundOrderTradingPolicy.ClosingType(openingTradeType);
             for (var index = 0; index < ddlTradeType.Items.Count; index++)
                 if ($"{ddlTradeType.Items[index]}" == $"{closingTradeType}")
                 {

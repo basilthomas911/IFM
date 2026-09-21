@@ -101,11 +101,46 @@ public sealed class StrategyPositionActorStateMachine
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
+    /// <summary>Applies broker fills, retaining the remaining position and durable replay evidence.</summary>
+    public TradeDecision<StrategyPositionSnapshot> Close(ExecutionFillEvidence[] fills, DateTime closedAtUtc)
+    {
+        if(Current is null) return Reject("POSITION.NOT_FOUND","Position does not exist.");
+        var originalLegs=_legs.Values.Select(leg=>new TradeLegDefinition
+        {
+            TradeLegId=leg.TradeLegId,ContractId=leg.ContractId,
+            SignedQuantity=checked(leg.SignedQuantity-Current.ClosingFills.Where(x=>x.TradeLegId==leg.TradeLegId).Sum(x=>x.SignedQuantity))
+        }).ToArray();
+        var evidence=new EstablishedTradeDefinition
+        {
+            Legs=originalLegs,ClosingFills=Current.ClosingFills,
+            OriginalFills=originalLegs.Select(x=>new ExecutionFillEvidence
+                { TradeLegId=x.TradeLegId,ContractId=x.ContractId,SignedQuantity=x.SignedQuantity }).ToArray()
+        };
+        if(!TradeCloseEvidence.TryApply(evidence,fills,closedAtUtc,out var accepted))
+            return Reject("POSITION.INVALID_CLOSE_EVIDENCE","Closing fills conflict with the remaining position.");
+        var existing=Current.ClosingFills.Select(x=>x.ExecutionFillId).ToHashSet();
+        var added=accepted.ClosingFills.Where(x=>!existing.Contains(x.ExecutionFillId)).ToArray();
+        if(added.Length==0) return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
+        if(!Current.IsOpen) return Reject("POSITION.CLOSED","Position is closed.");
+        var realized=Current.RealizedPnl;
+        foreach(var fill in added)
+        {
+            var leg=_legs[fill.TradeLegId];
+            realized+=(fill.Price-leg.OpeningPrice)*-fill.SignedQuantity;
+            _legs[fill.TradeLegId]=leg with { SignedQuantity=checked(leg.SignedQuantity+fill.SignedQuantity) };
+        }
+        var isOpen=_legs.Values.Any(x=>x.SignedQuantity!=0);
+        Current=Build(Current.Id,Current.StrategyKind,isOpen?StrategyPositionPhase.MarkToMarket:StrategyPositionPhase.Close,
+            checked(Current.PositionSequence+1),isOpen?Current.RouteGeneration:checked(Current.RouteGeneration+1),
+            closedAtUtc>Current.AsOfUtc?closedAtUtc:Current.AsOfUtc,isOpen,realized) with { ClosingFills=accepted.ClosingFills };
+        return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
+    }
+
     public TradeDecision<StrategyPositionSnapshot> Close(DateTime closedAtUtc)
     {
         if (Current is null || !Current.IsOpen) return Reject("POSITION.NOT_OPEN", "An open position is required.");
         if (closedAtUtc.Kind != DateTimeKind.Utc) return Reject("POSITION.INVALID_TIME", "Close time must be UTC.");
-        var realized = CalculatePnl();
+        var realized = Current.RealizedPnl + CalculatePnl();
         Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.Close,
             checked(Current.PositionSequence + 1), checked(Current.RouteGeneration + 1), closedAtUtc, false, realized);
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
@@ -163,7 +198,8 @@ public sealed class StrategyPositionActorStateMachine
             UnrealizedPnl = isOpen ? pnl : 0,
             RealizedPnl = realizedPnl,
             AsOfUtc = asOfUtc,
-            IsOpen = isOpen
+            IsOpen = isOpen,
+            ClosingFills = Current?.ClosingFills ?? []
         };
     }
 

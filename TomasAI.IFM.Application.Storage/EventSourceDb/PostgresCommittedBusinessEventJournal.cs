@@ -1,13 +1,14 @@
 using Npgsql;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 
 /// <summary>Receipt-based scan includes late commits; a global sequence cursor cannot safely provide that guarantee.</summary>
-public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings settings) : ICommittedBusinessEventJournal
+public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEventJournal
 {
     public const string CreateTable = """
         CREATE TABLE IF NOT EXISTS business_subscription_projection_receipt(
@@ -24,13 +25,34 @@ public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings 
     const string Pending = Columns + "WHERE en.eventName=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventVersion) ORDER BY el.eventVersion LIMIT 32;";
     const string Prior = Columns + "WHERE el.eventStreamId=$1 AND el.eventVersion<=$2 AND en.eventName=ANY($3) ORDER BY el.eventVersion DESC LIMIT 1;";
     const string Handoffs = Columns + "JOIN business_subscription_projection_receipt r ON r.event_id=el.eventVersion WHERE en.eventName='WorkflowStrategyStateUpdatedEvent' AND NOT r.handoff_completed ORDER BY el.eventVersion LIMIT 32;";
-    readonly string connection = settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
+    readonly string connection;
+    readonly string pendingSql;
+    readonly string priorSql;
+    readonly string handoffsSql;
+
+    public PostgresCommittedBusinessEventJournal(
+        IDbConnectionSettings settings,
+        EventLogPersistenceOptions? eventLogPersistenceOptions = null)
+    {
+        var options = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
+        var layout = EventLogSqlLayout.ForProduction(options);
+        connection = settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
+        pendingSql = layout.Resolve(Pending);
+        priorSql = layout.Resolve(Prior);
+        handoffsSql = layout.Resolve(Handoffs);
+    }
+
+    internal static string CreateTableFor(EventLogPersistenceOptions? options)
+    {
+        var validated = (options ?? new EventLogPersistenceOptions()).Validate();
+        return EventLogSqlLayout.ForProduction(validated).Resolve(CreateTable);
+    }
 
     public Task<IReadOnlyList<EventLogReadModel>> ReadPendingAsync(IReadOnlyList<string> eventNames, CancellationToken cancellationToken)
-        => ReadAsync(Pending, [eventNames.ToArray()], cancellationToken);
+        => ReadAsync(pendingSql, [eventNames.ToArray()], cancellationToken);
 
     public Task<IReadOnlyList<EventLogReadModel>> ReadPendingHandoffsAsync(CancellationToken cancellationToken)
-        => ReadAsync(Handoffs, [], cancellationToken);
+        => ReadAsync(handoffsSql, [], cancellationToken);
 
     public async Task CompleteHandoffAsync(long eventId, CancellationToken cancellationToken)
     {
@@ -43,7 +65,7 @@ public sealed class PostgresCommittedBusinessEventJournal(IDbConnectionSettings 
     }
 
     public async Task<EventLogReadModel?> ReadPriorAsync(long streamId, long throughEventId, IReadOnlyList<string> eventNames, CancellationToken cancellationToken)
-        => (await ReadAsync(Prior, [streamId, throughEventId, eventNames.ToArray()], cancellationToken).ConfigureAwait(false)).SingleOrDefault();
+        => (await ReadAsync(priorSql, [streamId, throughEventId, eventNames.ToArray()], cancellationToken).ConfigureAwait(false)).SingleOrDefault();
 
     async Task<IReadOnlyList<EventLogReadModel>> ReadAsync(string sql, object[] arguments, CancellationToken cancellationToken)
     {

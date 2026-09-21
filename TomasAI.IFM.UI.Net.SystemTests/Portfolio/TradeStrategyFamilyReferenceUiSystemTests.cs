@@ -200,9 +200,9 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
         app.Services.ReferenceCommands.Returns(commands);
         var symbols = Symbols(); app.Services.MarketDataQueries.Returns(symbols);
         using var form = new ReferenceForm(app, service);
-        form.LoadViewModel(model); Invoke(form, "BindReferenceDataDefinitionTypes");
+        form.LoadViewModel(model); Invoke(form, "BindReferenceDataDefinitionTypes", false);
         var selector = Field<ComboBox>(form, "ddlReferenceDataSelector");
-        selector.Items.Cast<string>().Should().Equal("lookup type", "trade strategy families");
+        selector.Items.Cast<string>().Should().Equal("lookup type", "trade strategy families", "parameter sets");
         model.GetReferenceDataDefinitionType(0)!.ShortCode.Should().Be("Placeholder");
         selector.AccessibleDescription.Should().NotContainEquivalentOf("economic");
         selector.SelectedIndex = 1;
@@ -265,7 +265,7 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
                 app.Services.ReferenceCommands.Returns(commands);
                 app.Services.MarketDataQueries.Returns(symbols);
                 using var form = new ReferenceForm(app, service);
-                form.LoadViewModel(model); Invoke(form, "BindReferenceDataDefinitionTypes");
+                form.LoadViewModel(model); Invoke(form, "BindReferenceDataDefinitionTypes", false);
                 form.Load -= (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), form,
                     typeof(ReferenceForm).GetMethod("ReferenceForm_Load", BindingFlags.Instance | BindingFlags.NonPublic)!);
                 form.ShowInTaskbar = false; form.StartPosition = FormStartPosition.Manual; form.Location = new Point(-2000, -2000);

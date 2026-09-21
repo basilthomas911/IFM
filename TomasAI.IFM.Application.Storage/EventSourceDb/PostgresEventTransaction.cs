@@ -29,6 +29,8 @@ public sealed class PostgresEventTransaction(
     readonly string connectionString = settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
     readonly EventLogMessagePackCodec eventLogCodec = new(
         (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate().UseLz4Compression);
+    readonly EventLogSqlLayout eventLogSqlLayout = EventLogSqlLayout.ForProduction(
+        (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate());
     readonly bool portfolioIdentityValidated = ValidateIfPresent(settings);
 
 
@@ -88,7 +90,7 @@ public sealed class PostgresEventTransaction(
         using var beginTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.begin");
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
         beginTrace?.Stop();
-        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec);
+        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec, eventLogSqlLayout);
         T result;
         try
         {
@@ -140,12 +142,15 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     readonly NpgsqlConnection connection;
     readonly NpgsqlTransaction transaction;
     readonly EventLogMessagePackCodec eventLogCodec;
+    readonly EventLogSqlLayout eventLogSqlLayout;
     int completed;
     internal EnlistedEventTransaction(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
-        EventLogMessagePackCodec eventLogCodec)
-        => (this.connection, this.transaction, this.eventLogCodec) = (connection, transaction, eventLogCodec);
+        EventLogMessagePackCodec eventLogCodec,
+        EventLogSqlLayout eventLogSqlLayout)
+        => (this.connection, this.transaction, this.eventLogCodec, this.eventLogSqlLayout) =
+            (connection, transaction, eventLogCodec, eventLogSqlLayout);
 
     /// <summary>Executes parameterized SQL on the enlisted connection.</summary>
     public async Task<int> ExecuteAsync(string sql, object?[] parameters, CancellationToken cancellationToken)
@@ -222,7 +227,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
 
     NpgsqlCommand CreateCommand(string sql, object?[] parameters)
     {
-        var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 3 };
+        var command = new NpgsqlCommand(eventLogSqlLayout.Resolve(sql), connection, transaction) { CommandTimeout = 3 };
         foreach (var parameter in parameters)
             command.Parameters.Add(parameter is NpgsqlParameter typed ? typed : new NpgsqlParameter { Value = parameter ?? DBNull.Value });
         return command;

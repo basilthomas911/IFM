@@ -25,9 +25,10 @@ public sealed class DashboardSplitterRenderingTests
         using var form = CreateForm();
         var menuBar = form.Controls.Find("toolStrip1", true).OfType<ToolStrip>().Single();
 
-        new[] { "tradeButton", "marketDataButton", "portfolioButton", "fundButton", "referenceButton", "systemAdminButton" }
+        new[] { "tradeButton", "marketDataButton", "portfolioButton", "referenceButton", "systemAdminButton" }
             .Select(name => menuBar.Items[name])
             .Should().OnlyContain(item => item != null && item.Enabled);
+        menuBar.Items["fundButton"].Should().BeNull();
         menuBar.Items["marketDataFeedButton"].Enabled.Should().BeFalse(
             "the live-feed action, unlike navigation, still requires market-data readiness");
     }
@@ -93,6 +94,39 @@ public sealed class DashboardSplitterRenderingTests
     }
 
     [Fact]
+    public void MenuSeparatorIsAlignedAboveTheLeftDashboardSplitter()
+    {
+        using var form = CreateForm();
+        var menuBar = form.Controls.Find("toolStrip1", true).OfType<ToolStrip>().Single();
+        var splitter = form.Controls.Find("operationViewSplitter", true).OfType<SplitContainer>().Single();
+        var align = typeof(IFMAppView).GetMethod(
+            "AlignMenuSeparatorWithOperationSplitter",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        align.Invoke(form, null);
+
+        var menuSeparator = menuBar.Items["toolStripSeparator"];
+        var applicationMenuNames = new[]
+        {
+            "tradeButton",
+            "marketDataButton",
+            "portfolioButton",
+            "referenceButton",
+            "systemAdminButton"
+        };
+        applicationMenuNames
+            .Select(menuBar.Items.IndexOfKey)
+            .Should().OnlyContain(index => index < menuBar.Items.IndexOf(menuSeparator));
+        menuBar.Items.IndexOfKey("marketDataFeedButton")
+            .Should().Be(menuBar.Items.IndexOf(menuSeparator) + 1);
+        var menuSeparatorCenter = menuSeparator.Bounds.Left + (menuSeparator.Bounds.Width / 2);
+        var splitterCenter = splitter.Left
+            + splitter.SplitterRectangle.Left
+            + (splitter.SplitterRectangle.Width / 2);
+        menuSeparatorCenter.Should().Be(splitterCenter);
+    }
+
+    [Fact]
     public void MainWindowRequestsBlackNativeTitleBarWithWhiteText()
     {
         var constants = typeof(IFMAppView)
@@ -107,22 +141,24 @@ public sealed class DashboardSplitterRenderingTests
     }
 
     [Fact]
-    public void MarketFeedButtonUsesBlackBackgroundAndThemeCaptionState()
+    public void MarketFeedButtonHighlightsTheAvailableFeedAction()
     {
         var colorMethod = typeof(IFMAppView).GetMethod(
             "MarketDataFeedColors",
             BindingFlags.Static | BindingFlags.NonPublic)!;
-        var expected = new Dictionary<bool, (Color Background, Color Foreground)>
+        var expected = new Dictionary<(bool IsActive, bool Enabled), (Color Background, Color Foreground)>
         {
-            [false] = (Color.Black, Color.Gray),
-            [true] = (Color.Black, Color.White)
+            [(false, true)] = (Color.LimeGreen, Color.Black),
+            [(true, true)] = (Color.Red, Color.White),
+            [(false, false)] = (Color.DimGray, Color.Gray),
+            [(true, false)] = (Color.DimGray, Color.Gray)
         };
 
         foreach (var lifecycleState in expected)
         {
             var colors = ((Color Background, Color Foreground))colorMethod.Invoke(
                 null,
-                [lifecycleState.Key])!;
+                [lifecycleState.Key.IsActive, lifecycleState.Key.Enabled])!;
             colors.Background.ToArgb().Should().Be(lifecycleState.Value.Background.ToArgb());
             colors.Foreground.ToArgb().Should().Be(lifecycleState.Value.Foreground.ToArgb());
         }
@@ -216,7 +252,7 @@ public sealed class DashboardSplitterRenderingTests
                 typeof(IFMAppViewModel).GetProperty(nameof(model.ValueDate))!.SetValue(model, valueDate);
                 typeof(IFMAppViewModel).GetProperty(nameof(model.IsMarketDataFeedOperationInProgress))!.SetValue(model, busy);
                 render.Invoke(form, null);
-                new[] { "tradeButton", "marketDataButton", "portfolioButton", "fundButton", "referenceButton", "systemAdminButton" }
+                new[] { "tradeButton", "marketDataButton", "portfolioButton", "referenceButton", "systemAdminButton" }
                     .Select(name => menu.Items[name])
                     .Should().OnlyContain(item => item != null && item.Enabled,
                         $"navigation must remain available in {marketState} with a {feedState} feed");

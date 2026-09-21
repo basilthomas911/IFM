@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.Command;
 
@@ -29,6 +30,9 @@ public static class AddTradeToFundOrder
                 => e.UpdateFailed(FundOrderDoesNotExist(e)),
             _ when state.FundOrderTradeExists(e.FundOrderTrade.FundId, e.FundOrderTrade.OrderId, e.FundOrderTrade.TradeId)
                 => e.UpdateFailed(FundOrderTradeAlreadyExists(e)),
+            _ when state.GetFundOrder(e.FundOrderTrade.FundId, e.FundOrderTrade.OrderId) is not { } order
+                || !FundOrderTradingPolicy.IsCompatibleAddition(order, e.FundOrderTrade)
+                => e.UpdateFailed(FundOrderTradeViolatesPolicy(e)),
             _ => e.UpdatedOk(() => state.Update(e.CreateTradeAddedToFundOrderEvent(), e))
         };
 
@@ -48,4 +52,6 @@ public static class AddTradeToFundOrder
     public static string FundDoesNotExist(AddTradeToFundOrderCommand e) => $"{e.CommandName}: fundId {e.FundOrderTrade.FundId} does not exist";
     public static string FundOrderDoesNotExist(AddTradeToFundOrderCommand e) => $"{e.CommandName}: orderId {e.FundOrderTrade.OrderId} does not exist";
     public static string FundOrderTradeAlreadyExists(AddTradeToFundOrderCommand e) => $"{e.CommandName}: tradeId {e.FundOrderTrade.TradeId} already exists";
+    public static string FundOrderTradeViolatesPolicy(AddTradeToFundOrderCommand e)
+        => $"{e.CommandName}: order permits one primary opening trade and one compatible closing trade only";
 }

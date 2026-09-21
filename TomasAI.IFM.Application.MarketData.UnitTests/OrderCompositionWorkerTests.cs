@@ -51,6 +51,19 @@ public sealed partial class OrderCompositionWorkerTests
     }
 
     static readonly DateOnly Date = DateOnly.FromDateTime(At.UtcDateTime);
+    [Fact]
+    public async Task Unreviewed_test_refresh_policy_cannot_allocate_production_option_feed()
+    {
+        using var prices = Prices(); using var feed = new ChainFeed(); var factory = Factory(feed);
+        var aggregation = Substitute.For<ITickAggregationService>();
+        await using var runtime = new WorkerOptionChainRuntime(Generation, Date, factory,
+            DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Production, "GLBX.MDP3"),
+            aggregation, prices, new Clock(At));
+        var result = await runtime.AcquireAsync(Request(), default);
+        Assert.False(result.Active);
+        Assert.Equal("PricingRefreshPolicyUnreviewed", result.Failure!.Code);
+        factory.DidNotReceive().CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>());
+    }
     static WorkerOptionChainRequest Request() => new("es-scope", Guid.NewGuid(), Generation, Date,
         new(2026, 10, 2), At.AddSeconds(60), [new(Context(), 5000, true)]);
 
@@ -70,7 +83,10 @@ public sealed partial class OrderCompositionWorkerTests
         var reader = prices.GetFuturesOptionReader("ES-option-call", Date);
         await Until(() => reader.TryGetLastQuoteWithGreeks(out _));
         Assert.True(reader.TryGetLastQuoteWithGreeks(out var observed));
-        Assert.True(observed.Greeks.IsValid, observed.Greeks.PricingFailure?.Code);
+        Assert.False(observed.Greeks.IsValid);
+        Assert.Equal("CalculationPending", observed.Greeks.PricingFailure?.Code);
+        await Until(() => runtime.ReadSelection("ES-option-call") is { Delta: not null, Failure: null });
+        Assert.Equal(1, runtime.ReadSelection("ES-option-call")!.Option.Sequence);
         var capture = new CompositionSnapshotRequest(Guid.NewGuid(), request.ScopeId, "Daily", Generation, At, At.AddSeconds(2), true);
         var snapshot = await new MarketCompositionSnapshotProvider(runtime, new Clock(At)).CaptureAsync(capture, default);
         Assert.Null(snapshot.Failure);
@@ -80,7 +96,9 @@ public sealed partial class OrderCompositionWorkerTests
         feed.Push(QuoteRecord(2));
         await Until(() => reader.TryGetLastQuoteWithGreeks(out var q) && q.Tick.SourceSequence == 2);
         Assert.True(reader.TryGetLastQuoteWithGreeks(out observed));
-        Assert.Equal(5010m, observed.Greeks.FuturesPrice);
+        await Until(() => runtime.ReadSelection("ES-option-call") is { Option.Sequence: 2, Failure: null });
+        var selection = runtime.ReadSelection("ES-option-call")!;
+        Assert.Equal(5010m, (selection.Underlying.Bid + selection.Underlying.Ask) / 2m);
         Assert.True((await runtime.ReleaseAsync(new(request.ScopeId, request.LeaseId, Generation), default)).Active);
         Assert.Equal(0, feed.Stops);
         Assert.False((await runtime.ReleaseAsync(new(request.ScopeId, second.LeaseId, Generation), default)).Active);
@@ -264,12 +282,12 @@ public sealed partial class OrderCompositionWorkerTests
     }
 
     static WorkerOptionChainRuntime Runtime(IDatabentoFeedFactory factory, DatabentoLastPriceStore prices, TimeProvider? time = null,
-        Action<string>? terminalFault = null)
+        Action<string>? terminalFault = null, IOptionTradeEvidenceWriter? tradeEvidence = null)
     {
         var aggregation = Substitute.For<ITickAggregationService>();
         aggregation.GetTickerStatus("ES-future").Returns(new TickAggregationTickerStatus("ES-future", true, true, true));
         return new(Generation, Date, factory, DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
-            aggregation, prices, time ?? new Clock(At), terminalFault);
+            aggregation, prices, time ?? new Clock(At), terminalFault, tradeEvidence: tradeEvidence);
     }
     static IDatabentoFeedFactory Factory(ChainFeed feed)
     {

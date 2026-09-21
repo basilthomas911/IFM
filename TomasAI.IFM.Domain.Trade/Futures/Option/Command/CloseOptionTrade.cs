@@ -26,7 +26,7 @@ public static class CloseOptionTrade
             _ when state.Current.Status != EstablishedTradeStatus.Closing =>
                 command.UpdateFailed(
                     $"TRADE.INVALID_TRANSITION;Cannot close from {state.Current.Status}."),
-            _ when !TradeCloseEvidence.IsExact(state.Current, command.ClosingFills, command.ClosedAtUtc) =>
+            _ when !TradeCloseEvidence.TryApply(state.Current, command.ClosingFills, command.ClosedAtUtc, out _) =>
                 command.UpdateFailed(
                     "TRADE.INVALID_CLOSE_EVIDENCE;Closing fills and a UTC close time are required."),
             _ => command.UpdatedOk(() => state.Update(
@@ -45,14 +45,14 @@ public static class CloseOptionTrade
         EstablishedTradeDefinition current) => new()
         {
             EntityId = command.EntityId,
-            State = current with
-            {
-                SchemaVersion = 3,
-                Status = EstablishedTradeStatus.Closed,
-                ClosingFills = command.ClosingFills,
-                ClosedAtUtc = command.ClosedAtUtc,
-                EvidenceRevision = current.EvidenceRevision + 1
-            },
+            State = ApplyClosingEvidence(current, command),
             IsInitialEstablishment = false
         };
+
+    static EstablishedTradeDefinition ApplyClosingEvidence(EstablishedTradeDefinition current, CloseOptionTradeCommand command)
+    {
+        if (!TradeCloseEvidence.TryApply(current, command.ClosingFills, command.ClosedAtUtc, out var updated))
+            throw new InvalidOperationException("Validated closing evidence changed.");
+        return updated;
+    }
 }

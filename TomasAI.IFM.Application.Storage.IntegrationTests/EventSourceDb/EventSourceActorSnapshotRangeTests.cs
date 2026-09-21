@@ -76,6 +76,10 @@ public sealed class EventSourceActorSnapshotRangeFixture
 
     public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null)
         => new(_connectionSettings, DbFactory, _blackboard, _logger, options);
+
+    internal EventSourceActorDbContext CreateBenchmarkActorEventDb(bool batched)
+        => new(_connectionSettings, DbFactory, _blackboard, _logger,
+            new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy }, null, batched);
 }
 
 public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapshotRangeFixture fixture)

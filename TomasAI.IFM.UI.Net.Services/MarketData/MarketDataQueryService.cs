@@ -18,6 +18,10 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     static readonly string[] DashboardSymbols = ["ES", "VX"];
     readonly IMarketDataQueryApi _queryApi = IsArgumentNull.Set(queryApi);
     readonly IMarketDataFeedQueryApi _queryFeedApi = IsArgumentNull.Set(queryFeedApi);
+    public Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
+        CancellationToken cancellationToken = default) => _queryApi.GetInstrumentDefinitionsAsync(request, cancellationToken);
+    public Task<ServiceResult<FuturesContractV3ReadModel>> ResolveUnderlyingAsync(string contractId,
+        CancellationToken cancellationToken = default) => _queryApi.GetFuturesContractAsync(contractId).WaitAsync(cancellationToken);
 
     /// <summary>Loads provider-backed symbols and their currency/exchange by strategy family.</summary>
     public Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(

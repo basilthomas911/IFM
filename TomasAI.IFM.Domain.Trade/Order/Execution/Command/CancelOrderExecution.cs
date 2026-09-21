@@ -10,6 +10,5 @@ public static class CancelOrderExecution
 {
     /// <summary>Records authoritative cancellation for a cancellable execution.</summary>
     public static ServiceResult<GuidResult> Execute(this CancelOrderExecutionCommand command,
-        OrderExecutionCommandState state) => OrderExecutionCommandModel.Apply(command, state,
-        static machine => machine.Cancel());
+        OrderExecutionCommandState state) => OrderExecutionCommandModel.Cancel(command, state);
 }

@@ -28,6 +28,7 @@ public class TradeDatabaseFixture : IDisposable
 
     public TradeDatabaseFixture()
     {
+        EventLogEngineQualification.Validate();
         SetSeqIdDatabase();
         SetTradeDatabase();
         SetEventSourceDatabase();
@@ -36,13 +37,13 @@ public class TradeDatabaseFixture : IDisposable
     void SetTradeDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("TradeDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db", "System.Data.ScyllaDb");
+                         .Add("TradeDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_TRADE_CONNECTION") ?? "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db", "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, TradeDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var redisUri = "localhost:6379";
+        var redisUri = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL") ?? "localhost:6379";
         var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
         var redisCache = new RedisCache(connMultiplexer);
         var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
@@ -55,7 +56,7 @@ public class TradeDatabaseFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -70,12 +71,12 @@ public class TradeDatabaseFixture : IDisposable
     void SetEventSourceDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                    .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+                    .Add("EventSourceActorDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, EventSourceActorDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var redisUri = "localhost:6379";
+        var redisUri = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL") ?? "localhost:6379";
         var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
         var redisCache = new RedisCache(connMultiplexer);
         BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Npgsql;
 using NpgsqlTypes;
 using TomasAI.IFM.Shared.EventProjector;
@@ -77,10 +78,12 @@ internal static class EventLogAppenderSupport
         NpgsqlTransaction transaction,
         long eventId,
         DurableProjectionRequirement requirement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? sql = null)
     {
+        var started = Stopwatch.GetTimestamp();
         var now = DateTime.UtcNow;
-        await using var command = Command(connection, transaction, EventSourceDbSql.TryCreateEventProjectorExecutionState);
+        await using var command = Command(connection, transaction, sql ?? EventSourceDbSql.TryCreateEventProjectorExecutionState);
         Add(command, eventId, NpgsqlDbType.Bigint);
         Add(command, requirement.ActorName, NpgsqlDbType.Text);
         Add(command, requirement.ProjectorName, NpgsqlDbType.Text);
@@ -94,5 +97,6 @@ internal static class EventLogAppenderSupport
         Add(command, now, NpgsqlDbType.TimestampTz);
         if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
             throw new InvalidOperationException("The required durable projection marker was not persisted.");
+        EventLogPersistenceMetrics.ProjectionMarkersWritten(1, started);
     }
 }

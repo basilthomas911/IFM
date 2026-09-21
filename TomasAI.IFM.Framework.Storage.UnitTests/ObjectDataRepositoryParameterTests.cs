@@ -1,35 +1,12 @@
 using System;
 using Xunit;
 using FluentAssertions;
-using TomasAI.IFM.Framework.Storage.SqlServer;
 using TomasAI.IFM.Framework.Storage.Postgres;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;
 
 public class ObjectDataRepositoryParameterTests
 {
-    [Fact]
-    public void CreateParameterForSqlServer()
-    {
-        // Arrange & Act
-        var parameter = ObjectDataRepositoryParameter.Create(null);
-
-        // Assert
-        parameter.Should().NotBeNull();
-        parameter.Should().BeOfType<SqlServerObjectDataRepositoryParameter>();
-    }
-
-    [Fact]
-    public void CreateParameterForSqlServerWithDefaultProvider()
-    {
-        // Arrange & Act
-        var parameter = ObjectDataRepositoryParameter.Create("SomeUnknownProvider");
-
-        // Assert
-        parameter.Should().NotBeNull();
-        parameter.Should().BeOfType<SqlServerObjectDataRepositoryParameter>();
-    }
-
     [Fact]
     public void CreateParameterForPostgres()
     {
@@ -59,31 +36,6 @@ public class ObjectDataRepositoryParameterTests
 
         // Assert
         parameter.Should().BeNull();
-    }
-
-    [Fact]
-    public void CreateParameterForEmptyProvider()
-    {
-        // Arrange & Act
-        var parameter = ObjectDataRepositoryParameter.Create("");
-
-        // Assert
-        parameter.Should().NotBeNull();
-        parameter.Should().BeOfType<SqlServerObjectDataRepositoryParameter>();
-    }
-
-    [Fact]
-    public void SqlServerParameterPropertyOk()
-    {
-        // Arrange
-        var repoParam = new SqlServerObjectDataRepositoryParameter();
-
-        // Act
-        var dbParam = repoParam.Parameter;
-
-        // Assert
-        dbParam.Should().NotBeNull();
-        dbParam.Should().BeOfType<Microsoft.Data.SqlClient.SqlParameter>();
     }
 
     [Fact]

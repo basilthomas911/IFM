@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using System.Collections.Immutable;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
-using TomasAI.IFM.Framework.OptionPricer.Black76;
+using TomasAI.IFM.Framework.OptionPricer.Pricing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
@@ -140,6 +140,7 @@ public static class RiskUnitModel
             "RM.CALCULATION.FUTURES_LOSS_MISSING");
         decimal scenarioLoss = 0;
         int count = 0;
+        var optionCalculator = future ? null : new OptionCalculator();
         foreach (var forwardShock in ForwardShocks)
         foreach (var volatilityShock in VolatilityShocks)
         foreach (var elapsed in ElapsedYears)
@@ -149,9 +150,19 @@ public static class RiskUnitModel
             foreach (var leg in legs)
             {
                 decimal forward = leg.Forward * (1 + forwardShock);
-                decimal price = future ? forward : Normalize(OptionModel.Price((double)forward, (double)leg.Strike,
-                    (double)leg.AnnualRate, (double)Math.Max(.0001m, leg.Volatility + volatilityShock),
-                    (double)Math.Max(0, leg.Years - elapsed), leg.IsCall ? 1 : -1));
+                decimal price;
+                if (future) price = forward;
+                else
+                {
+                    var request = new OptionPricingRequest(UnderlyingKind.Futures, ExerciseKind.European,
+                        PremiumKind.PaidUpfront, leg.IsCall ? OptionSide.Call : OptionSide.Put,
+                        (double)forward, (double)leg.Strike, (double)Math.Max(0, leg.Years - elapsed),
+                        (double)leg.AnnualRate);
+                    var priced = optionCalculator!.TheoreticalPrice(request,
+                        (double)Math.Max(.0001m, leg.Volatility + volatilityShock));
+                    Require(priced.Success, "RM.CALCULATION.OPTION_PRICING");
+                    price = Normalize(priced.Price!.Value);
+                }
                 value += leg.SignedRatio * price;
             }
             scenarioLoss = Math.Max(scenarioLoss, (worstDebit - value) * multiplier + composerCostReserve);

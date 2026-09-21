@@ -149,6 +149,37 @@ public sealed class ManagedProcessSupervisorTests
     }
 
     [Fact]
+    public async Task Readiness_timeout_throws_and_never_starts_the_next_process()
+    {
+        var logs = new ConcurrentQueue<ManagedProcessLogEntry>();
+        var first = CreateDefinition(
+            "first",
+            ProcessShutdownMode.StandardInput,
+            "--wait-for-shutdown", "stop");
+        first.ReadinessUri = $"http://127.0.0.1:{ReserveAvailablePort()}/health/ready";
+        first.ReadinessTimeoutSeconds = 1;
+        first.ReadinessPollIntervalMilliseconds = 50;
+        var second = CreateDefinition(
+            "second",
+            ProcessShutdownMode.StandardInput,
+            "--wait-for-shutdown", "stop");
+        second.StartOrder = 20;
+
+        await using var supervisor = new ManagedProcessSupervisor(
+            [first, second],
+            TimeSpan.FromSeconds(2),
+            logs.Enqueue);
+
+        var start = () => supervisor.StartAllAsync();
+
+        await start.Should().ThrowAsync<TimeoutException>()
+            .WithMessage("Readiness timed out after 1 seconds*");
+        logs.Should().NotContain(entry => entry.ProcessKey == "second"
+            && entry.Message.StartsWith("Started process"));
+        supervisor.RunningProcessKeys.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Missing_executable_is_reported_without_abandoning_lifecycle_control()
     {
         var logs = new ConcurrentQueue<ManagedProcessLogEntry>();

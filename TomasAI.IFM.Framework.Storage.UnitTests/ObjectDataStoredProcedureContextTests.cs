@@ -96,11 +96,11 @@ public class ObjectDataStoredProcedureContextTests
     }
 
     [Fact]
-    public void GetParameterNameForSqlServer()
+    public void GetParameterNameForPostgresAlias()
     {
         // Arrange
         var mockRepo = Substitute.For<IObjectRepository>();
-        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var ctx = new ObjectDataStoredProcedureContext(mockRepo, mockLogger, "spGetData");
 
@@ -108,7 +108,7 @@ public class ObjectDataStoredProcedureContextTests
         var result = ctx.GetParameterName("parameterName");
 
         // Assert
-        result.Should().Be("@parameterName");
+        result.Should().Be("_parameterName");
     }
 
     [Fact]

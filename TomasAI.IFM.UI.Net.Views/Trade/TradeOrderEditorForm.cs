@@ -57,6 +57,7 @@ public partial class TradeOrderEditorForm
     bool _adjustingTradeBlotterLayout;
     Control? _embeddedLegacyTradeEditor;
     long _legacyViewerGeneration;
+    int _submissionInProgress;
 
     /// <summary>Creates the Portfolio-aware Trade Order editor.</summary>
     /// <param name="appRoot">The application service boundary.</param>
@@ -72,6 +73,8 @@ public partial class TradeOrderEditorForm
         TradeOrderInputPalette.Apply(this);
         pnlContentFrame.BackColor = Color.Gray;
         ConfigureCompactLayout();
+        btnSubmitOrder.Visible = false;
+        btnEndOfDay.Visible = false;
         ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
         _referenceDataService = referenceDataService;
@@ -165,7 +168,7 @@ public partial class TradeOrderEditorForm
         AlignTradePositionHeader();
         lstTradeOrders.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         lstTrades.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        pnlTradeControl.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        pnlTradeBlotter.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         foreach (var button in new[] { btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder,
             btnAddTrade, btnRemoveTrade, btnChangeTradeState, btnOpenTrade, btnSubmitOrder, btnEndOfDay })
         {
@@ -179,7 +182,7 @@ public partial class TradeOrderEditorForm
         PositionButtonColumn(pnlTrades, lstTrades.Top, ListCommandButtonGap,
             btnAddTrade, btnRemoveTrade, btnChangeTradeState);
         btnOpenTrade.Location = btnAddTrade.Location;
-        PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top, CommandButtonGap,
+        PositionButtonColumn(pnlTradePosition, pnlTradeBlotter.Top, CommandButtonGap,
             btnSubmitOrder, btnEndOfDay);
         AlignTargetStateUnderEndOfDay();
 
@@ -204,18 +207,18 @@ public partial class TradeOrderEditorForm
         pnlTradePosition.Resize += (_, _) =>
         {
             LayoutTradeBlotterHeight();
-            LayoutMainContent(pnlTradePosition, pnlTradeControl);
-            PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top, CommandButtonGap,
+            LayoutMainContent(pnlTradePosition, pnlTradeBlotter);
+            PositionButtonColumn(pnlTradePosition, pnlTradeBlotter.Top, CommandButtonGap,
                 btnSubmitOrder, btnEndOfDay);
             AlignTargetStateUnderEndOfDay();
         };
-        pnlTradeControl.ControlAdded += (_, _) => LayoutTradeBlotterHeight();
-        pnlTradeControl.ControlRemoved += (_, _) => LayoutTradeBlotterHeight();
+        pnlTradeBlotter.ControlAdded += (_, _) => LayoutTradeBlotterHeight();
+        pnlTradeBlotter.ControlRemoved += (_, _) => LayoutTradeBlotterHeight();
 
         ddlFund.Width = CalculateMainContentWidth(pnlFundSelector);
         LayoutMainContent(pnlTradeOrders, lstTradeOrders);
         LayoutMainContent(pnlTrades, lstTrades);
-        LayoutMainContent(pnlTradePosition, pnlTradeControl);
+        LayoutMainContent(pnlTradePosition, pnlTradeBlotter);
         LayoutTradeBlotterHeight();
         PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
             btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
@@ -289,13 +292,13 @@ public partial class TradeOrderEditorForm
         _adjustingTradeBlotterLayout = true;
         try
         {
-            var contentHeight = pnlTradeControl.Controls.Cast<Control>()
+            var contentHeight = pnlTradeBlotter.Controls.Cast<Control>()
                 .Select(MeasureHostedControlHeight)
                 .DefaultIfEmpty(EmptyTradeBlotterHeight)
                 .Max();
-            pnlTradeControl.Height = Math.Max(EmptyTradeBlotterHeight, contentHeight);
+            pnlTradeBlotter.Height = Math.Max(EmptyTradeBlotterHeight, contentHeight);
 
-            var overflow = pnlTradeControl.Bottom + TradeBlotterBottomPadding
+            var overflow = pnlTradeBlotter.Bottom + TradeBlotterBottomPadding
                            - pnlTradePosition.ClientSize.Height;
             if (overflow <= 0)
                 return;
@@ -486,7 +489,7 @@ public partial class TradeOrderEditorForm
         _lastTradeIndex = -1;
         _lastTradeOrderIndex = -1;
         _displayedTradeId = null;
-        pnlTradeControl.Controls.Clear();
+        pnlTradeBlotter.Controls.Clear();
         await _viewModel.LoadFunds();
     }
 
@@ -566,6 +569,8 @@ public partial class TradeOrderEditorForm
             }
             foreach (var order in _viewModel.CanonicalOrders)
             {
+                if (_viewModel.FundOrders.Any(candidate => candidate.OrderId == order.OrderId))
+                    continue;
                 var source = order.Origin == CompositionOrigin.ManualUi ? "Manual" : "Strategy Workflow";
                 var filter = _sourceFilter.SelectedItem?.ToString() ?? "All";
                 if (filter != "All" && filter != source) continue;
@@ -638,7 +643,7 @@ public partial class TradeOrderEditorForm
         if (lstTrades.Items.Count == 0)
         {
             _displayedTradeId = null;
-            pnlTradeControl.Controls.Clear();
+            pnlTradeBlotter.Controls.Clear();
         }
         if (!wasRendering && lstTrades.SelectedIndices.Count > 0)
             _ = ObserveAsync(ShowSelectedTradeAsync);
@@ -649,15 +654,15 @@ public partial class TradeOrderEditorForm
         Cursor.Current = _viewModel.IsBusy ? Cursors.WaitCursor : Cursors.Default;
         var readOnlyHistory = _canonicalOrderSelected || _legacyOrderSelected || _viewModel.IsLegacyHistoryMode;
         btnDeleteOrder.AccessibleName = _viewModel.SelectedFundOrder is { } selectedOrder
-            ? $"Delete Order {selectedOrder.OrderId}"
-            : "Delete Order";
+            ? $"Remove Order {selectedOrder.OrderId}"
+            : "Remove Order";
         btnRemoveTrade.AccessibleName = _viewModel.SelectedFundOrder is { } tradeOrder
                                         && _viewModel.SelectedFundOrderTrade is { } selectedTrade
             ? $"Remove Trade {selectedTrade.TradeId} From Order {tradeOrder.OrderId}"
             : "Remove Trade";
         btnCreateFund.Enabled = false;
         btnLoadOrder.Enabled = !readOnlyHistory && _viewModel.CanLoadOrder;
-        btnCreateOrder.Enabled = !readOnlyHistory && _viewModel.CanCreateOrder;
+        btnCreateOrder.Enabled = _viewModel.CanCreateOrder;
         btnDeleteOrder.Enabled = !readOnlyHistory && _viewModel.CanDeleteOrder;
         btnCompleteOrder.Enabled = !readOnlyHistory && _viewModel.CanCompleteOrder;
         btnAddTrade.Enabled = !readOnlyHistory && _viewModel.CanAddTrade;
@@ -683,10 +688,10 @@ public partial class TradeOrderEditorForm
         var fundId = _viewModel.Funds.ElementAt(ddlFund.SelectedIndex).FundId;
         var fundOrder = _viewModel.GetFundOrder(lstTradeOrders.SelectedItems[0].Index);
         var fundOrderTrade = _viewModel.GetFundOrderTrade(lstTrades.SelectedIndices.Count > 0 ? lstTrades.SelectedIndices[0] : 0);
-        pnlTradeControl.Draw(() =>
+        pnlTradeBlotter.Draw(() =>
         {
-            var tradeControl = default(Control);
-            pnlTradeControl.Controls.Clear();
+            var workflowControl = default(Control);
+            pnlTradeBlotter.Controls.Clear();
             var tradeType = fundOrderTrade!.TradeType;
             switch (tradeType)
             {
@@ -708,7 +713,7 @@ public partial class TradeOrderEditorForm
                        orderActionType,
                        _referenceDataService,
                        portfolioId: _viewModel.SelectedPortfolio?.PortfolioId ?? 0);
-                   tradeControl = new IronCondorTradeOrderView(this, viewModel);
+                   workflowControl = new IronCondorTradeOrderView(this, viewModel);
                    break;
                case TradeType.FuturesOutright:
                case TradeType.PutCreditSpread:
@@ -727,13 +732,33 @@ public partial class TradeOrderEditorForm
                        fundOrder!,
                        fundOrderTrade,
                        brokerBaseContract);
-                   tradeControl = new BrokerManualTradeOrderView(brokerViewModel);
+                   workflowControl = new BrokerManualTradeOrderView(brokerViewModel);
                    break;
             }
-            if (tradeControl != null)
+            if (workflowControl != null)
             {
-                tradeControl.Dock = DockStyle.Fill;
-                pnlTradeControl.Controls.Add(tradeControl);
+                var blotter = new EsTradeBlotterControl(
+                    _appRoot,
+                    _viewModel.SelectedFund!,
+                    fundOrder!,
+                    fundOrderTrade,
+                    _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
+                    historicalReadOnly: _canonicalOrderSelected || _legacyOrderSelected,
+                    workflowControl: workflowControl)
+                {
+                    Name = workflowControl.Name
+                };
+                blotter.SubmitOpeningRequested += async (_, _) =>
+                    await SubmitTradeOrderAsync(OrderActionType.Open);
+                blotter.SubmitClosingRequested += async (_, _) =>
+                    await SubmitTradeOrderAsync(OrderActionType.Close);
+                blotter.EndOfDayRequested += (_, eventArgs) => btnEndOfDay_Click(blotter, eventArgs);
+                btnSubmitOrder.Visible = false;
+                btnEndOfDay.Visible = false;
+                pnlTradePosition.Controls.Remove(btnSubmitOrder);
+                pnlTradePosition.Controls.Remove(btnEndOfDay);
+                blotter.Dock = DockStyle.Fill;
+                pnlTradeBlotter.Controls.Add(blotter);
             }
             if (lstTradeOrders.SelectedIndices.Count > 0)
             {
@@ -749,10 +774,7 @@ public partial class TradeOrderEditorForm
 
 
     void EnableTradeButtons()
-    {
-        var enabled = lstTrades.SelectedIndices.Count > 0;
-        btnRemoveTrade.Enabled = enabled;
-    }
+        => UpdateButtons();
 
     async void btnLoadOrder_Click(object sender, EventArgs e)
         => await ObserveAsync(LoadTradeOrderAsync);
@@ -832,7 +854,7 @@ public partial class TradeOrderEditorForm
         Interlocked.Increment(ref _legacyViewerGeneration);
         await CloseEmbeddedLegacyTradeEditorAsync();
         _displayedTradeId = null;
-        pnlTradeControl.Controls.Clear();
+        pnlTradeBlotter.Controls.Clear();
         ddlOrderActionType.Enabled = false;
         txtDaysToExpiry.Visible = false;
         lblDaysToExpiry.Visible = false;
@@ -900,6 +922,7 @@ public partial class TradeOrderEditorForm
             var index = lstTrades.SelectedIndices.Count > 0 ? lstTrades.SelectedIndices[0] : 0;
             _lastTradeIndex = index;
             _viewModel.SelectFundOrderTrade(index);
+            await _viewModel.RefreshSelectedTradeFillEvidenceAsync();
             var fundOrderTrade = _viewModel.GetFundOrderTrade(index);
             LoadTradeStateTargets(fundOrderTrade!.TradeState);
             var controls = new Control[] { dtpTradeDate, ddlOrderActionType };
@@ -915,6 +938,7 @@ public partial class TradeOrderEditorForm
                 ClearTradeOrderControl();
             }
         }
+        UpdateButtons();
         return;
         
     }
@@ -937,7 +961,13 @@ public partial class TradeOrderEditorForm
         if (dlg.ShowDialog() == DialogResult.OK)
             await ObserveAsync(async () =>
             {
-                await _viewModel.CreateManualOrderAsync(dlg.FundOrder);
+                var reservation = await _viewModel.CreateManualOrderAsync(dlg.FundOrder);
+                await _viewModel.AddOrderToFund(dlg.FundOrder with
+                {
+                    FundId = reservation.Order.FundId,
+                    OrderId = reservation.Order.OrderId,
+                    OrderStatus = TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open
+                });
                 RenderFundOrders();
                 RenderTrades();
                 UpdateButtons();
@@ -995,7 +1025,7 @@ public partial class TradeOrderEditorForm
         await CloseEmbeddedLegacyTradeEditorAsync();
         if (generation != Volatile.Read(ref _legacyViewerGeneration))
             return;
-        pnlTradeControl.Controls.Clear();
+        pnlTradeBlotter.Controls.Clear();
 
         var fund = _viewModel.SelectedFund;
         var order = _selectedLegacyOrder?.Order;
@@ -1008,7 +1038,7 @@ public partial class TradeOrderEditorForm
                 historicalReadOnly: true);
             _embeddedLegacyTradeEditor = brokerViewer;
             brokerViewer.Dock = DockStyle.Fill;
-            pnlTradeControl.Controls.Add(brokerViewer);
+            pnlTradeBlotter.Controls.Add(brokerViewer);
             brokerViewer.Open();
             UpdateButtons();
             return;
@@ -1071,7 +1101,7 @@ public partial class TradeOrderEditorForm
 
         _embeddedLegacyTradeEditor = editor;
         editor.Dock = DockStyle.Fill;
-        pnlTradeControl.Controls.Add(editor);
+        pnlTradeBlotter.Controls.Add(editor);
         if (editor is IFormControl formControl)
             formControl.Open();
         UpdateButtons();
@@ -1079,8 +1109,8 @@ public partial class TradeOrderEditorForm
 
     void ShowTradeEditorUnavailable(string message)
     {
-        pnlTradeControl.Controls.Clear();
-        pnlTradeControl.Controls.Add(new Label
+        pnlTradeBlotter.Controls.Clear();
+        pnlTradeBlotter.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(48, 48, 48),
@@ -1098,7 +1128,7 @@ public partial class TradeOrderEditorForm
         _embeddedLegacyTradeEditor = null;
         if (editor is null)
             return;
-        pnlTradeControl.Controls.Remove(editor);
+        pnlTradeBlotter.Controls.Remove(editor);
         await CloseControlAsync(editor);
         editor.Dispose();
     }
@@ -1129,28 +1159,42 @@ public partial class TradeOrderEditorForm
     void btnClearTrade_Click(object sender, EventArgs e) => ClearTradeOrderControl();
 
     async void btnSubmitOrder_Click(object sender, EventArgs e)
+        => await SubmitTradeOrderAsync((OrderActionType)Enum.Parse(
+            typeof(OrderActionType), ddlOrderActionType.SelectedItem!.ToString()!));
+
+    async Task SubmitTradeOrderAsync(OrderActionType orderActionType)
     {
-        var orderActionType = (OrderActionType)Enum.Parse(typeof(OrderActionType), ddlOrderActionType.SelectedItem!.ToString()!);
-        if (!_viewModel.ValidateOrderSubmission(orderActionType))
+        if (Interlocked.Exchange(ref _submissionInProgress, 1) != 0)
             return;
-        var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
-        var orderConfirmation = new WinFormsTradeOrderConfirmationService(this);
-        await ObserveAsync(async () =>
+        try
         {
-            var commandId = await tradeOrderControl!.SubmitOrderAsync(
-                DateOnly.FromDateTime(dtpTradeDate.Value),
-                orderActionType,
-                orderConfirmation);
-            if (commandId != Guid.Empty)
-                _viewModel.SetCommandId(commandId);
-        });
+            if (!_viewModel.ValidateOrderSubmission(orderActionType))
+                return;
+            var tradeOrderControl = pnlTradeBlotter.Controls.OfType<ITradeOrderControl>().SingleOrDefault();
+            if (tradeOrderControl is null)
+                return;
+            var orderConfirmation = new WinFormsTradeOrderConfirmationService(this);
+            await ObserveAsync(async () =>
+            {
+                var commandId = await tradeOrderControl.SubmitOrderAsync(
+                    DateOnly.FromDateTime(dtpTradeDate.Value),
+                    orderActionType,
+                    orderConfirmation);
+                if (commandId != Guid.Empty)
+                    _viewModel.SetCommandId(commandId);
+            });
+        }
+        finally
+        {
+            Volatile.Write(ref _submissionInProgress, 0);
+        }
     }
 
     void dtpTradeDate_ValueChanged(object sender, EventArgs e)
     {
-        if (pnlTradeControl.Controls.Count > 0)
+        if (pnlTradeBlotter.Controls.Count > 0)
         {
-            var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
+            var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
             txtDaysToExpiry.Text =$"{ tradeOrderControl!.MaturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber }";
         }
     }
@@ -1160,7 +1204,7 @@ public partial class TradeOrderEditorForm
         if (lstTradeOrders.SelectedIndices.Count > 0)
         {
             var fundOrder = _viewModel.GetFundOrder(lstTradeOrders.SelectedIndices[0]);
-            var dlg = new DeleteFundOrderForm($"Are you sure you want to delete order:{Environment.NewLine} {fundOrder!.OrderId} {fundOrder.Reference ?? string.Empty} ?");
+            var dlg = new DeleteFundOrderForm($"Are you sure you want to remove order:{Environment.NewLine} {fundOrder!.OrderId} {fundOrder.Reference ?? string.Empty} ?");
             if (dlg.ShowDialog() == DialogResult.Yes)
                 await ObserveAsync(() => _viewModel.RemoveOrderFromFund(fundOrder.Id));
         }
@@ -1168,7 +1212,7 @@ public partial class TradeOrderEditorForm
 
     void btnNearestStrikes_Click(object sender, EventArgs e)
     {
-        var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
+        var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
         tradeOrderControl?.SetNearestStrikePrices();
     }
 
@@ -1262,10 +1306,10 @@ public partial class TradeOrderEditorForm
 
     async void ddlOrderActionType_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (pnlTradeControl.Controls.Count == 0) return;
+        if (pnlTradeBlotter.Controls.Count == 0) return;
         var orderActionType = Enum.Parse<OrderActionType>(ddlOrderActionType.SelectedItem!.ToString()!);
         _viewModel.OrderActionType = orderActionType;   
-        var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
+        var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
         if (tradeOrderControl is not null)
             await ObserveAsync(() => tradeOrderControl.OrderActionTypeChangedAsync(orderActionType));
     }
@@ -1325,7 +1369,7 @@ public partial class TradeOrderEditorForm
             _ => Color.Red, 
         };
 
-        var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
+        var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
         await ObserveAsync(() => tradeOrderControl!.SetLiveFeedAsync(cbLiveFeed.Checked));
     }
 

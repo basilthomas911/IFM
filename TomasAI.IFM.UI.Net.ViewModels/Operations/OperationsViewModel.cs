@@ -22,12 +22,14 @@ public sealed class OperationsViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     public OperationsViewModel(
         IAppRoot appRoot,
+        string symbol,
         string contractId,
         DateOnly valueDate,
         TimeProvider? timeProvider = null)
         : this(new StrategyOperationsViewModel(
             (appRoot ?? throw new ArgumentNullException(nameof(appRoot)))
                 .Services.StrategyOperations,
+            symbol,
             contractId,
             valueDate,
             timeProvider))

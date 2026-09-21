@@ -14,5 +14,6 @@ public static class CloseIronCondorPosition
         IronCondorPositionTransition.Apply(
             command,
             state,
-            machine => machine.Close(command.EffectiveAtUtc));
+            machine => command.ClosingFills.Length == 0 ? machine.Close(command.EffectiveAtUtc)
+                : machine.Close(command.ClosingFills, command.EffectiveAtUtc));
 }

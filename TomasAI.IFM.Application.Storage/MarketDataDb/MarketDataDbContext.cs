@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -1227,13 +1227,17 @@ public partial class MarketDataDbContext(
         };
 
     static FuturesMacdSignalReadModel MapToFuturesMacdSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
+    {
+        var isWarm = !e.IsNull(15) && e.GetBool(15);
+        var signalEmaPeriod = e.GetInt(3);
+        var slowEmaPeriod = e.GetInt(5);
+        var signal = new FuturesMacdSignalReadModel(
             contractId: e.GetString(0),
             valueDate: e.GetDateOnly(1),
             timePeriod: e.GetEnum<TimeFrameType>(2),
-            signalEmaPeriod: e.GetInt(3),
+            signalEmaPeriod: signalEmaPeriod,
             fastEmaPeriod: e.GetInt(4),
-            slowEmaPeriod: e.GetInt(5),
+            slowEmaPeriod: slowEmaPeriod,
             timestamp: e.GetTimeOnly(6),
             futuresPrice: e.GetDecimal(7),
             fastEma: e.GetDouble(8),
@@ -1242,9 +1246,40 @@ public partial class MarketDataDbContext(
             signalLine: e.GetDouble(11),
             histogram: e.GetDouble(12),
             macd: e.GetEnum<FuturesTrendDirectionType>(13),
-            macdStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(14)
-        );
+            macdStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(14))
+        {
+            IsWarm = isWarm,
+            ObservationCount = e.IsNull(16)
+                ? isWarm ? slowEmaPeriod + signalEmaPeriod : 0
+                : e.GetInt(16)
+        };
+        if (e.IsNull(17))
+            return signal;
 
+        var marketDataAsOf = new DateTimeOffset(
+            DateTime.SpecifyKind(e.GetDateTime(19), DateTimeKind.Utc));
+        return signal with
+        {
+            Metadata = new MarketAnalyticsSignalMetadata
+            {
+                SignalKey = new(
+                    MarketSeriesIdentity.ForContract(signal.ContractId),
+                    MarketAnalyticsSignalKind.Macd,
+                    signal.TimePeriod,
+                    e.GetString(17)),
+                ContractId = signal.ContractId,
+                ValueDate = signal.ValueDate,
+                ObservationId = new FuturesTradeSessionBarId(e.GetGuid(18)),
+                MarketDataAsOfUtc = marketDataAsOf,
+                CalculatedAtUtc = marketDataAsOf,
+                SourceSequence = e.GetLong(20),
+                CalculationVersion = e.GetString(21),
+                CalculationMethod = e.GetEnum<MarketSignalCalculationMethod>(22),
+                SchemaVersion = checked((ushort)e.GetInt(23)),
+                IsValid = e.GetBool(24)
+            }
+        };
+    }
     static FuturesAtrSignalReadModel MapToFuturesAtrSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
     {
         var signal = new FuturesAtrSignalReadModel(
@@ -3220,7 +3255,9 @@ public partial class MarketDataDbContext(
                 calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion,
                 calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(),
                 schemaVersion: futuresMacdSignal.Metadata is { } macdMetadata ? macdMetadata.SchemaVersion : null,
-                isValid: futuresMacdSignal.Metadata?.IsValid
+                isValid: futuresMacdSignal.Metadata?.IsValid,
+                isWarm: futuresMacdSignal.IsWarm,
+                observationCount: futuresMacdSignal.ObservationCount
             ))
             .ExecuteCommandAsync();
 

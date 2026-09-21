@@ -26,6 +26,7 @@ public sealed class FuturesOptionContractEditorViewModel
     readonly MarketDataEventService _eventModel;
     readonly MarketDataCommandService _commandModel;
     readonly MarketDataQueryService _queryModel;
+    public InstrumentDefinitionSelectorViewModel CreateDefinitionSelector() => new(_queryModel);
     readonly IReferenceDataService _referenceDataService;
     readonly ICollection<IEvent> _consumeEvents;
     readonly object _correlationGate = new();

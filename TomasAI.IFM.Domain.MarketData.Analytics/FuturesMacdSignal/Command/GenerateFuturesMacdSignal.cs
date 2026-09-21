@@ -84,6 +84,7 @@ public static class GenerateFuturesMacdSignal
             computed.SlowEma)
         {
             IsWarm = computed.IsWarm,
+            ObservationCount = computed.ObservationCount,
             Metadata = e.Observation is { } observation
                 ? MarketAnalyticsSignalMetadataFactory.Create(
                     observation,

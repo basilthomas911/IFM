@@ -12,6 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Services\TomasAI.IFM.UI.Net.Services.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />

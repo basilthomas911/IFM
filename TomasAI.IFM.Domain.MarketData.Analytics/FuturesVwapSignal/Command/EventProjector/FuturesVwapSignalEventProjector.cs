@@ -12,7 +12,10 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.EventProjector;
 
-/// <summary>Projects durable VWAP transitions to the ScyllaDB read model.</summary>
+/// <summary>
+/// Projects rebuildable VWAP transitions to the ScyllaDB read model.
+/// VWAP is recovered from the authoritative trade stream, so individual derived values do not use durable replay.
+/// </summary>
 public sealed class FuturesVwapSignalEventProjector(
     IDbContextFactory dbFactory,
     IDurableReplayQueue durableReplayQueue,
@@ -29,7 +32,8 @@ public sealed class FuturesVwapSignalEventProjector(
             FuturesVwapSignalUpdatedCompleteEvent,
             FuturesVwapSignalUpdatedFailEvent,
             FuturesVwapSignalEntityId>(value =>
-                dbFactory.MarketDataDb.InsertFuturesVwapSignalAsync(value.Signal))
+                dbFactory.MarketDataDb.InsertFuturesVwapSignalAsync(value.Signal),
+                useDurableReplay: false)
     ];
 
     /// <inheritdoc />

@@ -89,12 +89,8 @@ public static class ActorRuntimeStartup
                 }
             }
 
-            foreach (var actor in actors)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await supervisor.StartAsync(actor.Id, cancellationToken).ConfigureAwait(false);
-                logger.LogInformationEvent(ServiceId, "Started {ActorType} actor.", actor.GetType().Name);
-            }
+            await Task.WhenAll(actors.Select((actor, index) =>
+                StartActorAsync(actor, index + 1, actors.Length))).ConfigureAwait(false);
 
             // External Core and JetStream intake stays closed until every actor-owned dependency,
             // projector, and recovery operation has completed its startup contract.
@@ -106,6 +102,41 @@ public static class ActorRuntimeStartup
                 "Event model actor supervisor started with {ActorCount} actors.",
                 actors.Length);
             ActorLifecycleMetrics.StartupCompleted.Add(1);
+
+            async Task StartActorAsync(IActor actor, int actorNumber, int actorCount)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var actorType = actor.GetType().Name;
+                var actorStarted = Stopwatch.GetTimestamp();
+                logger.LogInformationEvent(
+                    ServiceId,
+                    "Starting {ActorType} actor ({ActorNumber}/{ActorCount}).",
+                    actorType,
+                    actorNumber,
+                    actorCount);
+                try
+                {
+                    await supervisor.StartAsync(actor.Id, cancellationToken).ConfigureAwait(false);
+                    logger.LogInformationEvent(
+                        ServiceId,
+                        "Started {ActorType} actor ({ActorNumber}/{ActorCount}) in {ElapsedMilliseconds:F1} ms.",
+                        actorType,
+                        actorNumber,
+                        actorCount,
+                        Stopwatch.GetElapsedTime(actorStarted).TotalMilliseconds);
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(
+                        exception,
+                        "Failed to start {ActorType} actor ({ActorNumber}/{ActorCount}) after {ElapsedMilliseconds:F1} ms.",
+                        actorType,
+                        actorNumber,
+                        actorCount,
+                        Stopwatch.GetElapsedTime(actorStarted).TotalMilliseconds);
+                    throw;
+                }
+            }
         }
         catch (Exception exception)
         {

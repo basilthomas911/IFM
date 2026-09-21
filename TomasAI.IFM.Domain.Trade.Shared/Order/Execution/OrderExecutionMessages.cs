@@ -36,7 +36,7 @@ public sealed record SubmitOrderExecutionCommand : OrderExecutionCommand { publi
 [MessagePackObject]
 public sealed record AcceptOrderExecutionCommand : TimedOrderExecutionCommand { public const string Verb = "AcceptOrderExecution"; }
 [MessagePackObject]
-public sealed record CancelOrderExecutionCommand : OrderExecutionCommand { public const string Verb = "CancelOrderExecution"; }
+public sealed record CancelOrderExecutionCommand : TimedOrderExecutionCommand { public const string Verb = "CancelOrderExecution"; }
 [MessagePackObject]
 public sealed record RejectOrderExecutionCommand : OrderExecutionCommand { public const string Verb = "RejectOrderExecution"; }
 
@@ -57,6 +57,7 @@ public sealed record UpdateOrderExecutionFillCostCommand : OrderExecutionCommand
 
 [MessagePackObject]
 [Union(0, typeof(AcceptOrderExecutionCommand))]
+[Union(1, typeof(CancelOrderExecutionCommand))]
 public abstract record TimedOrderExecutionCommand : OrderExecutionCommand
 {
     [Key(4)] public DateTime EffectiveAtUtc { get; init; }

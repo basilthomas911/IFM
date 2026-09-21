@@ -36,8 +36,30 @@ public sealed class ApplicationLifecycleOwnershipTests
             "Startup.cs"));
         Assert.Contains("AddHostedService<ApplicationStartupCommandDispatcher>()", source, StringComparison.Ordinal);
         Assert.DoesNotContain("AddHostedService<FuturesContractRolloverStartupService>()", source, StringComparison.Ordinal);
-        Assert.Contains("tags: [\"bootstrap\", \"ready\"]", source, StringComparison.Ordinal);
+        Assert.Contains("tags: [\"bootstrap\", \"launch\", \"ready\"]", source, StringComparison.Ordinal);
+        Assert.Contains("AddCheck<ActorRuntimeHealthCheck>(\"actor_runtime\", tags: [\"actor\", \"bootstrap\", \"launch\", \"ready\"])", source, StringComparison.Ordinal);
         Assert.Contains("/health/bootstrap", source, StringComparison.Ordinal);
+        Assert.Contains("/health/actors", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Actor_startup_is_concurrent_and_actor_health_gates_application_readiness()
+    {
+        var actorStartup = File.ReadAllText(Path.Combine(
+            root,
+            "TomasAI.IFM.Shared",
+            "EventModelActor",
+            "ActorRuntimeStartup.cs"));
+        var apiStartup = File.ReadAllText(Path.Combine(
+            root,
+            "TomasAI.IFM.Application.Api.Server",
+            "Startup.cs"));
+
+        Assert.Contains("Task.WhenAll(actors.Select((actor, index)", actorStartup, StringComparison.Ordinal);
+        Assert.Contains(
+            "AddCheck<ActorRuntimeHealthCheck>(\"actor_runtime\", tags: [\"actor\", \"bootstrap\", \"launch\", \"ready\"])",
+            apiStartup,
+            StringComparison.Ordinal);
     }
 
     [Fact]

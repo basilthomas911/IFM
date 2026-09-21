@@ -3,7 +3,7 @@ using System.Data;
 using System.Data.Common;
 using Xunit;
 using FluentAssertions;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;
 
@@ -13,7 +13,7 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandOk()
     {
         // Arrange
-        var parameters = new DbParameter[] { new SqlParameter("@id", 1) };
+        var parameters = new DbParameter[] { new NpgsqlParameter("@id", 1) };
 
         // Act
         var cmd = new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "SELECT * FROM Test", parameters);
@@ -110,9 +110,9 @@ public class ObjectDataQueuedCommandTests
         // Arrange
         var parameters = new DbParameter[]
         {
-            new SqlParameter("@id", 1),
-            new SqlParameter("@name", "test"),
-            new SqlParameter("@active", true)
+            new NpgsqlParameter("@id", 1),
+            new NpgsqlParameter("@name", "test"),
+            new NpgsqlParameter("@active", true)
         };
 
         // Act

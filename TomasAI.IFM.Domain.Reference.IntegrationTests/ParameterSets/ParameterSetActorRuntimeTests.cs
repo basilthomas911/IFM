@@ -58,7 +58,7 @@ public sealed class ParameterSetActorRuntimeTests
    var assignmentRevision=assignmentBefore.Value?.Revision??0;
    var assign=await api.AssignAsync(new(){CommandId=Guid.NewGuid(),EntityId=new(WorkflowParameterScopeModel.AssignmentId(scope)),Scope=scope,Reference=version.Reference,ExpectedRevision=assignmentRevision},token);Assert.True(assign.Success,assign.ErrorMessage);
    var runId=Guid.NewGuid();var apply=await api.ApplyStartupAsync(new(){CommandId=runId,RunId=runId},token);Assert.True(apply.Success,apply.ErrorMessage);
-   var runs=await api.StartupRunsAsync(token);Assert.True(runs.Success,runs.ErrorMessage);var run=runs.Value!.Single(x=>x.RunId==runId);
+   var selectedRun=await api.StartupRunAsync(runId,token);Assert.True(selectedRun.Success,selectedRun.ErrorMessage);var run=selectedRun.Value!;
    var report=new ParameterSignalStartupReport(runId,run.Plan.Fingerprint,new DateOnly(2026,9,10),"ES-PARAMETER-TEST",DateTime.UtcNow,
     run.Plan.Steps.Select(x=>new ParameterSignalPreparationOutcome(x.Key,x.Prepare?ParameterSignalPreparationStatus.ExistingRoute:ParameterSignalPreparationStatus.NotRequested,"Acceptance fixture; no live producers started.")).ToArray());
    var record=new RecordSignalStartupReportCommand{CommandId=Guid.NewGuid(),RunId=runId,Report=report};

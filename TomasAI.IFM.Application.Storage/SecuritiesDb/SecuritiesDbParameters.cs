@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
@@ -31,9 +31,9 @@ internal readonly record struct UpdateFuturesContractRollover(
         { contractId, nextRolloverDate, updatedOn, updatedBy, symbol };
 }
 
-internal readonly record struct InsertFuturesContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly lastTradeDate, bool onTheRun, bool rollover) : IBindValue
+internal readonly record struct InsertFuturesContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly lastTradeDate, bool onTheRun, bool rollover, byte[]? referencePayload = null) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover };
+    public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload };
 }
 internal readonly record struct DeleteFuturesContract(string contractId) : IBindValue
 {
@@ -163,9 +163,9 @@ internal readonly record struct CompleteSecuritiesSymbolProjectionOperationV3(Ha
 {
     public object Bind() => new object?[] { activeOperations, projectionName, symbol, generation, expectedActiveOperations };
 }
-internal readonly record struct InsertFuturesOptionContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly contractMonth, double strikePrice, string optionType) : IBindValue
+internal readonly record struct InsertFuturesOptionContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly contractMonth, double strikePrice, string optionType, byte[]? referencePayload = null) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType };
+    public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload };
 }
 internal readonly record struct DeleteFuturesOptionContract(string contractId) : IBindValue
 {

@@ -98,7 +98,7 @@ public sealed class ConfigurationStrategyCatalogUiTests
                 {
                     try
                     {
-                        typeof(ReferenceForm).GetMethod("BindReferenceDataDefinitionTypes", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null);
+                        typeof(ReferenceForm).GetMethod("BindReferenceDataDefinitionTypes", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [false]);
                         Field<ComboBox>(form, "ddlReferenceDataSelector").SelectedItem = "trade strategy families";
                         await Wait(() => Field<Panel>(form, "pnlMarketData").Controls.OfType<StrategyCatalogReferenceView>().FirstOrDefault()?.CanChangeRemove == true);
                         var view = Field<Panel>(form, "pnlMarketData").Controls.OfType<StrategyCatalogReferenceView>().Single();

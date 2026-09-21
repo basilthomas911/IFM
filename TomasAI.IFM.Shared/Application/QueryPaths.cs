@@ -32,6 +32,7 @@ public class FundQueryUriPath
 public class MarketDataAnalyticsQueryUriPath
 {
     public const string GetMarketOutlookSnapshot = "/api/market-data-analytics/market-outlook-snapshot";
+    public const string GetFuturesBollingerBandHistory = "/api/market-data-analytics/futures-bollinger-band-history";
     public const string GetFuturesTradeSignal = "/api/marketdata/analytics/futures/tradesignal";
     public const string GetLastFuturesTradeSignal = "/api/marketdata/analytics/futures/tradesignal/last";
     public const string GetFuturesTradeSignalBySymbol = "/api/marketdata/analytics/futures/tradesignal/bysymbol";
@@ -116,6 +117,7 @@ public class FuturesBarDataQueryUriPath
     public const string GetValueDate = "/api/marketdata/valuedate";
     public const string GetMarketSession = "/api/marketdata/session";
     public const string GetTradeStrategySymbols = "/api/marketdata/trade-strategy-symbols";
+    public const string GetInstrumentDefinitions = "/api/marketdata/instrument-definitions";
     public const string GetIronCondorMarketData = "/api/marketdata/ironcondor";
     public const string GetFuturesOptionContractIds = "/api/marketdata/futures/option/contractids";
     public const string GetEconomicCalendars = "/api/marketdata/economiccalendar";

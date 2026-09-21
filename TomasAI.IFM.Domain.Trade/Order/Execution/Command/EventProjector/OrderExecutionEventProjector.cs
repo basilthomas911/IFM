@@ -66,7 +66,8 @@ public sealed class OrderExecutionEventProjector
             return;
         }
 
-        if (changed.State.Status != OrderExecutionStatus.Filled) return;
+        if (changed.State.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) ||
+            changed.State.Fills.Length == 0) return;
 
         var confirmedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
             ? changed.ReceivedOn
@@ -227,6 +228,7 @@ public sealed class OrderExecutionEventProjector
                 Subject = new(ActorType.Command, FuturesPositionActorNames.Command,
                     CloseFuturesPositionCommand.Verb, close.PositionId.Format()),
                 EntityId = close.PositionId,
+                ClosingFills = close.Fills,
                 EffectiveAtUtc = close.CompletedAtUtc
             };
             Ensure(await context.ActorService.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(
@@ -266,6 +268,7 @@ public sealed class OrderExecutionEventProjector
                 Subject = new(ActorType.Command, PositionActorNames.IronCondorCommand,
                     CloseIronCondorPositionCommand.Verb, close.PositionId.Format()),
                 EntityId = close.PositionId,
+                ClosingFills = close.Fills,
                 EffectiveAtUtc = close.CompletedAtUtc
             };
             Ensure(await context.ActorService.SendAsync<CloseIronCondorPositionCommand, StrategyPositionId>(
@@ -282,6 +285,7 @@ public sealed class OrderExecutionEventProjector
                 Subject = new(ActorType.Command, PositionActorNames.VerticalSpreadCommand,
                     CloseVerticalSpreadPositionCommand.Verb, close.PositionId.Format()),
                 EntityId = close.PositionId,
+                ClosingFills = close.Fills,
                 EffectiveAtUtc = close.CompletedAtUtc
             };
             Ensure(await context.ActorService.SendAsync<CloseVerticalSpreadPositionCommand, StrategyPositionId>(

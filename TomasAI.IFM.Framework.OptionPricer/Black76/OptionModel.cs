@@ -328,6 +328,37 @@ public static class OptionModel
         return new Black76Result(price, delta, gamma, vega, theta, rho);
     }
 
+    /// <summary>Price/Delta adapter preserves the selected futures backend without changing the native ABI.</summary>
+    internal static (double Price, double Delta) PriceAndDelta(
+        double forward, double strike, double rate, double volatility, double time, int sign)
+    {
+        if (!OptionPricerBackend.UseRust)
+            return PriceAndDeltaManaged(forward, strike, rate, volatility, time, sign);
+        // Existing native fused analytic call is inexpensive; no new ABI or numerical bumps.
+        var result = RustOptionModel.PriceWithGreeks(forward, strike, rate, volatility, time, sign);
+        return (result.Price, result.Delta);
+    }
+
+    /// <summary>Positive-time/volatility internal kernel, validated by the facade.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static (double Price, double Delta) PriceAndDeltaManaged(
+        double forward, double strike, double rate, double volatility, double time, int sign)
+    {
+        double v = volatility * Math.Sqrt(time);
+        double d1 = Math.FusedMultiplyAdd(.5, v, Math.Log(forward / strike) * (1 / v));
+        double d2 = d1 - v, discount = Math.Exp(-rate * time);
+        if (sign > 0)
+        {
+            double n1 = NormCdf(d1), n2 = NormCdf(d2);
+            return (discount * (forward * n1 - strike * n2), discount * n1);
+        }
+        else
+        {
+            double n1 = NormCdf(-d1), n2 = NormCdf(-d2);
+            return (discount * (strike * n2 - forward * n1), -discount * n1);
+        }
+    }
+
     /// <summary>
     /// Computes only the price and vega for a European option on a futures contract using Black-76.
     /// Optimised for the Newton-Raphson implied volatility solver — avoids computing delta, gamma, theta, rho.

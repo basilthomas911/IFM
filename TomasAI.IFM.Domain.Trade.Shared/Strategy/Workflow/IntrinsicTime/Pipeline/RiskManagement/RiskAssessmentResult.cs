@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
@@ -51,6 +52,7 @@ public sealed record RiskAssessmentResult
     [Key(25)] public ImmutableArray<string> Reasons { get; init; } = [];
     [Key(26)] public string InputHash { get; init; } = "";
     [Key(27)] public string PolicyHash { get; init; } = "";
+    [Key(28)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 
     public QualifiedCapacityAssessment ToCapacityAssessment() => new()
     {

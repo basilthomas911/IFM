@@ -16,7 +16,8 @@ public enum DatasetPublicationKind : byte
     Quote = 2,
     MarketPrice = 3,
     SessionStatistics = 4,
-    TradeReplayBatch = 5
+    TradeReplayBatch = 5,
+    OptionTradeEvidence = 6
 }
 
 [MessagePackObject]
@@ -83,7 +84,7 @@ public sealed class DatasetPublicationIngress(
     DatasetWorkerAdmissionRegistry admissions,
     ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder,
-    DatasetWorkerCurrentValues? currentValues = null)
+    DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null)
 {
     public async ValueTask<bool> AcceptAsync(DatasetPublicationEnvelope envelope,
         CancellationToken cancellationToken = default)
@@ -114,6 +115,15 @@ public sealed class DatasetPublicationIngress(
             // therefore transfers with the lasting generation token, not the caller's read token.
             switch (envelope.Kind)
             {
+                case DatasetPublicationKind.OptionTradeEvidence:
+                    var evidence = MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload);
+                    evidence.Validate();
+                    if (evidence.Source.Dataset != envelope.Dataset || evidence.Source.ValueDate != envelope.ValueDate
+                        || evidence.Source.GenerationId != envelope.GenerationId)
+                        throw new InvalidDataException("Option trade source and worker envelope disagree.");
+                    if (optionTrades is null) throw new InvalidOperationException("Durable option trade writer is unavailable.");
+                    await optionTrades.WriteAsync(evidence, generationCancellation).ConfigureAwait(false);
+                    break;
                 case DatasetPublicationKind.Trade:
                     await publisher.PublishAsync(
                         MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload),

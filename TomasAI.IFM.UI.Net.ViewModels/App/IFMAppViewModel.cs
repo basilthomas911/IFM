@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
@@ -38,6 +39,11 @@ public sealed record FuturesBarChartSnapshot(
     DateTime WindowStartUtc,
     DateTime WindowEndUtc,
     FuturesBarDataReadModel[] Bars);
+
+/// <summary>Identifies the 40 most recent daily ES Bollinger observations ending on a value date.</summary>
+public sealed record FuturesBollingerBandChartSnapshot(
+    DateOnly ValueDate,
+    FuturesBbSignalReadModel[] Signals);
 
 /// <summary>
 /// Provides diagnostics for the main shell's replaceable market-data streams.
@@ -91,9 +97,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     const int OrderedEventChannelCapacity = 512;
     const int OrderedEventBatchSize = 32;
     const string MarketOutlookSymbol = "ES";
+    internal const int FuturesBollingerBandChartDays = 40;
+    internal const int FuturesBollingerBandHistoricalDays = FuturesBollingerBandChartDays - 1;
     internal static readonly TimeSpan FuturesBarChartHistory = TimeSpan.FromHours(6);
     static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
     static readonly TimeSpan DefaultMarketDataFeedTerminalTimeout = TimeSpan.FromSeconds(60);
+    static readonly TimeSpan OptionalStartupDataTimeout = TimeSpan.FromSeconds(5);
     static readonly TimeSpan MarketSessionReconciliationInterval = TimeSpan.FromMinutes(1);
     static readonly TimeSpan MarketSessionBoundarySettleDelay = TimeSpan.FromMilliseconds(100);
     readonly object _statusLogGate = new();
@@ -150,6 +159,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     PlaceTradeUIViewModel? _latestTradePlacement;
     IReadOnlyList<PlaceTradeUIViewModel> _tradePlacements = [];
     FuturesBarChartSnapshot? _latestFuturesBarSnapshot;
+    FuturesBollingerBandChartSnapshot? _futuresBollingerBandSnapshot;
     IReadOnlyDictionary<string, FuturesBarChartSnapshot> _futuresBarSnapshotState =
         new Dictionary<string, FuturesBarChartSnapshot>();
     IFMAppMarketDataStreamMetricsSnapshot _marketDataStreamMetrics = new(default, new Dictionary<string, LatestValueChannelMetrics>());
@@ -471,6 +481,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         private set => SetProperty(ref _latestFuturesBarSnapshot, value);
     }
 
+    /// <summary>Gets the latest bounded daily ES Bollinger chart snapshot.</summary>
+    public FuturesBollingerBandChartSnapshot? FuturesBollingerBandSnapshot
+    {
+        get => _futuresBollingerBandSnapshot;
+        private set => SetProperty(ref _futuresBollingerBandSnapshot, value);
+    }
+
     /// <summary>Gets the newest complete six-hour futures-bar chart snapshot for every observed symbol.</summary>
     public IReadOnlyDictionary<string, FuturesBarChartSnapshot> FuturesBarSnapshots
     {
@@ -571,9 +588,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
-        await StartStatusConsoleListener();
-        await StartApplicationEventsListener();
-        await StartMarketDataFeedStatusListener();
+        await Task.WhenAll(
+            StartStatusConsoleListener(),
+            StartApplicationEventsListener(),
+            StartMarketDataFeedStatusListener());
         await StartApplicationCoreAsync(cancellationToken);
     }
 
@@ -652,18 +670,21 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             {
                 Operations = new OperationsViewModel(
                     _appRoot,
+                    MarketOutlookSymbol,
                     strategyContractId,
                     ValueDate.Value,
                     _timeProvider);
                 Operations.PropertyChanged += OperationsPropertyChanged;
-                await Operations.InitializeAsync(cancellationToken);
+                _ = _lifecycle.RunAsync(InitializeOperationsAsync);
             }
 
-            await GetLastFuturesBarData(ValueDate.Value);
-            await StartMarketOutlookEventConsumer(cancellationToken);
-            await StartFuturesBarDataEventConsumer(cancellationToken);
-            await StartTradePlacementEventConsumer(cancellationToken);
-            await RefreshDatabentoReadinessAsync();
+            await Task.WhenAll(
+                StartMarketOutlookEventConsumer(cancellationToken),
+                StartFuturesBarDataEventConsumer(cancellationToken),
+                StartTradePlacementEventConsumer(cancellationToken));
+            _ = _lifecycle.RunAsync(token => LoadPresentationEnrichmentAsync(
+                ValueDate.Value,
+                token));
             await WriteStatusConsoleAsync(marketSession.IsMarketOpen
                 ? $"IFMApp v{_appVersion} - {_appEnvironment}...presentation initialization complete; backend lifecycle is API-owned."
                 : $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
@@ -672,6 +693,24 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             StartupOperation.NotifyCanExecuteChanged();
             ShutdownOperation.NotifyCanExecuteChanged();
         });
+
+    async Task InitializeOperationsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (Operations is not null)
+                await Operations.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await WriteStatusConsoleAsync(
+                $"Operations initialization is unavailable ({exception.GetType().Name}: {exception.Message}); other UI features remain active.")
+                .ConfigureAwait(false);
+        }
+    }
 
     async Task MonitorMarketSessionAsync(CancellationToken cancellationToken)
     {
@@ -753,15 +792,18 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 {
                     Operations = new OperationsViewModel(
                         _appRoot,
+                        MarketOutlookSymbol,
                         strategyContractId,
                         refreshed.OperationalValueDate,
                         _timeProvider);
                     Operations.PropertyChanged += OperationsPropertyChanged;
-                    await Operations.InitializeAsync(cancellationToken);
+                    _ = _lifecycle.RunAsync(InitializeOperationsAsync);
                 }
 
-                await GetLastFuturesBarData(refreshed.OperationalValueDate);
                 await StartMarketOutlookEventConsumer(cancellationToken);
+                _ = _lifecycle.RunAsync(token => LoadPresentationEnrichmentAsync(
+                    refreshed.OperationalValueDate,
+                    token));
             }
 
             await WriteStatusConsoleAsync(
@@ -922,33 +964,57 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             });
         });
 
+    }
+
+    async Task HydrateMarketOutlookSnapshotAsync(CancellationToken cancellationToken)
+    {
+        var channel = _compositeMarketOutlookChannel;
         var contract = GetMarketOutlookContract();
         if (contract is null || !_valueDate.HasValue)
             return;
-        await _appRoot.Services.AnalyticsQueries.ExecuteAsync(async model =>
+        try
         {
-            model.OnError((errorCode, errorMessage) =>
+            await _appRoot.Services.AnalyticsQueries.ExecuteAsync(async model =>
             {
-                if (errorCode == GetMarketOutlookSnapshotQuery.ErrorId
-                    && errorMessage.StartsWith(
-                        "No Market Outlook snapshot is available",
-                        StringComparison.Ordinal))
+                model.OnError((errorCode, errorMessage) =>
                 {
-                    MarketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
-                    return;
-                }
-                PublishError(errorCode, errorMessage, "Loading Market Outlook Snapshot Error");
-            });
-            await model.GetMarketOutlookSnapshotAsync(
-                contract.ContractId,
-                _valueDate.Value,
-                onCompleted: snapshot =>
-                {
-                    if (snapshot is not null
-                        && IsMarketOutlookUpdate(contract.ContractId, snapshot.ContractId))
-                        channel.TryWrite(snapshot);
+                    if (errorCode == GetMarketOutlookSnapshotQuery.ErrorId
+                        && errorMessage.StartsWith(
+                            "No Market Outlook snapshot is available",
+                            StringComparison.Ordinal))
+                    {
+                        MarketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
+                        return;
+                    }
+                    PublishError(errorCode, errorMessage, "Loading Market Outlook Snapshot Error");
                 });
-        });
+                await model.GetMarketOutlookSnapshotAsync(
+                    contract.ContractId,
+                    _valueDate.Value,
+                    onCompleted: snapshot =>
+                    {
+                        if (channel is not null && snapshot is not null
+                            && IsMarketOutlookUpdate(contract.ContractId, snapshot.ContractId))
+                            channel.TryWrite(snapshot);
+                    });
+            }).WaitAsync(OptionalStartupDataTimeout, _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            await WriteStatusConsoleAsync(
+                "Market Outlook snapshot hydration timed out; realtime updates remain active.")
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await WriteStatusConsoleAsync(
+                $"Market Outlook snapshot hydration is unavailable ({exception.GetType().Name}: {exception.Message}); realtime updates remain active.")
+                .ConfigureAwait(false);
+        }
     }
 
     internal async ValueTask ProcessMarketOutlookSnapshotAsync(
@@ -972,6 +1038,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         MarketOutlookSnapshotStatus =
             $"Market Outlook {snapshot.RefreshTrigger} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}";
         FuturesTradeSignal = new FuturesTradeSignalUIViewModel(snapshot);
+        if (snapshot.FuturesBbSignal is { } bollingerBand)
+        {
+            var history = FuturesBollingerBandSnapshot?.Signals ?? [];
+            PublishFuturesBollingerBandSnapshot(
+                snapshot.ValueDate,
+                history.Append(bollingerBand));
+        }
         await WriteStatusConsoleAsync(
             $"{snapshot.ContractId} Market Outlook refreshed by {snapshot.RefreshTrigger}",
             LogSourceType.MarketDataFeedEvent);
@@ -992,29 +1065,104 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
-        Task GetLastFuturesBarData(DateOnly valueDate)
-            => _appRoot.Services.FeedQueries.ExecuteAsync(async model =>
-            {
-                model.OnError((errorCode, errorMessage) =>
-                    PublishError(errorCode, errorMessage, "Loading Latest Futures Bar Data Error"));
-                await WriteStatusConsoleAsync("Loading Latest Futures Bar Data...");
-                foreach (var contract in (_baseContracts ?? []).Where(contract => contract.OnTheRun))
-                {
-                    var (startDate, endDate) = GetFuturesBarChartWindow(
-                        _timeProvider.GetUtcNow().UtcDateTime);
-                    FuturesBarDataReadModel[] bars = [];
-                    await model.GetFuturesBarDataAsync(
-                        contract.ContractId,
-                        contract.Symbol,
-                        valueDate,
-                        startDate,
-                        endDate,
-                        values => bars = values ?? []);
-                    if (bars.Length > 0)
-                        PublishFuturesBarSnapshot(contract.Symbol, bars);
-                }
-            });
+    Task GetFuturesBollingerBandHistory(DateOnly valueDate)
+        => _appRoot.Services.AnalyticsQueries.ExecuteAsync(async model =>
+        {
+            model.OnError((errorCode, errorMessage) =>
+                PublishError(errorCode, errorMessage, "Loading ES Bollinger Band History Error"));
+            await model.GetFuturesBollingerBandHistoryAsync(
+                MarketOutlookSymbol,
+                valueDate,
+                FuturesBollingerBandHistoricalDays,
+                values => PublishFuturesBollingerBandSnapshot(valueDate, values ?? []));
+        });
 
+    async Task LoadOptionalMarketHistoryAsync(
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.WhenAll(
+                    GetLastFuturesBarData(valueDate),
+                    GetFuturesBollingerBandHistory(valueDate))
+                .WaitAsync(OptionalStartupDataTimeout, _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            await WriteStatusConsoleAsync(
+                $"Optional market-history loading exceeded {OptionalStartupDataTimeout.TotalSeconds:0} seconds; realtime subscriptions remain active.")
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await WriteStatusConsoleAsync(
+                $"Optional market-history loading is unavailable ({exception.GetType().Name}: {exception.Message}); realtime subscriptions remain active.")
+                .ConfigureAwait(false);
+        }
+    }
+
+    async Task LoadPresentationEnrichmentAsync(
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+    {
+        await Task.WhenAll(
+            LoadOptionalMarketHistoryAsync(valueDate, cancellationToken),
+            HydrateMarketOutlookSnapshotAsync(cancellationToken),
+            RefreshDatabentoReadinessSafelyAsync(cancellationToken)).ConfigureAwait(false);
+    }
+
+    async Task RefreshDatabentoReadinessSafelyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RefreshDatabentoReadinessAsync()
+                .WaitAsync(OptionalStartupDataTimeout, _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            await WriteStatusConsoleAsync(
+                "Databento readiness refresh timed out; realtime subscriptions remain active.")
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await WriteStatusConsoleAsync(
+                $"Databento readiness is unavailable ({exception.GetType().Name}: {exception.Message}).")
+                .ConfigureAwait(false);
+        }
+    }
+
+    Task GetLastFuturesBarData(DateOnly valueDate)
+        => _appRoot.Services.FeedQueries.ExecuteAsync(async model =>
+        {
+            model.OnError((errorCode, errorMessage) =>
+                PublishError(errorCode, errorMessage, "Loading Latest Futures Bar Data Error"));
+            await WriteStatusConsoleAsync("Loading Latest Futures Bar Data...");
+            foreach (var contract in (_baseContracts ?? []).Where(contract => contract.OnTheRun))
+            {
+                var (startDate, endDate) = GetFuturesBarChartWindow(
+                    _timeProvider.GetUtcNow().UtcDateTime);
+                FuturesBarDataReadModel[] bars = [];
+                await model.GetFuturesBarDataAsync(
+                    contract.ContractId,
+                    contract.Symbol,
+                    valueDate,
+                    startDate,
+                    endDate,
+                    values => bars = values ?? []);
+                if (bars.Length > 0)
+                    PublishFuturesBarSnapshot(contract.Symbol, bars);
+            }
+        });
     /// <summary>
     /// start trade placement event consumer
     /// </summary>
@@ -1917,6 +2065,31 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             FuturesBarSnapshots = new Dictionary<string, FuturesBarChartSnapshot>(_futuresBarSnapshots);
             LatestFuturesBarSnapshot = snapshot;
         }
+    }
+
+    internal void PublishFuturesBollingerBandSnapshot(
+        DateOnly valueDate,
+        IEnumerable<FuturesBbSignalReadModel> signals)
+        => FuturesBollingerBandSnapshot = new(
+            valueDate,
+            SelectFuturesBollingerBandWindow(signals, valueDate));
+
+    internal static FuturesBbSignalReadModel[] SelectFuturesBollingerBandWindow(
+        IEnumerable<FuturesBbSignalReadModel> signals,
+        DateOnly valueDate)
+    {
+        ArgumentNullException.ThrowIfNull(signals);
+        return signals
+            .Where(signal => signal.Metadata.TimeFrame == TimeFrameType.Daily
+                             && signal.Metadata.IsValid
+                             && signal.Metadata.ValueDate <= valueDate)
+            .GroupBy(signal => signal.Metadata.ValueDate)
+            .Select(group => group
+                .OrderByDescending(signal => signal.Metadata.MarketDataAsOfUtc)
+                .First())
+            .OrderBy(signal => signal.Metadata.ValueDate)
+            .TakeLast(FuturesBollingerBandChartDays)
+            .ToArray();
     }
 
     internal static (DateTime StartDate, DateTime EndDate) GetFuturesBarChartWindow(

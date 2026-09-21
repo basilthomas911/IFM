@@ -77,6 +77,15 @@ public record FuturesMacdSignalReadModel
     /// <summary>Gets whether the slow and signal EMA warm-up periods have completed.</summary>
     [Key(16)] public bool IsWarm { get; init; }
 
+    /// <summary>
+    /// Gets the durable number of observations applied to this MACD stream.
+    /// </summary>
+    /// <remarks>
+    /// The count is carried by each generated snapshot so event-sourced state can continue its
+    /// warm-up after loading only the latest event. A value of zero identifies a legacy snapshot.
+    /// </remarks>
+    [Key(17)] public int ObservationCount { get; init; }
+
     [JsonIgnore]
     [IgnoreMember]
     [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]

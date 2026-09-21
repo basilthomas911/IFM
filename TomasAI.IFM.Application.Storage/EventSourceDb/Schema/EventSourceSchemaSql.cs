@@ -50,6 +50,32 @@ public static class EventSourceSchemaSql
         ON public.event_log (CommandId);
         """;
 
+    /// <summary>
+    /// Creates the production-routable v2 cutover target. PostgreSQL exposes the primary-key backing index
+    /// separately from the three secondary indexes listed here.
+    /// </summary>
+    public const string CreateEventLogV2Table = """
+        CREATE TABLE IF NOT EXISTS public.event_log_v2 (
+            EventStreamId bigint NOT NULL,
+            EventNameId integer NOT NULL,
+            EventVersion bigint DEFAULT nextval('public.event_log_eventversion_seq'::regclass) NOT NULL,
+            StreamVersion bigint NOT NULL,
+            EventPayload bytea NOT NULL CHECK (octet_length(EventPayload) > 0),
+            CommandId uuid NOT NULL,
+            EventTimestamp text NOT NULL,
+            CONSTRAINT event_log_v2_pkey PRIMARY KEY (EventStreamId, StreamVersion)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_v2_event_version
+        ON public.event_log_v2 (EventVersion);
+
+        CREATE INDEX IF NOT EXISTS ix_event_log_v2_command_id
+        ON public.event_log_v2 (CommandId);
+
+        CREATE INDEX IF NOT EXISTS ix_event_log_v2_event_name_version
+        ON public.event_log_v2 (EventNameId, EventVersion);
+        """;
+
     public const string CreateEventProjectorState = """
     CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version
     ON event_log (EventVersion);

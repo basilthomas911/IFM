@@ -236,7 +236,43 @@ public sealed class TradeFlowStateMachineTests
         state.Start(order, attempt, ExecutionChannel.Manual, Now);
         foreach (var fill in Fixture.Fills(order.Components[0], attempt, absoluteQuantity: 1)) state.AddFill(fill);
 
+        state.Current!.OrderQuantity.Should().Be(2);
+        state.Current.CumulativeFilledQuantity.Should().Be(1);
         state.Accept(Now.AddSeconds(1)).Accepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Balanced_partial_fill_cancel_completes_with_position_evidence()
+    {
+        var order = Fixture.ExecutingOrder(quantities: 2, permitPartial: true);
+        var state = new OrderExecutionActorStateMachine();
+        var attempt = Guid.NewGuid();
+        state.Start(order, attempt, ExecutionChannel.Broker, Now);
+        foreach (var fill in Fixture.Fills(order.Components[0], attempt, absoluteQuantity: 1))
+            state.AddFill(fill);
+
+        var result = state.Cancel(Now.AddSeconds(1));
+
+        result.Accepted.Should().BeTrue();
+        result.Value!.CreatedTrades.Should().ContainSingle();
+        state.Current!.Status.Should().Be(OrderExecutionStatus.Cancelled);
+        state.Current.CompletedAtUtc.Should().Be(Now.AddSeconds(1));
+        state.Current.CumulativeFilledQuantity.Should().Be(1);
+    }
+
+    [Fact]
+    public void Zero_fill_cancel_completes_without_position_evidence()
+    {
+        var order = Fixture.ExecutingOrder();
+        var state = new OrderExecutionActorStateMachine();
+        state.Start(order, Guid.NewGuid(), ExecutionChannel.Broker, Now);
+
+        var result = state.Cancel(Now.AddSeconds(1));
+
+        result.Accepted.Should().BeTrue();
+        result.Value!.CreatedTrades.Should().BeEmpty();
+        state.Current!.Status.Should().Be(OrderExecutionStatus.Cancelled);
+        state.Current.CumulativeFilledQuantity.Should().Be(0);
     }
 
     [Fact]
@@ -247,7 +283,7 @@ public sealed class TradeFlowStateMachineTests
         var attempt = Guid.NewGuid();
         state.Start(order, attempt, ExecutionChannel.Broker, Now).Accepted.Should().BeTrue();
         state.MarkSubmitted().Accepted.Should().BeTrue();
-        state.Cancel().Accepted.Should().BeTrue();
+        state.Cancel(Now.AddSeconds(1)).Accepted.Should().BeTrue();
 
         var lateFill = Fixture.Fills(order.Components[0], attempt)[0];
         var result = state.AddFill(lateFill);
@@ -451,6 +487,107 @@ public sealed class TradeFlowStateMachineTests
         state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
         state.Current.ClosingFills.Should().ContainSingle();
         state.Events.Should().ContainSingle().Which.Should().BeOfType<FuturesTradeChangedEvent>();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Partial_close_keeps_trade_open_and_subsequent_fill_finalizes_actual_position(bool futures)
+    {
+        var original=futures?Fixture.FuturesTrade():Fixture.Trade();
+        var trade=original with
+        {
+            Legs=original.Legs.Select(x=>x with { SignedQuantity=x.SignedQuantity*2 }).ToArray(),
+            OriginalFills=original.OriginalFills.Select(x=>x with { SignedQuantity=x.SignedQuantity*2 }).ToArray(),
+            OpeningValue=original.OpeningValue*2
+        };
+        if(futures)
+        {
+            var state=new FuturesTradeCommandState();
+            Fixture.CreateFuturesTradeCommand(trade).Execute(state).Success.Should().BeTrue();
+            Fixture.BeginCloseFuturesTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+            state.AcceptChanges();
+            var full=Fixture.CloseFuturesTradeCommand(trade);
+            var partial=full with { ClosingFills=full.ClosingFills.Select(x=>x with { SignedQuantity=x.SignedQuantity/2 }).ToArray() };
+            var result=partial.Execute(state);
+            result.Success.Should().BeTrue(result.ErrorMessage);
+            state.Current!.Status.Should().Be(EstablishedTradeStatus.Open);
+            state.Current.ClosingFills.Should().HaveCount(trade.Legs.Length);
+            state.Current.ClosedAtUtc.Should().BeNull();
+            state.AcceptChanges();
+            Fixture.BeginCloseFuturesTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+            var next=Fixture.CloseFuturesTradeCommand(trade);
+            (next with { ClosingFills=next.ClosingFills.Select(x=>x with { SignedQuantity=x.SignedQuantity/2,
+                ExternalExecutionId=x.ExternalExecutionId+"-final" }).ToArray() }).Execute(state).Success.Should().BeTrue();
+            state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
+            state.Current.ClosingFills.Should().HaveCount(trade.Legs.Length*2);
+        }
+        else
+        {
+            var state=new FuturesOptionTradeCommandState();
+            Fixture.CreateOptionTradeCommand(trade).Execute(state).Success.Should().BeTrue();
+            Fixture.BeginCloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+            state.AcceptChanges();
+            var full=Fixture.CloseOptionTradeCommand(trade);
+            var partial=full with { ClosingFills=full.ClosingFills.Select(x=>x with { SignedQuantity=x.SignedQuantity/2 }).ToArray() };
+            var result=partial.Execute(state);
+            result.Success.Should().BeTrue(result.ErrorMessage);
+            state.Current!.Status.Should().Be(EstablishedTradeStatus.Open);
+            state.Current.ClosingFills.Should().HaveCount(trade.Legs.Length);
+            state.Current.ClosedAtUtc.Should().BeNull();
+            state.AcceptChanges();
+            Fixture.BeginCloseOptionTradeCommand(trade.Id).Execute(state).Success.Should().BeTrue();
+            var next=Fixture.CloseOptionTradeCommand(trade);
+            (next with { ClosingFills=next.ClosingFills.Select(x=>x with { SignedQuantity=x.SignedQuantity/2,
+                ExternalExecutionId=x.ExternalExecutionId+"-final" }).ToArray() }).Execute(state).Success.Should().BeTrue();
+            state.Current!.Status.Should().Be(EstablishedTradeStatus.Closed);
+            state.Current.ClosingFills.Should().HaveCount(trade.Legs.Length*2);
+        }
+    }
+
+    [Theory]
+    [InlineData(true,1)]
+    [InlineData(true,-1)]
+    [InlineData(false,1)]
+    [InlineData(false,-1)]
+    public void Fill_aware_position_close_preserves_remaining_quantity_and_replays_after_rehydration(bool futures,int direction)
+    {
+        var original=futures?Fixture.FuturesTrade():Fixture.Trade();
+        var trade=original with
+        {
+            Legs=original.Legs.Select(x=>x with { SignedQuantity=x.SignedQuantity*4*direction }).ToArray(),
+            OriginalFills=original.OriginalFills.Select(x=>x with { SignedQuantity=x.SignedQuantity*2*direction }).ToArray()
+        };
+        var fills=(futures?Fixture.CloseFuturesTradeCommand(trade).ClosingFills:Fixture.CloseOptionTradeCommand(trade).ClosingFills)
+            .Select(x=>x with { SignedQuantity=Math.Sign(x.SignedQuantity) }).ToArray();
+        var machine=new StrategyPositionActorStateMachine();
+        machine.Open(trade,Guid.NewGuid(),Now).Accepted.Should().BeTrue();
+        var first=machine.Close(fills,Now.AddMinutes(1));
+        first.Accepted.Should().BeTrue();
+        var snapshot=first.Value!;
+        snapshot.IsOpen.Should().BeTrue();
+        snapshot.Legs.Should().OnlyContain(x=>Math.Abs(x.SignedQuantity)==1);
+        snapshot.RouteGeneration.Should().Be(1);
+        var recovered=new StrategyPositionActorStateMachine();
+        recovered.Replay(snapshot);
+        recovered.Close(fills,Now.AddMinutes(2)).Value.Should().BeEquivalentTo(snapshot);
+        var changed=fills.Select(x=>x with { Price=x.Price+1 }).ToArray();
+        recovered.Close(changed,Now.AddMinutes(2)).Accepted.Should().BeFalse();
+        recovered.Current.Should().BeEquivalentTo(snapshot);
+        var over=fills.Select(x=>x with { ExecutionFillId=Guid.NewGuid(),SignedQuantity=x.SignedQuantity*2,
+            ExternalExecutionId=x.ExternalExecutionId+"-over" }).ToArray();
+        recovered.Close(over,Now.AddMinutes(2)).Accepted.Should().BeFalse();
+        var attempt=Guid.NewGuid();
+        var final=fills.Select(x=>x with { ExecutionFillId=Guid.NewGuid(),ExecutionAttemptId=attempt,
+            ExternalExecutionId=x.ExternalExecutionId+"-final" }).ToArray();
+        var closed=recovered.Close(final,Now.AddMinutes(2));
+        closed.Accepted.Should().BeTrue();
+        closed.Value!.IsOpen.Should().BeFalse();
+        closed.Value.Legs.Should().OnlyContain(x=>x.SignedQuantity==0);
+        closed.Value.UnrealizedPnl.Should().Be(0);
+        closed.Value.RealizedPnl.Should().Be(snapshot.RealizedPnl*2);
+        closed.Value.RouteGeneration.Should().Be(2);
+        recovered.Close(final,Now.AddMinutes(3)).Value.Should().BeEquivalentTo(closed.Value);
     }
 
     [Fact]

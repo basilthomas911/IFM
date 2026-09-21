@@ -305,6 +305,30 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
+    public async Task Contract_authority_reuses_future_dated_three_role_set_without_querying_catalog()
+    {
+        var store = new InMemoryMarketDataServiceStore();
+        await store.UpsertAssignmentAsync(
+            Assignment(DatabentoContractRole.EsQuarterly, "ES20261218", new(2026, 12, 18)), 0);
+        await store.UpsertAssignmentAsync(
+            Assignment(DatabentoContractRole.VxFrontMonth, "VX20261021", new(2026, 10, 21)), 0);
+        await store.UpsertAssignmentAsync(
+            Assignment(DatabentoContractRole.VxSecondMonth, "VX20261118", new(2026, 11, 18)), 0);
+        var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
+        var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
+        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+
+        var assignments = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
+
+        assignments.Should().HaveCount(3);
+        await catalog.DidNotReceiveWithAnyArgs().GetByRootAsync(default!, default);
+        registry.Received(1).ReplaceFuturesRolloverSet("ES",
+            Arg.Is<IReadOnlyCollection<FuturesContractV3ReadModel>>(values => values.Count == 1));
+        registry.Received(1).ReplaceFuturesRolloverSet("VX",
+            Arg.Is<IReadOnlyCollection<FuturesContractV3ReadModel>>(values => values.Count == 2));
+    }
+
+    [Fact]
     public async Task Contract_authority_excludes_contracts_maturing_on_the_value_date()
     {
         var valueDate = new DateOnly(2026, 9, 16);
@@ -330,6 +354,35 @@ public sealed class DatabentoResiliencyTests
                 values.OrderBy(value => value.LastTradeDate)
                     .Select(value => value.ContractId)
                     .SequenceEqual(new[] { "VX20261021", "VX20261118" })));
+    }
+
+    [Fact]
+    public async Task Contract_authority_excludes_corrupt_legacy_provider_identities()
+    {
+        var store = new InMemoryMarketDataServiceStore();
+        var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
+        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+            Contract("ES20251010", "ES", new(2026, 12, 2)) with { LocalSymbol = "ESH25" },
+            Contract("ES20261218", "ES", new(2026, 12, 18)) with { LocalSymbol = "ESZ6" }]);
+        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+            Contract("VX20261021", "VX", new(2026, 10, 21)) with { LocalSymbol = "VX/V6" },
+            Contract("VX20261118", "VX", new(2026, 11, 18)) with { LocalSymbol = "VX/X6" }]);
+        var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
+        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+
+        var assignments = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
+
+        assignments.Single(value => value.ContractRole == DatabentoContractRole.EsQuarterly)
+            .ContractId.Should().Be("ES20261218");
+        assignments.Where(value => value.RootSymbol == "VX")
+            .Select(value => value.LocalSymbol)
+            .Should().Equal("VX/V6", "VX/X6");
+        registry.Received(1).ReplaceFuturesRolloverSet("ES",
+            Arg.Is<IReadOnlyCollection<FuturesContractV3ReadModel>>(values =>
+                values.Single().LocalSymbol == "ESZ6"));
+        registry.Received(1).ReplaceFuturesRolloverSet("VX",
+            Arg.Is<IReadOnlyCollection<FuturesContractV3ReadModel>>(values =>
+                values.Select(value => value.LocalSymbol).SequenceEqual(new[] { "VX/V6", "VX/X6" })));
     }
 
     [Fact]
@@ -445,21 +498,6 @@ public sealed class DatabentoResiliencyTests
         runtime.StartCount.Should().Be(3);
     }
 
-    [Fact]
-    public async Task Disabled_periodic_probe_ignores_timer_and_terminal_fault_wakeups()
-    {
-        var signal = new DatabentoTerminalFaultSignal();
-        var store = new InMemoryMarketDataServiceStore();
-        var service = Create(new TestRuntime { Snapshot = Up() }, store, signal: signal,
-            periodicProbeEnabled: false);
-
-        await service.StartAsync(CancellationToken.None);
-        signal.Notify("This must be handled by the live-pipeline monitor.");
-        await Task.Delay(100);
-
-        (await store.ListObservationsAsync()).Should().BeEmpty();
-        await service.StopAsync(CancellationToken.None);
-    }
 
     [Fact]
     public async Task Terminal_worker_signal_runs_an_out_of_cycle_probe()
@@ -640,8 +678,7 @@ public sealed class DatabentoResiliencyTests
         DatabentoTerminalFaultSignal? signal = null,
         DatabentoStage3Options? stage3 = null,
         IDatabentoDatasetProcessRecovery? processRecovery = null,
-        TimeProvider? timeProvider = null,
-        bool periodicProbeEnabled = true)
+        TimeProvider? timeProvider = null)
     {
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
@@ -659,8 +696,7 @@ public sealed class DatabentoResiliencyTests
             new DatabentoWatchdogOptions
             {
                 PollInterval = TimeSpan.FromHours(1), AttemptTwoDelay = TimeSpan.Zero,
-                AttemptThreeDelay = TimeSpan.Zero, PersistenceRetryDelay = TimeSpan.Zero,
-                PeriodicProbeEnabled = periodicProbeEnabled
+                AttemptThreeDelay = TimeSpan.Zero, PersistenceRetryDelay = TimeSpan.Zero
             }, signal ?? new DatabentoTerminalFaultSignal(), clock,
             NullLogger<DatabentoMarketDataWatchdogService>.Instance,
             stage3, processRecovery, new MarketDataOperationsHealthService(admissions));

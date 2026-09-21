@@ -60,12 +60,13 @@ public sealed class ApiApplicationStartupActivities(
         if(parameterSetsApi is null)throw new InvalidOperationException("Parameter Sets API is unavailable.");
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(options.ParticipantTimeout);
         await ParameterSets.FuturesItiSignalDefaultParameterSet.EnsureAsync(parameterSetsApi,deadline.Token);
+        await ParameterSets.OptionVolatilityDefaultParameterSets.EnsureAsync(parameterSetsApi,deadline.Token);
         if(parameterRuntime is not {Enabled:true})return ApplicationStartupActivityOutcome.AlreadySatisfied;
         var applied=await parameterSetsApi.ApplyStartupAsync(new(){CommandId=context.ProcessBootId,RunId=context.ProcessBootId},deadline.Token);
         if(!applied.Success)throw new InvalidOperationException(applied.ErrorMessage);
-        var runs=await parameterSetsApi.StartupRunsAsync(deadline.Token);
-        if(!runs.Success)throw new InvalidOperationException(runs.ErrorMessage);
-        var run=runs.Value?.SingleOrDefault(x=>x.RunId==context.ProcessBootId)??throw new InvalidOperationException("Applied parameter generation is unavailable.");
+        var selected=await parameterSetsApi.StartupRunAsync(context.ProcessBootId,deadline.Token);
+        if(!selected.Success)throw new InvalidOperationException(selected.ErrorMessage);
+        var run=selected.Value??throw new InvalidOperationException("Applied parameter generation is unavailable.");
         parameterRuntime.Apply(run);
         logger.LogInformation("Parameter generation applied. RunId={RunId}; Fingerprint={Fingerprint}; Assignments={Assignments}",run.RunId,run.Plan.Fingerprint,run.Scopes.Length);
         return ApplicationStartupActivityOutcome.Started;
@@ -164,14 +165,18 @@ public sealed class ApiApplicationStartupActivities(
             .ConfigureAwait(false);
         var assignments = await contractAuthority.ReconcileAsync(
             context.ValueDate, nameof(ApiApplicationStartupActivities), cancellationToken).ConfigureAwait(false);
-        var selectedIds = assignments.Select(value => value.ContractId).ToHashSet(StringComparer.Ordinal);
-        var es = await contractCatalog.GetByRootAsync("ES", cancellationToken).ConfigureAwait(false);
-        var vx = await contractCatalog.GetByRootAsync("VX", cancellationToken).ConfigureAwait(false);
-        var contracts = es.Concat(vx)
-            .Where(contract => selectedIds.Contains(contract.ContractId))
-            .Where(contract => !string.IsNullOrWhiteSpace(contract.ContractId))
-            .DistinctBy(contract => contract.ContractId, StringComparer.Ordinal)
-            .ToArray();
+        var contracts = assignments.Select(static assignment => new FuturesContractV3ReadModel(
+            assignment.ContractId,
+            assignment.Description,
+            assignment.RootSymbol,
+            assignment.LocalSymbol,
+            assignment.SecurityType,
+            assignment.Currency,
+            assignment.Exchange,
+            assignment.Multiplier,
+            assignment.LastTradeDate,
+            assignment.ContractRole != DatabentoContractRole.VxSecondMonth,
+            true)).ToArray();
         if (contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "ES")) != 1
             || contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "VX")) != 2)
             throw new InvalidOperationException(
@@ -186,7 +191,11 @@ public sealed class ApiApplicationStartupActivities(
         CancellationToken cancellationToken)
     {
         if (marketSessionAuthority.Current.ActiveValueDate is null)
+        {
+            logger.LogInformation(
+                "Futures market is closed; live feed health is inactive and core services remain ready.");
             return ApplicationStartupActivityOutcome.ScheduledStopped;
+        }
 
         var runtimeStatus = await marketDataFeedQueryApi.GetRuntimeStatusAsync().ConfigureAwait(false);
         if (!runtimeStatus.Success || runtimeStatus.Value is null || !runtimeStatus.Value.IsValid)
@@ -201,8 +210,10 @@ public sealed class ApiApplicationStartupActivities(
             {
                 if (!contractsByValueDate.TryGetValue(context.ValueDate, out var activeContracts))
                     throw new InvalidOperationException("Qualified current contracts are unavailable.");
-                foreach (var contract in activeContracts)
-                    await RequireAcceptedAsync(marketDataFeedCommandApi.StartFuturesTickDataStreamingAsync(contract, context.ValueDate, false), "Tick route").ConfigureAwait(false);
+                await Task.WhenAll(activeContracts.Select(contract => RequireAcceptedAsync(
+                    marketDataFeedCommandApi.StartFuturesTickDataStreamingAsync(
+                        contract, context.ValueDate, false),
+                    $"Tick route {contract.ContractId}"))).ConfigureAwait(false);
                 await RequireAcceptedAsync(marketDataFeedCommandApi.StartFuturesBarDataStreamingAsync(activeContracts, context.ValueDate), "Chart bars").ConfigureAwait(false);
                 return ApplicationStartupActivityOutcome.AlreadySatisfied;
             }
@@ -317,22 +328,22 @@ public sealed class ApiApplicationStartupActivities(
         var activations = FuturesIntradaySignalActivationProfile.Create(
             es.ContractId,
             context.ValueDate);
-        foreach (var activation in activations)
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.WhenAll(activations.SelectMany(activation => new[]
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await RequireAcceptedAsync(
+            RequireAcceptedAsync(
                 analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi),
-                $"RSI {activation.TimeFrame}").ConfigureAwait(false);
-            await RequireAcceptedAsync(
+                $"RSI {activation.TimeFrame}"),
+            RequireAcceptedAsync(
                 analyticsCommandApi.StartFuturesAtrSignalAsync(activation.Atr),
-                $"ATR {activation.TimeFrame}").ConfigureAwait(false);
-            await RequireAcceptedAsync(
+                $"ATR {activation.TimeFrame}"),
+            RequireAcceptedAsync(
                 analyticsCommandApi.StartFuturesAdxSignalAsync(activation.Adx),
-                $"ADX {activation.TimeFrame}").ConfigureAwait(false);
-            await RequireAcceptedAsync(
+                $"ADX {activation.TimeFrame}"),
+            RequireAcceptedAsync(
                 analyticsCommandApi.StartFuturesMacdSignalAsync(activation.Macd),
-                $"MACD {activation.TimeFrame}").ConfigureAwait(false);
-        }
+                $"MACD {activation.TimeFrame}")
+        })).WaitAsync(options.ParticipantTimeout, cancellationToken).ConfigureAwait(false);
 
         await WaitForRealtimeAnalyticsAttachmentsAsync(activations, cancellationToken)
             .ConfigureAwait(false);

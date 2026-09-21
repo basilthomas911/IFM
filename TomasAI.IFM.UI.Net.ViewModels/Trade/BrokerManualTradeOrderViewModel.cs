@@ -21,6 +21,8 @@ public sealed class BrokerManualTradeOrderViewModel
     readonly FundOrderReadModel _fundOrder;
     readonly FundOrderTradeReadModel _trade;
     readonly FuturesContractV3ReadModel _baseContract;
+    BrokerOrderType _brokerOrderType = BrokerOrderType.Limit;
+    BrokerAlgorithm _brokerAlgorithm = BrokerAlgorithm.None;
 
     /// <summary>Creates an editor model for one existing Fund order trade composition.</summary>
     public BrokerManualTradeOrderViewModel(IAppRoot appRoot, int portfolioId,
@@ -55,6 +57,16 @@ public sealed class BrokerManualTradeOrderViewModel
     public string[] ContractIds => StrategyKind == TradeStrategyKind.FuturesOutright
         ? [_baseContract.ContractId]
         : _trade.GetContractIds();
+
+    /// <summary>Applies the operator execution choices before the candidate is created.</summary>
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
+    {
+        if (orderType is not (BrokerOrderType.Market or BrokerOrderType.Limit) ||
+            algorithm is not (BrokerAlgorithm.None or BrokerAlgorithm.Adaptive))
+            throw new InvalidOperationException($"Unsupported broker execution selection: {orderType} / {algorithm}.");
+        _brokerOrderType = orderType;
+        _brokerAlgorithm = algorithm;
+    }
 
     /// <summary>Reads the durable emulator account gate for presentation.</summary>
     public ValueTask<TomasAI.IFM.Shared.EventSourcing.ServiceResult<BrokerAccountDefinition>> GetAccountAsync(
@@ -174,7 +186,7 @@ public sealed class BrokerManualTradeOrderViewModel
         var componentId = Guid.NewGuid();
         var compositionId = Guid.NewGuid();
         var evidence = string.Join('|', _portfolioId, _trade.FundId, compositionId, componentId,
-            StrategyKind, limit, quantity,
+            StrategyKind, limit, quantity, _brokerOrderType, _brokerAlgorithm,
             string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
         var approvalReference = string.Empty;
@@ -231,7 +243,9 @@ public sealed class BrokerManualTradeOrderViewModel
             MicroExecutionProfileId = "ManualExactLimit",
             MicroExecutionProfileVersion = 1,
             MicroExecutionProfileHash = hash,
-            AccountPromotionApprovalReference = approvalReference
+            AccountPromotionApprovalReference = approvalReference,
+            BrokerOrderType = _brokerOrderType,
+            BrokerAlgorithm = _brokerAlgorithm
         };
     }
 

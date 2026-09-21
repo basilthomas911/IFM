@@ -1,5 +1,6 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
@@ -17,4 +18,5 @@ public sealed record PortfolioRiskDecision
     [Key(5)] public int AcceptedFundCount { get; init; }
     [Key(6)] public int RejectedFundCount { get; init; }
     [Key(7)] public int PortfolioId { get; init; }
+    [Key(8)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 }

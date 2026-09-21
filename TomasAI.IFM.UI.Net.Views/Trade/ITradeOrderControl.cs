@@ -16,3 +16,9 @@ public interface ITradeOrderControl
     void SetNearestStrikePrices();
     Task OrderActionTypeChangedAsync(OrderActionType orderActionType);
 }
+
+/// <summary>Accepts the broker execution choices owned by the unified blotter shell.</summary>
+public interface ITradeExecutionSelectionControl
+{
+    void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm);
+}

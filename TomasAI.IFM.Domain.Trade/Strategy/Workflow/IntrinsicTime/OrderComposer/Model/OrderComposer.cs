@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.O
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.CompositionRulesContract;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 
@@ -44,6 +45,14 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             .GroupBy(x => x.ContractId, StringComparer.Ordinal).ToArray();
         if (forwards.Length == 1) features[CompositionFeature.ForwardPrice] = (forwards[0].First().Bid + forwards[0].First().Ask) / 2;
         if (valuations.Count > 0) features[CompositionFeature.ImpliedVolatility] = valuations.Values.Average(x => x.ImpliedVolatility);
+        if (selected.AcceptedVolatilityEvidence is not null && selected.DecisionContext.VolatilityInput?.Snapshot is { } acceptedVolatility)
+        {
+            // These features are inert unless an approved, versioned adjustment rule explicitly references them.
+            if (acceptedVolatility.RankStatus == VolatilityMetricStatus.Qualified && acceptedVolatility.IvRank is { } rank)
+                features[CompositionFeature.IvRank] = rank;
+            if (acceptedVolatility.PercentileStatus == VolatilityMetricStatus.Qualified && acceptedVolatility.IvPercentile is { } percentile)
+                features[CompositionFeature.IvPercentile] = percentile;
+        }
         var resolved = CompositionParameterResolver.Resolve(rule, features, token);
         var p = resolved.Values;
         ValidateSnapshot(snapshot, c, p);
@@ -84,7 +93,8 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
                 ValueDate = c.SelectionBinding.RequestedTradeDate,
                 PortfolioId = c.SelectionBinding.SchemaVersion == 2 ? 0 : selected.PortfolioId,
                 FundId = c.SelectionBinding.SchemaVersion == 2 ? 0 : selected.FundId,
-                PricerVersion = pricer.Version, AlgorithmVersion = AlgorithmVersion },
+                PricerVersion = pricer.Version, AlgorithmVersion = AlgorithmVersion,
+                VolatilityEvidence = selected.DecisionContext.VolatilityInput },
             ResolvedParameters = resolved, CandidateCounts = new() { Generated = generated, Eligible = eligible, Rejected = generated - eligible },
             CandidateDiagnostics = rejected.Select(x => new CompositionRejection { ReasonCode = x.Key, Count = x.Value }).ToImmutableArray(),
             Reasons = reasons, ValidUntilUtc = best?.ValidUntilUtc, SummaryText = best is null ? "No eligible construction." : "One unapproved strategy unit.",
@@ -117,6 +127,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
     {
         static (CompositionCandidate?, CompositionRanking?, string) Reject(string code) => (null, null, "OC.CANDIDATE." + code);
         var p = resolved.Values; var intent = c.CompositionBinding.Selected;
+        var volatilityEvidence = c.AcceptedSelectionEnvelope.SelectionResult?.DecisionContext.VolatilityInput;
         bool option = input[0].Instrument.Instrument.Pricing is not null;
         var instruments = input.Select(x => x.Instrument.Instrument).ToArray();
         var expiration = option ? instruments[0].Pricing!.Contract.ExpirationUtc.UtcDateTime : instruments[0].FutureDefinition!.LastTradingUtc.UtcDateTime;
@@ -222,7 +233,8 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             RiskEvidence = risk, ExecutionEnvelope = new() { Atomic = option, ProposedSignedDebit = limit, WorstSignedDebit = worst,
                 Tick = tick, TickRuleVersion = legs[0].TickRuleId, ValidUntilUtc = valid }, ParameterResolutionHash = resolved.Hash,
             SnapshotHash = c.MarketSnapshot.Digest, BindingHash = c.CompositionBinding.BindingSha256, PricerVersion = pricer.Version,
-            EvaluatedAtUtc = c.EvaluatedAtUtc, ValidUntilUtc = valid
+            EvaluatedAtUtc = c.EvaluatedAtUtc, ValidUntilUtc = valid,
+            VolatilityEvidence = volatilityEvidence
         };
         candidate = candidate with { CandidateHash = CompositionHash.Candidate(candidate) };
         var key = string.Join("|", legs.Select(x => string.Create(CultureInfo.InvariantCulture,

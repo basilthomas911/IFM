@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
@@ -216,6 +217,8 @@ public sealed record TradeSelectionBinding
     [Key(11)] public string TradeDatePolicy { get; init; } = string.Empty;
     [Key(12)] public string PayloadSha256 { get; init; } = string.Empty;
     [Key(13)] public StrategySelectionUniverse? StrategyUniverse { get; init; }
+    /// <summary>Append-only Stage 4 dependency and exact point-in-time snapshot input.</summary>
+    [Key(14)] public VolatilityWorkflowInput? VolatilityInput { get; init; }
 }
 
 /// <summary>Portfolio-neutral strategy catalog universe frozen for one workflow execution.</summary>
@@ -262,6 +265,8 @@ public sealed record TradeSelectionDecisionContext
     [Key(1)] public StrategyStageResultEnvelope RegimeResultEnvelope { get; init; }
     [Key(2)] public StrategyStageResultEnvelope AssessmentResultEnvelope { get; init; }
     [Key(3)] public TradeSelectionBinding SelectionBinding { get; init; }
+    /// <summary>Exact accepted/unavailable input copied from the frozen binding.</summary>
+    [Key(4)] public VolatilityWorkflowInput? VolatilityInput { get; init; }
 }
 
 [MessagePackObject]
@@ -328,6 +333,7 @@ public sealed record TradeSelectionResult
     [Key(20)] public DateTime ValidUntilUtc { get; init; }
     [Key(21)] public SelectionPipelinePolicyReference CommonPolicyReference { get; init; }
     [Key(22)] public string SummaryText { get; init; } = string.Empty;
+    [Key(23)] public VolatilityWorkflowEvidence? AcceptedVolatilityEvidence { get; init; }
     /// <summary>Copies owned collections; nested records expose only init setters and defensive collection accessors.</summary>
     public TradeSelectionResult CopyContent() => this with
     {

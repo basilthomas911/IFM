@@ -89,7 +89,8 @@ public class FundOrder(
               updatedOn: UpdatedOn,
               updatedBy: UpdatedBy
         );
-        fundOrder.Trades.AddRange(Trades.Select(e => e.ToViewModel()));
+        foreach (var trade in Trades)
+            fundOrder.Add(trade.ToViewModel());
         return fundOrder;
     }
 

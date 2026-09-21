@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -317,13 +319,15 @@ public sealed class OperationsViewRenderingTests
     }
 
     [Fact]
-    public void MarketDataEsAndVxTabsUseDarkChromeSharedTypographyAndSubtleGridlines()
+    public void MarketDataEsBollingerAndVxTabsUseDarkChromeSharedTypographyAndSubtleGridlines()
     {
         using var view = new MarketDataView();
         var tabs = view.Controls.Find("tabMarketData", true)
             .OfType<TabControl>()
             .Single();
-        var charts = new[] { "graphES", "graphVIX" }
+        tabs.TabPages.Cast<TabPage>().Select(page => page.Text)
+            .Should().Equal("ES", "ES-BB", "VX");
+        var charts = new[] { "graphES", "graphEsBollinger", "graphVIX" }
             .Select(name => view.Controls.Find(name, true).OfType<Chart>().Single())
             .ToArray();
 
@@ -356,6 +360,57 @@ public sealed class OperationsViewRenderingTests
             && chart.Series.All(series =>
                 series.Font.Name == "Microsoft Sans Serif"
                 && Math.Abs(series.Font.Size - 10F) < 0.01F));
+    }
+
+    [Fact]
+    public void EsBollingerChart_RendersRequestedDailySeriesAndColors()
+    {
+        using var view = new MarketDataView();
+        var valueDate = new DateOnly(2026, 9, 16);
+        var seriesIdentity = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
+        var signals = Enumerable.Range(0, 40)
+            .Select(offset =>
+            {
+                var date = valueDate.AddDays(offset - 39);
+                return new FuturesBbSignalReadModel
+                {
+                    Metadata = new()
+                    {
+                        SignalKey = new(
+                            seriesIdentity,
+                            MarketAnalyticsSignalKind.BollingerBand,
+                            TimeFrameType.Daily,
+                            "bb-10-20-ema-center-population-v1"),
+                        ValueDate = date,
+                        MarketDataAsOfUtc = new DateTimeOffset(
+                            date.ToDateTime(new TimeOnly(21, 0), DateTimeKind.Utc)),
+                        IsValid = true
+                    },
+                    Price = 5_000m + offset,
+                    Ema20Center = 4_995m + offset,
+                    Upper20 = 5_020m + offset,
+                    Lower20 = 4_970m + offset
+                };
+            })
+            .ToArray();
+
+        view.RefreshView(new FuturesBollingerBandChartSnapshot(valueDate, signals))
+            .Should().BeTrue();
+
+        var chart = view.Controls.Find("graphEsBollinger", true).OfType<Chart>().Single();
+        chart.Series.Select(series => series.Name)
+            .Should().Equal("ES Close", "20 EMA", "Upper Band", "Lower Band");
+        chart.Series.Select(series => series.Color.ToArgb()).Should().Equal(
+            Color.Yellow.ToArgb(),
+            Color.Blue.ToArgb(),
+            Color.Green.ToArgb(),
+            Color.Red.ToArgb());
+        chart.Series.Should().OnlyContain(series =>
+            series.Points.Count == 40 && !series.IsVisibleInLegend);
+        chart.Legends.Should().ContainSingle(legend => !legend.Enabled);
+        chart.ChartAreas[0].AxisX.LabelStyle.Format.Should().Be("MMM d");
+        chart.ChartAreas[0].AxisY2.LabelStyle.Format.Should().Be("N0");
     }
 
     [Fact]

@@ -39,6 +39,7 @@ public static class BrokerExecutionAccountingModel
         var items = new List<LedgerPostingRequest>(input.Fills.Length * 2 + 1);
         decimal closingSignedSettlement = 0;
         decimal openingSignedSettlement = 0;
+        var accountedOpeningLegs = new HashSet<Guid>();
         foreach (var fill in input.Fills.OrderBy(x => x.ExecutionFillId))
         {
             if (fill.ExecutionFillId == Guid.Empty || fill.ExecutionAttemptId == Guid.Empty ||
@@ -66,20 +67,21 @@ public static class BrokerExecutionAccountingModel
                 if (input.OpeningSignedSettlementByLeg is null ||
                     !input.OpeningSignedSettlementByLeg.TryGetValue(fill.TradeLegId, out var opening))
                     throw new ArgumentException($"Opening basis for closing leg {fill.TradeLegId} is required.", nameof(input));
-                openingSignedSettlement += Money(opening);
+                // The supplied basis is a per-leg total, not a per-fill amount.
+                // Broker execution fragmentation must not multiply the opening cost.
+                if (accountedOpeningLegs.Add(fill.TradeLegId))
+                    openingSignedSettlement += Money(opening);
             }
         }
         if (order.PositionType == TradeOrderPositionType.Closing)
         {
             var realized = Money(-(openingSignedSettlement + closingSignedSettlement));
-            if (realized != 0)
-            {
-                var first = input.Fills.OrderBy(x => x.ExecutionFillId).First();
-                items.Add(Request(configuration, order, first, LedgerTransactionKind.RealizedPnl,
-                    realized, realizedRule!, Source(order, first, input.ConfirmedAtUtc) with { FillId = $"{first.ExecutionAttemptId:N}:realized" },
-                    Movement(input.MovementReference, first, input.ConfirmedAtUtc) with { SourceReference = $"{input.MovementReference}:realized" },
-                    "Realized P&L from confirmed closing fills"));
-            }
+            // Even a break-even close must clear any previously recognized unrealized P&L.
+            var first = input.Fills.OrderBy(x => x.ExecutionFillId).First();
+            items.Add(Request(configuration, order, first, LedgerTransactionKind.RealizedPnl,
+                realized, realizedRule!, Source(order, first, input.ConfirmedAtUtc) with { FillId = $"{first.ExecutionAttemptId:N}:realized" },
+                Movement(input.MovementReference, first, input.ConfirmedAtUtc) with { SourceReference = $"{input.MovementReference}:realized" },
+                "Realized P&L from confirmed closing fills"));
         }
         var reference = $"BrokerExecution:{order.Id.Format()}:{input.Fills[0].ExecutionAttemptId:N}";
         return new LedgerPostingBatchRequest

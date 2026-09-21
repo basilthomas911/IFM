@@ -71,14 +71,31 @@
       "presentation": {
         "hidden": true
       }
+    },
+    {
+      "name": "_IFM: Server Manager (compound)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/TomasAI.IFM.Application.ServerManager/bin/Debug/net10.0-windows7.0/IFMServerManager.dll",
+      "cwd": "${workspaceFolder}/TomasAI.IFM.Application.ServerManager/bin/Debug/net10.0-windows7.0",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "IFM_REPOSITORY_ROOT": "${workspaceFolder}"
+      },
+      "presentation": {
+        "hidden": true
+      },
+      "postDebugTask": "IFM: Stop API + UI (Development)"
     }
   ],
   "compounds": [
     {
       "name": "IFM: API + UI (Development)",
       "configurations": [
-        "_IFM: API Server (compound)",
-        "_IFM: UI.Net (compound)"
+        "_IFM: Server Manager (compound)"
       ],
       "preLaunchTask": "IFM: Prepare API + UI Debug",
       "stopAll": true,

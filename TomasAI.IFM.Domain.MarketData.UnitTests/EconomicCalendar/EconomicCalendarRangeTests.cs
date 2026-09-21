@@ -29,7 +29,7 @@ public sealed class EconomicCalendarRangeTests
             viewType,
             "US");
 
-        _ = await query.GetEconomicCalendarAsync(factory);
+        _ = await query.ExecuteAsync(factory);
 
         var expectedStart = new DateTime(2026, 8, expectedStartDay, 4, 0, 0, DateTimeKind.Utc);
         var expectedEnd = new DateTime(2026, 8, expectedEndDay, 4, 0, 0, DateTimeKind.Utc).AddTicks(-1);
@@ -51,7 +51,7 @@ public sealed class EconomicCalendarRangeTests
             EconomicCalendarViewType.Today,
             "US");
 
-        _ = await query.GetEconomicCalendarAsync(factory);
+        _ = await query.ExecuteAsync(factory);
 
         await database.Received(1).GetEconomicCalendarsAsync(
             easternMidnightUtc,

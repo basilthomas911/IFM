@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OptionPricerRustRoot>$(MSBuildThisFileDirectory)..\native.rust\OptionPricer.Rust</OptionPricerRustRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="10.0.1" />
+    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.OptionPricer\TomasAI.IFM.Framework.OptionPricer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <Target Name="BuildAndCopyRustOptionPricer" BeforeTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(OptionPricerRustRoot)\build-native.ps1&quot; -Configuration $(Configuration)" />
+    <MakeDir Directories="$(OutDir)runtimes\win-x64\native" />
+    <Copy SourceFiles="$(OptionPricerRustRoot)\out\build\$(Configuration)\ifm_option_pricer_native.dll"
+          DestinationFolder="$(OutDir)runtimes\win-x64\native" />
+  </Target>
+
+</Project>

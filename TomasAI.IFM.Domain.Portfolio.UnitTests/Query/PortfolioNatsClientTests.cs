@@ -16,6 +16,30 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Query;
 public sealed class PortfolioNatsClientTests
 {
     [Fact]
+    public void Portfolio_retry_identity_excludes_only_correlation_and_timestamp()
+    {
+        var original = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
+        {
+            CommandId = Guid.NewGuid(), EntityId = new(101),
+            Subject = new(ActorType.Command, PortfolioCommandSubjects.PortfolioActor, PortfolioCommandVerbs.CreatePortfolio, "101"),
+            Payload = new(new PortfolioReadModel { PortfolioId = 101, Name = "Original" }, Guid.NewGuid()),
+            CorrelationId = Guid.NewGuid(), RequestedOnUtc = DateTime.UtcNow,
+            Access = PortfolioAccessContext.Administrator("admin")
+        };
+        var retry = original with { CorrelationId = Guid.NewGuid(), RequestedOnUtc = original.RequestedOnUtc.AddSeconds(1) };
+        ICommand Normalize(ICommand value) => ((ICommandRetryIdentity)value).ForRetryIdentity();
+        Normalize(retry).Should().BeEquivalentTo(Normalize(original));
+        var normalized = (PortfolioCommand<CreatePortfolioPayload, PortfolioId>)Normalize(original);
+        normalized.Should().BeEquivalentTo(original, options => options.Excluding(x => x.CorrelationId).Excluding(x => x.RequestedOnUtc));
+        normalized.CorrelationId.Should().BeEmpty();
+        normalized.RequestedOnUtc.Should().Be(default);
+        normalized.Access.Should().BeEquivalentTo(original.Access);
+        Normalize(retry with { Access = PortfolioAccessContext.Reader("admin") }).Should().NotBeEquivalentTo(normalized);
+        Normalize(retry with { Access = PortfolioAccessContext.Administrator("other") }).Should().NotBeEquivalentTo(normalized);
+        Normalize(retry with { Payload = original.Payload with { Portfolio = original.Payload.Portfolio with { Name = "Changed" } } }).Should().NotBeEquivalentTo(normalized);
+    }
+
+    [Fact]
     [Trait("Gate", "PF-10")]
     [Trait("Category", "Portfolio")]
     public void Command_envelope_preserves_base_keys_and_appends_correlation_and_access_metadata()

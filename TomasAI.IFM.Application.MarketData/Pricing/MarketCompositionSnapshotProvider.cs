@@ -13,6 +13,7 @@ public sealed record CompositionSnapshotRequest([property: Key(0)] Guid Snapshot
     ImmutableArray<CompositionFutureDefinition> Futures = default)
 {
     [Key(10)] public ImmutableArray<CompositionFutureDefinition> Futures { get; init; } = Futures.IsDefault ? [] : Futures;
+    [Key(11)] public bool SelectionOnly { get; init; }
 }
 
 /// <summary>One atomic source view; scope token and generation must remain stable across all pages.</summary>
@@ -35,7 +36,12 @@ public sealed record CompositionMarketInstrument(
     [property: Key(3)] decimal? Strike,
     [property: Key(4)] bool? IsCall,
     [property: Key(5)] OptionPricingQuote? Underlying,
-    [property: Key(6)] CompositionFutureDefinition? FutureDefinition = null);
+    [property: Key(6)] CompositionFutureDefinition? FutureDefinition = null)
+{
+    [Key(7)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public OptionSelectionValue? Selection { get; init; }
+}
 
 /// <summary>Source owns complete-scope enumeration and current-generation price observations.</summary>
 public interface ICompositionMarketSource
@@ -128,10 +134,29 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                         maximumAge = context.MaximumQuoteAgeMilliseconds;
                         maximumSkew = Math.Min(maximumSkew, context.MaximumQuoteSkewMilliseconds);
                         effectiveInstrument = instrument with { Pricing = context };
-                        var priced = Black76PricingModel.Calculate(context, instrument.Underlying, instrument.Quote,
-                            instrument.Strike.Value, instrument.IsCall.Value, request.EvaluatedAtUtc);
-                        if (priced.Failure is not null) return new(null, priced.Failure);
-                        value = priced.Value;
+                        if (request.SelectionOnly)
+                        {
+                            var invalid = Black76PricingModel.ValidateInputs(context, instrument.Underlying, instrument.Quote,
+                                instrument.Strike.Value, instrument.IsCall.Value, request.EvaluatedAtUtc);
+                            if (invalid is not null) return new(null, invalid);
+                            var selection = instrument.Selection;
+                            if (selection is null || selection.ContextDigest != PricingSemanticHash.Compute(instrument.Pricing)
+                                || !double.IsFinite(selection.Price) || !double.IsFinite(selection.Delta) || !double.IsFinite(selection.ImpliedVolatility)
+                                || selection.CalculatedAtUtc > request.EvaluatedAtUtc || selection.ValidUntilUtc <= request.EvaluatedAtUtc
+                                || selection.IvOption.GenerationId != request.GenerationId || selection.IvUnderlying.GenerationId != request.GenerationId)
+                                return Fail("SelectionCalculationUnavailable");
+                            validUntil = Min(validUntil, selection.ValidUntilUtc);
+                            // Preserve the exact context that qualifies the cached IV; request limits are checked separately.
+                            effectiveInstrument = instrument;
+                        }
+                        else
+                        {
+                            var priced = Black76PricingModel.Calculate(context, instrument.Underlying, instrument.Quote,
+                                instrument.Strike.Value, instrument.IsCall.Value, request.EvaluatedAtUtc);
+                            if (priced.Failure is not null) return new(null, priced.Failure);
+                            value = priced.Value;
+                            effectiveInstrument = effectiveInstrument with { Selection = null };
+                        }
                         validUntil = Min(validUntil, context.ValidUntilUtc);
                     }
                     else
@@ -168,7 +193,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
             if (values.Count != total) return Fail("IncompleteChain");
             if (quoteTimes.Count > 0 && (quoteTimes.Max() - quoteTimes.Min()).TotalMilliseconds > maximumSkew)
                 return Fail("IncoherentQuotes");
-            var snapshot = new MarketCompositionSnapshot(1, request.SnapshotId, request.ScopeId, scopeToken!, request.Horizon,
+            var snapshot = new MarketCompositionSnapshot(request.SelectionOnly ? 2 : 1, request.SnapshotId, request.ScopeId, scopeToken!, request.Horizon,
                 request.GenerationId, request.EvaluatedAtUtc, validUntil, values.OrderBy(x => x.Instrument.ContractId, StringComparer.Ordinal).ToImmutableArray(), "");
             // Canonical order is independent of page/enumeration order. Only semantic inputs enter this hash.
             snapshot = snapshot with { Digest = PricingSemanticHash.Compute(snapshot) };

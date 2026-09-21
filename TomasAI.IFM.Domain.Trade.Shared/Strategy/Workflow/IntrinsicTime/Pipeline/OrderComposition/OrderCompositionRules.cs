@@ -55,7 +55,14 @@ public sealed record CompositionParameterBound
 public enum CompositionParameter { LoadingMilliseconds, ExecutionMilliseconds, CandidateLifetimeMilliseconds, MaximumQuoteAgeMilliseconds, MaximumQuoteSkewMilliseconds, MinimumDisplayedSize, ParticipationFraction, MaximumUnderlyingSpreadTicks, MaximumLegSpreadTicks, MaximumComboSpreadTicks, TargetDaysToExpiry, MinimumDaysToExpiry, MaximumDaysToExpiry, TargetLegDelta, LegDeltaTolerance, TargetPutDelta, TargetCallDelta, TargetNetDelta, BalanceTolerance, MinimumCreditToWidth, MaximumDebitToWidth, MinimumCreditTicks, MinimumRewardToRisk, MidpointToNaturalFraction, MaximumAdverseMoveTicks, FeePerContract, SlippageTicksPerLeg, FuturesPlannedDistance, FuturesStressDistance, FuturesRollHours }
 public enum CompositionOperation { Undefined=0, Set=1, Add=2, Subtract=3, Multiply=4, Minimum=5, Maximum=6 }
 public enum CompositionComparison { Undefined=0, Equal=1, Less=2, LessOrEqual=3, Greater=4, GreaterOrEqual=5, In=6, All=7, Any=8 }
-public enum CompositionFeature { Undefined=0, RegimeConfidence=1, SelectionConfidence=2, ForwardPrice=3, ImpliedVolatility=4 }
+public enum CompositionFeature
+{
+    Undefined=0, RegimeConfidence=1, SelectionConfidence=2, ForwardPrice=3, ImpliedVolatility=4,
+    /// <summary>0-100 percentage points from the exact accepted Stage 4 snapshot.</summary>
+    IvRank=5,
+    /// <summary>0-100 percentage points from the exact accepted Stage 4 snapshot.</summary>
+    IvPercentile=6
+}
 [MessagePackObject]
 public sealed record CompositionPredicate
 {

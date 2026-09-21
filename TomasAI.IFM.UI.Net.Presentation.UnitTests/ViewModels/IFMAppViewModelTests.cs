@@ -3,6 +3,9 @@ using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -342,6 +345,58 @@ public class IFMAppViewModelTests
 
         startDate.Should().Be(marketCurrentTime.AddHours(-6));
         endDate.Should().Be(marketCurrentTime);
+    }
+
+    [Fact]
+    public void BollingerBandWindow_KeepsLatestValidDailyPointForEachOfFortyDates()
+    {
+        var valueDate = new DateOnly(2026, 9, 16);
+        var series = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
+        var values = Enumerable.Range(0, 43)
+            .Select(offset =>
+            {
+                var date = valueDate.AddDays(-offset);
+                return new FuturesBbSignalReadModel
+                {
+                    Metadata = new()
+                    {
+                        SignalKey = new(
+                            series,
+                            MarketAnalyticsSignalKind.BollingerBand,
+                            TimeFrameType.Daily,
+                            "bb-10-20-ema-center-population-v1"),
+                        ValueDate = date,
+                        MarketDataAsOfUtc = new DateTimeOffset(
+                            date.ToDateTime(new TimeOnly(21, 0), DateTimeKind.Utc)),
+                        IsValid = true
+                    },
+                    Price = 5_000m + offset
+                };
+            })
+            .Append(new FuturesBbSignalReadModel
+            {
+                Metadata = new()
+                {
+                    SignalKey = new(
+                        series,
+                        MarketAnalyticsSignalKind.BollingerBand,
+                        TimeFrameType.Daily,
+                        "bb-10-20-ema-center-population-v1"),
+                    ValueDate = valueDate,
+                    MarketDataAsOfUtc = new DateTimeOffset(
+                        valueDate.ToDateTime(new TimeOnly(22, 0), DateTimeKind.Utc)),
+                    IsValid = true
+                },
+                Price = 5_555m
+            });
+
+        var selected = IFMAppViewModel.SelectFuturesBollingerBandWindow(values, valueDate);
+
+        selected.Should().HaveCount(40);
+        selected.Select(signal => signal.Metadata.ValueDate).Should().BeInAscendingOrder();
+        selected[^1].Metadata.ValueDate.Should().Be(valueDate);
+        selected[^1].Price.Should().Be(5_555m);
     }
 
     [Fact]

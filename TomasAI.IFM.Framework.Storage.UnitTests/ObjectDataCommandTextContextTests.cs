@@ -88,7 +88,7 @@ public class ObjectDataCommandTextContextTests
     {
         // Arrange
         var mockRepo = Substitute.For<IObjectRepository>();
-        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var odCommandTextCtx = new ObjectDataCommandTextContext(
             mockRepo, mockLogger,
@@ -99,7 +99,7 @@ public class ObjectDataCommandTextContextTests
         var result = odCommandTextCtx.GetParameterName("parameterName");
 
         // Assert
-        result.Should().Be("@parameterName");
+        result.Should().Be("_parameterName");
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class ObjectDataCommandTextContextTests
     public void SetParametersEnumerableInvokesBindValueForEveryItem()
     {
         var mockRepo = Substitute.For<IObjectRepository>();
-        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var context = new ObjectDataCommandTextContext(
             mockRepo, mockLogger,
@@ -193,7 +193,7 @@ public class ObjectDataCommandTextContextTests
     public void SetParametersEnumerablePreservesNonBindValues()
     {
         var mockRepo = Substitute.For<IObjectRepository>();
-        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var context = new ObjectDataCommandTextContext(
             mockRepo, mockLogger,
@@ -207,22 +207,22 @@ public class ObjectDataCommandTextContextTests
     }
 
     [Fact]
-    public void GetParameterNameForSqlServer()
+    public void GetParameterNameForPostgresAlias()
     {
         // Arrange
         var mockRepo = Substitute.For<IObjectRepository>();
-        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var odCommandTextCtx = new ObjectDataCommandTextContext(
             mockRepo, mockLogger,
-            $"{nameof(ObjectDataCommandTextContextTests)}.{nameof(GetParameterNameForSqlServer)}",
+            $"{nameof(ObjectDataCommandTextContextTests)}.{nameof(GetParameterNameForPostgresAlias)}",
             "SELECT 1");
 
         // Act
         var result = odCommandTextCtx.GetParameterName("id");
 
         // Assert
-        result.Should().Be("@id");
+        result.Should().Be("_id");
     }
 
     [Fact]

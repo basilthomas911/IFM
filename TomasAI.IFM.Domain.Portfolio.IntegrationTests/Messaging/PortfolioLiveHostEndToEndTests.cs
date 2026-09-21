@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -97,23 +98,28 @@ public sealed class PortfolioLiveHostEndToEndTests
     public async Task Production_NATS_actors_execute_configuration_resolution_reservation_composition_and_risk()
     {
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Command, $"PortfolioPipelineTest{Guid.NewGuid():N}"), timeout.Token);
         try
         {
-            var portfolioId = EnvironmentValue("IFM_PORTFOLIO_LIVE_ID", Random.Shared.Next(1_000_000, 2_000_000_000));
-            var fundId = EnvironmentValue("IFM_PORTFOLIO_FUND_LIVE_ID", Random.Shared.Next(1_000_000, 2_000_000_000));
-            var workflowId = Guid.TryParse(Environment.GetEnvironmentVariable("IFM_PORTFOLIO_LIVE_WORKFLOW_ID"), out var configuredWorkflow)
-                ? configuredWorkflow
-                : Guid.NewGuid();
+            var catalog = await IsolatedWorkflowCatalogFixture.CreateAsync(producer, timeout.Token);
+            var identities = new PortfolioIdentityApi(producer);
+            var portfolioIdentity = await identities.AllocatePortfolioIdAsync(timeout.Token);
+            var fundIdentity = await identities.AllocateFundIdAsync(timeout.Token);
+            portfolioIdentity.Success.Should().BeTrue(portfolioIdentity.ErrorMessage);
+            fundIdentity.Success.Should().BeTrue(fundIdentity.ErrorMessage);
+            var portfolioId = portfolioIdentity.Value!.Value;
+            var fundId = fundIdentity.Value!.Value;
+            var workflowId = Guid.NewGuid();
+            var selections = await FundSelectionCatalog.LoadAsync(new ReferenceQueryApi(producer), timeout.Token);
             var now = DateTime.UtcNow;
             var policyAllocation = await new PortfolioIdentityApi(producer).AllocatePolicyIdAsync(timeout.Token);
             policyAllocation.Success.Should().BeTrue(policyAllocation.ErrorMessage);
             var policyId = policyAllocation.Value!.Value;
-            var templateId = Guid.NewGuid();
-            var hintProfileId = Guid.NewGuid();
-            var compositionProfileId = Guid.NewGuid();
+            var templateId = catalog.Deployment.Id;
+            var hintProfileId = catalog.SelectionId;
+            var compositionProfileId = catalog.ConstructionId;
             var envelopeId = Guid.NewGuid();
             var portfolio = new PortfolioReadModel
             {
@@ -132,7 +138,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m,
                 MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100,
                 MaximumDrawdownAmount = 200_000m,
-                TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000m, MaximumAggregateRisk = 50_000m, MaximumMargin = 250_000m, MaximumGrossNotional = 2_500_000m, MaximumOpenPositions = 50 }],
+                TradeFamilyLimits = [new() { CatalogDeployment = catalog.Deployment, Enabled = true, MaximumRiskPerTrade = 5_000m, MaximumAggregateRisk = 50_000m, MaximumMargin = 250_000m, MaximumGrossNotional = 2_500_000m, MaximumOpenPositions = 50 }],
                 EffectiveFromUtc = now.AddMinutes(-1), CreatedOnUtc = now, CreatedBy = "portfolio-live-pipeline-test"
             };
             var mandate = new FundMandateReadModel
@@ -149,9 +155,11 @@ public sealed class PortfolioLiveHostEndToEndTests
                 Objective = "Directional ES exposure",
                 UnderlyingUniverse = ["ES"],
                 EligibleAssetTypes = ["Futures"],
-                PermittedDirections = ["Long", "Short"],
-                PermittedConditions = ["Trending"],
-                PermittedTradeFamilies = ["DirectionalFuture"],
+                SchemaVersion = 3,
+                PermittedDirections = selections.Directions.Where(FundSelectionCatalog.IsSelectable).Select(x => x.InternalValue).ToArray(),
+                PermittedConditions = selections.MarketConditions.Where(FundSelectionCatalog.IsSelectable).Select(x => x.InternalValue).ToArray(),
+                PermittedTradeFamilies = [catalog.Code],
+                PermittedTradeStrategyFamilies = [new(0, 0) { CatalogDeployment = catalog.Deployment }],
                 CreatedOnUtc = now,
                 CreatedBy = "portfolio-live-pipeline-test",
             };
@@ -161,14 +169,16 @@ public sealed class PortfolioLiveHostEndToEndTests
                 PortfolioVersion = 2,
                 FundId = fundId,
                 FundMandateVersion = 1,
-                AssignmentVersion = 1,
+                AssignmentVersion = 2,
                 TradeTemplateId = templateId,
                 TradeTemplateVersion = 1,
                 Enabled = true,
                 DecisionHorizon = "Daily",
                 UnderlyingUniverse = ["ES"],
                 AssetType = "Futures",
-                TradeFamily = "DirectionalFuture",
+                SchemaVersion = 3,
+                TradeStrategyFamily = new(0, 0) { CatalogDeployment = catalog.Deployment },
+                TradeFamily = catalog.Code,
                 Priority = 1,
                 EffectiveFromUtc = now.AddMinutes(-1),
                 TradeSelectionHintProfileId = hintProfileId,
@@ -301,7 +311,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 [
                     new TradeInstruction
                     {
-                        TradeFamily = "DirectionalFuture",
+                        TradeFamily = catalog.Code,
                         DirectionOrBias = "Long",
                         TradeAction = "Buy",
                         UnderlyingRoot = "ES",
@@ -372,6 +382,10 @@ public sealed class PortfolioLiveHostEndToEndTests
             authority.Current!.OperatingState.Should().Be(FundOperatingState.Active);
             authority.Orders.Should().ContainSingle(x => x.OrderId == reservation.Order.OrderId && x.Status == FundCompositionState.RiskApproved.ToString());
             authority.Revision.Should().Be(8, "the manual draft and automated composition transitions share the Fund authority stream");
+            var artifactDirectory = Environment.GetEnvironmentVariable("IFM_QUALIFICATION_ARTIFACT_DIRECTORY")
+                ?? throw new InvalidOperationException("Qualification artifact directory required.");
+            await File.WriteAllTextAsync(Path.Combine(artifactDirectory, "workflow-checkpoint.json"),
+                System.Text.Json.JsonSerializer.Serialize(new { PortfolioId = portfolioId, FundId = fundId, WorkflowId = workflowId }), timeout.Token);
         }
         finally
         {
@@ -514,7 +528,7 @@ public sealed class PortfolioLiveHostEndToEndTests
 
             var authority = await new PortfolioEventStore(new PortfolioEventStoreFixture().EventSourceDb)
                 .LoadFundAsync(new(portfolioId, fundId), timeout.Token);
-            authority.Revision.Should().Be(7);
+            authority.Revision.Should().Be(8, "the write qualification includes the manual draft order");
             projectedOrder.Value.Should().BeEquivalentTo(authority.Orders.Single(x => x.OrderId == reference.OrderId));
         }
         finally

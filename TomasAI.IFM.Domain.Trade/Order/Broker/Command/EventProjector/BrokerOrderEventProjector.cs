@@ -168,7 +168,8 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
             CommandId = DeterministicId("cancelled", observation.ObservationId.ToString("N")),
             Subject = new(ActorType.Command, OrderExecutionCommandActor.ActorName,
                 CancelOrderExecutionCommand.Verb, executionId.Format()),
-            EntityId = executionId
+            EntityId = executionId,
+            EffectiveAtUtc = observation.OccurredAtUtc
         };
         return _context.ActorService.SendAsync<CancelOrderExecutionCommand, OrderExecutionId>(command, executionId);
     }

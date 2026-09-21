@@ -50,6 +50,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     /// use in query deserialization and routing scenarios.</remarks>
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
+        [GetInstrumentDefinitionsQuery.Verb] = msg => msg.AsQuery<GetInstrumentDefinitionsQuery, InstrumentDefinitionPage>()!,
         [GetOnTheRunFuturesContractQuery.Verb] = msg => msg.AsQuery<GetOnTheRunFuturesContractQuery, FuturesContractV3ReadModel>()!,
         [GetRolloverFuturesContractsQuery.Verb] = msg => msg.AsQuery<GetRolloverFuturesContractsQuery, FuturesContractV3ReadModel[]>()!,
         [GetFuturesContractQuery.Verb] = msg => msg.AsQuery<GetFuturesContractQuery, FuturesContractV3ReadModel>()!,
@@ -89,6 +90,14 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<IFuturesContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesContractQueryContext, IQuery, CancellationToken, ValueTask>>()
     {
+        [typeof(GetInstrumentDefinitionsQuery)] = async (ctx, q, cancellationToken) =>
+        {
+            var query = (GetInstrumentDefinitionsQuery)q;
+            var result = await ctx.DbFactory.ReferenceDb.InstrumentDefinitions.GetSelectionPageAsync(
+                query.Request, DateTimeOffset.UtcNow, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb, new ServiceResult<InstrumentDefinitionPage>(result));
+        },
         [typeof(GetOnTheRunFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetOnTheRunFuturesContractQuery)!;

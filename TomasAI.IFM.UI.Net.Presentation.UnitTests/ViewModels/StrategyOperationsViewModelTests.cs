@@ -23,6 +23,7 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
 public sealed class StrategyOperationsViewModelTests
 {
+    const string Symbol = "ES";
     const string ContractId = "ESZ26";
     static readonly DateOnly ValueDate = new(2026, 8, 21);
     readonly ITestOutputHelper _output;
@@ -37,17 +38,17 @@ public sealed class StrategyOperationsViewModelTests
         var weekly = Signal(TimeFrameType.Weekly, 2, IntrinsicTimeModeType.TrendDirectionChanged);
         var monthly = Signal(TimeFrameType.Monthly, 3, IntrinsicTimeModeType.TrendExtremeChanged);
         var subject = CreateSubject();
-        subject.QueryApi.GetFuturesItiSignalHistoryAsync(ContractId, ValueDate, TimeFrameType.Daily)
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, TimeFrameType.Daily)
             .Returns(_ =>
             {
                 subject.EventSource.Publish(daily);
                 return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
                     new ServiceOk<FuturesItiSignalV2ReadModel[]>([daily, dailyDirection]));
             });
-        subject.QueryApi.GetFuturesItiSignalHistoryAsync(ContractId, ValueDate, TimeFrameType.Weekly)
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, TimeFrameType.Weekly)
             .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
                 new ServiceOk<FuturesItiSignalV2ReadModel[]>([weekly])));
-        subject.QueryApi.GetFuturesItiSignalHistoryAsync(ContractId, ValueDate, TimeFrameType.Monthly)
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, TimeFrameType.Monthly)
             .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
                 new ServiceOk<FuturesItiSignalV2ReadModel[]>([monthly])));
 
@@ -74,6 +75,81 @@ public sealed class StrategyOperationsViewModelTests
         subject.ViewModel.SelectedTimeFrame = TimeFrameType.Monthly;
         subject.ViewModel.Events.Should().ContainSingle()
             .Which.TimePeriod.Should().Be(TimeFrameType.Monthly);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Initialize_RendersDurableHistoryFromPreviousContractAcrossRollover()
+    {
+        var previous = Signal(TimeFrameType.Daily, 1, IntrinsicTimeModeType.Trending) with
+        {
+            ContractId = "ESU26"
+        };
+        var current = Signal(TimeFrameType.Daily, 2, IntrinsicTimeModeType.Trending);
+        var subject = CreateSubject();
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, TimeFrameType.Daily)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([previous, current])));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+
+        subject.ViewModel.Events.Select(row => row.ContractId)
+            .Should().Equal(current.ContractId, previous.ContractId);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Initialize_RendersMonthlyWorkflowHistoryFromPreviousContractAcrossRollover()
+    {
+        const string previousContractId = "ESU26";
+        var monthStart = new DateOnly(ValueDate.Year, ValueDate.Month, 1);
+        var previousSignal = Signal(
+            TimeFrameType.Monthly,
+            1,
+            IntrinsicTimeModeType.TrendDirectionChanged) with
+        {
+            ContractId = previousContractId,
+            TimeFrameStartValueDate = monthStart
+        };
+        var previousEntity = IntrinsicTimeStrategyWorkflowEntityId.Create(
+            new FuturesItiSignalEntityId(
+                previousContractId,
+                monthStart,
+                TimeFrameType.Monthly));
+        var workflowTemplate = Workflow(2);
+        var previousWorkflow = workflowTemplate with
+        {
+            EntityId = previousEntity,
+            TriggerEvent = workflowTemplate.TriggerEvent with
+            {
+                EntityId = previousSignal.EntityId,
+                FuturesItiSignal = previousSignal
+            }
+        };
+        var subject = CreateSubject();
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, TimeFrameType.Monthly)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([previousSignal])));
+        subject.WorkflowQueryApi.GetRecentAsync(
+                previousEntity.Format(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>())
+            .Returns(Task.FromResult<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>>(
+                new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>([History(previousWorkflow)])));
+        subject.WorkflowQueryApi.GetByIdAsync(
+                previousWorkflow.WorkflowId,
+                previousWorkflow.WorkflowRevision)
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(previousWorkflow)));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.ViewModel.SelectedTimeFrame = TimeFrameType.Monthly;
+
+        subject.ViewModel.Workflows.Should().ContainSingle()
+            .Which.WorkflowId.Should().Be(previousWorkflow.WorkflowId);
+        await subject.WorkflowQueryApi.Received(1).GetRecentAsync(
+            previousEntity.Format(),
+            Arg.Any<DateTime>(),
+            Arg.Any<int>());
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -169,7 +245,7 @@ public sealed class StrategyOperationsViewModelTests
             IntrinsicTime = boundary.IntrinsicTime.AddTicks(-1)
         };
         subject.QueryApi.GetFuturesItiSignalHistoryAsync(
-                ContractId,
+                Symbol,
                 ValueDate,
                 TimeFrameType.Daily)
             .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
@@ -220,7 +296,7 @@ public sealed class StrategyOperationsViewModelTests
         var dailyHistoryCalls = 0;
         var subject = CreateSubject(timeProvider, interval);
         subject.QueryApi.GetFuturesItiSignalHistoryAsync(
-                ContractId,
+                Symbol,
                 ValueDate,
                 TimeFrameType.Daily)
             .Returns(_ => Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
@@ -261,7 +337,7 @@ public sealed class StrategyOperationsViewModelTests
         var weeklyHistoryCalls = 0;
         var subject = CreateSubject(timeProvider, interval);
         subject.QueryApi.GetFuturesItiSignalHistoryAsync(
-                ContractId,
+                Symbol,
                 ValueDate,
                 TimeFrameType.Weekly)
             .Returns(_ =>
@@ -719,6 +795,7 @@ public sealed class StrategyOperationsViewModelTests
         return new Subject(
             new StrategyOperationsViewModel(
                 model,
+                Symbol,
                 ContractId,
                 ValueDate,
                 timeProvider ?? new ManualTimeProvider(

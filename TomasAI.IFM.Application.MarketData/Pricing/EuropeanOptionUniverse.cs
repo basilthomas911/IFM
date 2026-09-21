@@ -42,6 +42,9 @@ public sealed class EuropeanOptionUniverse(IOptionPricingConventionStore convent
             if (mapping is null || mapping.ContractId != candidate.ContractId || mapping.MappingVersion != candidate.MappingVersion
                 || mapping.DefinitionDigest != candidate.DefinitionDigest || mapping.Dataset != definition.Dataset
                 || mapping.InstrumentId != definition.Instrument.InstrumentId
+                || mapping.PublisherId != definition.Instrument.PublisherId
+                || mapping.SchemaVersion == 3 && (mapping.Strike != definition.StrikePrice
+                    || mapping.Right != (definition.Right == OptionRightSelection.Call ? PricingOptionRight.Call : PricingOptionRight.Put))
                 || mapping.RawSymbol != definition.RawSymbol || mapping.UnderlyingContractId != definition.Underlying || definition.StrikePrice <= 0
                 || definition.Right is not (OptionRightSelection.Call or OptionRightSelection.Put)
                 || definition.ExpirationTimestampNanoseconds is not { } ns || ns == ulong.MaxValue || ns % 100 != 0

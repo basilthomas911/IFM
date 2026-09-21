@@ -13,7 +13,7 @@ public static class TradeBrokerMapper
         x.ComponentId, (FrameworkOrderShape)x.Shape, x.IsClosing,
         [.. x.Legs.Select(l => new FrameworkOrderLeg(l.LegId, l.ContractId, l.SignedQuantity, l.Strike, l.Expiry, l.PutCall, l.CashMultiplier))],
         x.SignedNetDebitLimit, x.MinimumLimit, x.MaximumLimit, x.TickIncrement, x.ValidUntilUtc, x.ApprovalHash, x.ContractReferenceHash,
-        x.RequiredCapital, x.MaximumLoss);
+        x.RequiredCapital, x.MaximumLoss, (FrameworkOrderType)x.OrderType, (FrameworkOrderAlgorithm)x.Algorithm);
 
     public static FrameworkLimitUpdate ToFramework(BrokerLimitUpdate x) => new(x.AccountAlias, x.BrokerOrderId, x.OperationId, x.NewSignedNetDebitLimit, x.ExpectedRevision);
     public static FrameworkCancelRequest ToFramework(BrokerCancelRequest x) => new(x.AccountAlias, x.BrokerOrderId, x.OperationId, x.ExpectedRevision);

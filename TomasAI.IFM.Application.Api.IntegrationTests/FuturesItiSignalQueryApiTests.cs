@@ -34,7 +34,7 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
 
         var response = await queryApi.GetFuturesItiSignalHistoryAsync(
-            "ESU25",
+            "ES",
             new DateOnly(2025, 9, 10),
             TimeFrameType.Weekly);
 

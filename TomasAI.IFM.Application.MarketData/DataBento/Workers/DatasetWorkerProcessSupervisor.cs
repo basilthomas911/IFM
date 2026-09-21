@@ -50,6 +50,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     AnonymousPipeServerStream? commandPipe;
     AnonymousPipeServerStream? responsePipe;
     AnonymousPipeServerStream? publicationPipe;
+    AnonymousPipeServerStream? retentionAckPipe;
     CancellationTokenSource? publicationStopping;
     Task? publicationReader;
     Process? process;
@@ -135,6 +136,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         commandPipe = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
         responsePipe = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
         publicationPipe = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
+        retentionAckPipe = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
         var start = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
@@ -149,6 +151,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         start.ArgumentList.Add(responsePipe.GetClientHandleAsString());
         start.ArgumentList.Add("--publication-out");
         start.ArgumentList.Add(publicationPipe.GetClientHandleAsString());
+        start.ArgumentList.Add("--retention-ack-in");
+        start.ArgumentList.Add(retentionAckPipe.GetClientHandleAsString());
         start.ArgumentList.Add("--dataset");
         start.ArgumentList.Add(request.Dataset);
         start.ArgumentList.Add("--value-date");
@@ -169,6 +173,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         commandPipe.DisposeLocalCopyOfClientHandle();
         responsePipe.DisposeLocalCopyOfClientHandle();
         publicationPipe.DisposeLocalCopyOfClientHandle();
+        retentionAckPipe.DisposeLocalCopyOfClientHandle();
         publicationStopping = new CancellationTokenSource();
         publicationReader = ReadPublicationsAsync(publicationStopping.Token);
         process.EnableRaisingEvents = true;
@@ -377,7 +382,23 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             {
                 var publication = await DatasetPublicationFrameCodec.ReadAsync(
                     publicationPipe!, cancellationToken).ConfigureAwait(false);
-                if (publicationIngress is not null)
+                if (publication.Kind == DatasetPublicationKind.OptionTradeEvidence)
+                {
+                    try
+                    {
+                        if (publicationIngress is null) throw new InvalidOperationException("No durable publication ingress.");
+                        await publicationIngress(publication, cancellationToken).ConfigureAwait(false);
+                        await OptionTradeAcknowledgment.WriteAsync(retentionAckPipe!, publication.PublicationSequence,
+                            publication.GenerationId, true, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        await OptionTradeAcknowledgment.WriteAsync(retentionAckPipe!, publication.PublicationSequence,
+                            publication.GenerationId, false, cancellationToken).ConfigureAwait(false);
+                        throw;
+                    }
+                }
+                else if (publicationIngress is not null)
                     await publicationIngress(publication, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -514,6 +535,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         {
             publicationStopping?.Cancel();
             publicationPipe?.Dispose();
+            retentionAckPipe?.Dispose();
             if (publicationReader is not null)
             {
                 try { await publicationReader.WaitAsync(options.WorkerForceKillTimeout).ConfigureAwait(false); }
@@ -533,6 +555,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             commandPipe?.Dispose();
             responsePipe?.Dispose();
             publicationPipe?.Dispose();
+            retentionAckPipe?.Dispose();
             publicationStopping?.Dispose();
             disposedSnapshot = stopped;
             process?.Dispose();

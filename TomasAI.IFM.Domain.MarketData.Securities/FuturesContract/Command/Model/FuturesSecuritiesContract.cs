@@ -34,6 +34,7 @@ public class FuturesSecuritiesContract(
     bool onTheRun,
     bool rollover)
 {
+    readonly FuturesContractV3ReadModel? _source;
 
     // public properties...
     public virtual string ContractId { get; } = contractId;
@@ -52,10 +53,11 @@ public class FuturesSecuritiesContract(
         :this(model.ContractId, model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
              model.Exchange, model.Multiplier, model.LastTradeDate, model.OnTheRun, model.Rollover)
     {
+        _source = model;
     }
 
     public FuturesContractV3ReadModel ToViewModel()
-        => new (
+        => _source ?? new (
             contractId: ContractId,
             description: Description,
             symbol: Symbol,

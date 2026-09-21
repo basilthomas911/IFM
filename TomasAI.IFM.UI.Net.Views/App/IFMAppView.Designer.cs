@@ -349,7 +349,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             toolStrip1.ForeColor = Color.White;
             toolStrip1.GripStyle = ToolStripGripStyle.Hidden;
             toolStrip1.ImageScalingSize = new Size(24, 24);
-            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, portfolioButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, marketDataFeedHealthIndicator, btnCloseOrder });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, portfolioButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, marketDataFeedHealthIndicator, btnCloseOrder });
             toolStrip1.Location = new Point(0, 0);
             toolStrip1.Name = "toolStrip1";
             toolStrip1.Renderer = new DashboardMenuRenderer()

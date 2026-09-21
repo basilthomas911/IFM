@@ -38,6 +38,7 @@ public static class CompositionValidationExtensions
             Check(selected.WorkflowId == c.WorkflowId && selected.EntityId == c.WorkflowEntityId
                 && selected.DecisionHorizon == c.CompositionBinding.Rules.SupportedHorizon
                 && selected.DecisionContext.SelectionBinding.PayloadSha256 == c.SelectionBinding.PayloadSha256
+                && selected.DecisionContext.VolatilityInput == c.SelectionBinding.VolatilityInput
                 && CompositionHash.Compute(selected.SelectedCandidate) == CompositionHash.Compute(c.CompositionBinding.Selected)
                 && c.AcceptedSelectionEnvelope.HasSameContent(view.TradeSelection.Result), "OC.CONTRACT.UPSTREAM_INVALID");
             if(c.SelectionBinding.SchemaVersion==1)

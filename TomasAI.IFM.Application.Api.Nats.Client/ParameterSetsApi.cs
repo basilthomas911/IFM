@@ -6,7 +6,26 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public sealed class ParameterSetsApi(IActorProducer producer):NatsClientApi(producer),IParameterSetsApi
 {
  public Task<ServiceResult<ParameterSignalStartupPlan>> PreviewStartupAsync(Guid runId,CancellationToken token=default){var q=new PreviewSignalStartupPlanQuery{StartupRunId=runId,Subject=QuerySubject(PreviewSignalStartupPlanQuery.Verb)};return RequestAsync<PreviewSignalStartupPlanQuery,ParameterSignalStartupPlan>(q.Subject,q,token).AsTask();}
- public Task<ServiceResult<ParameterStartupRun[]>> StartupRunsAsync(CancellationToken token=default){var q=new GetParameterStartupRunsQuery{Subject=QuerySubject(GetParameterStartupRunsQuery.Verb)};return RequestAsync<GetParameterStartupRunsQuery,ParameterStartupRun[]>(q.Subject,q,token).AsTask();}
+ public Task<ServiceResult<ParameterStartupRun>> StartupRunAsync(Guid runId,CancellationToken token=default)
+ {
+  var q=new GetParameterStartupRunQuery{RunId=runId,Subject=QuerySubject(GetParameterStartupRunQuery.Verb)};
+  return RequestAsync<GetParameterStartupRunQuery,ParameterStartupRun>(q.Subject,q,token).AsTask();
+ }
+ public async Task<ServiceResult<ParameterStartupRun[]>> StartupRunsAsync(CancellationToken token=default)
+ {
+  var q=new GetParameterStartupRunsQuery{Limit=20,Subject=QuerySubject(GetParameterStartupRunsQuery.Verb)};
+  var runs=new List<ParameterStartupRun>();
+  for(var page=0;page<100;page++)
+  {
+   var result=await RequestAsync<GetParameterStartupRunsQuery,ParameterStartupRun[]>(q.Subject,q,token);
+   if(!result.Success||result.Value is null)return result;
+   runs.AddRange(result.Value);
+   if(result.Value.Length<q.Limit)return new ServiceOk<ParameterStartupRun[]>(runs.ToArray());
+   var last=result.Value[^1];
+   q=q with {AfterCreatedAtUtc=last.CreatedAtUtc,AfterRunId=last.RunId};
+  }
+  return new ServiceFailed<ParameterStartupRun[]>(33101,"Parameter startup history exceeds 2000 runs.");
+ }
  public Task<ServiceResult<GuidResult>> ApplyStartupAsync(ApplySignalStartupPlanCommand command,CancellationToken token=default)
  {var c=command with {EntityId=ParameterStartupEntityId.Registry,Subject=new ActorSubject(ActorType.Command,ApplySignalStartupPlanCommand.Actor,ApplySignalStartupPlanCommand.Verb,ParameterStartupEntityId.Registry.Format())};return RequestCommandResultAsync<ApplySignalStartupPlanCommand,ParameterStartupEntityId,GuidResult>(c,c.EntityId,token).AsTask();}
  public Task<ServiceResult<GuidResult>> ReleaseStartupAsync(ReleaseSignalStartupPlanCommand command,CancellationToken token=default)

@@ -64,6 +64,13 @@ public interface IOptionChainGreeksEnricher
         LastTradeTickSnapshot tick);
 }
 
+/// <summary>Optional retained-trade boundary. Await completion before acknowledging an observed source trade.</summary>
+public interface IRetainedOptionTradeEnricher
+{
+    ValueTask<OptionGreeksSnapshot> EnrichTradeAsync(DatabentoOptionChainRoute route, LastTradeTickSnapshot tick,
+        long eventNanoseconds, long receiveNanoseconds, CancellationToken cancellationToken);
+}
+
 public readonly record struct OptionChainContractState(
     DatabentoOptionChainRoute Route,
     LastQuoteTickWithGreeksSnapshot? Quote,

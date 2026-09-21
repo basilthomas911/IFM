@@ -40,11 +40,27 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
     readonly EventLogPersistenceOptions _options;
     readonly EventLogMessagePackCodec _codec;
     readonly string _connectionString;
+    readonly string _insertSql;
+    readonly string _expectedInsertSql;
+    readonly string _projectionSql;
 
     public SequentialEventLogAppender(string connectionString, bool useLz4Compression, EventLogPersistenceOptions? options = null)
+        : this(connectionString, useLz4Compression, CreateProductionConfiguration(options, useLz4Compression)) { }
+
+    internal SequentialEventLogAppender(string connectionString, bool useLz4Compression,
+        EventLogPersistenceOptions? options, EventLogSqlLayout layout)
+        : this(connectionString, useLz4Compression,
+            new AppenderConfiguration((options ?? new EventLogPersistenceOptions { UseLz4Compression = useLz4Compression }).Validate(), layout)) { }
+
+    SequentialEventLogAppender(string connectionString, bool useLz4Compression, AppenderConfiguration configuration)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        _options = (options ?? new EventLogPersistenceOptions { UseLz4Compression = useLz4Compression }).Validate();
+        var layout = configuration.Layout;
+        layout.ValidateConnection(connectionString);
+        _insertSql = layout.Resolve(InsertReturningVersion);
+        _expectedInsertSql = layout.Resolve(InsertExpectedReturningEventVersion);
+        _projectionSql = layout.Resolve(EventSourceDbSql.TryCreateEventProjectorExecutionState);
+        _options = configuration.Options;
         UseLz4Compression = useLz4Compression;
         _codec = new EventLogMessagePackCodec(useLz4Compression);
         var connectionOptions = new NpgsqlConnectionStringBuilder(connectionString);
@@ -55,6 +71,14 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         }
         _connectionString = connectionOptions.ConnectionString;
     }
+
+    static AppenderConfiguration CreateProductionConfiguration(EventLogPersistenceOptions? options, bool useLz4Compression)
+    {
+        var validated = (options ?? new EventLogPersistenceOptions { UseLz4Compression = useLz4Compression }).Validate();
+        return new(validated, EventLogSqlLayout.ForProduction(validated));
+    }
+
+    sealed record AppenderConfiguration(EventLogPersistenceOptions Options, EventLogSqlLayout Layout);
 
     public EventLogWriteMode WriteMode => EventLogWriteMode.Sequential;
     public bool UseLz4Compression { get; }
@@ -81,7 +105,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
                 assignments[index] = await InsertAsync(connection, transaction, prepared, entry, expected, cancellationToken).ConfigureAwait(false);
                 EventInitHelper.SetProperty(entry.DomainEvent, nameof(IEvent.EventId), assignments[index].EventVersion);
                 if (entry.RequiredProjection is not null)
-                    await EventLogAppenderSupport.InsertProjectionMarkerAsync(connection, transaction, assignments[index].EventVersion, entry.RequiredProjection, cancellationToken).ConfigureAwait(false);
+                    await EventLogAppenderSupport.InsertProjectionMarkerAsync(connection, transaction, assignments[index].EventVersion, entry.RequiredProjection, cancellationToken, _projectionSql).ConfigureAwait(false);
             }
             try
             {
@@ -145,7 +169,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         }
     }
 
-    static async Task<EventLogAssignment> InsertAsync(
+    async Task<EventLogAssignment> InsertAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction? transaction,
         PreparedEventLogRequest request,
@@ -156,7 +180,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         if (expectedStreamVersion.HasValue)
         {
             await using var expectedCommand = EventLogAppenderSupport.Command(
-                connection, transaction, InsertExpectedReturningEventVersion);
+                connection, transaction, _expectedInsertSql);
             AddInsertParameters(expectedCommand, request, entry);
             EventLogAppenderSupport.Add(expectedCommand, expectedStreamVersion.Value, NpgsqlDbType.Bigint);
             var scalar = await expectedCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -169,7 +193,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         await using var command = EventLogAppenderSupport.Command(
             connection,
             transaction,
-            InsertReturningVersion);
+            _insertSql);
         AddInsertParameters(command, request, entry);
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

@@ -24,6 +24,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Caching\TomasAI.IFM.Framework.Caching.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
 </Project>

@@ -132,7 +132,7 @@ PostgreSQL tests substitute Npgsql-facing objects to verify connection and trans
 
 ## Test Boundaries
 
-These unit tests do not establish real SQL Server, PostgreSQL, ScyllaDB, Azure, or HTTP connections. End-to-end transaction and remote-source coverage belongs to `TomasAI.IFM.Framework.Storage.IntegrationTests`.
+These unit tests do not establish real remote database, cloud-storage, or HTTP connections. End-to-end transaction and remote-source coverage belongs to TomasAI.IFM.Framework.Storage.IntegrationTests.
 
 The suite's copied settings file contains credential-bearing configuration. Test secrets should be moved to environment-specific secret storage and rotated when exposed; tests should assert configuration shape without embedding production-capable values.
 

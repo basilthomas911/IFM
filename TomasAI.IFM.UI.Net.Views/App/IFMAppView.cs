@@ -147,6 +147,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     private async void IFMApp_Load(object sender, EventArgs e)
     {
         InitializeDashboardSplitters();
+        AlignMenuSeparatorWithOperationSplitter();
         _viewModel = new IFMAppViewModel(
             _appRoot,
             _appVersion,
@@ -286,6 +287,10 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                         _viewModel.ConfirmChartRendered(chartSnapshot);
                 }
                 break;
+            case nameof(IFMAppViewModel.FuturesBollingerBandSnapshot):
+                if (_viewModel.FuturesBollingerBandSnapshot is { } bollingerBands)
+                    marketDataView1.RefreshView(bollingerBands);
+                break;
             case nameof(IFMAppViewModel.LastError):
                 RenderLatestError();
                 break;
@@ -313,6 +318,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
             if (marketDataView1.RefreshView(futuresBars.Value))
                 _viewModel.ConfirmChartRendered(futuresBars.Value);
         }
+        if (_viewModel.FuturesBollingerBandSnapshot is { } bollingerBands)
+            marketDataView1.RefreshView(bollingerBands);
         RenderLatestError();
     }
 
@@ -337,7 +344,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         marketDataFeedButton.ToolTipText = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.Enabled = _viewModel.CanToggleMarketDataFeed;
         (marketDataFeedButton.BackColor, marketDataFeedButton.ForeColor) =
-            MarketDataFeedColors(marketDataFeedButton.Enabled);
+            MarketDataFeedColors(_viewModel.IsMarketDataFeedActive, marketDataFeedButton.Enabled);
         marketDataFeedHealthIndicator.Text = _viewModel.MarketDataFeedHealthIndicatorText;
         marketDataFeedHealthIndicator.AccessibleName = _viewModel.MarketDataFeedHealthIndicatorText;
         marketDataFeedHealthIndicator.AccessibleDescription = _viewModel.MarketDataFeedStateText;
@@ -347,8 +354,13 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     }
 
     internal static (Color Background, Color Foreground) MarketDataFeedColors(
+        bool isMarketDataFeedActive,
         bool enabled)
-        => (Color.Black, DarkTradingTheme.ButtonTextColor(enabled));
+        => !enabled
+            ? (Color.DimGray, Color.Gray)
+            : isMarketDataFeedActive
+                ? (Color.Red, Color.White)
+                : (Color.LimeGreen, Color.Black);
 
     internal static (Color Background, Color Foreground) MarketDataFeedHealthColors(
         MarketDataFeedHealthState state)
@@ -594,6 +606,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
 
     private void IFMApp_Resize(object sender, EventArgs e)
     {
+        AlignMenuSeparatorWithOperationSplitter();
         ResizeTabPages();
         marketOutlookView1.ResizeView(pnlMarketOutlook);
         statusConsoleView1.ResizeView(pnlStatusConsole);
@@ -637,6 +650,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     private void operationViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)
     {
         operationViewSplitter.Invalidate();
+        AlignMenuSeparatorWithOperationSplitter();
         ResizeTabPages();
     }
 
@@ -686,6 +700,36 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
             separatorY,
             splitterBounds.Right - 1,
             separatorY);
+    }
+
+    private void AlignMenuSeparatorWithOperationSplitter()
+    {
+        toolStripSeparator.Margin = Padding.Empty;
+        toolStrip1.PerformLayout();
+
+        var splitterCenter = operationViewSplitter.Left
+            + operationViewSplitter.SplitterRectangle.Left
+            + (operationViewSplitter.SplitterRectangle.Width / 2);
+        var separatorCenter = toolStripSeparator.Bounds.Left
+            + (toolStripSeparator.Bounds.Width / 2);
+        if (splitterCenter < separatorCenter)
+        {
+            operationViewSplitter.SplitterDistance = Math.Min(
+                operationViewSplitter.SplitterDistance + separatorCenter - splitterCenter,
+                operationViewSplitter.ClientSize.Width
+                    - operationViewSplitter.SplitterWidth
+                    - operationViewSplitter.Panel2MinSize);
+            splitterCenter = operationViewSplitter.Left
+                + operationViewSplitter.SplitterRectangle.Left
+                + (operationViewSplitter.SplitterRectangle.Width / 2);
+        }
+
+        toolStripSeparator.Margin = new Padding(
+            Math.Max(0, splitterCenter - separatorCenter),
+            0,
+            0,
+            0);
+        toolStrip1.PerformLayout();
     }
 
     private void InitializeDashboardSplitters()

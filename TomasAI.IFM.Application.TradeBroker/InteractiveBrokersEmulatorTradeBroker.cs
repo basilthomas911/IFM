@@ -21,11 +21,16 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
     public BrokerEnvironment Environment => BrokerEnvironment.Emulator;
     public string AccountAlias => _orders.AccountAlias;
     public long Generation => _account.Generation;
+    public BrokerCapabilities Capabilities => BrokerCapabilities.Emulator(AccountAlias);
 
     public async ValueTask<BrokerDispatchReceipt> PlaceAsync(BrokerOrderRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.Environment != BrokerEnvironment.Emulator || request.AccountAlias != AccountAlias)
-            return new(BrokerDispatchOutcome.RejectedLocally, request.OperationId, request.BrokerOrderId, "TB.ACCOUNT.MISMATCH", "Broker environment or account does not match the active emulator.", DateTime.UtcNow);
+        if (request.Environment != Environment || !string.Equals(request.AccountAlias, AccountAlias, StringComparison.Ordinal))
+            return new(BrokerDispatchOutcome.RejectedLocally, request.OperationId, request.BrokerOrderId,
+                "TB.ACCOUNT.MISMATCH", "Broker environment or account does not match the loaded adapter/account.", DateTime.UtcNow);
+        if (Capabilities.Validate(request) is { } capabilityFailure)
+            return new(BrokerDispatchOutcome.RejectedLocally, request.OperationId, request.BrokerOrderId,
+                "TB.CAPABILITY.UNSUPPORTED", capabilityFailure, DateTime.UtcNow);
         return TradeBrokerMapper.ToApplication(await _orders.PlaceAsync(TradeBrokerMapper.ToFramework(request), cancellationToken));
     }
 

@@ -9,7 +9,10 @@ public static class ParameterComponentModelRegistry
         new IParameterComponentDescriptor[]
         {
             new RegimeDiscoveryParameterModel(),
-            new FuturesItiSignalParameterModel()
+            new FuturesItiSignalParameterModel(),
+            new OptionVolatilitySeriesParameterModel(),
+            new OptionVolatilityConsumerRulesParameterModel(),
+            new OptionVolatilityRetentionParameterModel()
         }.ToDictionary(descriptor => descriptor.Summary.ComponentCode, StringComparer.Ordinal);
 
     /// <summary>Gets the registered descriptor for a component.</summary>

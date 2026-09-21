@@ -133,8 +133,8 @@ public class FuturesEodDataUIViewModel
             VwapForeColor = PresentationColorRole.DarkText;
             VwapBackColor = vwap.Vwap.Value.CompareTo(snapshot.FuturesEodData.ClosePrice) switch
             {
-                > 0 => PresentationColorRole.Positive,
-                < 0 => PresentationColorRole.Negative,
+                > 0 => PresentationColorRole.Negative,
+                < 0 => PresentationColorRole.Positive,
                 _ => PresentationColorRole.Caution
             };
         }

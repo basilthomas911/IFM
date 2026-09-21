@@ -23,6 +23,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly });
     readonly object _stateGate = new();
     readonly StrategyOperationsService _model;
+    readonly string _symbol;
     readonly string _contractId;
     readonly DateOnly _valueDate;
     readonly Guid _siteId = Guid.NewGuid();
@@ -43,9 +44,10 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     long _errorSequence;
     int _acceptEvents;
 
-    public StrategyOperationsViewModel(IAppRoot appRoot, string contractId, DateOnly valueDate)
+    public StrategyOperationsViewModel(IAppRoot appRoot, string symbol, string contractId, DateOnly valueDate)
         : this(
             (appRoot ?? throw new ArgumentNullException(nameof(appRoot))).Services.StrategyOperations,
+            symbol,
             contractId,
             valueDate,
             TimeProvider.System)
@@ -54,12 +56,14 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     internal StrategyOperationsViewModel(
         StrategyOperationsService model,
+        string symbol,
         string contractId,
         DateOnly valueDate,
         TimeProvider? timeProvider = null,
         TimeSpan? reconciliationInterval = null)
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         if (valueDate == default)
             throw new ArgumentException("A trading value date is required.", nameof(valueDate));
@@ -68,6 +72,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         if (resolvedInterval <= TimeSpan.Zero || resolvedInterval == Timeout.InfiniteTimeSpan)
             throw new ArgumentOutOfRangeException(nameof(reconciliationInterval));
 
+        _symbol = symbol.Trim().ToUpperInvariant();
         _contractId = contractId;
         _valueDate = valueDate;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -76,6 +81,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     }
 
     public string ContractId => _contractId;
+    public string Symbol => _symbol;
     public DateOnly ValueDate => _valueDate;
     public IReadOnlyList<TimeFrameType> TimeFrames => SupportedPeriods;
 
@@ -244,7 +250,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         try
         {
             var result = await _model.GetFuturesItiSignalHistoryAsync(
-                _contractId, _valueDate, period, cancellationToken);
+                _symbol, _valueDate, period, cancellationToken);
             if (!result.IsSuccess)
             {
                 PublishError(result.Error!.Code, result.Error.Message, $"{period} ITI History Unavailable");
@@ -283,7 +289,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         try
         {
             var history = await _model.GetFuturesItiSignalHistoryAsync(
-                _contractId, _valueDate, period, cancellationToken);
+                _symbol, _valueDate, period, cancellationToken);
             if (!history.IsSuccess)
             {
                 PublishError(history.Error!.Code, history.Error.Message, $"{period} ITI Reconciliation Unavailable");
@@ -306,21 +312,27 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     {
         try
         {
-            DateOnly[] entityDates;
+            IntrinsicTimeStrategyWorkflowEntityId[] workflowEntities;
             lock (_stateGate)
             {
-                entityDates = _eventBuffer
+                workflowEntities = _eventBuffer
                     .Where(row => row.TimePeriod == period)
-                    .Select(row => row.TimeFrameStartValueDate)
-                    .Append(FuturesItiSignalHistoryWindow.Resolve(_valueDate, period).StartValueDate)
+                    .Select(row => IntrinsicTimeStrategyWorkflowEntityId.Create(
+                        new FuturesItiSignalEntityId(
+                            row.ContractId,
+                            row.TimeFrameStartValueDate,
+                            period)))
+                    .Append(IntrinsicTimeStrategyWorkflowEntityId.Create(
+                        new FuturesItiSignalEntityId(
+                            _contractId,
+                            FuturesItiSignalHistoryWindow.Resolve(_valueDate, period).StartValueDate,
+                            period)))
                     .Distinct()
                     .ToArray();
             }
 
-            foreach (var entityDate in entityDates)
+            foreach (var entity in workflowEntities)
             {
-                var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(
-                    new FuturesItiSignalEntityId(_contractId, entityDate, period));
                 var result = await _model.GetRecentWorkflowsAsync(
                     entity,
                     DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc),
@@ -502,7 +514,10 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     bool IsRelevantSignal(FuturesItiSignalEventRow row)
     {
-        if (!string.Equals(row.ContractId, _contractId, StringComparison.Ordinal)
+        var matchesContractScope = row.IsHistorical
+            ? row.ContractId.StartsWith(_symbol, StringComparison.Ordinal)
+            : string.Equals(row.ContractId, _contractId, StringComparison.Ordinal);
+        if (!matchesContractScope
             || !SupportedPeriods.Contains(row.TimePeriod))
             return false;
 
@@ -513,7 +528,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     bool IsRelevantWorkflow(IntrinsicTimeStrategyWorkflowView view)
     {
         var iti = view.EntityId.ItiSignalEntityId;
-        if (!string.Equals(iti.ContractId, _contractId, StringComparison.Ordinal)
+        if (!iti.ContractId.StartsWith(_symbol, StringComparison.Ordinal)
             || !SupportedPeriods.Contains(iti.TimePeriod))
             return false;
         var window = FuturesItiSignalHistoryWindow.Resolve(_valueDate, iti.TimePeriod);

@@ -1,11 +1,12 @@
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>Human-facing controls for the durable emulator account qualification gate.</summary>
-public sealed class BrokerAccountQualificationDialog : Form
+public sealed class BrokerAccountQualificationDialog : DarkTradingForm
 {
     private readonly BrokerManualTradeOrderViewModel _viewModel;
     private readonly Label _state = ValueLabel("Loading...");

@@ -34,13 +34,16 @@ public sealed class ApplicationLifecycleHealthCheck(
             ["handoffLastError"] = handoff.LastError,
             ["handoffObservedAtUtc"] = handoff.ObservedAtUtc?.ToString("O") ?? string.Empty
         };
+        if (handoff.State != ApplicationStartupHandoffState.LifecycleObserved)
+            return Task.FromResult(HealthCheckResult.Unhealthy(description, data: data));
+
         return Task.FromResult(status.State switch
         {
             ApplicationLifecycleState.Running or ApplicationLifecycleState.ScheduledStopped =>
                 HealthCheckResult.Healthy(description, data),
-            ApplicationLifecycleState.Degraded => HealthCheckResult.Degraded(description, data: data),
+            ApplicationLifecycleState.Degraded => HealthCheckResult.Healthy(description, data),
             ApplicationLifecycleState.Failed => HealthCheckResult.Unhealthy(description, data: data),
-            _ => HealthCheckResult.Degraded(description, data: data)
+            _ => HealthCheckResult.Unhealthy(description, data: data)
         });
     }
 }

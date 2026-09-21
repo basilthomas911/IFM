@@ -19,21 +19,21 @@ public record GetFuturesItiSignalHistoryQuery : IQuery<FuturesItiSignalV2ReadMod
     [Key(1)] public IActorEntityId EntityId { get; init; }
     [IgnoreMember] public int ErrorCode { get; init; }
     [IgnoreMember] public string? QueryParams { get; init; }
-    [Key(2)] public string ContractId { get; init; }
+    [Key(2)] public string Symbol { get; init; }
     [Key(3)] public DateOnly ValueDate { get; init; }
     [Key(4)] public TimeFrameType TimePeriod { get; init; }
 
     public GetFuturesItiSignalHistoryQuery() { }
 
     public GetFuturesItiSignalHistoryQuery(
-        string contractId,
+        string symbol,
         DateOnly valueDate,
         TimeFrameType timePeriod)
     {
-        ContractId = contractId ?? string.Empty;
+        Symbol = symbol ?? string.Empty;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
-        EntityId = new GetFuturesItiSignalHistoryParameter(contractId, valueDate, timePeriod);
+        EntityId = new GetFuturesItiSignalHistoryParameter(symbol, valueDate, timePeriod);
         ErrorCode = ErrorId;
     }
 
@@ -41,13 +41,13 @@ public record GetFuturesItiSignalHistoryQuery : IQuery<FuturesItiSignalV2ReadMod
     public GetFuturesItiSignalHistoryQuery(
         ActorSubject subject,
         IActorEntityId entityId,
-        string contractId,
+        string symbol,
         DateOnly valueDate,
         TimeFrameType timePeriod)
     {
         Subject = subject;
-        EntityId = new GetFuturesItiSignalHistoryParameter(contractId, valueDate, timePeriod);
-        ContractId = contractId ?? string.Empty;
+        EntityId = new GetFuturesItiSignalHistoryParameter(symbol, valueDate, timePeriod);
+        Symbol = symbol ?? string.Empty;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
         ErrorCode = ErrorId;

@@ -39,7 +39,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     public ISecuritiesDbWriteContext DbWriter => this;
 
     static FuturesContractV3ReadModel MapToFuturesContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
+        => ReferencePayloadCodec.ReadFuture(e.IsNull(11) ? null : e.GetBytes(11), new(
             contractId: e.GetString(0),
             description: e.GetString(1),
             symbol: e.GetString(2),
@@ -51,10 +51,10 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             lastTradeDate: e.GetDateOnly(8),
             onTheRun: e.GetBool(9),
             rollover: e.GetBool(10)
-        );
+        ));
 
     static FuturesOptionContractReadModel MapToFuturesOptionContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
+        => ReferencePayloadCodec.ReadOption(e.IsNull(11) ? null : e.GetBytes(11), new(
             contractId: e.GetString(0),
             description: e.GetString(1),
             symbol: e.GetString(2),
@@ -66,7 +66,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             contractMonth: e.GetDateOnly(8),
             strikePrice: e.GetDouble(9),
             optionType: e.GetString(10)
-        );
+        ));
 
     static FuturesContractRolloverReadModel MapToFuturesContractRollover<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
@@ -193,7 +193,8 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             contract.Multiplier,
             contract.LastTradeDate,
             contract.OnTheRun,
-            contract.Rollover);
+            contract.Rollover,
+            ReferencePayloadCodec.Write(contract));
 
     static InsertFuturesOptionContract ToInsertParameters(FuturesOptionContractReadModel contract)
         => new(
@@ -207,7 +208,8 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             contract.Multiplier,
             contract.ContractMonth,
             contract.StrikePrice,
-            contract.OptionType);
+            contract.OptionType,
+            ReferencePayloadCodec.Write(contract));
 
     static void EnsureDistinctFuturesContractWrites(
         IEnumerable<FuturesContractV3ReadModel> contracts)
@@ -1271,6 +1273,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task InsertFuturesContractAsync(FuturesContractV3ReadModel futuresContract)
     {
+        var reference = await StageReferenceAsync(futuresContract);
         var db = _dbFactory.SecuritiesDb;
         var parameters = ToInsertParameters(futuresContract);
         EnsureDistinctFuturesContractWrites([futuresContract]);
@@ -1293,6 +1296,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             FuturesContractSymbolProjection,
             [futuresContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
+        await CommitReferenceAsync(reference);
     }
 
     /// <summary>
@@ -1312,6 +1316,8 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
 
         var db = _dbFactory.SecuritiesDb;
         EnsureDistinctFuturesContractWrites(futuresContracts);
+        var references = new List<ReferenceVersionStore.Pending?>();
+        foreach (var contract in futuresContracts) references.Add(await StageReferenceAsync(contract));
         var operation = await BeginProjectionOperationAsync(
             db,
             FuturesContractSymbolProjection,
@@ -1336,6 +1342,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 operation,
                 completeGlobal: false,
                 completeAllSymbols: false);
+            foreach (var reference in references) await CommitReferenceAsync(reference);
         }
         catch
         {
@@ -1356,6 +1363,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task UpdateFuturesContractAsync(FuturesContractId e, FuturesContractV3ReadModel futuresContract)
     {
+        var reference = await StageReferenceAsync(futuresContract, e.ContractId);
         var db = _dbFactory.SecuritiesDb;
         var originalContract = await GetFuturesContractAsync(e);
         var replacementProjectionKey = ToProjectionKey(futuresContract);
@@ -1432,6 +1440,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             FuturesContractSymbolProjection,
             [e.Symbol, futuresContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
+        await CommitReferenceAsync(reference);
     }
 
     /// Delete a futures contract from SecuritiesDb by its ID
@@ -1669,6 +1678,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task InsertFuturesOptionContractAsync(FuturesOptionContractReadModel futuresOptionContract)
     {
+        var reference = await StageReferenceAsync(futuresOptionContract);
         var db = _dbFactory.SecuritiesDb;
         var parameters = ToInsertParameters(futuresOptionContract);
         List<object> queuedCommands =
@@ -1685,6 +1695,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             FuturesOptionContractSymbolProjection,
             [futuresOptionContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
+        await CommitReferenceAsync(reference);
     }
 
     /// <summary>
@@ -1704,6 +1715,8 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
 
         var db = _dbFactory.SecuritiesDb;
         EnsureDistinctFuturesOptionContractWrites(futuresOptionContract);
+        var references = new List<ReferenceVersionStore.Pending?>();
+        foreach (var contract in futuresOptionContract) references.Add(await StageReferenceAsync(contract));
         var operation = await BeginProjectionOperationAsync(
             db,
             FuturesOptionContractSymbolProjection,
@@ -1723,6 +1736,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 operation,
                 completeGlobal: false,
                 completeAllSymbols: false);
+            foreach (var reference in references) await CommitReferenceAsync(reference);
         }
         catch
         {
@@ -1743,6 +1757,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task UpdateFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel futuresOptionContract)
     {
+        var reference = await StageReferenceAsync(futuresOptionContract, originalContractId);
         var db = _dbFactory.SecuritiesDb;
         var originalContract = await GetFuturesOptionContractAsync(originalContractId);
         var replacementProjectionKey = ToProjectionKey(futuresOptionContract);
@@ -1791,6 +1806,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 ? [futuresOptionContract.Symbol]
                 : [originalContract.Symbol, futuresOptionContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
+        await CommitReferenceAsync(reference);
     }
 
     /// <summary>

@@ -26,7 +26,7 @@ public static class OrderExecutionCommandValidation
             if (command is UpdateOrderExecutionFillCostCommand cost &&
                 (string.IsNullOrWhiteSpace(cost.ExternalExecutionId) || cost.Commission < 0))
                 throw new ArgumentException("Execution identity and non-negative commission are required.");
-            if (command is AcceptOrderExecutionCommand accept && accept.EffectiveAtUtc.Kind != DateTimeKind.Utc)
+            if (command is TimedOrderExecutionCommand timed && timed.EffectiveAtUtc.Kind != DateTimeKind.Utc)
                 throw new ArgumentException("UTC completion time is required.");
         });
 }

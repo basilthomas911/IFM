@@ -46,6 +46,21 @@ public sealed partial class TradeSelectionRuntimeTests
             await new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema(FinancialBoundaryTransactions()).InitializeAsync();
             new RiskEvaluator().Calculate(await RiskFixture.Command(variant,horizon:horizon));
             assessment=AssessmentFixture.Command(horizon,DateTime.UtcNow,$"FIVE{Guid.NewGuid():N}");
+            // This is a persistence/financial correctness gate, not a production quote-age latency gate.
+            // Its cold path also creates and funds a synthetic book. Freeze an explicit test-only
+            // freshness policy and recompute its hash; never extend an already-calculated result.
+            var testAssessmentPolicy = assessment.ParameterSet with
+            {
+                Sources = assessment.ParameterSet.Sources.Select(x => x with
+                    { MaximumAgeSeconds = Math.Max(x.MaximumAgeSeconds, 30) }).ToArray()
+            };
+            var testAssessmentHash = MarketConditionAssessmentHash.Parameters(testAssessmentPolicy);
+            assessment = assessment with
+            {
+                ParameterSet = testAssessmentPolicy, ParameterPayloadSha256 = testAssessmentHash,
+                WorkflowView = assessment.WorkflowView with { AssessmentBinding = new()
+                    { Parameters = testAssessmentPolicy, PayloadSha256 = testAssessmentHash } }
+            };
             var balanced=variant.Contains("Balanced",StringComparison.Ordinal);
             var bearish=variant.Contains("Bear",StringComparison.Ordinal)||variant=="ShortFuture";
             var signal=assessment.TriggerEvent.FuturesItiSignal! with {
@@ -67,13 +82,18 @@ public sealed partial class TradeSelectionRuntimeTests
                     SourceSequence=++sequence,SchemaVersion=1,CalculationVersion="1",IsWarm=true,IsValid=true,Availability=RegimeDiscoverySignalAvailability.Available,
                     SignalIdentity=$"FinancialPathInput:{assessment.WorkflowId}:{requirement.Metric}:{requirement.TimeFrame}" });
             }
+            var captured = await host.Services.GetRequiredService<IRegimeDiscoveryMarketSignalSnapshotProvider>()
+                .CaptureAsync(snapshotRequest);
+            captured.IsSuccess.Should().BeTrue("the synthetic observations must satisfy the current snapshot contract");
+            captured.Snapshot.Should().NotBeNull();
             var identity=RegimeDiscoveryExecutionEntityId.Create(assessment.WorkflowEntityId,assessment.WorkflowId);
             var regime=new ExecuteRegimeDiscoveryPipelineCommand { CommandId=Guid.NewGuid(),EntityId=identity,
                 Subject=new(ActorType.Function,ExecuteRegimeDiscoveryPipelineCommand.Actor,ExecuteRegimeDiscoveryPipelineCommand.Verb,identity.Format()),
                 WorkflowView=assessment.WorkflowView with { WorkflowRevision=1,CurrentStage=StrategyWorkflowStage.RegimeDiscovery,RegimeDiscovery=new(),MarketCondition=new() },
                 InputWorkflowRevision=1,TriggerEvent=assessment.TriggerEvent,CorrelationId=assessment.CorrelationId,CausationId=assessment.TriggerEvent.Id,
                 RequestedAtUtc=DateTime.UtcNow,ExpiresAtUtc=DateTime.UtcNow.AddSeconds(20),ParameterSet=parameters,
-                ParameterPayloadSha256=RegimeDiscoveryParameterPayload.ComputeSha256(parameters),TargetHorizon=horizon };
+                ParameterPayloadSha256=RegimeDiscoveryParameterPayload.ComputeSha256(parameters),TargetHorizon=horizon,
+                Snapshot=captured.Snapshot! };
             var rd=await producer.RequestFunctionAsync<ExecuteRegimeDiscoveryPipelineCommand,RegimeDiscoveryExecutionEntityId,
                 FunctionResult<RegimeDiscoveryPipelineCompletedEvent,RegimeDiscoveryPipelineFailedEvent>>(regime.Subject,regime,regime.EntityId);
             rd.Success.Should().BeTrue(rd.ErrorMessage);rd.Value!.IsCompleted.Should().BeTrue(rd.Value.Failed?.ErrorMessage);
@@ -86,16 +106,18 @@ public sealed partial class TradeSelectionRuntimeTests
                 FunctionResult<MarketConditionAssessmentCompletedEvent,MarketConditionAssessmentFailedEvent>>(assessment.Subject,assessment,assessment.EntityId);
             mc.Success.Should().BeTrue(mc.ErrorMessage);mc.Value!.IsCompleted.Should().BeTrue(mc.Value.Failed?.ErrorMessage);
             var selection=await TradeSelectionFixture.Command(variant,horizon,DateTime.UtcNow,scopeId:Random.Shared.Next(100000,900000000),compositionReady:true,compositionIntegrationTiming:true,
-                actualAssessmentCommand:assessment,actualAssessmentEnvelope:mc.Value.Completed!.Result);
+                actualAssessmentCommand:assessment,actualAssessmentEnvelope:mc.Value.Completed!.Result,
+                compositionLifetimeMilliseconds:20000);
             var ts=await producer.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand,TradeSelectionExecutionId,
                 FunctionResult<TradeSelectionFunctionCompletedEvent,TradeSelectionFunctionFailedEvent>>(selection.Subject,selection,selection.EntityId);
             ts.Success.Should().BeTrue(ts.ErrorMessage);ts.Value!.IsCompleted.Should().BeTrue(ts.Value.Failed?.ErrorMessage);
             var selected=ts.Value.Completed!.Result.ReadSelectionResult();selected.Outcome.Should().Be(SelectionOutcome.Selected,selected.SummaryText);
             var composition=await CompositionFixture.Command(variant,horizon,DateTime.UtcNow,integrationTiming:true,
-                actualSelectionCommand:selection,actualSelectionResult:selected);
+                actualSelectionCommand:selection,actualSelectionResult:selected,integrationWindowMilliseconds:20000);
             var oc=await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand,OrderCompositionExecutionId,
                 FunctionResult<OrderCompositionFunctionCompletedEvent,OrderCompositionFunctionFailedEvent>>(composition.Subject,composition,composition.EntityId);
             oc.Success.Should().BeTrue(oc.ErrorMessage);oc.Value!.IsCompleted.Should().BeTrue(oc.Value.Failed?.ErrorMessage);
+            output.WriteLine($"Validity bounds: now={DateTime.UtcNow:O}, assessment={mc.Value.Completed!.Result.AssessmentResult!.Assessment.ValidUntilUtc:O}, selection={selected.ValidUntilUtc:O}, command={composition.ExpiresAtUtc:O}, selectionBinding={composition.SelectionBinding.ValidUntilUtc:O}, compositionBinding={composition.CompositionBinding.ValidUntilUtc:O}, snapshot={composition.MarketSnapshot.ValidUntilUtc:O}, candidate={oc.Value.Completed!.Result.ReadCompositionResult().Candidate!.ValidUntilUtc:O}, lifetimeMs={oc.Value.Completed.Result.ReadCompositionResult().ResolvedParameters.Values.CandidateLifetimeMilliseconds}");
             var risk=await RiskFixture.Command(horizon:horizon,actualCompositionCommand:composition,actualCompositionResult:oc.Value.Completed!.Result.ReadCompositionResult(),environment:"Emulator");
             var financialBook=await FundFinancialBoundaryAsync(risk);
             var rm=await producer.RequestFunctionAsync<ExecuteRiskManagementPipelineCommand,RiskManagementExecutionId,
@@ -150,7 +172,7 @@ public sealed partial class TradeSelectionRuntimeTests
             token.ThrowIfCancellationRequested();
             var snapshot=TradeSelectionFixture.Snapshot(input());
             // These labelled source observations are captured at this calculation's cut.
-            // Preserve the real upstream result and normal confidence/freshness policy.
+            // Preserve the real upstream result and the fixture's explicitly frozen freshness policy.
             return ValueTask.FromResult((snapshot with { Observations=snapshot.Observations.Select(x=>x with {
                 ObservedAtUtc=snapshot.EvaluatedAtUtc,ReceivedAtUtc=snapshot.EvaluatedAtUtc }).ToArray() }).Seal());
         }

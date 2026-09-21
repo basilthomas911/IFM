@@ -26,8 +26,8 @@ public static class GetFuturesItiSignalHistory
         var startValueDate = query.TimePeriod == TimeFrameType.Daily
             ? window.StartValueDate.AddDays(-1)
             : window.StartValueDate;
-        var rows = await dbFactory.MarketDataDb.GetFuturesItiSignalsForContractAsync(
-            query.ContractId,
+        var rows = await dbFactory.MarketDataDb.GetFuturesItiSignalsAsync(
+            query.Symbol,
             startValueDate,
             window.EndValueDate).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();

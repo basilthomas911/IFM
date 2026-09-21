@@ -72,29 +72,45 @@ public sealed class FuturesContractRolloverStartupCheck(
                 "The futures_contract_rollover table must contain at least one row.");
         }
 
+        var stateChanged = false;
         if (runtimeOptions.FeedOptions.DataSource != FeedDataSourceMode.Synthetic)
         {
-            await marketDataApi.UpdateOnTheRunFuturesContractAsync(
-                "ES", valueDate, cancellationToken).ConfigureAwait(false);
-            var termStructureAvailable = await marketDataApi.UpdateFuturesTermStructureContractsAsync(
-                "VX", valueDate, cancellationToken).ConfigureAwait(false);
-            if (!termStructureAvailable)
+            var es = seeded.SingleOrDefault(candidate =>
+                string.Equals(candidate.Symbol, "ES", StringComparison.Ordinal));
+            if (RequiresRefresh(es, valueDate))
             {
-                var persistedVx = await store.GetFuturesRolloverSetAsync(
-                    "VX", cancellationToken).ConfigureAwait(false);
-                if (persistedVx.Count != 2)
-                    throw new FuturesContractRolloverConfigurationException(
-                        "DataBento did not resolve the required current-month and next-month VX contracts.");
+                stateChanged = true;
+                await marketDataApi.UpdateOnTheRunFuturesContractAsync(
+                    "ES", valueDate, cancellationToken).ConfigureAwait(false);
+            }
+
+            var vx = seeded.SingleOrDefault(candidate =>
+                string.Equals(candidate.Symbol, "VX", StringComparison.Ordinal));
+            if (RequiresRefresh(vx, valueDate))
+            {
+                stateChanged = true;
+                var termStructureAvailable = await marketDataApi.UpdateFuturesTermStructureContractsAsync(
+                    "VX", valueDate, cancellationToken).ConfigureAwait(false);
+                if (!termStructureAvailable)
+                {
+                    var persistedVx = await store.GetFuturesRolloverSetAsync(
+                        "VX", cancellationToken).ConfigureAwait(false);
+                    if (persistedVx.Count != 2)
+                        throw new FuturesContractRolloverConfigurationException(
+                            "DataBento did not resolve the required current-month and next-month VX contracts.");
+                }
             }
         }
         else
         {
+            stateChanged = true;
             await SeedSyntheticAssignmentsAsync(seeded, valueDate, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        var validated = await store.GetFuturesContractRolloversAsync(cancellationToken)
-            .ConfigureAwait(false);
+        var validated = stateChanged
+            ? await store.GetFuturesContractRolloversAsync(cancellationToken).ConfigureAwait(false)
+            : seeded;
         List<FuturesContractV3ReadModel> currentContracts = [];
         foreach (var requiredSymbol in RequiredSymbols)
         {
@@ -137,6 +153,12 @@ public sealed class FuturesContractRolloverStartupCheck(
         }
         return validated;
     }
+
+    static bool RequiresRefresh(FuturesContractRolloverReadModel? row, DateOnly valueDate)
+        => row is null
+            || string.IsNullOrWhiteSpace(row.ContractId)
+            || row.NextRolloverDate is null
+            || valueDate >= row.NextRolloverDate.Value;
 
     private async Task SeedSyntheticAssignmentsAsync(
         IReadOnlyCollection<FuturesContractRolloverReadModel> seeded,

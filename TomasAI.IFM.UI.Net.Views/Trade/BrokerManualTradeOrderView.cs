@@ -2,11 +2,12 @@ using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>Dark-theme manual order editor for Futures outright and Vertical Spread emulator orders.</summary>
-public sealed class BrokerManualTradeOrderView : UserControl, ITradeOrderControl, IFormControl
+public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderControl, ITradeExecutionSelectionControl, IFormControl
 {
     readonly BrokerManualTradeOrderViewModel _viewModel;
     readonly NumericUpDown _quantity = new() { Name = "quantity", Minimum = 1, Maximum = 100000, Value = 1 };
@@ -99,6 +100,10 @@ public sealed class BrokerManualTradeOrderView : UserControl, ITradeOrderControl
         Enabled = orderActionType == OrderActionType.Open;
         return Task.CompletedTask;
     }
+
+    /// <inheritdoc />
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
+        => _viewModel.SetExecutionSelection(orderType, algorithm);
 
     /// <summary>Starts the view.</summary>
     public void Open() => _ = RefreshAccountAsync();

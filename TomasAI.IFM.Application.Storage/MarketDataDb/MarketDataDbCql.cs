@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Application.Storage.MarketDataDb;
+namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 internal static class MarketDataDbCql
 {
@@ -3217,7 +3217,9 @@ internal static class MarketDataDbCql
             calculationVersion,
             calculationMethod,
             schemaVersion,
-            isValid
+            isValid,
+            isWarm,
+            observationCount
         ) VALUES (
             :contractId,
             :valueDate,
@@ -3241,7 +3243,9 @@ internal static class MarketDataDbCql
             :calculationVersion,
             :calculationMethod,
             :schemaVersion,
-            :isValid
+            :isValid,
+            :isWarm,
+            :observationCount
         );
     """;
 
@@ -3260,14 +3264,24 @@ internal static class MarketDataDbCql
             SignalLine AS "SignalLine",
             Histogram AS "Histogram",
             MACD AS "MACD",
-            MACDStrength AS "MACDStrength"
+            MACDStrength AS "MACDStrength",
+            IsWarm AS "IsWarm",
+            ObservationCount AS "ObservationCount",
+            ConfigurationId AS "ConfigurationId",
+            ObservationId AS "ObservationId",
+            MarketDataAsOf AS "MarketDataAsOf",
+            SourceSequence AS "SourceSequence",
+            CalculationVersion AS "CalculationVersion",
+            CalculationMethod AS "CalculationMethod",
+            SchemaVersion AS "SchemaVersion",
+            IsValid AS "IsValid"
         FROM futures_macd_signal_v2
         WHERE ContractId = :contractId
         AND TimePeriod = :timePeriod
         AND SignalEmaPeriod = :signalEmaPeriod
         AND FastEmaPeriod = :fastEmaPeriod
         AND SlowEmaPeriod = :slowEmaPeriod
-        AND ValueDate = :valueDate LIMIT 1;
+        AND ValueDate = :valueDate;
     """;
 
     public const string GetLastFuturesMacdDailySignal = """
@@ -3285,16 +3299,25 @@ internal static class MarketDataDbCql
             SignalLine AS "SignalLine",
             Histogram AS "Histogram",
             MACD AS "MACD",
-            MACDStrength AS "MACDStrength"
+            MACDStrength AS "MACDStrength",
+            IsWarm AS "IsWarm",
+            ObservationCount AS "ObservationCount",
+            ConfigurationId AS "ConfigurationId",
+            ObservationId AS "ObservationId",
+            MarketDataAsOf AS "MarketDataAsOf",
+            SourceSequence AS "SourceSequence",
+            CalculationVersion AS "CalculationVersion",
+            CalculationMethod AS "CalculationMethod",
+            SchemaVersion AS "SchemaVersion",
+            IsValid AS "IsValid"
         FROM futures_macd_signal_v2
         WHERE ContractId = :contractId
         AND TimePeriod = :timePeriod
         AND SignalEmaPeriod = :signalEmaPeriod
         AND FastEmaPeriod = :fastEmaPeriod
         AND SlowEmaPeriod = :slowEmaPeriod
-        LIMIT 1;
+        LIMIT 512;
     """;
-
     public const string InsertFuturesAtrSignal = """
         INSERT INTO futures_atr_signal (
             contractId,

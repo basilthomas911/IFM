@@ -1,6 +1,7 @@
 ﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
@@ -81,6 +82,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
                 .ToArray();
             if (persisted.Length == 2
                 && persisted.All(static contract => contract.Rollover)
+                && persisted.All(contract => IsConsistentFuturesContract(contract, normalizedSymbol))
+                && persisted.All(contract => contract.LastTradeDate > valueDate)
                 && persisted.Count(static contract => contract.OnTheRun) == 1
                 && persisted[0].OnTheRun
                 && string.Equals(persisted[0].ContractId, rollover.ContractId, StringComparison.Ordinal))
@@ -344,6 +347,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             if (persisted is not null
                 && persisted.OnTheRun
                 && persisted.Rollover
+                && persisted.LastTradeDate > valueDate
+                && IsConsistentFuturesContract(persisted, normalizedSymbol)
                 && string.Equals(
                     persisted.ContractId,
                     existing.ContractId,
@@ -379,6 +384,27 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             replacement, resolved.Contract, cancellationToken).ConfigureAwait(false);
         _contractRegistry?.ReplaceFuturesRolloverSet(normalizedSymbol, [resolved.Contract]);
         return existing.NextRolloverDate != resolved.NextRolloverDate;
+    }
+
+    static bool IsConsistentFuturesContract(
+        FuturesContractV3ReadModel contract,
+        string expectedSymbol)
+    {
+        try
+        {
+            var identity = new FuturesContractIdParser(contract.ContractId);
+            return string.Equals(identity.Symbol, expectedSymbol, StringComparison.Ordinal)
+                && identity.MaturityDate == contract.LastTradeDate
+                && contract.LocalSymbol.StartsWith(expectedSymbol, StringComparison.Ordinal);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

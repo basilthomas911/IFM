@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 
@@ -65,6 +66,30 @@ public static partial class TradeSelectionContracts
             && (b.SchemaVersion==2 || b.PortfolioSnapshot.Assignments.Length<=p.MaximumAssignments),"TS.CONFIG.CANDIDATE_LIMIT","Binding count limit exceeded.");
         Require(MessagePackBinarySerializer.MeasureContent(b)<=p.MaximumBindingPayloadBytes,"TS.CONTRACT.PAYLOAD_SIZE","Binding byte limit exceeded.");
         Require(b.PayloadSha256==BindingHash(b),"TS.CONTRACT.HASH","Binding hash mismatch.");
+        if (b.VolatilityInput is { } volatility)
+        {
+            Require(volatility.SchemaVersion==1 && volatility.Dependency is not null
+                && volatility.Dependency.SchemaVersion==VolatilityWorkflowDependencyPolicy.CurrentSchemaVersion
+                && !string.IsNullOrWhiteSpace(volatility.Dependency.DependencyPolicyId)
+                && !string.IsNullOrWhiteSpace(volatility.Dependency.DependencyPolicyVersion)
+                && !string.IsNullOrWhiteSpace(volatility.Dependency.Series.SeriesId)
+                && !string.IsNullOrWhiteSpace(volatility.Dependency.Series.MethodologyVersion)
+                && !string.IsNullOrWhiteSpace(volatility.Dependency.MetricPolicyVersion)
+                && volatility.Dependency.Requirement is VolatilityDependencyRequirement.Required or VolatilityDependencyRequirement.Optional
+                && volatility.EvaluatedAtUtc.Offset==TimeSpan.Zero
+                && volatility.EvaluatedAtUtc.UtcDateTime>=b.FrozenAtUtc
+                && volatility.EvaluatedAtUtc.UtcDateTime<=b.ValidUntilUtc,
+                "TS.VOL.DEPENDENCY.INVALID","Invalid versioned volatility dependency.");
+            if (volatility.Snapshot is { } snapshot)
+                Require(snapshot.Series==volatility.Dependency.Series
+                    && snapshot.MetricPolicyVersion==volatility.Dependency.MetricPolicyVersion
+                    && snapshot.AvailableAtUtc<=volatility.EvaluatedAtUtc
+                    && !string.IsNullOrWhiteSpace(snapshot.SnapshotId)
+                    && !string.IsNullOrWhiteSpace(snapshot.SnapshotDigest),
+                    "TS.VOL.EVIDENCE.MISMATCH","Volatility snapshot does not match the configured dependency.");
+            else Require(volatility.FreshnessStatus==VolatilityFreshnessStatus.Unavailable,
+                "TS.VOL.EVIDENCE.MISMATCH","Missing volatility snapshot must be explicitly unavailable.");
+        }
         if (b.SchemaVersion==1)
         {
             var portfolio=b.PortfolioSnapshot;

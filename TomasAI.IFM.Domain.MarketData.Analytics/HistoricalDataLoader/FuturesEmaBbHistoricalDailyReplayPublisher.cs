@@ -2,6 +2,7 @@ using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -47,7 +48,7 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
             foreach (var source in seriesGroup.OrderBy(static value => value.ValueDate))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var observation = ToDailyBar(source);
+                var observation = FuturesEodObservationMapper.ToDailyBar(source);
                 var emaResult = FuturesEmaAccumulator.Apply(emaCheckpoint, observation);
                 emaCheckpoint = emaResult.Checkpoint;
                 if (emaResult.Signal is { } emaSignal)
@@ -105,7 +106,7 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
         foreach (var source in ordered)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var observation = ToDailyBar(source);
+            var observation = FuturesEodObservationMapper.ToDailyBar(source);
             var entityId = new FuturesTradeSessionBarEntityId(
                 observation.MarketSeriesIdentity,
                 TimeFrameType.Daily);
@@ -134,34 +135,5 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
             : series.Kind == MarketSeriesIdentityKind.Contract
               && series.ContractId.StartsWith("ES", StringComparison.OrdinalIgnoreCase);
 
-    static FuturesTradeSessionBarReadModel ToDailyBar(FuturesEodObservationReadModel source) => new()
-    {
-        MarketSeriesIdentity = source.MarketSeriesIdentity,
-        ObservationId = source.ObservationId,
-        ContractId = source.ContractId,
-        ValueDate = source.ValueDate,
-        TimeFrame = TimeFrameType.Daily,
-        IntervalStartUtc = source.SessionStartUtc,
-        IntervalEndUtc = source.SessionEndUtc,
-        Open = source.Open,
-        High = source.High,
-        Low = source.Low,
-        Close = source.Close,
-        Volume = source.Volume,
-        TradeCount = source.TradeCount,
-        PriceVolumeSum = source.PriceVolumeSum,
-        FirstSourceSequence = source.FirstSourceSequence,
-        LastSourceSequence = source.LastSourceSequence,
-        FirstMarketEventUtc = source.FirstMarketEventUtc,
-        LastMarketEventUtc = source.LastMarketEventUtc,
-        CalculatedAtUtc = source.SessionEndUtc > source.LastMarketEventUtc
-            ? source.SessionEndUtc
-            : source.LastMarketEventUtc,
-        SchemaVersion = source.SchemaVersion,
-        CalculationVersion = "historical-daily-v1",
-        IsComplete = source.IsComplete,
-        IsValid = source.IsValid,
-        ValidationIssues = [],
-        CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
-    };
+
 }

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Framework.OptionPricer.Black76;
+using TomasAI.IFM.Framework.OptionPricer.Pricing;
+using LossProbability = TomasAI.IFM.Framework.OptionPricer.Black76.LossProbability;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -20,7 +21,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Services;
 
 /// <summary>
 /// Prices an Iron Condor spread distribution by loading the trade, market data, and live feed prices,
-/// computing Greeks and implied volatilities for all four option legs, running the Black-76 pricer via
+/// computing Greeks and implied volatilities for all four option legs, running the unified pricer via
 /// <see cref="OptionSpreadPricer.PriceIronCondor"/>, calculating forward prices
 /// and loss probabilities, and persisting the resulting put/call spread distributions.
 /// Returns <see cref="ServiceFailed{T}"/> with error codes 2000–2009 on validation or pricing failure.
@@ -129,7 +130,11 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
 
         // get iron condor market data feed prices...
         var assetPrice = Convert.ToDouble(mdf.AssetPrice);
-        var optCalc = new OptionCalculator(e.ValueDate, optionTrade.MaturityDate);
+        var optCalc = new OptionCalculator();
+        var timeToExpiry = (optionTrade.MaturityDate.DayNumber - e.ValueDate.DayNumber) / 365d;
+        OptionPricingRequest PricingRequest(OptionSide side, double strike) => new(
+            UnderlyingKind.Futures, ExerciseKind.American, PremiumKind.PaidUpfront, side,
+            assetPrice, strike, timeToExpiry, riskFreeRate);
 
         (double BidPrice, double AskPrice) shortPutOptionData;
         if (mdf.ShortPutOptionData is null)
@@ -186,17 +191,21 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         var longCallAsk = Convert.ToDecimal(longCallOptionData.AskPrice);
         var longCallStrike = md.LongCallOptionContract.StrikePrice;
 
-        var shortPutGreeks = optCalc.GetOptionGreeks(OptionTypeName.Put, assetPrice, shortPutStrike, (shortPutOptionData.BidPrice + shortPutOptionData.AskPrice) / 2, riskFreeRate);
-        var longPutGreeks = optCalc.GetOptionGreeks(OptionTypeName.Put, assetPrice, longPutStrike, (longPutOptionData.BidPrice + longPutOptionData.AskPrice) / 2, riskFreeRate);
-        var shortCallGreeks = optCalc.GetOptionGreeks(OptionTypeName.Call, assetPrice, shortCallStrike, (shortCallOptionData.BidPrice + shortCallOptionData.AskPrice) / 2, riskFreeRate);
-        var longCallGreeks = optCalc.GetOptionGreeks(OptionTypeName.Call, assetPrice, longCallStrike, (longCallOptionData.BidPrice + longCallOptionData.AskPrice) / 2, riskFreeRate);
-        if (!shortPutGreeks.Success || !longPutGreeks.Success || !shortCallGreeks.Success || !longCallGreeks.Success)
+        var shortPutResult = optCalc.ImpliedVolatility(PricingRequest(OptionSide.Put, shortPutStrike), (shortPutOptionData.BidPrice + shortPutOptionData.AskPrice) / 2);
+        var longPutResult = optCalc.ImpliedVolatility(PricingRequest(OptionSide.Put, longPutStrike), (longPutOptionData.BidPrice + longPutOptionData.AskPrice) / 2);
+        var shortCallResult = optCalc.ImpliedVolatility(PricingRequest(OptionSide.Call, shortCallStrike), (shortCallOptionData.BidPrice + shortCallOptionData.AskPrice) / 2);
+        var longCallResult = optCalc.ImpliedVolatility(PricingRequest(OptionSide.Call, longCallStrike), (longCallOptionData.BidPrice + longCallOptionData.AskPrice) / 2);
+        if (!shortPutResult.Success || !longPutResult.Success || !shortCallResult.Success || !longCallResult.Success)
             return new ServiceFailed<SpreadDistributionJobReadModel>(2008, "SpreadDistributionJobFailed: Unable to calculate option Greeks");
+        var shortPutGreeks = shortPutResult.Value!.Value;
+        var longPutGreeks = longPutResult.Value!.Value;
+        var shortCallGreeks = shortCallResult.Value!.Value;
+        var longCallGreeks = longCallResult.Value!.Value;
 
-        var shortPutImpliedVol = shortPutGreeks.ImpliedVolatility;
-        var longPutImpliedVol = longPutGreeks.ImpliedVolatility;
-        var shortCallImpliedVol = shortCallGreeks.ImpliedVolatility;
-        var longCallImpliedVol = longCallGreeks.ImpliedVolatility;
+        var shortPutImpliedVol = shortPutGreeks.Volatility;
+        var longPutImpliedVol = longPutGreeks.Volatility;
+        var shortCallImpliedVol = shortCallGreeks.Volatility;
+        var longCallImpliedVol = longCallGreeks.Volatility;
 
         var pcsArgs = new CreditSpreadPricerArgs
         (

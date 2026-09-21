@@ -63,7 +63,7 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         FeedDataSourceMode dataSource,
         SyntheticFeedOptions synthetic,
         ITickAggregationEventPublisher publisher,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Pricing.OptionPricingRefreshPolicy? optionPricingRefresh = null)
     {
         manifest.Validate();
         var feedOptions = DatabentoFeedOptions.ForProfile(deploymentProfile, manifest.Dataset) with
@@ -74,10 +74,11 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         var options = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = feedOptions,
+            OptionPricingRefresh = optionPricingRefresh ?? new(),
             Contracts = manifest.GetRegistrations()
         };
         var factory = new DatabentoMarketDataEpochFactory(
-            new DatabentoFeedFactory(), publisher, options);
+            new DatabentoFeedFactory(), publisher, options, tradeEvidence: publisher as Pricing.IOptionTradeEvidenceWriter);
         var epoch = factory.Create(manifest.ValueDate);
         try
         {

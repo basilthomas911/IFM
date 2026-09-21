@@ -81,7 +81,7 @@ public sealed class TradeBlotterFirstDisplayTests
             var model = Model(service);
             using var editor = new IronCondorTradeOrderView(parent, model) { Dock = DockStyle.Fill };
             ShowHost(parent);
-            var host = Field<Panel>(parent, "pnlTradeControl");
+            var host = Field<Panel>(parent, "pnlTradeBlotter");
             host.Controls.Add(editor);
             var loading = Field<Label>(editor, "_initialLoading");
             var content = Field<Panel>(editor, "_initialContent");
@@ -124,7 +124,7 @@ public sealed class TradeBlotterFirstDisplayTests
                     revealedHeights = inputs.ToDictionary(control => control, control => control.Height);
             };
             ShowHost(parent);
-            var host = Field<Panel>(parent, "pnlTradeControl");
+            var host = Field<Panel>(parent, "pnlTradeBlotter");
             host.Controls.Add(editor);
             var initialLoad = Field<Task>(editor, "_initialLoad");
             await initialLoad;

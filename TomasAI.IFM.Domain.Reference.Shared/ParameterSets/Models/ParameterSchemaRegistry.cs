@@ -20,8 +20,14 @@ public sealed class ParameterSchemaRegistry
 {
     public const string RegimeComponent = "strategy-workflow.regime-discovery";
     public const string FuturesItiSignalComponent = "market-data-analytics.futures-iti-signal";
+    public const string OptionVolatilitySeriesComponent = "option-volatility.series";
+    public const string OptionVolatilityConsumerRulesComponent = "option-volatility.consumer-rules";
+    public const string OptionVolatilityRetentionComponent = "option-volatility.retention";
     public const int CurrentRegimeSchemaVersion = 5;
     public const int CurrentFuturesItiSignalSchemaVersion = 1;
+    public const int CurrentOptionVolatilitySeriesSchemaVersion = 1;
+    public const int CurrentOptionVolatilityConsumerRulesSchemaVersion = 1;
+    public const int CurrentOptionVolatilityRetentionSchemaVersion = 1;
     static readonly System.Collections.Concurrent.ConcurrentDictionary<PropertyInfo,NullabilityInfo> Nullability = new();
     public static ParameterSchemaRegistry Default { get; } = CreateDefault();
     readonly Dictionary<(string,int),(Type Type,ParameterSchemaDefinition Definition)> schemas = new();
@@ -37,6 +43,18 @@ public sealed class ParameterSchemaRegistry
             FuturesItiSignalComponent,
             CurrentFuturesItiSignalSchemaVersion,
             typeof(FuturesItiSignalParameterSet));
+        registry.RegisterStrict(
+            OptionVolatilitySeriesComponent,
+            CurrentOptionVolatilitySeriesSchemaVersion,
+            typeof(OptionVolatilitySeriesParameterSet));
+        registry.RegisterStrict(
+            OptionVolatilityConsumerRulesComponent,
+            CurrentOptionVolatilityConsumerRulesSchemaVersion,
+            typeof(OptionVolatilityConsumerRulesParameterSet));
+        registry.RegisterStrict(
+            OptionVolatilityRetentionComponent,
+            CurrentOptionVolatilityRetentionSchemaVersion,
+            typeof(OptionVolatilityRetentionParameterSet));
         return registry;
     }
 

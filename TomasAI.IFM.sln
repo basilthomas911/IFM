@@ -361,6 +361,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Tra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.BrokerAccount", "TomasAI.IFM.Domain.BrokerAccount\TomasAI.IFM.Domain.BrokerAccount.csproj", "{C4D78545-8211-4EB2-B50D-643B859C77E5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.OptionPricer.UnitTests", "TomasAI.IFM.Framework.OptionPricer.UnitTests\TomasAI.IFM.Framework.OptionPricer.UnitTests.csproj", "{D6C80A12-5F84-4F06-AB79-417721A3C20D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -3655,6 +3657,26 @@ Global
 		{C4D78545-8211-4EB2-B50D-643B859C77E5}.Release|x64.Build.0 = Release|Any CPU
 		{C4D78545-8211-4EB2-B50D-643B859C77E5}.Release|x86.ActiveCfg = Release|Any CPU
 		{C4D78545-8211-4EB2-B50D-643B859C77E5}.Release|x86.Build.0 = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|ARM.Build.0 = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|x64.Build.0 = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Debug|x86.Build.0 = Debug|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|ARM.ActiveCfg = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|ARM.Build.0 = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|ARM64.Build.0 = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|x64.ActiveCfg = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|x64.Build.0 = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|x86.ActiveCfg = Release|Any CPU
+		{D6C80A12-5F84-4F06-AB79-417721A3C20D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

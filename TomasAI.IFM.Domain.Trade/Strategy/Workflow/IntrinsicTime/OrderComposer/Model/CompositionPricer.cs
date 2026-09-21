@@ -1,7 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
 using TomasAI.IFM.Framework.MarketData.Pricing;
-using TomasAI.IFM.Framework.OptionPricer.Black76;
+using TomasAI.IFM.Framework.OptionPricer.Pricing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 
@@ -15,7 +15,7 @@ public interface IFuturesOptionComposerPricer
 
 public sealed class Black76ComposerPricer : IFuturesOptionComposerPricer
 {
-    public string Version => OptionCalculator.EngineVersion + "/Decimal12-ToEven-v1";
+    public string Version => OptionCalculator.Version + "/Decimal12-ToEven-v1";
     public CompositionValuation Calculate(CompositionMarketInstrument instrument, DateTimeOffset at)
     {
         if (instrument.Pricing is null || instrument.Underlying is null || instrument.Strike is null || instrument.IsCall is null)

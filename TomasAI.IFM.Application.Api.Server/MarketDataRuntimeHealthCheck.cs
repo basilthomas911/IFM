@@ -2,7 +2,6 @@
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Application.Api.Server;
@@ -14,11 +13,10 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class MarketDataRuntimeHealthCheck(
     DatabentoMarketDataApi marketDataApi,
     IFuturesMarketSessionAuthority marketSessionAuthority,
-    IFuturesContractRolloverStore rolloverStore,
     IFuturesExchangeBusinessCalendar businessCalendar,
     TimeProvider timeProvider) : IHealthCheck
 {
-    public async Task<HealthCheckResult> CheckHealthAsync(
+    public Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
@@ -171,18 +169,28 @@ public sealed class MarketDataRuntimeHealthCheck(
         foreach (var symbol in new[] { "ES", "VX" })
         {
             var key = symbol.ToLowerInvariant();
-            var rollover = await rolloverStore.GetFuturesContractRolloverAsync(
-                symbol, cancellationToken).ConfigureAwait(false);
+            DateOnly? nextRolloverDate;
+            string[] set;
+            if (marketDataApi.TryGetFuturesTermStructureContracts(symbol, out var pair))
+            {
+                nextRolloverDate = pair.Front.LastTradeDate;
+                set = [pair.Front.ContractId, pair.Back.ContractId];
+            }
+            else if (marketDataApi.TryGetOnTheRunFuturesContract(symbol, out var onTheRun))
+            {
+                nextRolloverDate = onTheRun.LastTradeDate;
+                set = [onTheRun.ContractId];
+            }
+            else
+            {
+                nextRolloverDate = null;
+                set = [];
+            }
             data[$"{key}NextRolloverValueDate"] =
-                rollover?.NextRolloverDate?.ToString("yyyy-MM-dd") ?? string.Empty;
-            data[$"{key}RolloverPreparationDate"] = rollover?.NextRolloverDate is { } effective
+                nextRolloverDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+            data[$"{key}RolloverPreparationDate"] = nextRolloverDate is { } effective
                 ? businessCalendar.GetPreparationDate(effective).ToString("yyyy-MM-dd")
                 : string.Empty;
-            var set = marketDataApi.TryGetFuturesTermStructureContracts(symbol, out var pair)
-                ? new[] { pair.Front.ContractId, pair.Back.ContractId }
-                : marketDataApi.TryGetOnTheRunFuturesContract(symbol, out var onTheRun)
-                    ? new[] { onTheRun.ContractId }
-                    : [];
             data[$"{key}RolloverSet"] = string.Join(",", set);
         }
         var infrastructureReady = databentoFeedUp
@@ -193,7 +201,7 @@ public sealed class MarketDataRuntimeHealthCheck(
         var currentContractsLive = AddRoute("ES") & AddRoute("VX");
         data["currentContractsLive"] = currentContractsLive;
 
-        return marketState == FuturesMarketState.Closed
+        var result = marketState == FuturesMarketState.Closed
                 ? HealthCheckResult.Healthy(
                     "Futures market is closed; live feed health is inactive and core services remain ready.",
                     data)
@@ -212,6 +220,7 @@ public sealed class MarketDataRuntimeHealthCheck(
                         ? "One or more current futures contracts are not green during live trading."
                         : "One or more current futures contracts have received no accepted off-hours update for over fifteen minutes; feeds remain live.",
                     data: data);
+        return Task.FromResult(result);
 
         bool AddRoute(string symbol)
         {

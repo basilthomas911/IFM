@@ -24,7 +24,7 @@ public sealed class ApplicationLifecycleHealthCheckTests
 
         var result = await check.CheckHealthAsync(new HealthCheckContext());
 
-        Assert.Equal(HealthStatus.Degraded, result.Status);
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal(handoff.Current.Summary, result.Description);
         Assert.Equal(ApplicationStartupHandoffState.TimedOut.ToString(), result.Data["handoffState"]);
         Assert.Equal(commandId, result.Data["handoffCommandId"]);

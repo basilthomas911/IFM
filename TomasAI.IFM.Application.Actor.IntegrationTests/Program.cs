@@ -15,9 +15,12 @@ if (isolatedQuoteSoak)
     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb>().CreateAllAsync();
 else
     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
-await app.MapEventModelActorsAsync(logger);
+var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+bool actorsStarted = false;
 try
 {
+    await app.MapEventModelActorsAsync(logger);
+    actorsStarted = true;
     if (isolatedQuoteSoak)
     {
         await app.StartAsync();
@@ -40,9 +43,8 @@ catch (Exception exception) when (isolatedQuoteSoak)
 }
 finally
 {
-    await app.Services
-        .GetRequiredService<IActorSupervisor>()
-        .ShutdownAsync(CancellationToken.None);
+    if (actorsStarted)
+        await actorSupervisor.ShutdownAsync(CancellationToken.None);
 }
 
 

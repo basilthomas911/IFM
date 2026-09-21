@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared;
 
@@ -8,6 +9,8 @@ public enum TradeOrderPositionType : byte { Unknown = 0, Opening = 1, Closing = 
 public enum TradeOrderStatus : byte { Draft, Approved, Ready, Executing, Completed, Cancelled, Expired }
 public enum ExecutionChannel : byte { Manual, Broker }
 public enum BrokerEnvironment : byte { Unknown = 0, Emulator = 1, Paper = 2, Live = 3 }
+public enum BrokerOrderType : byte { Unknown = 0, Market = 1, Limit = 2 }
+public enum BrokerAlgorithm : byte { None = 0, Adaptive = 1 }
 public enum OrderExecutionStatus : byte { Pending, Submitted, PartiallyFilled, Filled, Cancelled, Rejected, Reconciled }
 public enum EstablishedTradeStatus : byte { Open, Closing, Closed, Corrected }
 public enum StrategyPositionPhase : byte { Open, MarkToMarket, EndOfDay, Close, Correction }
@@ -83,6 +86,10 @@ public sealed record TradeOrderDefinition
     [Key(20)] public string AccountPromotionApprovalReference { get; init; } = string.Empty;
     [Key(21)] public decimal RequiredCapital { get; init; }
     [Key(22)] public decimal MaximumLoss { get; init; }
+    [Key(23)] public BrokerOrderType BrokerOrderType { get; init; } = BrokerOrderType.Limit;
+    [Key(24)] public BrokerAlgorithm BrokerAlgorithm { get; init; } = BrokerAlgorithm.None;
+    /// <summary>Exact immutable analytics evidence accepted for an opening order; null for legacy/closing orders.</summary>
+    [Key(25)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 }
 
 /// <summary>Normalized immutable fill evidence accepted by OrderExecution.</summary>
@@ -115,7 +122,7 @@ public sealed record PendingExecutionCostEvidence
 [MessagePackObject]
 public sealed record OrderExecutionDefinition
 {
-    [Key(0)] public ushort SchemaVersion { get; init; } = 5;
+    [Key(0)] public ushort SchemaVersion { get; init; } = 6;
     [Key(1)] public TradeOrderId TradeOrderId { get; init; }
     [Key(2)] public Guid ExecutionAttemptId { get; init; }
     [Key(3)] public ExecutionChannel Channel { get; init; }
@@ -129,6 +136,8 @@ public sealed record OrderExecutionDefinition
     [Key(11)] public StrategyPositionId? TargetPositionId { get; init; }
     [Key(12)] public TradeOrderDefinition Order { get; init; } = new();
     [Key(13)] public PendingExecutionCostEvidence[] PendingFillCosts { get; init; } = [];
+    [Key(14)] public int OrderQuantity { get; init; }
+    [Key(15)] public int CumulativeFilledQuantity { get; init; }
     [IgnoreMember] public OrderExecutionId Id => new(TradeOrderId, ExecutionAttemptId);
 }
 
@@ -200,6 +209,8 @@ public sealed record StrategyPositionSnapshot
     [Key(9)] public decimal RealizedPnl { get; init; }
     [Key(10)] public DateTime AsOfUtc { get; init; }
     [Key(11)] public bool IsOpen { get; init; }
+    private ExecutionFillEvidence[] closingFills = [];
+    [Key(12)] public ExecutionFillEvidence[] ClosingFills { get => closingFills; init => closingFills = value ?? []; }
 }
 
 /// <summary>Compact destination stored in a realtime contract-to-position route bucket.</summary>

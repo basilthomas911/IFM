@@ -46,7 +46,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
     {
         using var form = new TradeOrderEditorForm(Substitute.For<IAppRoot>(), Substitute.For<IReferenceDataService>());
 
-        var tradeControlPanel = Field<Panel>(form, "pnlTradeControl");
+        var tradeControlPanel = Field<Panel>(form, "pnlTradeBlotter");
         using var embeddedPanel = new Panel();
         using var embeddedValue = new Label
         {
@@ -82,7 +82,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         var tradesPanel = Field<Panel>(form, "pnlTrades");
         var orders = Field<ListView>(form, "lstTradeOrders");
         var trades = Field<ListView>(form, "lstTrades");
-        var tradeControl = Field<Panel>(form, "pnlTradeControl");
+        var tradeControl = Field<Panel>(form, "pnlTradeBlotter");
         var fromCalendar = Field<DateTimePicker>(form, "dtpFrom");
         var orderLabel = Field<Label>(form, "lblTradeOrders");
         var tradesLabel = Field<Label>(form, "label1");
@@ -131,8 +131,8 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         AssertCompactButtonColumn(form, "btnLoadOrder", "btnCreateOrder", "btnDeleteOrder", "btnCompleteOrder");
         AssertCompactButtonColumn(form, "btnAddTrade", "btnRemoveTrade", "btnChangeTradeState");
         Field<Button>(form, "btnAddTrade").Top.Should().Be(trades.Top);
-        submitOrder.Top.Should().Be(tradeControl.Top);
-        endOfDay.Top.Should().Be(submitOrder.Bottom + 8);
+        submitOrder.Visible.Should().BeFalse();
+        endOfDay.Visible.Should().BeFalse();
         targetStateLabel.Parent.Should().BeSameAs(tradePositionPanel);
         targetState.Parent.Should().BeSameAs(tradePositionPanel);
         targetStateLabel.Left.Should().Be(endOfDay.Left);
@@ -206,7 +206,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
             Substitute.For<IAppRoot>(),
             Substitute.For<IReferenceDataService>());
         var originalClientHeight = form.ClientSize.Height;
-        var host = Field<Panel>(form, "pnlTradeControl");
+        var host = Field<Panel>(form, "pnlTradeBlotter");
         var outer = Field<Panel>(form, "pnlTradePosition");
         using var blotter = new Panel
         {
@@ -319,8 +319,10 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         using var viewer = TradeBlotterFactory.Create(host, root, fund, order, composition,
             new DateOnly(2024, 1, 31), [], historicalReadOnly: true);
 
-        viewer.Should().BeOfType<IronCondorView>();
-        var ironCondor = (IronCondorView)viewer!;
+        viewer.Should().BeAssignableTo<EsTradeBlotterControl>();
+        viewer!.Controls.Find("tradeBlotterTabs", true).Should().ContainSingle();
+        var ironCondor = viewer.Controls.Find("IronCondorView", true)
+            .OfType<IronCondorView>().Single();
         ironCondor.IsHistoricalReadOnly.Should().BeTrue();
         ironCondor.Dock.Should().Be(DockStyle.Fill);
         Field<ComboBox>(ironCondor, "ddlLiveFeed").Enabled.Should().BeFalse();
@@ -339,7 +341,8 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         graphTabs.Dock.Should().Be(DockStyle.Fill);
         graphTabs.TabPages.Cast<TabPage>().Select(page => page.Text).Should().Equal(
             "Iron Condor Net Spread Path",
-            "Futures Bollinger Bands");
+            "Futures Bollinger Bands",
+            "Broker Evidence");
         graphTabs.SelectedTab.Should().BeSameAs(graphTabs.TabPages[0]);
         graphTabs.SelectedTab!.Controls.Cast<Control>().Should().ContainSingle()
             .Which.Should().BeSameAs(charts[1]);
@@ -526,7 +529,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
 
         await InvokeTask(form, "ShowLegacyTradeEditorAsync", history);
 
-        var panel = Field<Panel>(form, "pnlTradeControl");
+        var panel = Field<Panel>(form, "pnlTradeBlotter");
         panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<IronCondorTradeOrderView>();
         var editor = (IronCondorTradeOrderView)panel.Controls[0];
         editor.IsHistoricalReadOnly.Should().BeTrue();

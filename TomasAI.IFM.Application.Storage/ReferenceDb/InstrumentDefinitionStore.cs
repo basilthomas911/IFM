@@ -8,7 +8,7 @@ using TomasAI.IFM.Framework.Storage;
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
 /// <summary>Exact records and their query projection share an atomically published snapshot.</summary>
-public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrategySymbolStore symbols) : IInstrumentDefinitionStore
+public sealed partial class InstrumentDefinitionStore(IObjectRepository db, ITradeStrategySymbolStore symbols) : IInstrumentDefinitionStore
 {
     public const int BucketCount = 128;
     public const string CreateTable = """
@@ -55,6 +55,9 @@ public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrate
         }).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         // Readers continue using the previous complete snapshot until every definition and product is durable.
+        await db.Use("InstrumentDefinition.SelectionComplete",
+                "INSERT INTO instrument_definition_selection_status(snapshot_id,complete) VALUES(:snapshot,true);")
+            .SetParameters(new Parameters([snapshot.Id])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         await db.Use("InstrumentDefinition.Publish", "INSERT INTO instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',:snapshot,:completed,:count,:datasets);")
             .SetParameters(new Parameters([snapshot.Id, snapshot.CompletedUtc, snapshot.RecordCount, JsonSerializer.Serialize(snapshot.Datasets)])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }

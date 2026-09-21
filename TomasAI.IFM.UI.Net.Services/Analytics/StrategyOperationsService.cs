@@ -51,13 +51,13 @@ public sealed class StrategyOperationsService(
 
     /// <summary>Gets every durable ITI signal in the requested display timeframe.</summary>
     public async ValueTask<UiOperationResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(
-        string contractId,
+        string symbol,
         DateOnly valueDate,
         TimeFrameType timePeriod,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await _queryApi.GetFuturesItiSignalHistoryAsync(contractId, valueDate, timePeriod);
+        var result = await _queryApi.GetFuturesItiSignalHistoryAsync(symbol, valueDate, timePeriod);
         return result.ToUiResult(value => value);
     }
 

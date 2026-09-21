@@ -7,6 +7,11 @@ public sealed record InstrumentDefinitionSnapshot(Guid Id, DateTime CompletedUtc
 
 public interface IInstrumentDefinitionStore
 {
+    Task IndexSelectionAsync(TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionSelection definition, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Definition selection index is unavailable.");
+    Task<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionPage> GetSelectionPageAsync(
+        TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionPageRequest request, DateTimeOffset at, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Definition selection index is unavailable.");
     Task<InstrumentDefinitionSnapshot?> GetSnapshotAsync(CancellationToken cancellationToken);
     Task InsertAsync(Guid snapshot, long index, ExactInstrumentDefinition definition, CancellationToken cancellationToken);
     Task PublishAsync(InstrumentDefinitionSnapshot snapshot, IReadOnlyCollection<TradeStrategyProduct> products, CancellationToken cancellationToken);

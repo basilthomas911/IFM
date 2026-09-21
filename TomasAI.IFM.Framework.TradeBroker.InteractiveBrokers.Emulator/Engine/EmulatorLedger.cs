@@ -239,7 +239,7 @@ public sealed class EmulatorLedger
                 Math.Min(availableStrategyUnits, _scenario.MaximumStrategyUnitsPerFill));
             if (fillUnits <= 0) return false;
             var netDebitPerUnit = netDebit / totalUnits;
-            if (netDebitPerUnit > order.Limit) return false;
+            if (order.Request.OrderType == FrameworkOrderType.Limit && netDebitPerUnit > order.Limit) return false;
             var fee = _scenario.PerLegCommission * legs.Length * fillUnits;
             var cashMovement = netDebitPerUnit * fillUnits * legs[0].CashMultiplier;
             if (cashMovement + fee > _cash - ActiveReserve(except: brokerOrderId)) return false;
@@ -313,13 +313,18 @@ public sealed class EmulatorLedger
     private (string Code, string Detail)? Validate(FrameworkOrderRequest r)
     {
         if (r.AccountAlias != AccountAlias || string.IsNullOrWhiteSpace(r.BrokerOrderId) || r.OperationId == Guid.Empty || r.ComponentId == Guid.Empty || string.IsNullOrWhiteSpace(r.ApprovalHash)) return ("EM.IDENTITY.INVALID", "Account/order/operation/approval is missing or mismatched.");
+        if (r.OrderType is not (FrameworkOrderType.Market or FrameworkOrderType.Limit)
+            || r.Algorithm is not (FrameworkOrderAlgorithm.None or FrameworkOrderAlgorithm.Adaptive))
+            return ("EM.CAPABILITY.UNSUPPORTED", "Only None/Adaptive on Market/Limit orders are emulated.");
         if (r.ValidUntilUtc.Kind != DateTimeKind.Utc || r.ValidUntilUtc <= _clock.UtcNow) return ("EM.EXPIRED", "Approved order is expired or time is not UTC.");
         var expected = r.Shape switch { FrameworkOrderShape.FuturesOutright => 1, FrameworkOrderShape.VerticalSpread => 2, FrameworkOrderShape.IronCondor => 4, _ => 0 };
         if (expected == 0 || r.Legs.Length != expected || r.Legs.Any(x => x.LegId == Guid.Empty || string.IsNullOrWhiteSpace(x.ContractId) || x.SignedQuantity == 0 || x.CashMultiplier <= 0) || r.Legs.Select(x => x.LegId).Distinct().Count() != expected) return ("EM.SHAPE.UNSUPPORTED", "Approved component does not have the expected distinct contract legs and cash multipliers.");
         if (r.Shape == FrameworkOrderShape.FuturesOutright && r.Legs[0].Strike is not null) return ("EM.SHAPE.INVALID", "Futures outright cannot contain option strike.");
         if (r.Shape != FrameworkOrderShape.FuturesOutright && r.Legs.Any(x => Math.Abs(x.SignedQuantity) != Math.Abs(r.Legs[0].SignedQuantity))) return ("EM.SHAPE.UNBALANCED", "Combo legs must have one balanced strategy unit ratio.");
         if (r.Legs.Any(x => x.CashMultiplier != r.Legs[0].CashMultiplier)) return ("EM.MULTIPLIER.MISMATCH", "Combo leg cash multipliers must be coherent.");
-        if (!ValidLimit(r.SignedNetDebitLimit, r)) return ("EM.LIMIT.INVALID", "Signed net debit limit is outside approved tick-aligned bounds.");
+        if (r.OrderType == FrameworkOrderType.Limit && !ValidLimit(r.SignedNetDebitLimit, r)) return ("EM.LIMIT.INVALID", "Signed net debit limit is outside approved tick-aligned bounds.");
+        if (r.OrderType == FrameworkOrderType.Market && r.TickIncrement <= 0)
+            return ("EM.MARKET.INVALID", "Market orders still require a positive contract tick for execution evidence.");
         if (r.RequiredCapital < 0 || r.MaximumLoss < 0 || r.RequiredCapital == 0 && r.MaximumLoss == 0)
             return ("EM.CAPITAL.UNKNOWN", "An approved nonzero synthetic capital or loss bound is required.");
         return null;

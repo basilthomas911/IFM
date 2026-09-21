@@ -20,7 +20,9 @@ public static class CloseFuturesPosition
         FuturesPositionCommandState state)
     {
         var stateMachine = CreateStateMachine(state);
-        var decision = stateMachine.Close(command.EffectiveAtUtc);
+        var decision = command.ClosingFills.Length == 0
+            ? stateMachine.Close(command.EffectiveAtUtc)
+            : stateMachine.Close(command.ClosingFills, command.EffectiveAtUtc);
 
         if (!decision.Accepted || decision.Value is null)
             return TradeCommandResult.Rejected(command.ErrorCode, decision);

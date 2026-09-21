@@ -46,6 +46,31 @@ public sealed class ApplicationStartupCommandDispatcherTests
     }
 
     [Fact]
+    public async Task Dispatcher_waits_for_actor_runtime_completion_without_polling()
+    {
+        var lifetime = new TestLifetime();
+        var actorStartup = new ActorRuntimeStartupSignal();
+        var commandApi = new RecordingCommandApi();
+        var dispatcher = Create(
+            lifetime,
+            new ConstantReadiness(true),
+            commandApi,
+            enabled: true,
+            actorStartup: actorStartup);
+
+        await dispatcher.StartAsync(CancellationToken.None);
+        lifetime.SignalStarted();
+        await Task.Delay(50);
+        Assert.Equal(0, commandApi.Count);
+
+        actorStartup.Complete();
+        await commandApi.Accepted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, commandApi.Count);
+        await dispatcher.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Disabled_dispatcher_never_posts_a_command()
     {
         var lifetime = new TestLifetime();
@@ -191,8 +216,15 @@ public sealed class ApplicationStartupCommandDispatcherTests
         IApplicationStartupStatusStore? statusStore = null,
         IApplicationStartupHandoffStatusStore? handoffStore = null,
         int handoffMaximumAttempts = 1,
-        TimeSpan? handoffObservationTimeout = null) => new(
+        TimeSpan? handoffObservationTimeout = null,
+        ActorRuntimeStartupSignal? actorStartup = null)
+    {
+        var startupSignal = actorStartup ?? new ActorRuntimeStartupSignal();
+        if (actorStartup is null)
+            startupSignal.Complete();
+        return new(
             lifetime,
+            startupSignal,
             readiness,
             new TestAuthority(),
             commandApi,
@@ -210,6 +242,7 @@ public sealed class ApplicationStartupCommandDispatcherTests
             },
             TimeProvider.System,
             NullLogger<ApplicationStartupCommandDispatcher>.Instance);
+    }
 
     sealed class ConstantReadiness(bool healthy) : IApplicationBootstrapReadiness
     {

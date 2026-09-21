@@ -41,6 +41,7 @@ public sealed class RiskEvaluator : IRiskEvaluator
             EvaluatedAtUtc=c.EvaluatedAtUtc, ProducedAtUtc=c.EvaluatedAtUtc, ValidUntilUtc=c.ExpiresAtUtc,
             Authority=c.Authority, Environment=c.SizingAuthority.Environment, PortfolioId=candidate.PortfolioId, FundId=candidate.FundId,
             TargetHorizon=candidate.TargetHorizon, InputHash=c.InputSha256, PolicyHash=c.PolicyHash, Outcome=RiskAssessmentOutcome.Rejected
+            ,VolatilityEvidence=composition.DecisionContext.VolatilityEvidence
         };
         if (assessment.SessionState == MarketSessionStatus.Closed || assessment.LiquidityCondition == AssessmentLiquidity.Poor
             || assessment.ConditionType == AssessmentCondition.Dislocated || assessment.VolatilityBehavior == AssessmentVolatility.Shock

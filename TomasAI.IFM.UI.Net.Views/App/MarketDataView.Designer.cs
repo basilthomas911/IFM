@@ -2,62 +2,56 @@ namespace TomasAI.IFM.UI.Net.Views.App
 {
     partial class MarketDataView
     {
-        /// <summary> 
-        /// Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        /// <summary> 
-        /// Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
-            {
                 components.Dispose();
-            }
             base.Dispose(disposing);
         }
 
-        #region Component Designer generated code
-
-        /// <summary> 
-        /// Required method for Designer support - do not modify 
-        /// the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea1 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend1 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.Series series2 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.Series series3 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea2 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend2 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series4 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var esArea = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            var esLegend = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            var esPrice = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var esUpperTrigger = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var esLowerTrigger = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var bbArea = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            var bbLegend = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            var bbClose = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var bbEma20 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var bbUpper = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var bbLower = new System.Windows.Forms.DataVisualization.Charting.Series();
+            var vxArea = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            var vxLegend = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            var vxPrice = new System.Windows.Forms.DataVisualization.Charting.Series();
             this.tabMarketData = new DarkTabControl();
-            this.tabPage1 = new System.Windows.Forms.TabPage();
+            this.tabPageEs = new System.Windows.Forms.TabPage();
             this.graphES = new System.Windows.Forms.DataVisualization.Charting.Chart();
-            this.tabPage2 = new System.Windows.Forms.TabPage();
+            this.tabPageEsBb = new System.Windows.Forms.TabPage();
+            this.graphEsBollinger = new System.Windows.Forms.DataVisualization.Charting.Chart();
+            this.tabPageVx = new System.Windows.Forms.TabPage();
             this.graphVIX = new System.Windows.Forms.DataVisualization.Charting.Chart();
             this.vixBindingSource = new System.Windows.Forms.BindingSource(this.components);
             this.esBindingSource = new System.Windows.Forms.BindingSource(this.components);
             this.tabMarketData.SuspendLayout();
-            this.tabPage1.SuspendLayout();
+            this.tabPageEs.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.graphES)).BeginInit();
-            this.tabPage2.SuspendLayout();
+            this.tabPageEsBb.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.graphEsBollinger)).BeginInit();
+            this.tabPageVx.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.graphVIX)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.vixBindingSource)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.esBindingSource)).BeginInit();
             this.SuspendLayout();
-            // 
-            // tabMarketData
-            // 
-            this.tabMarketData.Controls.Add(this.tabPage1);
-            this.tabMarketData.Controls.Add(this.tabPage2);
+
             this.tabMarketData.BackColor = System.Drawing.Color.Black;
+            this.tabMarketData.Controls.Add(this.tabPageEs);
+            this.tabMarketData.Controls.Add(this.tabPageEsBb);
+            this.tabMarketData.Controls.Add(this.tabPageVx);
             this.tabMarketData.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabMarketData.ForeColor = System.Drawing.Color.White;
             this.tabMarketData.Location = new System.Drawing.Point(0, 0);
@@ -65,129 +59,118 @@ namespace TomasAI.IFM.UI.Net.Views.App
             this.tabMarketData.SelectedIndex = 0;
             this.tabMarketData.Size = new System.Drawing.Size(360, 300);
             this.tabMarketData.TabIndex = 1;
-            // 
-            // tabPage1
-            // 
-            this.tabPage1.BackColor = System.Drawing.Color.Black;
-            this.tabPage1.Controls.Add(this.graphES);
-            this.tabPage1.Location = new System.Drawing.Point(4, 22);
-            this.tabPage1.Name = "tabPage1";
-            this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(352, 274);
-            this.tabPage1.TabIndex = 0;
-            this.tabPage1.Text = "ES";
-            this.tabPage1.UseVisualStyleBackColor = false;
-            // 
-            // graphES
-            // 
+
+            this.tabPageEs.BackColor = System.Drawing.Color.Black;
+            this.tabPageEs.Controls.Add(this.graphES);
+            this.tabPageEs.Location = new System.Drawing.Point(4, 22);
+            this.tabPageEs.Name = "tabPageEs";
+            this.tabPageEs.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageEs.Size = new System.Drawing.Size(352, 274);
+            this.tabPageEs.TabIndex = 0;
+            this.tabPageEs.Text = "ES";
+            this.tabPageEs.UseVisualStyleBackColor = false;
+
             this.graphES.BackColor = System.Drawing.Color.Black;
-            chartArea1.AxisX.IsMarginVisible = false;
-            chartArea1.AxisX.LabelStyle.ForeColor = System.Drawing.Color.White;
-            chartArea1.AxisX2.IsMarginVisible = false;
-            chartArea1.AxisY.IsMarginVisible = false;
-            chartArea1.AxisY.LabelStyle.ForeColor = System.Drawing.Color.White;
-            chartArea1.AxisY2.IsMarginVisible = false;
-            chartArea1.AxisY2.LabelStyle.ForeColor = System.Drawing.Color.White;
-            chartArea1.BackColor = System.Drawing.Color.Black;
-            chartArea1.IsSameFontSizeForAllAxes = true;
-            chartArea1.Name = "ChartArea1";
-            this.graphES.ChartAreas.Add(chartArea1);
+            esArea.AxisX.IsMarginVisible = false;
+            esArea.AxisX.LabelStyle.ForeColor = System.Drawing.Color.White;
+            esArea.AxisX2.IsMarginVisible = false;
+            esArea.AxisY.IsMarginVisible = false;
+            esArea.AxisY.LabelStyle.ForeColor = System.Drawing.Color.White;
+            esArea.AxisY2.IsMarginVisible = false;
+            esArea.AxisY2.LabelStyle.ForeColor = System.Drawing.Color.White;
+            esArea.BackColor = System.Drawing.Color.Black;
+            esArea.IsSameFontSizeForAllAxes = true;
+            esArea.Name = "ChartArea1";
+            this.graphES.ChartAreas.Add(esArea);
             this.graphES.Dock = System.Windows.Forms.DockStyle.Fill;
-            legend1.Enabled = false;
-            legend1.Name = "Legend1";
-            this.graphES.Legends.Add(legend1);
+            esLegend.Enabled = false;
+            esLegend.Name = "Legend1";
+            this.graphES.Legends.Add(esLegend);
             this.graphES.Location = new System.Drawing.Point(3, 3);
             this.graphES.Name = "graphES";
-            series1.BorderWidth = 2;
-            series1.ChartArea = "ChartArea1";
-            series1.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            series1.Color = System.Drawing.Color.Yellow;
-            series1.IsVisibleInLegend = false;
-            series1.Legend = "Legend1";
-            series1.Name = "Series1";
-            series1.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
-            series1.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
-            series1.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
-            series2.ChartArea = "ChartArea1";
-            series2.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            series2.Color = System.Drawing.Color.Lime;
-            series2.IsVisibleInLegend = false;
-            series2.Legend = "Legend1";
-            series2.Name = "Series2";
-            series2.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
-            series2.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
-            series2.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
-            series3.ChartArea = "ChartArea1";
-            series3.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            series3.Color = System.Drawing.Color.Red;
-            series3.IsVisibleInLegend = false;
-            series3.Legend = "Legend1";
-            series3.Name = "Series3";
-            series3.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
-            series3.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
-            series3.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
-            this.graphES.Series.Add(series1);
-            this.graphES.Series.Add(series2);
-            this.graphES.Series.Add(series3);
+            ConfigureLine(esPrice, "ES Close", System.Drawing.Color.Yellow, false);
+            ConfigureLine(esUpperTrigger, "Upper Trigger", System.Drawing.Color.Lime, false);
+            ConfigureLine(esLowerTrigger, "Lower Trigger", System.Drawing.Color.Red, false);
+            esPrice.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
+            esUpperTrigger.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
+            esLowerTrigger.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
+            this.graphES.Series.Add(esPrice);
+            this.graphES.Series.Add(esUpperTrigger);
+            this.graphES.Series.Add(esLowerTrigger);
             this.graphES.Size = new System.Drawing.Size(346, 268);
             this.graphES.TabIndex = 0;
-            this.graphES.Text = "chart1";
-            // 
-            // tabPage2
-            // 
-            this.tabPage2.BackColor = System.Drawing.Color.Black;
-            this.tabPage2.Controls.Add(this.graphVIX);
-            this.tabPage2.Location = new System.Drawing.Point(4, 22);
-            this.tabPage2.Name = "tabPage2";
-            this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(352, 274);
-            this.tabPage2.TabIndex = 1;
-            this.tabPage2.Text = "VX";
-            this.tabPage2.UseVisualStyleBackColor = false;
-            // 
-            // graphVIX
-            // 
+
+            this.tabPageEsBb.BackColor = System.Drawing.Color.Black;
+            this.tabPageEsBb.Controls.Add(this.graphEsBollinger);
+            this.tabPageEsBb.Location = new System.Drawing.Point(4, 22);
+            this.tabPageEsBb.Name = "tabPageEsBb";
+            this.tabPageEsBb.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageEsBb.Size = new System.Drawing.Size(352, 274);
+            this.tabPageEsBb.TabIndex = 1;
+            this.tabPageEsBb.Text = "ES-BB";
+            this.tabPageEsBb.UseVisualStyleBackColor = false;
+
+            this.graphEsBollinger.BackColor = System.Drawing.Color.Black;
+            bbArea.AxisX.IsMarginVisible = false;
+            bbArea.AxisX.LabelStyle.ForeColor = System.Drawing.Color.White;
+            bbArea.AxisY2.IsMarginVisible = false;
+            bbArea.AxisY2.LabelStyle.ForeColor = System.Drawing.Color.White;
+            bbArea.BackColor = System.Drawing.Color.Black;
+            bbArea.IsSameFontSizeForAllAxes = true;
+            bbArea.Name = "ChartArea1";
+            this.graphEsBollinger.ChartAreas.Add(bbArea);
+            this.graphEsBollinger.Dock = System.Windows.Forms.DockStyle.Fill;
+            bbLegend.BackColor = System.Drawing.Color.Black;
+            bbLegend.ForeColor = System.Drawing.Color.White;
+            bbLegend.Enabled = false;
+            bbLegend.Name = "Legend1";
+            this.graphEsBollinger.Legends.Add(bbLegend);
+            this.graphEsBollinger.Location = new System.Drawing.Point(3, 3);
+            this.graphEsBollinger.Name = "graphEsBollinger";
+            ConfigureLine(bbClose, "ES Close", System.Drawing.Color.Yellow, false);
+            ConfigureLine(bbEma20, "20 EMA", System.Drawing.Color.Blue, false);
+            ConfigureLine(bbUpper, "Upper Band", System.Drawing.Color.Green, false);
+            ConfigureLine(bbLower, "Lower Band", System.Drawing.Color.Red, false);
+            this.graphEsBollinger.Series.Add(bbClose);
+            this.graphEsBollinger.Series.Add(bbEma20);
+            this.graphEsBollinger.Series.Add(bbUpper);
+            this.graphEsBollinger.Series.Add(bbLower);
+            this.graphEsBollinger.Size = new System.Drawing.Size(346, 268);
+            this.graphEsBollinger.TabIndex = 0;
+
+            this.tabPageVx.BackColor = System.Drawing.Color.Black;
+            this.tabPageVx.Controls.Add(this.graphVIX);
+            this.tabPageVx.Location = new System.Drawing.Point(4, 22);
+            this.tabPageVx.Name = "tabPageVx";
+            this.tabPageVx.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageVx.Size = new System.Drawing.Size(352, 274);
+            this.tabPageVx.TabIndex = 2;
+            this.tabPageVx.Text = "VX";
+            this.tabPageVx.UseVisualStyleBackColor = false;
+
             this.graphVIX.BackColor = System.Drawing.Color.Black;
-            this.graphVIX.BorderlineColor = System.Drawing.Color.Black;
-            this.graphVIX.BorderlineWidth = 0;
-            this.graphVIX.BorderSkin.BackColor = System.Drawing.Color.Black;
-            this.graphVIX.BorderSkin.BorderWidth = 0;
-            this.graphVIX.BorderSkin.PageColor = System.Drawing.Color.Black;
-            chartArea2.AxisX.Enabled = System.Windows.Forms.DataVisualization.Charting.AxisEnabled.True;
-            chartArea2.AxisX.LabelStyle.ForeColor = System.Drawing.Color.White;
-            chartArea2.AxisY2.LabelStyle.ForeColor = System.Drawing.Color.White;
-            chartArea2.BackColor = System.Drawing.Color.Black;
-            chartArea2.BorderWidth = 0;
-            chartArea2.Name = "ChartArea1";
-            this.graphVIX.ChartAreas.Add(chartArea2);
+            vxArea.AxisX.Enabled = System.Windows.Forms.DataVisualization.Charting.AxisEnabled.True;
+            vxArea.AxisX.LabelStyle.ForeColor = System.Drawing.Color.White;
+            vxArea.AxisY2.LabelStyle.ForeColor = System.Drawing.Color.White;
+            vxArea.BackColor = System.Drawing.Color.Black;
+            vxArea.Name = "ChartArea1";
+            this.graphVIX.ChartAreas.Add(vxArea);
             this.graphVIX.Dock = System.Windows.Forms.DockStyle.Fill;
-            legend2.BackColor = System.Drawing.Color.Black;
-            legend2.Enabled = false;
-            legend2.Name = "Legend1";
-            this.graphVIX.Legends.Add(legend2);
+            vxLegend.BackColor = System.Drawing.Color.Black;
+            vxLegend.Enabled = false;
+            vxLegend.Name = "Legend1";
+            this.graphVIX.Legends.Add(vxLegend);
             this.graphVIX.Location = new System.Drawing.Point(3, 3);
-            this.graphVIX.Margin = new System.Windows.Forms.Padding(0);
             this.graphVIX.Name = "graphVIX";
-            series4.BorderWidth = 2;
-            series4.ChartArea = "ChartArea1";
-            series4.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            series4.Color = System.Drawing.Color.Fuchsia;
-            series4.Legend = "Legend1";
-            series4.Name = "Series1";
-            series4.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
-            series4.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
-            series4.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
-            this.graphVIX.Series.Add(series4);
+            ConfigureLine(vxPrice, "VX", System.Drawing.Color.Fuchsia, false);
+            vxPrice.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
+            this.graphVIX.Series.Add(vxPrice);
             this.graphVIX.Size = new System.Drawing.Size(346, 268);
             this.graphVIX.TabIndex = 1;
-            // 
-            // esBindingSource
-            // 
+
             this.esBindingSource.AllowNew = true;
             this.esBindingSource.DataSource = typeof(TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel);
-            // 
-            // MarketDataView
-            // 
+
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Black;
@@ -195,24 +178,43 @@ namespace TomasAI.IFM.UI.Net.Views.App
             this.Name = "MarketDataView";
             this.Size = new System.Drawing.Size(360, 300);
             this.tabMarketData.ResumeLayout(false);
-            this.tabPage1.ResumeLayout(false);
+            this.tabPageEs.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.graphES)).EndInit();
-            this.tabPage2.ResumeLayout(false);
+            this.tabPageEsBb.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.graphEsBollinger)).EndInit();
+            this.tabPageVx.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.graphVIX)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.vixBindingSource)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.esBindingSource)).EndInit();
             this.ResumeLayout(false);
-
         }
 
-        #endregion
+        static void ConfigureLine(
+            System.Windows.Forms.DataVisualization.Charting.Series series,
+            string name,
+            System.Drawing.Color color,
+            bool visibleInLegend)
+        {
+            series.BorderWidth = 2;
+            series.ChartArea = "ChartArea1";
+            series.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series.Color = color;
+            series.IsVisibleInLegend = visibleInLegend;
+            series.Legend = "Legend1";
+            series.Name = name;
+            series.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Date;
+            series.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
+            series.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
+        }
 
         private System.Windows.Forms.TabControl tabMarketData;
-        private System.Windows.Forms.TabPage tabPage1;
-        private System.Windows.Forms.TabPage tabPage2;
+        private System.Windows.Forms.TabPage tabPageEs;
+        private System.Windows.Forms.TabPage tabPageEsBb;
+        private System.Windows.Forms.TabPage tabPageVx;
+        private System.Windows.Forms.DataVisualization.Charting.Chart graphES;
+        private System.Windows.Forms.DataVisualization.Charting.Chart graphEsBollinger;
         private System.Windows.Forms.DataVisualization.Charting.Chart graphVIX;
         private System.Windows.Forms.BindingSource esBindingSource;
         private System.Windows.Forms.BindingSource vixBindingSource;
-        private System.Windows.Forms.DataVisualization.Charting.Chart graphES;
     }
 }

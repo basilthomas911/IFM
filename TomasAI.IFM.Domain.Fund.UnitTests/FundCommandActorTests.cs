@@ -564,6 +564,20 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var fund = SampleData.Fund with { FundId = SampleData.FundOrder.FundId };
         state.Apply(new FundCreatedEvent { NewFund = fund }).Should().BeTrue();
         state.Apply(new OrderAddedToFundEvent { FundOrder = SampleData.FundOrder }).Should().BeTrue();
+        var opening = SampleData.FundOrderTrade with
+        {
+            TradeState = TradeState.TradeToOpen,
+            PrimaryTrade = true
+        };
+        var closing = SampleData.FundOrderTrade with
+        {
+            TradeId = SampleData.FundOrderTrade.TradeId + 1,
+            TradeType = FundOrderTradingPolicy.ClosingType(SampleData.FundOrderTrade.TradeType),
+            TradeState = TradeState.OrderCompleted,
+            PrimaryTrade = false
+        };
+        state.Apply(new TradeAddedToFundOrderEvent { FundOrderTrade = opening }).Should().BeTrue();
+        state.Apply(new TradeAddedToFundOrderEvent { FundOrderTrade = closing }).Should().BeTrue();
 
         // create close command for the existing order
         var closeFundOrderId = new FundOrderId(SampleData.FundOrder.FundId, SampleData.FundOrder.OrderId);

@@ -13,6 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// model representation.</remarks>
 public class FuturesOptionSecuritiesContract 
 {
+    readonly FuturesOptionContractReadModel? _source;
     readonly string _contractId;
     readonly string _description;
     readonly string _symbol;
@@ -59,17 +60,26 @@ public class FuturesOptionSecuritiesContract
         _currency = currency;
         _localSymbol = localSymbol;
         _description = description;
-        _contractId = $"{_symbol}{_contractMonth:yyyyMMdd}{_optionType[0]}{_strikePrice:####}";
+        var legacy = new FuturesOptionContractReadModel { StrikePrice = strikePrice };
+        _contractId = FuturesOptionContractId.Create(symbol, contractMonth,
+            optionType switch
+            {
+                "Call" => TomasAI.IFM.Domain.MarketData.Shared.OptionType.Call,
+                "Put" => TomasAI.IFM.Domain.MarketData.Shared.OptionType.Put,
+                _ => throw new ArgumentException("Option type must be Call or Put.", nameof(optionType))
+            }, legacy.GetExactStrikePrice());
     }
 
     public FuturesOptionSecuritiesContract(FuturesOptionContractReadModel model)
         :this(model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
              model.Exchange, model.Multiplier, model.ContractMonth, model.StrikePrice, model.OptionType)
     {
+        _source = model;
+        _contractId = model.ContractId;
     }
 
     public FuturesOptionContractReadModel ToViewModel()
-        => new (
+        => _source ?? new (
             contractId: ContractId,
             symbol: Symbol,
             localSymbol: LocalSymbol,

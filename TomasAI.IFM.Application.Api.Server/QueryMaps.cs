@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using EconomicCalendarPageRequest = TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.EconomicCalendarPageRequest;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
@@ -459,6 +460,19 @@ public static class MarketDataQueries
             return await e.RequestAsync<ScalarReadModel<DateOnly>, GetValueDateQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataQueryUriPath.GetInstrumentDefinitions, async (IActorService e,
+            string request, CancellationToken cancellationToken) =>
+        {
+            if (request.Length > 8192) throw new ArgumentException("Definition query exceeds the size limit.");
+            var parameter = System.Text.Json.JsonSerializer.Deserialize<InstrumentDefinitionPageRequest>(request)
+                ?? throw new ArgumentException("Definition query is missing.");
+            parameter.Validate();
+            var query = new GetInstrumentDefinitionsQuery { Request = parameter };
+            query.Subject = new ActorSubject(ActorType.Query, GetInstrumentDefinitionsQuery.Actor,
+                GetInstrumentDefinitionsQuery.Verb, parameter.Format());
+            return await e.RequestAsync<InstrumentDefinitionPage, GetInstrumentDefinitionsQuery>(query, cancellationToken);
+        });
+
         endpoints.MapGet(MarketDataQueryUriPath.GetTradeStrategySymbols, async (IActorService e,
             TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken) =>
         {
@@ -658,6 +672,24 @@ public static class MarketDataAnalyticsQueries
             return await e.RequestAsync<MarketOutlookReadModel, GetMarketOutlookSnapshotQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesBollingerBandHistory, async (
+            IActorService e,
+            string rootSymbol,
+            DateOnly valueDate,
+            int maxDays) =>
+        {
+            var query = new GetFuturesBollingerBandHistoryQuery(rootSymbol, valueDate, maxDays);
+            query = query with
+            {
+                Subject = new ActorSubject(
+                    ActorType.Query,
+                    GetFuturesBollingerBandHistoryQuery.Actor,
+                    GetFuturesBollingerBandHistoryQuery.Verb,
+                    query.EntityId.Format())
+            };
+            return await e.RequestAsync<FuturesBbSignalReadModel[], GetFuturesBollingerBandHistoryQuery>(query);
+        });
+
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignal, async (
             IActorService e, string contractId, DateOnly valueDate) =>
         {
@@ -756,9 +788,9 @@ public static class MarketDataAnalyticsQueries
             return await e.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalHistory, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalHistory, async (IActorService e, string symbol, DateOnly valueDate, TimeFrameType timePeriod) =>
         {
-            var query = new GetFuturesItiSignalHistoryQuery(contractId, valueDate, timePeriod);
+            var query = new GetFuturesItiSignalHistoryQuery(symbol, valueDate, timePeriod);
             query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalHistoryQuery.Actor, GetFuturesItiSignalHistoryQuery.Verb, query.EntityId.Format()) };
             return await e.RequestAsync<FuturesItiSignalV2ReadModel[], GetFuturesItiSignalHistoryQuery>(query);
         });

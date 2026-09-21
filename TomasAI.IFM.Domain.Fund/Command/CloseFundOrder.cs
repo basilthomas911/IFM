@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.Command;
 
@@ -27,6 +28,9 @@ public static class CloseFundOrder
                 => e.UpdateFailed(FundOrderDoesNotExist(e)),
             _ when state.IsFundOrderClosed(e.FundOrderId.FundId, e.FundOrderId.OrderId) 
                 => e.UpdateFailed(FundOrderAlreadyClosed(e)),
+            _ when state.GetFundOrder(e.FundOrderId.FundId, e.FundOrderId.OrderId) is not { } order
+                || !FundOrderTradingPolicy.CanCloseOrder(order)
+                => e.UpdateFailed(FundOrderHasNoCompletedClose(e)),
             _ => e.UpdatedOk(() => state.Update(e.CreateFundOrderClosedEvent(), e))
         };
 
@@ -51,5 +55,7 @@ public static class CloseFundOrder
     public static string FundDoesNotExist(CloseFundOrderCommand e) => $"{e.CommandName}: fundId {e.FundOrderId.FundId} does not exist";
     public static string FundOrderDoesNotExist(CloseFundOrderCommand e) => $"{e.CommandName}: orderId {e.FundOrderId.OrderId} does not exist";
     public static string FundOrderAlreadyClosed(CloseFundOrderCommand e) => $"{e.CommandName}: orderId {e.FundOrderId.OrderId} is already closed";
+    public static string FundOrderHasNoCompletedClose(CloseFundOrderCommand e)
+        => $"{e.CommandName}: order cannot close before its position-closing trade has completed";
 
 }

@@ -446,6 +446,8 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
             calculationMethod TEXT,
             schemaVersion INT,
             isValid BOOLEAN,
+            isWarm BOOLEAN,
+            observationCount INT,
             PRIMARY KEY ((contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
@@ -455,6 +457,12 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
             configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
             sourceSequence BIGINT, calculationVersion TEXT, calculationMethod TEXT,
             schemaVersion INT, isValid BOOLEAN
+        );
+        """;
+
+    public const string AddFuturesMacdSignalV2WarmStateColumns = """
+        ALTER TABLE futures_macd_signal_v2 ADD (
+            isWarm BOOLEAN, observationCount INT
         );
         """;
 

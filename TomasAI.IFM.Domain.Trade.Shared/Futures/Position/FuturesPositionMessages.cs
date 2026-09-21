@@ -63,6 +63,8 @@ public sealed record CloseFuturesPositionCommand : FuturesPositionCommand
 {
     public const string Verb = "CloseFuturesPosition";
     [Key(4)] public DateTime EffectiveAtUtc { get; init; }
+    private ExecutionFillEvidence[] closingFills = [];
+    [Key(5)] public ExecutionFillEvidence[] ClosingFills { get => closingFills; init => closingFills = value ?? []; }
 }
 
 [MessagePackObject]

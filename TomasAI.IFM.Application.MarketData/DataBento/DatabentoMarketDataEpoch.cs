@@ -26,6 +26,7 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
     private readonly ITickLiveEventPublisher _livePublisher;
     private readonly DatabentoTerminalFaultSignal? _terminalFaultSignal;
     private readonly ILoggerFactory? _loggerFactory;
+    private readonly Pricing.IOptionTradeEvidenceWriter? _tradeEvidence;
 
     public DatabentoMarketDataEpochFactory(
         IDatabentoFeedFactory feeds,
@@ -34,7 +35,7 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         TimeProvider? timeProvider = null,
         ITickLiveEventPublisher? livePublisher = null,
         DatabentoTerminalFaultSignal? terminalFaultSignal = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null, Pricing.IOptionTradeEvidenceWriter? tradeEvidence = null)
     {
         _feeds = feeds ?? throw new ArgumentNullException(nameof(feeds));
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
@@ -43,6 +44,7 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         _livePublisher = livePublisher ?? new NullTickLiveEventPublisher();
         _terminalFaultSignal = terminalFaultSignal;
         _loggerFactory = loggerFactory;
+        _tradeEvidence = tradeEvidence;
     }
 
     public IDatabentoMarketDataEpoch Create(DateOnly valueDate)
@@ -55,12 +57,13 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         new DatabentoMarketDataEpoch(
             valueDate, _feeds, _publisher, snapshot, _timeProvider, _livePublisher,
             _terminalFaultSignal is null ? null : detail => _terminalFaultSignal.Notify(detail),
-            _loggerFactory);
+            _loggerFactory, _tradeEvidence);
     }
 }
 
 internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
 {
+    private readonly Pricing.IOptionTradeEvidenceWriter? _tradeEvidence;
     private readonly IDatabentoFeedFactory _feeds;
     private readonly ITickAggregationEventPublisher _publisher;
     private readonly DatabentoMarketDataRuntimeOptions _options;
@@ -92,7 +95,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         TimeProvider timeProvider,
         ITickLiveEventPublisher livePublisher,
         Action<string>? terminalFaultHandler = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null, Pricing.IOptionTradeEvidenceWriter? tradeEvidence = null)
     {
         if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
         ValueDate = valueDate;
@@ -105,6 +108,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _streamRoutes = new DatabentoTickerStreamRouteController(_liveRouter, _optionRoutes);
         _terminalFaultHandler = terminalFaultHandler;
         _loggerFactory = loggerFactory;
+        _tradeEvidence = tradeEvidence;
     }
 
     public DateOnly ValueDate { get; }
@@ -701,7 +705,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             if (!_qualifiedChains.TryGetValue(dataset, out var runtime))
             {
                 runtime = new(aggregation.GenerationId, ValueDate, _feeds, _options.FeedOptions with { Dataset = dataset }, aggregation, _lastPrices!, _timeProvider,
-                    detail => { Volatile.Write(ref _optionChainFault, 1); _terminalFaultHandler?.Invoke(detail); });
+                    detail => { Volatile.Write(ref _optionChainFault, 1); _terminalFaultHandler?.Invoke(detail); }, _options.OptionPricingRefresh, _tradeEvidence);
                 _qualifiedChains.Add(dataset, runtime);
             }
             return await runtime.AcquireAsync(request, cancellationToken).ConfigureAwait(false);

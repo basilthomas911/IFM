@@ -268,6 +268,122 @@ public sealed class CommandAuditPersistenceTests
         await new EventSourceSchemaDb(settings, Substitute.For<ILogger<DbProvider>>()).CreateAllAsync();
     }
 
+    [Fact]
+    public void Retry_identity_preserves_full_audit_and_access_but_excludes_attempt_metadata()
+    {
+        var codec = new CommandAuditMessagePackCodec();
+        var original = RetryCommand.Create();
+        var retry = original with { CorrelationId = Guid.NewGuid(), RequestedUtc = original.RequestedUtc.AddMinutes(1) };
+        var first = CommandAuditEnvelope.Create(original, codec);
+        var second = CommandAuditEnvelope.Create(retry, codec);
+        first.RetrySha256.Should().Equal(second.RetrySha256);
+        first.Payload.Sha256.Should().NotEqual(second.Payload.Sha256);
+        codec.Deserialize(typeof(RetryCommand), first.Payload.Bytes, (short)first.Payload.Format, first.Payload.Version).Should().BeEquivalentTo(original);
+        foreach (var changed in new[] { retry with { Value = 2 }, retry with { Principal = "other" }, retry with { Subject = new ActorSubject(ActorType.Command, "Test", "Other", "2") } })
+            CommandAuditEnvelope.Create(changed, codec).RetrySha256.Should().NotEqual(first.RetrySha256);
+    }
+
+    [Fact]
+    [Trait("Category", "PostgresIntegration")]
+    public async Task Retry_after_writer_restart_matches_existing_full_payload_without_rewriting_audit()
+    {
+        await EnsureSchemaAsync();
+        var original = RetryCommand.Create();
+        var codec = new CommandAuditMessagePackCodec();
+        var originalPayload = codec.Serialize(original);
+        var options = new CommandAuditPersistenceOptions { WriteMode = CommandAuditWriteMode.WindowedMessagePack };
+        try
+        {
+            await using (var writer = new PostgresCommandAuditWriter(BaseConnectionString(), options))
+            {
+                // Simulate an existing row written before retry normalization was introduced.
+                var oldEnvelope = new CommandAuditEnvelope(original.CommandId, original.StreamId, original.RouteTo.ToString(), original.CommandName, DateTime.UtcNow, originalPayload);
+                (await writer.ReserveAsync(oldEnvelope)).Accepted.Should().BeTrue();
+            }
+            await using var restarted = new PostgresCommandAuditWriter(BaseConnectionString(), options);
+            var retry = original with { CorrelationId = Guid.NewGuid(), RequestedUtc = original.RequestedUtc.AddMinutes(1) };
+            var duplicate = await restarted.ReserveAsync(CommandAuditEnvelope.Create(retry, codec));
+            duplicate.Accepted.Should().BeFalse();
+            duplicate.PayloadConflict.Should().BeFalse();
+            duplicate.LegacyConflict.Should().BeFalse();
+            foreach (var changed in new[] { retry with { Value = 2 }, retry with { Principal = "other" }, retry with { Subject = new ActorSubject(ActorType.Command, "Test", "Other", "2") } })
+                await FluentActions.Awaiting(async () => await restarted.ReserveAsync(CommandAuditEnvelope.Create(changed, codec)))
+                    .Should().ThrowAsync<CommandAuditPayloadConflictException>();
+            await using var connection = CreateConnection();
+            await connection.OpenAsync();
+            await using var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection);
+            read.Parameters.AddWithValue(original.CommandId);
+            await using var reader = await read.ExecuteReaderAsync();
+            (await reader.ReadAsync()).Should().BeTrue();
+            reader.GetFieldValue<byte[]>(0).Should().Equal(originalPayload.Bytes);
+            reader.GetFieldValue<byte[]>(1).Should().Equal(originalPayload.Sha256);
+        }
+        finally { await DeleteAsync(original.CommandId); }
+    }
+
+    [Fact]
+    [Trait("Category", "PostgresIntegration")]
+    public async Task One_window_normalizes_retries_but_rejects_changed_access()
+    {
+        await EnsureSchemaAsync();
+        var first = RetryCommand.Create();
+        var codec = new CommandAuditMessagePackCodec();
+        try
+        {
+            await using var connection = CreateConnection();
+            await connection.OpenAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
+            var commands = new[] { first, first with { CorrelationId = Guid.NewGuid(), RequestedUtc = first.RequestedUtc.AddSeconds(1) }, first with { Principal = "other" } };
+            var results = await CommandAuditPostgres.ReserveAsync(connection, transaction, commands.Select(x => CommandAuditEnvelope.Create(x, codec)).ToArray(), CancellationToken.None);
+            await transaction.CommitAsync();
+            results.Select(x => x.Accepted).Should().Equal(true, false, false);
+            results.Select(x => x.PayloadConflict).Should().Equal(false, false, true);
+        }
+        finally { await DeleteAsync(first.CommandId); }
+    }
+
+    [Fact]
+    [Trait("Category", "PostgresIntegration")]
+    public async Task Retry_comparison_rejects_corrupted_original_audit_bytes()
+    {
+        await EnsureSchemaAsync();
+        var original = RetryCommand.Create();
+        var codec = new CommandAuditMessagePackCodec();
+        try
+        {
+            await using var writer = new PostgresCommandAuditWriter(BaseConnectionString(), new CommandAuditPersistenceOptions { WriteMode = CommandAuditWriteMode.WindowedMessagePack });
+            (await writer.ReserveAsync(CommandAuditEnvelope.Create(original, codec))).Accepted.Should().BeTrue();
+            await using (var connection = CreateConnection())
+            {
+                await connection.OpenAsync();
+                await using var corrupt = new NpgsqlCommand("UPDATE command_log SET commandpayload=$2 WHERE commandid=$1", connection);
+                corrupt.Parameters.AddWithValue(original.CommandId);
+                corrupt.Parameters.AddWithValue(codec.Serialize(original with { Value = 99 }).Bytes);
+                await corrupt.ExecuteNonQueryAsync();
+            }
+            await FluentActions.Awaiting(async () => await writer.ReserveAsync(CommandAuditEnvelope.Create(original with { CorrelationId = Guid.NewGuid() }, codec)))
+                .Should().ThrowAsync<CommandAuditPayloadConflictException>();
+        }
+        finally { await DeleteAsync(original.CommandId); }
+    }
+
+    public sealed record RetryCommand : ICommandRetryIdentity
+    {
+        public required ActorSubject Subject { get; init; }
+        public string CommandName => nameof(RetryCommand);
+        public BoundedContextName RouteTo => BoundedContextName.PortfolioBoundedContext;
+        public Guid CommandId { get; init; }
+        public string StreamId => Subject.StreamId;
+        public string EventSource => "Test";
+        public int ErrorCode => 1;
+        public int Value { get; init; } = 1;
+        public string Principal { get; init; } = "original";
+        public Guid CorrelationId { get; init; } = Guid.NewGuid();
+        public DateTime RequestedUtc { get; init; } = DateTime.UtcNow;
+        public ICommand ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedUtc = default };
+        public static RetryCommand Create() => new() { CommandId = Guid.NewGuid(), Subject = new ActorSubject(ActorType.Command, "Test", "Write", "1") };
+    }
+
     static string BaseConnectionString()
     {
         var builder = new NpgsqlConnectionStringBuilder(ConnectionString)

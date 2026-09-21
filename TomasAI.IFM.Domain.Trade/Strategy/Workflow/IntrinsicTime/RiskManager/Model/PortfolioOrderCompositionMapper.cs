@@ -80,7 +80,8 @@ public static class PortfolioOrderCompositionMapper
             Delta = candidate.Greeks.Delta,
             Gamma = candidate.Greeks.Gamma,
             Vega = candidate.Greeks.Vega,
-            PositionType = TradeOrderPositionType.Opening
+            PositionType = TradeOrderPositionType.Opening,
+            VolatilityEvidence = result.DecisionContext.VolatilityEvidence
         };
         var operationId = StableId(view.WorkflowId.Value, $"portfolio-order-composition/{view.WorkflowRevision}");
         var entityId = new FinancialExecutionId(portfolioId, operationId);
@@ -111,6 +112,8 @@ public static class PortfolioOrderCompositionMapper
         if (receipt.CompositionId != composition.ResultId || receipt.WorkflowId != view.WorkflowId.Value
             || receipt.PortfolioId != expectedPortfolioId || expectedPortfolioId <= 0 || receipt.FinancialRevision <= 0)
             throw new InvalidOperationException("RM.PORTFOLIO.RECEIPT_IDENTITY");
+        if (receipt.VolatilityEvidence != composition.DecisionContext.VolatilityEvidence)
+            throw new InvalidOperationException("RM.PORTFOLIO.VOLATILITY_EVIDENCE");
         if (receipt.Status == PortfolioOrderCompositionStatus.ExecuteTradeOrders && receipt.TradeOrders.Length == 0
             || receipt.Status == PortfolioOrderCompositionStatus.NoTradeOrders && receipt.TradeOrders.Length != 0)
             throw new InvalidOperationException("RM.PORTFOLIO.RECEIPT_STATUS");
@@ -127,6 +130,7 @@ public static class PortfolioOrderCompositionMapper
             || receipt.TradeOrders.Any(order => !order.Id.IsValid || order.Id.PortfolioId != expectedPortfolioId
                 || order.Revision != 1 || order.Status != TradeOrderStatus.Approved
                 || order.PositionType != TradeOrderPositionType.Opening
+                || order.VolatilityEvidence != composition.DecisionContext.VolatilityEvidence
                 || order.DefinitionHash != candidate.CandidateHash || order.Components.Length != 1
                 || order.Components[0].ReservedTradeId <= 0
                 || !order.Components[0].Legs.Select(leg => new { LegId = leg.TradeLegId, leg.ContractId })
@@ -170,6 +174,7 @@ public static class PortfolioOrderCompositionMapper
         AcceptedFundCount = receipt.FundDecisions.Count(value => value.Accepted),
         RejectedFundCount = receipt.FundDecisions.Count(value => !value.Accepted),
         PortfolioId = receipt.PortfolioId
+        ,VolatilityEvidence = receipt.VolatilityEvidence
     };
 
     public static void ValidateDecision(IntrinsicTimeStrategyWorkflowView view, PortfolioRiskDecision decision)
@@ -180,6 +185,8 @@ public static class PortfolioOrderCompositionMapper
             || decision.PortfolioId <= 0
             || decision.FinancialRevision <= 0 || decision.AcceptedFundCount < 0 || decision.RejectedFundCount < 0)
             throw new InvalidOperationException("RM.PORTFOLIO.RECEIPT_IDENTITY");
+        if (decision.VolatilityEvidence != composition.DecisionContext.VolatilityEvidence)
+            throw new InvalidOperationException("RM.PORTFOLIO.VOLATILITY_EVIDENCE");
         if (decision.Status == PortfolioRiskDecisionStatus.ExecuteTradeOrders && decision.TradeOrders.Length == 0
             || decision.Status == PortfolioRiskDecisionStatus.NoTradeOrders && decision.TradeOrders.Length != 0)
             throw new InvalidOperationException("RM.PORTFOLIO.RECEIPT_STATUS");

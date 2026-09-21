@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
@@ -50,6 +51,9 @@ public sealed record PortfolioOrderCandidate
     [Key(25)] public int MicroExecutionProfileVersion { get; init; }
     [Key(26)] public string MicroExecutionProfileHash { get; init; } = string.Empty;
     [Key(27)] public string AccountPromotionApprovalReference { get; init; } = string.Empty;
+    [Key(28)] public BrokerOrderType BrokerOrderType { get; init; } = BrokerOrderType.Limit;
+    [Key(29)] public BrokerAlgorithm BrokerAlgorithm { get; init; } = BrokerAlgorithm.None;
+    [Key(30)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 }
 
 [MessagePackObject]
@@ -114,6 +118,7 @@ public sealed record PortfolioOrderCompositionReceipt
     [Key(5)] public long FinancialRevision { get; init; }
     [Key(6)] public int PortfolioId { get; init; }
     [Key(7)] public PortfolioAcceptedCapacityEffect[] CapacityEffects { get; init; } = [];
+    [Key(8)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
 }
 
 [MessagePackObject]

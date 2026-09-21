@@ -206,6 +206,8 @@ public sealed class DatabentoOptionChainSessionManager :
         if (!session.Routes.TryGetValue(record.Header.InstrumentId, out var route))
             throw new InvalidOperationException(
                 $"The option-chain record instrument {record.Header.InstrumentId} is not mapped.");
+        if (record.Header.PublisherId != route.Definition.Instrument.PublisherId)
+            throw new InvalidOperationException("Option-chain record publisher does not match the exact provider route.");
 
         switch (record.Header.RecordKind)
         {
@@ -247,7 +249,10 @@ public sealed class DatabentoOptionChainSessionManager :
                     FromUnixNanoseconds(trade.Header.EventTimestampNanoseconds),
                     FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
                 var enriched = new LastTradeTickWithGreeksSnapshot(
-                    tick, _enricher.EnrichTrade(route, tick));
+                    tick, _enricher is IRetainedOptionTradeEnricher retained
+                        ? await retained.EnrichTradeAsync(route, tick, checked((long)trade.Header.EventTimestampNanoseconds),
+                            trade.Header.ReceiveTimestampNanoseconds, CancellationToken.None).ConfigureAwait(false)
+                        : _enricher.EnrichTrade(route, tick));
                 if (!_lastPrices.TryUpdateTradeWithGreeks(enriched))
                     break;
                 _state.UpdateTrade(session.Key, route.FuturesOptionContractId, enriched);

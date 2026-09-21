@@ -4,7 +4,7 @@ using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
-using TomasAI.IFM.Framework.OptionPricer.Black76;
+using Unified = TomasAI.IFM.Framework.OptionPricer.Pricing;
 using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
@@ -32,7 +32,7 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     internal static TreasuryPublicationPolicy Publication() => new("fixture-publication/v1", At.AddDays(-2), At.AddDays(2),
         [new(new(2026, 9, 4), At.AddDays(-4)), new(new(2026, 9, 8), At.AddHours(-1)), new(new(2026, 9, 9), At.AddDays(1))]);
     internal static OptionPricingContext Context() => new(Contract(), Calendar(), TreasuryRateConversion.Convert(Curve(), TreasuryTenor.OneMonth, Conversion).Value!,
-        At.AddHours(1), Generation, OptionCalculator.EngineVersion, 1000, 250, "fixture-publication/v1");
+        At.AddHours(1), Generation, Black76PricingModel.EngineFor(Contract()), 1000, 250, "fixture-publication/v1");
     internal static OptionPricingQuote Quote(string id, decimal mid) => new(id, mid - 0.25m, mid + 0.25m, 10, 10, At, At, 1, Generation);
     static OptionPricingPassResult Price(OptionPricingContext? context = null, OptionPricingQuote? option = null, OptionPricingQuote? underlying = null, DateTimeOffset? at = null) =>
         Black76PricingModel.Calculate(context ?? Context(), underlying ?? Quote("ES-future", 5000), option ?? Quote("ES-option-call", 100), 5000, true, at ?? At);
@@ -98,13 +98,19 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     }
 
     [Fact]
-    public void Positive_fractional_constructor_preserves_date_only_path()
+    public void Explicit_fractional_expiry_preserves_date_only_year_fraction()
     {
-        var a = new OptionCalculator(new DateOnly(2026, 9, 8), new DateOnly(2026, 10, 2)).GetOptionGreeks("CALL", 5000, 5000, 100, .05);
-        var b = new OptionCalculator(24d / 365).GetOptionGreeks("CALL", 5000, 5000, 100, .05);
+        var request = new Unified.OptionPricingRequest(Unified.UnderlyingKind.Futures, Unified.ExerciseKind.European,
+            Unified.PremiumKind.PaidUpfront, Unified.OptionSide.Call, 5000, 5000, 24d / 365, .05);
+        var calculator = new Unified.OptionCalculator();
+        var a = calculator.ImpliedVolatility(request, 100);
+        var b = calculator.ImpliedVolatility(request with
+            { TimeToExpiry = (new DateOnly(2026, 10, 2).DayNumber - new DateOnly(2026, 9, 8).DayNumber) / 365d }, 100);
         Assert.Equal(a, b);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OptionCalculator(0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OptionCalculator(double.NaN));
+        Assert.Equal(Unified.PricingFailure.ImpliedVolatilityNotIdentifiable,
+            calculator.ImpliedVolatility(request with { TimeToExpiry = 0 }, 100).Failure);
+        Assert.Equal(Unified.PricingFailure.InvalidInput,
+            calculator.ImpliedVolatility(request with { TimeToExpiry = double.NaN }, 100).Failure);
     }
 
     [Fact]
@@ -152,8 +158,8 @@ public sealed class OrderCompositionPricingPrerequisiteTests
         var source = new CurveSource(Curve());
         var provider = new TreasuryPricingProvider(source, new Clock(At));
         var contexts = new OptionPricingContextProvider(provider);
-        var first = await contexts.PrepareAsync(Contract(), Calendar(), Publication(), Conversion, Generation, OptionCalculator.EngineVersion, At, default);
-        var second = await contexts.PrepareAsync(Contract(), Calendar(), Publication(), Conversion, Generation, OptionCalculator.EngineVersion, At, default);
+        var first = await contexts.PrepareAsync(Contract(), Calendar(), Publication(), Conversion, Generation, Black76PricingModel.EngineFor(Contract()), At, default);
+        var second = await contexts.PrepareAsync(Contract(), Calendar(), Publication(), Conversion, Generation, Black76PricingModel.EngineFor(Contract()), At, default);
         Assert.NotNull(first.Context); Assert.NotNull(second.Context);
         Assert.Equal(first.Context.Contract, second.Context.Contract);
         Assert.Equal(first.Context.Rate, second.Context.Rate);

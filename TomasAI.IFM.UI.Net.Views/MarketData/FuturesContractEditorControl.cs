@@ -41,6 +41,7 @@ public partial class FuturesContractEditorControl
        MarketDataInputPalette.Apply(this);
         _viewModel = viewModel;
         _refreshAction = refreshAction;
+        InitializeProviderSelection();
    }
 
     /// <summary>
@@ -95,6 +96,7 @@ public partial class FuturesContractEditorControl
         switch (_editMode)
         {
             case EditMode.View:
+                _providerReference = null;
                 txtDescription.Enabled = true;
                 dtmLastTradeDate.Value = EasternTime.GetNow(TimeProvider.System);
                 dtmLastTradeDate.Enabled = true;
@@ -119,6 +121,13 @@ public partial class FuturesContractEditorControl
                 addAction(false);
                 break;
             case EditMode.Add:
+                if (_providerReference is { } imported)
+                {
+                    var value = imported with { Description = txtDescription.Text, OnTheRun = ddlOnTheRun.SelectedIndex == 0 };
+                    _viewModel.PrepareAdd(value);
+                    _ = AddPreparedContractAsync(value.ContractId);
+                    break;
+                }
                 var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex);
                 var maturityDate = $"{dtmLastTradeDate.Value:yyyyMMdd}";
                 txtContractId.Text = $"{symbol}{maturityDate}";
@@ -188,10 +197,21 @@ public partial class FuturesContractEditorControl
                 ddlSymbol.Enabled = true;
                 _lastContractIndex = lstFuturesContractIds.SelectedIndex;
                 _editMode = EditMode.Change;
+                _providerReference = _viewModel.GetFuturesContract(_lastContractIndex) is { SchemaVersion: > 0 } current ? current : null;
+                if (_providerReference is not null)
+                    ddlSecurityType.Enabled = ddlCurrency.Enabled = ddlExchange.Enabled = ddlMultiplier.Enabled = false;
+                ddlSymbol.Enabled = false;
                 lstFuturesContractIds.Enabled = false;
                 changeAction?.Invoke(false);
                 break;
             case EditMode.Change:
+                if (_providerReference is { } imported)
+                {
+                    var value = imported with { Description = txtDescription.Text, OnTheRun = ddlOnTheRun.SelectedIndex == 0 };
+                    _viewModel.PrepareChange(_viewModel.GetFuturesContract(_lastContractIndex)!.Id, value);
+                    _ = ChangePreparedContractAsync(value.ContractId);
+                    break;
+                }
                 var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex);
                 var futuresContractId = _viewModel.GetFuturesContract(lstFuturesContractIds.SelectedIndex)!.Id;
                 var maturityDate = $"{dtmLastTradeDate.Value:yyyyMMdd}";
@@ -375,7 +395,7 @@ public partial class FuturesContractEditorControl
     /// show futures contract details
     /// </summary>
     /// <param name="selectedIndex"></param>
-    void ShowSelectedFuturesContract(int selectedIndex)
+    void ShowSelectedFuturesContract(int selectedIndex, FuturesContractV3ReadModel? imported = null)
     {
         txtContractId.Enabled = false;
         txtContractId.BackColor = Color.Black;
@@ -383,7 +403,7 @@ public partial class FuturesContractEditorControl
         txtDescription.BackColor = Color.Black;
         txtLocalSymbol.Enabled = false;
         txtLocalSymbol.BackColor = Color.Black;
-        var fc = _viewModel.GetFuturesContract(selectedIndex);
+        var fc = imported ?? _viewModel.GetFuturesContract(selectedIndex);
         if (fc is null) 
             return;
         dtmLastTradeDate.Value = fc.LastTradeDate.ToDateTime(TimeOnly.MinValue);

@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Domain.Application.Actor.Event;
 public static class ApplicationStartup
 {
     static readonly Guid ProcessBootId = Guid.NewGuid();
+    static readonly TimeSpan StatusConsoleWriteTimeout = TimeSpan.FromMilliseconds(250);
 
     public static async ValueTask ExecuteAsync(
         this ApplicationStartupEvent @event,
@@ -55,7 +56,7 @@ public static class ApplicationStartup
             CommandId = workflow.CommandId,
             CorrelationId = workflow.CorrelationId,
             StartedAtUtc = workflowStarted,
-            Summary = "Application startup activities are executing sequentially."
+            Summary = "Application startup activities are executing by dependency layer."
         });
         await ReportAsync(
             context.StatusConsoleWriter,
@@ -63,17 +64,40 @@ public static class ApplicationStartup
             $"Application startup began. ValueDate={workflow.ValueDate:yyyy-MM-dd}; CommandId={workflow.CommandId}; CorrelationId={workflow.CorrelationId}.")
             .ConfigureAwait(false);
 
-        foreach (var activity in ApplicationStartupPlan.Activities)
+        var scheduled = new Dictionary<ApplicationStartupActivity, Task<ApplicationStartupActivityResult>>();
+        foreach (var definition in ApplicationStartupPlan.Activities)
         {
-            results.Add(await ExecuteActivityAsync(
-                activity.Activity,
-                activity.Required,
-                activity.Dependencies,
-                workflow,
-                context,
-                ResolveActivity(context.StartupActivities, activity.Activity),
-                results,
-                cancellationToken));
+            if (definition.Dependencies.Any(dependency => !scheduled.ContainsKey(dependency)))
+                throw new InvalidOperationException(
+                    $"Application startup activity {definition.Activity} has a cyclic or forward dependency.");
+            var dependencyTasks = definition.Dependencies
+                .Select(dependency => scheduled[dependency])
+                .ToArray();
+            scheduled.Add(definition.Activity, ExecuteAfterDependenciesAsync(
+                definition,
+                dependencyTasks));
+        }
+
+        await Task.WhenAll(scheduled.Values).ConfigureAwait(false);
+        results.AddRange(ApplicationStartupPlan.Activities
+            .Select(definition => scheduled[definition.Activity].Result));
+
+        async Task<ApplicationStartupActivityResult> ExecuteAfterDependenciesAsync(
+            ApplicationStartupActivityDefinition definition,
+            Task<ApplicationStartupActivityResult>[] dependencyTasks)
+        {
+            var dependencies = dependencyTasks.Length == 0
+                ? []
+                : await Task.WhenAll(dependencyTasks).ConfigureAwait(false);
+            return await ExecuteActivityAsync(
+                    definition.Activity,
+                    definition.Required,
+                    definition.Dependencies,
+                    workflow,
+                    context,
+                    ResolveActivity(context.StartupActivities, definition.Activity),
+                    dependencies,
+                    cancellationToken).ConfigureAwait(false);
         }
 
         var state = ApplicationStartupPlan.Aggregate(results);
@@ -231,9 +255,18 @@ public static class ApplicationStartup
         ILogger logger,
         string message)
     {
+        Task? write = null;
         try
         {
-            await writer.WriteConsoleAsync(LogSourceType.System, message).ConfigureAwait(false);
+            write = writer.WriteConsoleAsync(LogSourceType.System, message);
+            await write.WaitAsync(StatusConsoleWriteTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning(
+                "Timed out publishing Application lifecycle status to the System Console after {Timeout}.",
+                StatusConsoleWriteTimeout);
+            _ = ObserveLateConsoleWriteAsync(write!, logger);
         }
         catch (Exception exception)
         {
@@ -246,18 +279,39 @@ public static class ApplicationStartup
         ILogger logger,
         ApplicationStartupActivityResult result)
     {
+        Task? write = null;
         try
         {
-            await writer.WriteConsoleAsync(
+            write = writer.WriteConsoleAsync(
                 LogSourceType.System,
                 result.ErrorCode,
                 $"Application startup: {result.Activity} => {result.Outcome}. {result.Reason}",
                 nameof(ApplicationStartupActivity),
-                result.Activity.ToString()).ConfigureAwait(false);
+                result.Activity.ToString());
+            await write.WaitAsync(StatusConsoleWriteTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning(
+                "Timed out publishing Application lifecycle failure to the System Console after {Timeout}.",
+                StatusConsoleWriteTimeout);
+            _ = ObserveLateConsoleWriteAsync(write!, logger);
         }
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Unable to publish Application lifecycle failure to the System Console.");
+        }
+    }
+
+    static async Task ObserveLateConsoleWriteAsync(Task write, ILogger logger)
+    {
+        try
+        {
+            await write.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "A timed-out Application lifecycle System Console write later failed.");
         }
     }
 

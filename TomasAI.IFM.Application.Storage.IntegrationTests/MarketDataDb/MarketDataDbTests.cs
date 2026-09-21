@@ -1,5 +1,6 @@
 using FluentAssertions;
 using FluentAssertions.Extensions;
+using MessagePack;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System;
@@ -46,7 +47,6 @@ public class MarketDataFixture : IDisposable
         SetSecDatabase();
         SetDevDatabase();
         SetPMDatabase();
-        SetProdDatabase();
     }
 
     public void Dispose()
@@ -57,7 +57,6 @@ public class MarketDataFixture : IDisposable
     public Storage.MarketDataDb.MarketDataDbContext DevDatabase { get; private set; }
     public Storage.SecuritiesDb.SecuritiesDbContext SecDatabase { get; private set; }
     public Storage.PredictiveModelDb.PredictiveModelDbContext PMDatabase { get; private set; }
-    public Storage.MarketDataDb.MarketDataDbContext ProdDatabase { get; private set; }
     public Storage.SequenceIdDb.SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
 
@@ -124,22 +123,6 @@ public class MarketDataFixture : IDisposable
         PMDatabase = dbFactory.PredictiveModelDb as Storage.PredictiveModelDb.PredictiveModelDbContext;
     }
 
-    void SetProdDatabase()
-    {
-        var dbConn = new DbConnectionSettings()
-            .Add("MarketDataDbConnection", @"Data Source=DEV-SERVER;Initial Catalog=marketdatadb;Integrated Security=True;MultipleActiveResultSets=True;TrustServerCertificate=True", "System.Data.SqlClient");
-        var diContainer = new Dictionary<Type, Storage.MarketDataDb.MarketDataDbContext>();
-        var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
-        var dbFactory = new DbContextFactory(dbResolver);
-        var logger = Substitute.For<ILogger<DbProvider>>();
-        logger.When(_ => { }).Do(_ => { });
-        var redisCache = Substitute.For<IRedisCache>();
-        redisCache.When(_ => { }).Do(_ => { });
-        var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
-        diContainer.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), new Storage.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
-        ProdDatabase = dbFactory.MarketDataDb as Storage.MarketDataDb.MarketDataDbContext;
-    }
-
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
@@ -182,6 +165,12 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     public async Task MarketOutlookSnapshot_UpsertsAndReturnsLatestValidRowFromScylla()
     {
         const string deleteCql = "DELETE FROM market_outlook_snapshot WHERE contractId = :contractId;";
+        const string insertLegacyCql = """
+            INSERT INTO market_outlook_snapshot
+                (contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs)
+            VALUES
+                (:contractId, :valueDate, :revision, :updatedOn, :eodData, :futuresTradeSignal, :missingInputs);
+            """;
         const string corruptCql = """
             UPDATE market_outlook_snapshot
             SET snapshot = :snapshot
@@ -190,7 +179,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var db = TestFixture.DevDatabase;
         var contractId = $"MOS{Guid.NewGuid():N}";
         var firstDate = new DateOnly(2098, 9, 1);
+        var legacyDate = firstDate.AddDays(-1);
         var secondDate = firstDate.AddDays(1);
+        var legacy = Snapshot(legacyDate, 5_025m, "legacy");
         var first = Snapshot(firstDate, 5_050m, "first");
         var replacement = Snapshot(firstDate, 5_075m, "replacement");
         var second = Snapshot(secondDate, 5_100m, "second");
@@ -199,6 +190,29 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         {
             (await db.GetMarketOutlookSnapshotAsync(contractId, secondDate))
                 .Should().BeNull();
+
+            await db.Use($"{nameof(MarketDataDbTests)}.InsertLegacyMarketOutlookSnapshot", insertLegacyCql)
+                .SetParameters(new UpsertLegacyMarketOutlookSnapshot(
+                    contractId,
+                    legacyDate,
+                    1,
+                    legacy.UpdatedAtUtc,
+                    MessagePackSerializer.Serialize(legacy.FuturesEodData),
+                    null,
+                    legacy.MissingInputs))
+                .ExecuteCommandAsync();
+
+            var restoredLegacy = await db.GetMarketOutlookSnapshotAsync(contractId, legacyDate);
+            restoredLegacy.Should().NotBeNull();
+            restoredLegacy!.ContractId.Should().Be(contractId);
+            restoredLegacy.ValueDate.Should().Be(legacyDate);
+            restoredLegacy.UpdatedAtUtc.Should().Be(legacy.UpdatedAtUtc);
+            restoredLegacy.MarketDataAsOfUtc.Should().Be(legacy.UpdatedAtUtc);
+            restoredLegacy.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.PersistedBaseline);
+            restoredLegacy.FuturesEodData.Should().BeEquivalentTo(legacy.FuturesEodData);
+            restoredLegacy.FuturesTradeSignal.Should().BeNull();
+            restoredLegacy.MissingInputs.Should().Be("legacy");
+            restoredLegacy.EsPriceAvailability.Should().Be(MarketOutlookInputAvailability.Available);
 
             await db.UpsertMarketOutlookSnapshotAsync(first, 1);
             (await db.GetMarketOutlookSnapshotAsync(contractId, firstDate))
@@ -235,8 +249,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             {
                 ContractId = contractId,
                 ValueDate = valueDate,
-                UpdatedAtUtc = new DateTime(2098, 9, valueDate.Day, 20, 0, 0, DateTimeKind.Utc),
-                MarketDataAsOfUtc = new DateTime(2098, 9, valueDate.Day, 19, 59, 0, DateTimeKind.Utc),
+                UpdatedAtUtc = valueDate.ToDateTime(new TimeOnly(20, 0), DateTimeKind.Utc),
+                MarketDataAsOfUtc = valueDate.ToDateTime(new TimeOnly(19, 59), DateTimeKind.Utc),
                 RefreshTrigger = MarketOutlookRefreshTrigger.EodSession,
                 MissingInputs = missingInputs,
                 VixFuturesPrice = 18.25m,
@@ -265,6 +279,27 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         DateOnly ValueDate) : IBindValue
     {
         public object Bind() => new object[] { Snapshot, ContractId, ValueDate };
+    }
+
+    readonly record struct UpsertLegacyMarketOutlookSnapshot(
+        string ContractId,
+        DateOnly ValueDate,
+        long Revision,
+        DateTime UpdatedOn,
+        byte[] EodData,
+        byte[]? FuturesTradeSignal,
+        string MissingInputs) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            ContractId,
+            ValueDate,
+            Revision,
+            UpdatedOn,
+            EodData,
+            FuturesTradeSignal,
+            MissingInputs
+        };
     }
 
     [Fact]
@@ -426,159 +461,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await TestFixture.DevDatabase.DeleteFuturesItiSignalAsync(
                 contractId, key.ValueDate, key.TimePeriod);
         }
-    }
-
-    public async Task InsertFuturesTickDataFromProdToDev_Ok()
-    {
-        var db = TestFixture.ProdDatabase;
-        var tickData = await db.UseTest($"select ContractId, ValueDate, TickDate, TickTime, Price, Size from dbo.futures_tick_data")
-            .ExecuteQueryAsync<FuturesTickDataV2ReadModel>(MapToFuturesTickData);
-        var counter = 0;
-        var v2TickDataList = new LinkedList<FuturesTickDataV2ReadModel>();
-        foreach (var e in tickData)
-        {
-            var v2TickData = new FuturesTickDataV2ReadModel
-           (
-               contractId: e.ContractId,
-               valueDate: e.ValueDate,
-               tickId: await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId),
-               tickTime: e.TickTime,
-               price: e.Price,
-               size: e.Size
-           );
-            v2TickDataList.AddLast(v2TickData);
-        }
-        var insertMap = new Dictionary<(string, DateOnly), LinkedList<FuturesTickDataV2ReadModel>>();
-        foreach (var e in v2TickDataList)
-        {
-            var key = (e.ContractId, e.ValueDate);
-            if (!insertMap.TryGetValue(key, out LinkedList<FuturesTickDataV2ReadModel> value))
-            {
-                value = new LinkedList<FuturesTickDataV2ReadModel>();
-                insertMap.Add(key, value);
-            }
-            if (value.Count >= 65535)
-                continue;
-            value.AddLast(e);
-        }
-        foreach (var e in insertMap)
-        {
-            foreach (int o in Enumerable.Range(1, 10))
-            {
-                try
-                {
-                    await TestFixture.DevDatabase.InsertFuturesTickDataAsync(e.Value);
-                    break;
-                }
-                catch (StorageTimoutException)
-                {
-                    await Task.Delay(1000);
-                    if (o == 10)
-                        break;
-                }
-            }
-        }
-        //CsvWriter.WriteToCsv(v2TickDataList, "C:\\Users\\basil\\OneDrive\\TomasAI\\Data\\Csv\\futures_tick_data.csv");
-        Assert.NotNull(tickData);
-
-        static FuturesTickDataV2ReadModel MapToFuturesTickData(IObjectDataRecord e)
-            => new(
-                contractId: e.GetString(0),
-                valueDate: e.GetDateOnly(1),
-                tickId: e.GetLong(2),
-                tickTime: e.GetTimeOnly(3),
-                price: e.GetDecimal(4),
-                size: e.GetInt(5)
-            );
-    }
-
-    public async Task InsertFuturesOptionTickDataFromProdToDev_Ok()
-    {
-        var db = TestFixture.ProdDatabase;
-        var tickData = await db.UseTest($"SELECT OptionTickId, ContractId, TickDate, TickTime, OptionPrice, BidPrice, AskPrice, BidSize, AskSize, ImpliedVolatility, Delta, Gamma, Vega, Theta, Rho,UnderlyingPrice  FROM marketdatadb.dbo.futures_option_tick_data")
-            .ExecuteQueryAsync<FuturesOptionTickDataV2ReadModel>(MapToFuturesOptionTickData);
-        var v2TickDataList = new LinkedList<FuturesOptionTickDataV2ReadModel>();
-        foreach (var e in tickData)
-        {
-            var v2TickData = new FuturesOptionTickDataV2ReadModel
-            (
-                contractId: e.ContractId,
-                valueDate: e.ValueDate,
-                tickId: await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesOptionTickData_TickId),
-                tickTime: e.TickTime,
-                optionPrice: e.OptionPrice,
-                bidPrice: e.BidPrice,
-                askPrice: e.AskPrice,
-                bidSize: e.BidSize,
-                askSize: e.AskSize,
-                impliedVolatility: e.ImpliedVolatility,
-                underlyingPrice: e.UnderlyingPrice,
-                delta: e.Delta,
-                gamma: e.Gamma,
-                vega: e.Vega,
-                theta: e.Theta,
-                rho: e.Rho
-            );
-            v2TickDataList.AddLast(v2TickData);
-        }
-        var insertMap = new Dictionary<(string, DateOnly), LinkedList<FuturesOptionTickDataV2ReadModel>>();
-        foreach (var e in v2TickDataList)
-        {
-            var key = (e.ContractId, e.ValueDate);
-            if (!insertMap.TryGetValue(key, out LinkedList<FuturesOptionTickDataV2ReadModel> value))
-            {
-                value = new LinkedList<FuturesOptionTickDataV2ReadModel>();
-                insertMap.Add(key, value);
-            }
-            if (value.Count >= 65535)
-                continue;
-            value.AddLast(e);
-        }
-        foreach (var e in insertMap)
-        {
-            foreach (int o in Enumerable.Range(1, 10))
-            {
-                try
-                {
-                    await TestFixture.DevDatabase.InsertFuturesOptionTickDataAsync(e.Value);
-                    break;
-                }
-                catch (StorageTimoutException)
-                {
-                    await Task.Delay(1000);
-                    if (o == 10)
-                        break;
-                }
-                catch (Exception ex)
-                {
-                    await Task.Delay(1000);
-                    if (o == 10)
-                        break;
-                }
-            }
-        }
-        //CsvWriter.WriteToCsv(v2TickDataList, "C:\\Users\\basil\\OneDrive\\TomasAI\\Data\\Csv\\futures_tick_data.csv");
-        Assert.NotNull(tickData);
-
-        static FuturesOptionTickDataV2ReadModel MapToFuturesOptionTickData(IObjectDataRecord e)
-            => new(
-                contractId: e.GetString(0),
-                valueDate: e.GetDateOnly(1),
-                tickId: e.GetLong(2),
-                tickTime: e.GetTimeOnly(3),
-                optionPrice: e.GetDouble(4),
-                bidPrice: e.GetDouble(5),
-                askPrice: e.GetDouble(6),
-                bidSize: e.GetInt(7),
-                askSize: e.GetInt(8),
-                impliedVolatility: e.GetDouble(9),
-                underlyingPrice: e.GetDouble(10),
-                delta: e.GetDouble(11),
-                gamma: e.GetDouble(12),
-                vega: e.GetDouble(13),
-                theta: e.GetDouble(14),
-                rho: e.GetDouble(15)
-            );
     }
 
     [Fact]

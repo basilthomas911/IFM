@@ -9,7 +9,7 @@ public static class OptionPricingQualification
     {
         ArgumentNullException.ThrowIfNull(c);
         OptionPricingFailure Fail(string code, string input) => new(code, input, c.ContractId, "Contract pricing qualification failed.");
-        if (c.SchemaVersion is not (1 or 2) || !OptionPremiumTicks.IsValid(c) || at.Offset != TimeSpan.Zero || c.InstrumentId == 0 || c.PublisherId == 0
+        if (c.SchemaVersion is not (1 or 2 or 3) || !OptionPremiumTicks.IsValid(c) || at.Offset != TimeSpan.Zero || c.InstrumentId == 0 || c.PublisherId == 0
             || string.IsNullOrWhiteSpace(c.ContractId) || string.IsNullOrWhiteSpace(c.UnderlyingContractId)
             || string.IsNullOrWhiteSpace(c.RawSymbol) || string.IsNullOrWhiteSpace(c.Exchange)
             || string.IsNullOrWhiteSpace(c.MappingVersion) || string.IsNullOrWhiteSpace(c.EvidenceId)
@@ -22,10 +22,22 @@ public static class OptionPricingQualification
             return Fail("ContractMetadataUnavailable", "Definition/Mapping");
         if (c.ExerciseStyle == OptionExerciseStyle.Unknown)
             return Fail("ContractMetadataUnavailable", "ExerciseStyle");
-        if (c.Root != "ES" || c.Dataset != "GLBX.MDP3" || c.Currency != "USD"
+        if (c.SchemaVersion < 3 && (c.Root != "ES" || c.Dataset != "GLBX.MDP3" || c.Currency != "USD"
             || c.ExerciseStyle != OptionExerciseStyle.European
-            || c.SettlementStyle != OptionSettlementStyle.DeliveryOfFuture)
+            || c.SettlementStyle != OptionSettlementStyle.DeliveryOfFuture))
             return Fail("PricingModelUnsupported", "Product/Exercise/Settlement");
+        if (c.SchemaVersion == 3)
+        {
+            if (c.Strike is not > 0 || c.Right is not (PricingOptionRight.Call or PricingOptionRight.Put)
+                || c.PremiumStyle == OptionPremiumStyle.Unknown || c.UnderlyingKind == PricingUnderlyingKind.Unknown
+                || string.IsNullOrWhiteSpace(c.Root) || string.IsNullOrWhiteSpace(c.Dataset))
+                return Fail("ContractMetadataUnavailable", "EconomicTerms");
+            if (c.UnderlyingKind != PricingUnderlyingKind.Futures || c.Currency != "USD"
+                || c.ExerciseStyle is not (OptionExerciseStyle.European or OptionExerciseStyle.American)
+                || c.PremiumStyle is not (OptionPremiumStyle.PaidUpfront or OptionPremiumStyle.FuturesStyle)
+                || c.SettlementStyle is not (OptionSettlementStyle.DeliveryOfFuture or OptionSettlementStyle.Cash))
+                return Fail("PricingModelUnsupported", "Product/Exercise/Settlement");
+        }
         if (c.DayCount is not (PricingDayCount.Actual365Fixed or PricingDayCount.Actual360))
             return Fail("DayCountUnsupported", "DayCount");
         if (at >= c.ExpirationUtc || at >= c.LastTradingUtc)
@@ -46,7 +58,7 @@ public static class OptionPricingQualification
     {
         ArgumentNullException.ThrowIfNull(calendar);
         if (calendar.TradingDates.IsDefault || calendar.TradingDates.Length > 2000
-            || calendar.TimeZoneId is not ("America/New_York" or "Eastern Standard Time")
+            || string.IsNullOrWhiteSpace(calendar.TimeZoneId)
             || calendar.Version != contract.CalendarVersion || string.IsNullOrWhiteSpace(calendar.Version)
             || calendar.CoverageFrom > calendar.CoverageUntil
             || calendar.TradingDates.Any(x => x < calendar.CoverageFrom || x > calendar.CoverageUntil)

@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 /// Utility methods for local symbol generation remain static and are not serialized.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesOptionContractReadModel
+public partial record FuturesOptionContractReadModel
 {
     /// <summary>Full contract identifier string (parsed by <c>FuturesOptionContractId</c>).</summary>
     [Key(0)] public string ContractId { get; init; }
@@ -55,12 +55,12 @@ public record FuturesOptionContractReadModel
     /// <summary>Strongly typed option contract identifier (not serialized).</summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesOptionContractId Id { get; private set; } = default!;
+    public FuturesOptionContractId Id => string.IsNullOrEmpty(ContractId) ? new() : new(ContractId);
 
     /// <summary>Entity identifier grouped by contract year (not serialized).</summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesOptionContractEntityId EntityId { get; private set; } = default;
+    public FuturesOptionContractEntityId EntityId => new(ContractId ?? string.Empty, ContractMonth.Year);
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and tooling.
@@ -95,8 +95,6 @@ public record FuturesOptionContractReadModel
         StrikePrice = strikePrice;
         OptionType = optionType;
 
-        Id = new FuturesOptionContractId(ContractId ?? string.Empty);
-        EntityId = new FuturesOptionContractEntityId(ContractId ?? string.Empty, contractMonth.Year);
     }
 
     /// <summary>
@@ -107,7 +105,12 @@ public record FuturesOptionContractReadModel
     /// <param name="strikePrice">Strike price.</param>
     /// <returns>Formatted local symbol with type and strike.</returns>
     public static string GetContractLocalSymbol(string localSymbol, string optionType, double strikePrice)
-        => $"{localSymbol} {optionType.Substring(0, 1)}{strikePrice:0000}";
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{localSymbol} {optionType.Substring(0, 1)}{strikePrice:0000.################}");
+
+    public static string GetExactContractLocalSymbol(string localSymbol, string optionType, decimal strikePrice)
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{localSymbol} {optionType.Substring(0, 1)}{strikePrice:0000.############################}");
 
     /// <summary>
     /// Builds a local symbol based on underlying symbol, week number within month, contract month code and year digit.
@@ -219,11 +222,14 @@ public class FuturesOptionContractReadModelValidationRules(IReferenceLookupServi
         {
             RuleFor(x => x.ContractId).NotEmpty().WithMessage(ContractIdErrorMessage);
             RuleFor(x => x.SecurityType).NotEmpty().Equal("FOP").WithMessage(SecurityTypeErrorMessage);
-            RuleFor(x => x.Symbol).NotEmpty().Must(e => refLookupService.SymbolExists(e)).WithMessage(SymbolErrorMessage);
+            RuleFor(x => x.Symbol).NotEmpty().Must((c, e) => c.SchemaVersion == 1 || refLookupService.SymbolExists(e)).WithMessage(SymbolErrorMessage);
             RuleFor(x => x.LocalSymbol).NotEmpty().WithMessage(LocalSymbolErrorMessage);
-            RuleFor(x => x.Currency).NotEmpty().Must(e => refLookupService.CurrencyExists(e)).WithMessage(CurrencyErrorMessage);
-            RuleFor(x => x.Exchange).NotEmpty().Must(e => refLookupService.ExchangeExists(e)).WithMessage(ExchangeErrorMessage);
-            RuleFor(x => x.Multiplier).NotEmpty().Must(e => refLookupService.MultiplierExists(e)).WithMessage(MultiplierErrorMessage);
+            RuleFor(x => x.Currency).NotEmpty().Must((c, e) => c.SchemaVersion == 1 || refLookupService.CurrencyExists(e)).WithMessage(CurrencyErrorMessage);
+            RuleFor(x => x.Exchange).NotEmpty().Must((c, e) => c.SchemaVersion == 1 || refLookupService.ExchangeExists(e)).WithMessage(ExchangeErrorMessage);
+            RuleFor(x => x.Multiplier).NotEmpty().Must((c, e) => c.SchemaVersion == 1
+                ? decimal.TryParse(e, System.Globalization.NumberStyles.AllowDecimalPoint,
+                    System.Globalization.CultureInfo.InvariantCulture, out var multiplier) && multiplier > 0 && multiplier == c.MultiplierValue
+                : refLookupService.MultiplierExists(e)).WithMessage(MultiplierErrorMessage);
             RuleFor(x => x.ContractMonth).NotEmpty().Must(e => e != DateOnly.MinValue && e != DateOnly.MaxValue).WithMessage(ContractMonthErrorMessage);
             RuleFor(x => x.StrikePrice).NotEmpty().Must(e => !double.IsNaN(e)).WithMessage(StrikePriceErrorMessage);
             RuleFor(x => x.OptionType).NotEmpty().WithMessage(OptionTypeErrorMessage);

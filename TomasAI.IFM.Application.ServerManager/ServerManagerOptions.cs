@@ -102,7 +102,7 @@ public sealed class ManagedProcessDefinition
 
     public string? ReadinessUri { get; set; }
 
-    public int ReadinessTimeoutSeconds { get; set; } = 300;
+    public int ReadinessTimeoutSeconds { get; set; } = 900;
 
     public int ReadinessPollIntervalMilliseconds { get; set; } = 500;
 

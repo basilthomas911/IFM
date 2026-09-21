@@ -73,6 +73,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     RiskPositionType _riskPositionType;
     Guid _liveFeedQuoteId;
     decimal _fundBalance;
+    BrokerOrderType _brokerOrderType = BrokerOrderType.Limit;
+    BrokerAlgorithm _brokerAlgorithm = BrokerAlgorithm.None;
     decimal _orderPrice;
     decimal _assetPrice;
     decimal? _fundMaxProfit;
@@ -163,6 +165,16 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     public IAppRoot AppRoot => _appRoot;
     public bool IsHistoricalReadOnly => _historicalReadOnly;
+
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
+    {
+        ThrowIfHistoricalReadOnly();
+        if (orderType is not (BrokerOrderType.Market or BrokerOrderType.Limit) ||
+            algorithm is not (BrokerAlgorithm.None or BrokerAlgorithm.Adaptive))
+            throw new InvalidOperationException($"Unsupported broker execution selection: {orderType} / {algorithm}.");
+        _brokerOrderType = orderType;
+        _brokerAlgorithm = algorithm;
+    }
     public DateOnly ValueDate => _valueDate;
     public DateOnly TradeDate => _ironCondorTrade.TradeDate;
     public DateOnly MaturityDate => _ironCondorTrade.MaturityDate;
@@ -863,6 +875,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         var maximumLoss = Math.Abs(_ironCondorTrade.TradeLimit?.MaxLoss ?? tradeOrder.TotalAmount);
         var evidence = string.Join('|', PortfolioId, FundId, compositionId, componentId,
             _baseContract.ContractId, tradeOrder.ValueDate, tradeOrder.TotalAmount, tradeOrder.OrderPrice,
+            _brokerOrderType, _brokerAlgorithm,
             string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
         var evidenceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
         var accountAlias = "IFM-EMULATOR-PAPER";
@@ -921,7 +934,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             MicroExecutionProfileId = "ManualExactLimit",
             MicroExecutionProfileVersion = 1,
             MicroExecutionProfileHash = evidenceHash,
-            AccountPromotionApprovalReference = approvalReference
+            AccountPromotionApprovalReference = approvalReference,
+            BrokerOrderType = _brokerOrderType,
+            BrokerAlgorithm = _brokerAlgorithm
         };
     }
 

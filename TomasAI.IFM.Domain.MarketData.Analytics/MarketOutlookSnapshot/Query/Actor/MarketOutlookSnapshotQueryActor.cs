@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -25,7 +26,10 @@ public class MarketOutlookSnapshotQueryActor(
         {
             [GetMarketOutlookSnapshotQuery.Verb] = message =>
                 message.AsQuery<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>()
-                ?? throw new InvalidOperationException("Unable to deserialize the Market Outlook snapshot query.")
+                ?? throw new InvalidOperationException("Unable to deserialize the Market Outlook snapshot query."),
+            [GetFuturesBollingerBandHistoryQuery.Verb] = message =>
+                message.AsQuery<GetFuturesBollingerBandHistoryQuery, FuturesBbSignalReadModel[]>()
+                ?? throw new InvalidOperationException("Unable to deserialize the Bollinger history query.")
         };
 
     static readonly IReadOnlyDictionary<Type, Func<
@@ -41,7 +45,9 @@ public class MarketOutlookSnapshotQueryActor(
             ValueTask>>
         {
             [typeof(GetMarketOutlookSnapshotQuery)] = static (context, domainContext, query, cancellationToken) =>
-                ((GetMarketOutlookSnapshotQuery)query).ExecuteAsync(context, domainContext, cancellationToken)
+                ((GetMarketOutlookSnapshotQuery)query).ExecuteAsync(context, domainContext, cancellationToken),
+            [typeof(GetFuturesBollingerBandHistoryQuery)] = static (context, domainContext, query, cancellationToken) =>
+                ((GetFuturesBollingerBandHistoryQuery)query).ExecuteAsync(context, domainContext, cancellationToken)
         };
 
     protected override IQuery ParseMessage(

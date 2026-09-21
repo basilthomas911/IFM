@@ -48,7 +48,7 @@ public sealed class OptionPremiumTickTests
     public void Invalid_schema_rule_product_or_minimum_increment_fails_qualification()
     {
         var c = Reviewed();
-        foreach (var invalid in new[] { c with { SchemaVersion = 3 }, c with { PremiumTickRule = (OptionPremiumTickRule)99 },
+        foreach (var invalid in new[] { c with { SchemaVersion = 4 }, c with { PremiumTickRule = (OptionPremiumTickRule)99 },
             c with { PremiumTickRule = OptionPremiumTickRule.Unspecified }, c with { TickSize = .25m },
             c with { TickRuleVersion = "unverified" }, c with { Multiplier = 5 }, c with { Exchange = "XNAS" },
             c with { SchemaVersion = 1 } })

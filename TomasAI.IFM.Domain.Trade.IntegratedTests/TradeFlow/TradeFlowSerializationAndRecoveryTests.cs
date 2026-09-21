@@ -14,6 +14,57 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.TradeFlow;
 public sealed class TradeFlowSerializationAndRecoveryTests
 {
     [Fact]
+    public void Fill_aware_close_commands_round_trip_and_historical_time_only_payloads_remain_readable()
+    {
+        var leg=CreateOrder(Guid.NewGuid()).Components[0].Legs[0];
+        var fill=Fill(leg,Guid.NewGuid(),Guid.NewGuid(),-1,"close-wire");
+        Check(new Shared.Futures.Position.CloseFuturesPositionCommand { ClosingFills=[fill] },x=>x.ClosingFills);
+        Check(new Shared.Futures.Option.Position.CloseIronCondorPositionCommand { ClosingFills=[fill] },x=>x.ClosingFills);
+        Check(new Shared.Futures.Option.Position.CloseVerticalSpreadPositionCommand { ClosingFills=[fill] },x=>x.ClosingFills);
+        static void Check<T>(T value,Func<T,ExecutionFillEvidence[]> evidence)
+        {
+            var bytes=MessagePackSerializer.Serialize(value);
+            evidence(MessagePackSerializer.Deserialize<T>(bytes)).Should().BeEquivalentTo(evidence(value));
+            var reader=new MessagePackReader(bytes);
+            reader.ReadArrayHeader().Should().Be(6);
+            var buffer=new System.Buffers.ArrayBufferWriter<byte>();
+            var writer=new MessagePackWriter(buffer);
+            writer.WriteArrayHeader(5);
+            for(var i=0;i<5;i++) writer.WriteRaw(reader.ReadRaw());
+            writer.Flush();
+            evidence(MessagePackSerializer.Deserialize<T>(buffer.WrittenMemory)).Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void Serialized_partial_position_recovers_closing_fill_deduplication_and_can_finish()
+    {
+        var leg=CreateOrder(Guid.NewGuid()).Components[0].Legs[0] with { SignedQuantity=2 };
+        var opening=Fill(leg,Guid.NewGuid(),Guid.NewGuid(),2,"open-position-wire");
+        var trade=new EstablishedTradeDefinition { Id=new(1,2,3,4),StrategyKind=TradeStrategyKind.FuturesOutright,
+            Status=EstablishedTradeStatus.Open,Legs=[leg],OriginalFills=[opening] };
+        var model=new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
+        model.Open(trade,Guid.NewGuid(),opening.FilledAtUtc).Accepted.Should().BeTrue();
+        var historicalReader=new MessagePackReader(MessagePackSerializer.Serialize(model.Current!));
+        historicalReader.ReadArrayHeader().Should().Be(13);
+        var historicalBuffer=new System.Buffers.ArrayBufferWriter<byte>();
+        var historicalWriter=new MessagePackWriter(historicalBuffer);
+        historicalWriter.WriteArrayHeader(12);
+        for(var i=0;i<12;i++) historicalWriter.WriteRaw(historicalReader.ReadRaw());
+        historicalWriter.Flush();
+        MessagePackSerializer.Deserialize<StrategyPositionSnapshot>(historicalBuffer.WrittenMemory).ClosingFills.Should().BeEmpty();
+        var fill=Fill(leg,opening.ComponentId,Guid.NewGuid(),-1,"close-position-wire") with { Price=110m };
+        var partial=model.Close([fill],opening.FilledAtUtc.AddMinutes(1)).Value!;
+        var bytes=MessagePackSerializer.Serialize(partial);
+        var recovered=new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
+        recovered.Replay(MessagePackSerializer.Deserialize<StrategyPositionSnapshot>(bytes));
+        recovered.Close([fill],opening.FilledAtUtc.AddMinutes(2)).Value.Should().BeEquivalentTo(partial);
+        var final=fill with { ExecutionFillId=Guid.NewGuid(),ExecutionAttemptId=Guid.NewGuid(),ExternalExecutionId="final-position-wire" };
+        recovered.Close([final],opening.FilledAtUtc.AddMinutes(2)).Value!.IsOpen.Should().BeFalse();
+        recovered.Current!.RealizedPnl.Should().Be(20m);
+    }
+
+    [Fact]
     public void Trade_order_messagepack_round_trip_preserves_stable_ownership_and_leg_identity()
     {
         var legId = Guid.NewGuid();

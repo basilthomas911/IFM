@@ -22,6 +22,7 @@ if (OperatingSystem.IsLinux() && NativeMethods.setpgid(0, 0) != 0)
 using var input = new AnonymousPipeClientStream(PipeDirection.In, worker.ControlIn);
 using var output = new AnonymousPipeClientStream(PipeDirection.Out, worker.ControlOut);
 using var publications = new AnonymousPipeClientStream(PipeDirection.Out, worker.PublicationOut);
+using var retentionAcknowledgments = new AnonymousPipeClientStream(PipeDirection.In, worker.RetentionAckIn);
 var sequence = 0L;
 var supervisorSequence = 0L;
 var generation = worker.GenerationId;
@@ -230,9 +231,9 @@ async Task InstallManifestAsync(DatasetSubscriptionManifest manifest)
 {
     await StopRuntimeAsync();
     pipePublisher = new PipeDatasetWorkerPublisher(publications, worker.Dataset,
-        worker.ValueDate, worker.WorkerInstanceId, manifest.Revision);
+        worker.ValueDate, worker.WorkerInstanceId, manifest.Revision, retentionAcknowledgments);
     datasetRuntime = await DatasetWorkerRuntime.StartAsync(manifest, worker.DeploymentProfile,
-        worker.DataSource, worker.Synthetic, pipePublisher, stopping.Token);
+        worker.DataSource, worker.Synthetic, pipePublisher, stopping.Token, worker.OptionPricingRefresh);
     if (!datasetRuntime.IsHealthy || datasetRuntime.GenerationId == Guid.Empty)
         throw new InvalidOperationException("The replacement dataset generation is not healthy.");
     generation = datasetRuntime.GenerationId;
@@ -304,26 +305,29 @@ file sealed record DatasetWorkerArguments(
     string ControlIn,
     string ControlOut,
     string PublicationOut,
+    string RetentionAckIn,
     string Dataset,
     DateOnly ValueDate,
     Guid WorkerInstanceId,
     Guid GenerationId,
     TomasAI.IFM.Framework.MarketData.DataBento.FeedDeploymentProfile DeploymentProfile,
     TomasAI.IFM.Framework.MarketData.DataBento.FeedDataSourceMode DataSource,
-    TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions Synthetic)
+    TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions Synthetic,
+    TomasAI.IFM.Application.MarketData.Pricing.OptionPricingRefreshPolicy OptionPricingRefresh)
 {
     public static bool TryParse(string[] values, out DatasetWorkerArguments result, out string error)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var index = 0; index + 1 < values.Length; index += 2)
             map[values[index]] = values[index + 1];
-        string? input = null, output = null, publication = null, dataset = null;
+        string? input = null, output = null, publication = null, dataset = null, retentionAck = null;
         var valueDate = default(DateOnly);
         var workerId = Guid.Empty;
         var generationId = Guid.Empty;
         var valid = map.TryGetValue("--control-in", out input)
             && map.TryGetValue("--control-out", out output)
             && map.TryGetValue("--publication-out", out publication)
+            && map.TryGetValue("--retention-ack-in", out retentionAck)
             && map.TryGetValue("--dataset", out dataset)
             && map.TryGetValue("--value-date", out var valueDateText)
             && DateOnly.TryParseExact(valueDateText, "yyyy-MM-dd", out valueDate)
@@ -350,8 +354,23 @@ file sealed record DatasetWorkerArguments(
             RecordsPerSecond = ParseInt(map, "--synthetic-records-per-second", 100),
             StartSequence = ParseUlong(map, "--synthetic-start-sequence", 1)
         };
-        result = new(input!, output!, publication!, dataset!, valueDate, workerId, generationId,
-            profile, dataSource, synthetic);
+        TomasAI.IFM.Application.MarketData.Pricing.OptionPricingRefreshPolicy refresh;
+        try
+        {
+            refresh = map.TryGetValue("--option-pricing-refresh", out var json)
+                ? System.Text.Json.JsonSerializer.Deserialize<TomasAI.IFM.Application.MarketData.Pricing.OptionPricingRefreshPolicy>(json)
+                    ?? throw new ArgumentException("Missing option refresh policy.")
+                : new();
+            refresh.Validate();
+        }
+        catch (Exception exception) when (exception is System.Text.Json.JsonException or ArgumentException)
+        {
+            result = null!;
+            error = "Invalid option pricing refresh policy.";
+            return false;
+        }
+        result = new(input!, output!, publication!, retentionAck!, dataset!, valueDate, workerId, generationId,
+            profile, dataSource, synthetic, refresh);
         error = string.Empty;
         return true;
     }
