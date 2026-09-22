@@ -208,8 +208,11 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
             openingOrder.Id.PortfolioId, openingOrder.Id.FundId, openingOrder.Id.OrderId,
             openingComponent.ReservedTradeId), Guid.NewGuid());
         var now = DateTime.UtcNow;
-        var workflowId = new TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitPositionWorkflowId(
-            positionId, DateOnly.FromDateTime(now), Guid.NewGuid());
+        var portfolioPositionId = new PortfolioPositionReference(
+            positionId.Trade.PortfolioId, positionId.Trade.FundId, positionId.Trade.OrderId,
+            positionId.Trade.TradeId, positionId.PositionId);
+        var workflowId = new PortfolioExitWorkflowId(
+            portfolioPositionId, DateOnly.FromDateTime(now), Guid.NewGuid());
         var operationId = Guid.NewGuid();
         var close = new EvaluatePortfolioCloseOrderCompositionCommand
         {
@@ -234,30 +237,18 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
                 ValidUntilUtc = now.AddMinutes(1),
                 Origin = "FuturesExitPositionWorkflow",
                 EvidenceHash = new('c', 64),
-                PositionType = TradeOrderPositionType.Closing,
+                PositionType = PortfolioExecutionPositionType.Closing,
                 Position = new()
                 {
-                    Id = positionId,
+                    Id = portfolioPositionId,
                     StrategyKind = openingComponent.StrategyKind,
-                    Phase = StrategyPositionPhase.MarkToMarket,
-                    PositionSequence = 5,
-                    RouteGeneration = 1,
-                    AsOfUtc = now,
                     IsOpen = true,
-                    Legs = openingComponent.Legs.Select(leg => new StrategyPositionLeg
+                    Legs = openingComponent.Legs.Select(leg => new PortfolioPositionLeg
                     {
                         TradeLegId = leg.TradeLegId,
                         ContractId = leg.ContractId,
-                        ContractKey = leg.ContractKey,
                         AssetFamily = leg.AssetFamily,
-                        SignedQuantity = leg.SignedQuantity,
-                        OpeningPrice = 100,
-                        CurrentPrice = 101,
-                        LastSourceSequence = 5,
-                        LastPriceAtUtc = now,
-                        Expiry = leg.Expiry,
-                        Strike = leg.Strike,
-                        PutCall = leg.PutCall
+                        SignedQuantity = leg.SignedQuantity
                     }).ToArray()
                 },
                 Component = openingComponent with
@@ -279,8 +270,8 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
             throw new InvalidOperationException("Duplicate close must not reevaluate."));
 
         duplicate.Id.Should().Be(first.Id);
-        first.Receipt.TradeOrder!.PositionType.Should().Be(TradeOrderPositionType.Closing);
-        first.Receipt.TradeOrder.TargetPositionId.Should().Be(positionId);
+        first.Receipt.TradeOrder!.PositionType.Should().Be(PortfolioExecutionPositionType.Closing);
+        first.Receipt.TradeOrder.TargetPosition.Should().Be(portfolioPositionId);
         first.Receipt.TradeOrder.Id.OrderId.Should().NotBe(openingOrder.Id.OrderId);
         first.Receipt.TradeOrder.Components.Single().ReservedTradeId
             .Should().Be(openingComponent.ReservedTradeId);
@@ -327,16 +318,16 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
             Body=new()
             {
                 CompositionId=Guid.NewGuid(),WorkflowId=Guid.NewGuid(),DecisionHorizon="Daily",
-                PositionType=TradeOrderPositionType.Opening,
-                StrategyKind=TradeStrategyKind.FuturesOutright,ValueDate=DateOnly.FromDateTime(now),
+                PositionType=PortfolioExecutionPositionType.Opening,
+                StrategyKind=PortfolioExecutionStrategyKind.FuturesOutright,ValueDate=DateOnly.FromDateTime(now),
                 ValidUntilUtc=now.AddMinutes(1),Origin="StrategyWorkflow",EvidenceHash=new('b',64),
                 RequiredCapital=1000,MaximumLoss=1000,StressLoss=1000,Notional=10000,
                 ProductSymbol="ES",ProductExchange="XCME",ProductCurrency="USD",
-                DeploymentKey=DeploymentKey,Components=[new TradeOrderComponentDefinition
+                DeploymentKey=DeploymentKey,Components=[new PortfolioExecutionComponent
                 {
-                    ComponentId=Guid.NewGuid(),StrategyKind=TradeStrategyKind.FuturesOutright,
-                    Legs=[new TradeLegDefinition { TradeLegId=Guid.NewGuid(),ContractId="ESZ6",
-                        AssetFamily=TradeAssetFamily.Futures,SignedQuantity=1,ContractKey="ESZ6" }]
+                    ComponentId=Guid.NewGuid(),StrategyKind=PortfolioExecutionStrategyKind.FuturesOutright,
+                    Legs=[new PortfolioExecutionLeg { TradeLegId=Guid.NewGuid(),ContractId="ESZ6",
+                        AssetFamily=PortfolioExecutionAssetFamily.Futures,SignedQuantity=1,ContractKey="ESZ6" }]
                 }]
             }
         };

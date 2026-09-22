@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 
@@ -68,9 +70,9 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             cancellationToken.ThrowIfCancellationRequested();
             switch (item)
             {
-                case PortfolioFinancialPolicyDomainEvent policy: await handler.ApplyAsync(policy, cancellationToken).ConfigureAwait(false); break;
-                case PortfolioDomainEvent portfolio: await handler.ApplyAsync(portfolio, cancellationToken).ConfigureAwait(false); break;
-                case PortfolioFundDomainEvent fund: await handler.ApplyAsync(fund, cancellationToken).ConfigureAwait(false); break;
+                case IPortfolioFinancialPolicyDomainEvent policy: await handler.ApplyAsync(policy, cancellationToken).ConfigureAwait(false); break;
+                case IPortfolioDomainEvent portfolio: await handler.ApplyAsync(portfolio, cancellationToken).ConfigureAwait(false); break;
+                case IPortfolioFundDomainEvent fund: await handler.ApplyAsync(fund, cancellationToken).ConfigureAwait(false); break;
                 default: throw new InvalidOperationException($"Unsupported rebuild event {item.GetType().FullName}.");
             }
         }
@@ -80,9 +82,9 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
 
     static long SourceEventId(object value) => value switch
     {
-        PortfolioFinancialPolicyDomainEvent x => x.EventId,
-        PortfolioDomainEvent x => x.EventId,
-        PortfolioFundDomainEvent x => x.EventId,
+        IPortfolioFinancialPolicyDomainEvent x => x.EventId,
+        IPortfolioDomainEvent x => x.EventId,
+        IPortfolioFundDomainEvent x => x.EventId,
         _ => 0,
     };
 }

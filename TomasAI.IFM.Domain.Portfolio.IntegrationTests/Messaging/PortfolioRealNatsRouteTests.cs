@@ -25,16 +25,16 @@ public sealed class PortfolioRealNatsRouteTests
     {
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
         var portfolioId = Math.Abs(Guid.NewGuid().GetHashCode()) + 1000;
-        var actorSubject = new ActorSubject(ActorType.Command, PortfolioCommandSubjects.PortfolioActor, "CreatePortfolio", new PortfolioId(portfolioId).Format());
+        var actorSubject = new ActorSubject(ActorType.Command, CreatePortfolioCommand.Actor, "CreatePortfolio", new PortfolioId(portfolioId).Format());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var responder = new NatsClient(url);
         await responder.ConnectAsync();
-        var captured = new TaskCompletionSource<PortfolioCommand<CreatePortfolioPayload, PortfolioId>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var captured = new TaskCompletionSource<CreatePortfolioCommand>(TaskCreationOptions.RunContinuationsAsynchronously);
         var responderTask = Task.Run(async () =>
         {
-            await foreach (var message in responder.SubscribeAsync<PortfolioCommand<CreatePortfolioPayload, PortfolioId>>(
+            await foreach (var message in responder.SubscribeAsync<CreatePortfolioCommand>(
                                actorSubject.ToString(),
-                               serializer: NatsMessagePackSerializer<PortfolioCommand<CreatePortfolioPayload, PortfolioId>>.Default,
+                               serializer: NatsMessagePackSerializer<CreatePortfolioCommand>.Default,
                                cancellationToken: timeout.Token))
             {
                 captured.TrySetResult(message.Data!);
@@ -64,7 +64,7 @@ public sealed class PortfolioRealNatsRouteTests
             result.Value.Should().Be(command.CommandId);
             command.Subject.Should().Be(actorSubject);
             command.EntityId.Should().Be(new PortfolioId(portfolioId));
-            command.Payload.Portfolio.PortfolioId.Should().Be(portfolioId);
+            command.Portfolio.PortfolioId.Should().Be(portfolioId);
             command.CorrelationId.Should().Be(expectedCorrelation);
             command.RequestedOnUtc.Kind.Should().Be(DateTimeKind.Utc);
         }

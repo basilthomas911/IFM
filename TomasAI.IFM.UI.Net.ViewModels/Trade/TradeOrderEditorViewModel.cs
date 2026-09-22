@@ -197,7 +197,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public bool CanUseLiveFeed => CanSubmitOrder;
 
     bool HasMutableOpenOrder => !IsBusy
-        && SelectedFundOrder?.OrderStatus == PortfolioOrderEditorStatus.Open;
+        && SelectedFundOrder?.Status == nameof(FundCompositionState.Draft);
 
     /// <summary>
     /// Gets whether the requested order action is permitted now. Closing positions is always
@@ -234,8 +234,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// <summary>Safely gets a fund order from an explicitly filtered range.</summary>
     public PortfolioFundOrderEditorModel? GetFundOrder(int fundId, DateTime startDate, DateTime endDate, int index)
         => GetAt(Funds.FirstOrDefault(fund => fund.FundId == fundId)?.Orders
-            .Where(order => order.OrderDate >= EasternTime.ToUtc(startDate)
-                            && order.OrderDate <= EasternTime.ToUtc(endDate))
+            .Where(order => order.CreatedOnUtc >= EasternTime.ToUtc(startDate)
+                            && order.CreatedOnUtc <= EasternTime.ToUtc(endDate))
             .ToArray() ?? [], index);
 
     /// <summary>Safely gets a selected-order trade by index.</summary>
@@ -310,7 +310,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// <param name="draft">The order values collected by the editor.</param>
     /// <param name="cancellationToken">A token that cancels command publication or projection reload.</param>
     /// <returns>The committed canonical order composition.</returns>
-    public async Task<FundCompositionReservationResult> CreateManualOrderAsync(PortfolioFundOrderEditorModel draft, CancellationToken cancellationToken = default)
+    public async Task<FundCompositionReservationResult> CreateManualOrderAsync(ManualFundOrderDraftEditorModel draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
         var portfolio = SelectedPortfolio ?? throw new InvalidOperationException("Select a Portfolio before creating an order.");
@@ -352,6 +352,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         ArgumentNullException.ThrowIfNull(order);
         ArgumentNullException.ThrowIfNull(trade);
         var now = DateTime.UtcNow;
+        var maturityDate = trade.RequestedMaturityDate ?? trade.RequestedTradeDate;
         var request = new AddManualFundOrderTradeRequest
         {
             PortfolioId = order.PortfolioId,
@@ -360,21 +361,29 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             ExpectedOrderVersion = order.AggregateVersion,
             TradeId = trade.TradeId,
             TradeType = trade.TradeType.ToString(),
-            TradeDate = trade.TradeDate,
-            MaturityDate = trade.MaturityDate,
+            TradeDate = trade.RequestedTradeDate,
+            MaturityDate = maturityDate,
             TradeState = trade.TradeState.ToString(),
             TradeAction = trade.TradeAction.ToString(),
-            Reference = trade.Reference,
+            Reference = FundOrderTradeReference.Create(
+                trade.BaseContractId,
+                trade.RequestedTradeDate,
+                maturityDate),
             PrimaryTrade = trade.PrimaryTrade,
             BaseContractSymbol = trade.BaseContractSymbol,
+            BaseContractId = trade.BaseContractId,
             RequestedAtUtc = now,
         };
         var result = await _appRoot.Services.PortfolioFundCommands
             .AddManualTradeAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Success || result.Value is null)
-            throw new UiServiceOperationException(
+        {
+            var exception = new UiServiceOperationException(
                 result.ErrorCode,
                 result.ErrorMessage ?? "Unable to add the trade to the manual Portfolio order.");
+            PublishError(exception, "Add Trade Error");
+            throw exception;
+        }
         LastStatusMessage = $"Trade {trade.TradeId} added to Portfolio order {order.OrderId}.";
         await LoadCanonicalOrdersAsync(cancellationToken).ConfigureAwait(false);
         return result.Value;
@@ -533,20 +542,35 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         NotifyCapabilitiesChanged();
     }
 
-    static PortfolioFundOrderEditorModel ToEditorOrder(FundOrderProjectionReadModel order)
-        => new(order.FundId, order.OrderId, order.CreatedOnUtc,
-            Enum.TryParse<PortfolioOrderEditorStatus>(order.Status, true, out var status) ? status : PortfolioOrderEditorStatus.Open,
-            order.UnderlyingRoot, order.RequestedTradeDate, order.RequestedMaturityDate ?? order.RequestedTradeDate,
-            string.IsNullOrWhiteSpace(order.OperatorReference) ? order.WorkflowId.ToString("N") : order.OperatorReference,
-            order.CreatedOnUtc, order.CreatedBy, null, string.Empty);
+    static PortfolioFundOrderEditorModel ToEditorOrder(FundOrderProjectionReadModel order) => new(order);
 
-    static PortfolioFundOrderTradeEditorModel ToEditorTrade(FundOrderTradeProjectionReadModel trade)
-        => new(trade.FundId, trade.OrderId, trade.TradeId,
-            Enum.TryParse<TradeType>(trade.TradeType, true, out var type) ? type : TradeType.Unknown,
-            trade.RequestedTradeDate, trade.RequestedMaturityDate ?? trade.RequestedTradeDate,
-            Enum.TryParse<TradeState>(trade.TradeState, true, out var state) ? state : TradeState.NewTrade,
-            Enum.TryParse<TradeAction>(trade.TradeAction, true, out var action) ? action : TradeAction.Buy,
-            trade.InstructionReference, trade.PrimaryTrade, trade.BaseContractSymbol, trade.CreatedOnUtc, trade.CreatedBy, null, string.Empty);
+    PortfolioFundOrderTradeEditorModel ToEditorTrade(FundOrderTradeProjectionReadModel trade)
+        => new()
+        {
+            PortfolioId = trade.PortfolioId,
+            FundId = trade.FundId,
+            OrderId = trade.OrderId,
+            TradeId = trade.TradeId,
+            TradeFamily = trade.TradeFamily,
+            InstructionReference = trade.InstructionReference,
+            LegOrdinal = trade.LegOrdinal,
+            AggregateVersion = trade.AggregateVersion,
+            DirectionOrBias = trade.DirectionOrBias,
+            TradeAction = Enum.TryParse<TradeAction>(trade.TradeAction, true, out var action) ? action : TradeAction.Buy,
+            UnderlyingRoot = trade.UnderlyingRoot,
+            RequestedTradeDate = trade.RequestedTradeDate,
+            RequestedMaturityDate = trade.RequestedMaturityDate,
+            TradeType = Enum.TryParse<TradeType>(trade.TradeType, true, out var type) ? type : TradeType.Unknown,
+            TradeState = Enum.TryParse<TradeState>(trade.TradeState, true, out var state) ? state : TradeState.NewTrade,
+            PrimaryTrade = trade.PrimaryTrade,
+            BaseContractSymbol = trade.BaseContractSymbol,
+            BaseContractId = !string.IsNullOrWhiteSpace(trade.BaseContractId)
+                ? trade.BaseContractId
+                : _baseContracts.FirstOrDefault(contract =>
+                    string.Equals(contract.Symbol, trade.BaseContractSymbol, StringComparison.OrdinalIgnoreCase))?.ContractId ?? string.Empty,
+            CreatedOnUtc = trade.CreatedOnUtc,
+            CreatedBy = trade.CreatedBy,
+        };
 
     /// <summary>Selects an order and rebuilds its trade list.</summary>
     public bool SelectFundOrder(int index)
@@ -758,7 +782,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         selectedOrderId ??= SelectedFundOrder?.OrderId;
         selectedTradeId ??= SelectedFundOrderTrade?.TradeId;
         FundOrders = SelectedFund?.Orders
-            .Where(order => order.OrderDate >= _fromDate && order.OrderDate <= _toDate)
+            .Where(order => order.CreatedOnUtc >= _fromDate && order.CreatedOnUtc <= _toDate)
             .ToArray() ?? [];
         _fundOrderSelectedIndex = selectedOrderId is null
             ? (FundOrders.Count > 0 ? 0 : -1)
@@ -826,18 +850,4 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             fund.CreatedOn,
             fund.CreatedBy);
 
-    static PortfolioFundOrderEditorModel CloneOrder(PortfolioFundOrderEditorModel order)
-        => new(
-            order.FundId,
-            order.OrderId,
-            order.OrderDate,
-            order.OrderStatus,
-            order.BaseContractId,
-            order.TradeDate,
-            order.MaturityDate,
-            order.Reference,
-            order.CreatedOn,
-            order.CreatedBy,
-            order.UpdatedOn,
-            order.UpdatedBy);
 }

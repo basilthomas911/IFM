@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;

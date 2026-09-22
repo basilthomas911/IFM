@@ -3,7 +3,9 @@ using NSubstitute;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -30,14 +32,14 @@ public sealed class RiskOutcomeRecoveryTests
         var evidence=source.TerminalRisk!;
         var order=new FundOrderProjectionReadModel {OrderId=evidence.OrderId,PortfolioId=evidence.PortfolioId,FundId=evidence.FundId,IdempotencyKey=Guid.NewGuid(),Status="RiskPending",AggregateVersion=3,WorkflowId=evidence.WorkflowId,CompositionResultHash=evidence.CompositionHash};
         var aggregate=new PortfolioFundAggregate();
-        aggregate.Replay([new FundCompositionReserved(Guid.NewGuid(),Guid.NewGuid(),1,DateTime.UtcNow,"fixture",new(){Order=order,Trades=[new(){OrderId=order.OrderId}]})]);
+        aggregate.Replay([new FundCompositionReservedEvent(Guid.NewGuid(),Guid.NewGuid(),1,DateTime.UtcNow,"fixture",new(){Order=order,Trades=[new(){OrderId=order.OrderId}]})]);
         var funds=Substitute.For<IPortfolioEventStore>();funds.LoadFundAsync(Arg.Any<PortfolioFundId>(),Arg.Any<CancellationToken>()).Returns(aggregate);
         var actors=Substitute.For<IActorService>();var calls=0;
-        actors.RequestAsync<PortfolioCommand<SynchronizeFundRiskOutcomePayload,PortfolioFundId>,PortfolioFundId>(Arg.Any<PortfolioCommand<SynchronizeFundRiskOutcomePayload,PortfolioFundId>>(),Arg.Any<CancellationToken>()).Returns(call=>
+        actors.RequestAsync<SynchronizeFundRiskOutcomeCommand,PortfolioFundId>(Arg.Any<SynchronizeFundRiskOutcomeCommand>(),Arg.Any<CancellationToken>()).Returns(call=>
         {
-            calls++;var command=call.Arg<PortfolioCommand<SynchronizeFundRiskOutcomePayload,PortfolioFundId>>();
-            command.Payload.Evidence.Should().Be(evidence);command.RequestedOnUtc.Should().Be(input.ExpiresAtUtc);
-            aggregate.Replay([new FundCompositionStateChanged(Guid.NewGuid(),command.CommandId,2,DateTime.UtcNow,"fixture",order with {AggregateVersion=4,Status="Expired",TerminalRisk=evidence})]);
+            calls++;var command=call.Arg<SynchronizeFundRiskOutcomeCommand>();
+            command.Evidence.Should().Be(evidence);command.RequestedOnUtc.Should().Be(input.ExpiresAtUtc);
+            aggregate.Replay([new FundCompositionStateChangedEvent(Guid.NewGuid(),command.CommandId,2,DateTime.UtcNow,"fixture",order with {AggregateVersion=4,Status="Expired",TerminalRisk=evidence})]);
             return ValueTask.FromException<ServiceResult<Guid>>(new TimeoutException("Reply lost after durable commit"));
         });
         var service=new RiskObservationRecoveryService(null!,null!,funds,actors,NullLogger<RiskObservationRecoveryService>.Instance);

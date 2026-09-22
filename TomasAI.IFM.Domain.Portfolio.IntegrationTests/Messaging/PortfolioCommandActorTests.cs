@@ -1,9 +1,12 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Command.Actor;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Operations;
@@ -42,14 +45,14 @@ public sealed class PortfolioCommandActorTests
             CreatedOnUtc = now, CreatedBy = "admin",
         };
         events.FindCommittedPortfolioCommandAsync(id, commandId, Arg.Any<CancellationToken>())
-            .Returns(new PortfolioCreated(Guid.NewGuid(), commandId, 1, now, "admin", model) { IdempotencyKey = commandId });
+            .Returns(new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, now, "admin", model) { IdempotencyKey = commandId });
         events.FindPortfolioCreateByIdempotencyKeyAsync(id, commandId, Arg.Any<CancellationToken>())
-            .Returns(new PortfolioCreated(Guid.NewGuid(), commandId, 1, now, "admin", model) { IdempotencyKey = commandId });
-        var command = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
+            .Returns(new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, now, "admin", model) { IdempotencyKey = commandId });
+        var command = new CreatePortfolioCommand
         {
             CommandId = commandId, EntityId = id, ErrorCode = 34002,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
-            Payload = new(model, commandId),
+            Portfolio = model, IdempotencyKey = commandId,
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
@@ -59,14 +62,14 @@ public sealed class PortfolioCommandActorTests
         var conflict = await typed.ReceiveAsync(context, state, command with
         {
             CommandId = Guid.NewGuid(),
-            Payload = new(model with { Name = "Changed" }, commandId),
+            Portfolio = model with { Name = "Changed" }, IdempotencyKey = commandId,
         });
 
         replay.Success.Should().BeTrue();
         replay.Value!.Guid.Should().Be(commandId);
         conflict.Success.Should().BeFalse();
         conflict.ErrorCode.Should().Be(PortfolioErrorCodes.IdempotencyConflict);
-        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<PortfolioDomainEvent>(), Arg.Any<long>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
+        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<IPortfolioDomainEvent>(), Arg.Any<long>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
         await projector.DidNotReceive().DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>());
     }
 
@@ -84,16 +87,16 @@ public sealed class PortfolioCommandActorTests
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var now = DateTime.UtcNow;
-        var command = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
+        var command = new CreatePortfolioCommand
         {
             CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = 34002,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
-            Payload = new(new PortfolioReadModel
+            Portfolio = new PortfolioReadModel
             {
                 PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
                 OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
                 CreatedOnUtc = now, CreatedBy = "admin",
-            }, Guid.NewGuid()),
+            }, IdempotencyKey = Guid.NewGuid(),
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
@@ -102,9 +105,9 @@ public sealed class PortfolioCommandActorTests
         var result = await typed.ReceiveAsync(context, state, command);
 
         result.Success.Should().BeTrue();
-        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<PortfolioDomainEvent>(x => x is PortfolioCreated), 0,
+        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<IPortfolioDomainEvent>(x => x is PortfolioCreatedEvent), 0,
             Arg.Is<PortfolioEventMetadata>(x => x.CorrelationId == command.CommandId && x.CausationId == command.CommandId), Arg.Any<CancellationToken>());
-        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Count == 1 && x.Single() is PortfolioCreated));
+        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Count == 1 && x.Single() is PortfolioCreatedEvent));
     }
 
     [Fact]
@@ -127,11 +130,11 @@ public sealed class PortfolioCommandActorTests
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(aggregate);
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
-        var command = new PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId>
+        var command = new DeleteDraftPortfolioCommand
         {
             CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.DraftDeletionNotAllowed,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "DeleteDraftPortfolio", id.Format()),
-            Payload = new(1, "duplicate"),
+            ExpectedVersion = 1, Reason = "duplicate",
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
@@ -140,9 +143,9 @@ public sealed class PortfolioCommandActorTests
         var result = await typed.ReceiveAsync(context, state, command);
 
         result.Success.Should().BeTrue();
-        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<PortfolioDomainEvent>(x => x is DraftPortfolioDeleted), 1,
+        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<IPortfolioDomainEvent>(x => x is DraftPortfolioDeletedEvent), 1,
             Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
-        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is DraftPortfolioDeleted));
+        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is DraftPortfolioDeletedEvent));
     }
 
     [Fact]
@@ -158,16 +161,16 @@ public sealed class PortfolioCommandActorTests
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var now = DateTime.UtcNow;
-        var command = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
+        var command = new CreatePortfolioCommand
         {
             CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
-            Payload = new(new PortfolioReadModel
+            Portfolio = new PortfolioReadModel
             {
                 PortfolioId = id.Id, Name = "Denied", PortfolioVersion = 1,
                 OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
                 CreatedOnUtc = now, CreatedBy = "ignored",
-            }, Guid.NewGuid()),
+            }, IdempotencyKey = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid(), RequestedOnUtc = now,
             Access = PortfolioAccessContext.Reader("read-only-user"),
         };
@@ -177,7 +180,7 @@ public sealed class PortfolioCommandActorTests
         var act = async () => await typed.ReceiveAsync(context, state, command);
 
         await act.Should().ThrowAsync<PortfolioAuthorizationException>();
-        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<PortfolioDomainEvent>(),
+        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<IPortfolioDomainEvent>(),
             Arg.Any<long>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
     }
 

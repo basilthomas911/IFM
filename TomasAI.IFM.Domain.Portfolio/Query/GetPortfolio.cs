@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Portfolio.Query.Actor;
 using TomasAI.IFM.Domain.Portfolio.Query.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using GetPortfolioQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel>;
+using GetPortfolioQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioQuery;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 
@@ -11,5 +11,5 @@ public static class GetPortfolio
 {
     /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
     public static ValueTask ExecuteAsync(this GetPortfolioQuery query, IQueryActorContext<PortfolioQueryActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetPortfolioAsync(query.Parameters.PortfolioId, query.Parameters.Version, cancellationToken));
+        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetPortfolioAsync(query.PortfolioId, query.Version, cancellationToken));
 }

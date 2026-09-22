@@ -10,8 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Strategy.Contracts.Shared/TomasAI.IFM.Domain.Strategy.Contracts.Shared.csproj" /></ItemGroup>

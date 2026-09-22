@@ -3,6 +3,7 @@ using System.Text;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
@@ -54,7 +55,7 @@ public static class PortfolioOrderCompositionMapper
             CompositionId = result.ResultId,
             WorkflowId = view.WorkflowId.Value,
             DecisionHorizon = candidate.TargetHorizon.ToString(),
-            StrategyKind = strategy,
+            StrategyKind = (PortfolioExecutionStrategyKind)strategy,
             ValueDate = result.DecisionContext.ValueDate,
             ValidUntilUtc = candidate.ValidUntilUtc,
             Origin = "IntrinsicTimeStrategyWorkflow",
@@ -66,7 +67,7 @@ public static class PortfolioOrderCompositionMapper
                     StrategyKind = strategy,
                     Legs = legs,
                     PermitBalancedPartialAcceptance = false
-                }
+                }.ToPortfolioComponent()
             ],
             RequiredCapital = requiredCapital,
             EvidenceHash = candidate.CandidateHash,
@@ -80,7 +81,7 @@ public static class PortfolioOrderCompositionMapper
             Delta = candidate.Greeks.Delta,
             Gamma = candidate.Greeks.Gamma,
             Vega = candidate.Greeks.Vega,
-            PositionType = TradeOrderPositionType.Opening,
+            PositionType = PortfolioExecutionPositionType.Opening,
             VolatilityEvidence = result.DecisionContext.VolatilityEvidence
         };
         var operationId = StableId(view.WorkflowId.Value, $"portfolio-order-composition/{view.WorkflowRevision}");
@@ -128,8 +129,8 @@ public static class PortfolioOrderCompositionMapper
             || receipt.CapacityEffects.Select(effect => effect.FundId).Distinct().Count() != receipt.CapacityEffects.Length
             || receipt.CapacityEffects.Length != receipt.TradeOrders.Length
             || receipt.TradeOrders.Any(order => !order.Id.IsValid || order.Id.PortfolioId != expectedPortfolioId
-                || order.Revision != 1 || order.Status != TradeOrderStatus.Approved
-                || order.PositionType != TradeOrderPositionType.Opening
+                || order.Revision != 1 || order.Status != PortfolioExecutionOrderStatus.Approved
+                || order.PositionType != PortfolioExecutionPositionType.Opening
                 || order.VolatilityEvidence != composition.DecisionContext.VolatilityEvidence
                 || order.DefinitionHash != candidate.CandidateHash || order.Components.Length != 1
                 || order.Components[0].ReservedTradeId <= 0
@@ -169,7 +170,7 @@ public static class PortfolioOrderCompositionMapper
         WorkflowId = receipt.WorkflowId,
         Status = receipt.Status == PortfolioOrderCompositionStatus.ExecuteTradeOrders
             ? PortfolioRiskDecisionStatus.ExecuteTradeOrders : PortfolioRiskDecisionStatus.NoTradeOrders,
-        TradeOrders = [.. receipt.TradeOrders],
+        TradeOrders = [.. receipt.TradeOrders.Select(PortfolioExecutionContractMapper.ToTradeOrder)],
         FinancialRevision = receipt.FinancialRevision,
         AcceptedFundCount = receipt.FundDecisions.Count(value => value.Accepted),
         RejectedFundCount = receipt.FundDecisions.Count(value => !value.Accepted),

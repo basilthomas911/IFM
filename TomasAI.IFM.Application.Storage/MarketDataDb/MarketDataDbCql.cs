@@ -1533,12 +1533,10 @@ internal static class MarketDataDbCql
         AND timePeriod = :timePeriod;
     """;
 
-    public const string GetFuturesItiSignalsByDateRangeIndex = """
-        SELECT 
-            valueDate AS "ValueDate",
-            contractId AS "ContractId"
+    public const string GetFuturesItiSignalContractIdsByDate = """
+        SELECT contractId AS "ContractId"
         FROM futures_iti_signal_index
-        WHERE token(valueDate) >= token(:startDate) AND token(valueDate) <= token(:endDate);
+        WHERE valueDate = :valueDate;
     """;
 
     public const string InsertFuturesItiSignalIndex = """

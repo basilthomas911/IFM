@@ -54,7 +54,7 @@ public sealed class PortfolioLifecycleScenarios
 
         var result = aggregate.DeleteDraft(Guid.NewGuid(), 1, "duplicate draft", Now.AddMinutes(1), "portfolio-admin");
 
-        result.Should().BeOfType<TomasAI.IFM.Domain.Portfolio.Command.Model.DraftPortfolioDeleted>();
+        result.Should().BeOfType<TomasAI.IFM.Domain.Portfolio.Shared.Events.DraftPortfolioDeletedEvent>();
         aggregate.IsDeleted.Should().BeTrue();
         aggregate.Current!.PortfolioId.Should().Be(101, "the consumed sequence ID remains in authoritative history");
     }

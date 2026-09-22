@@ -19,7 +19,7 @@ public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrde
         InitializeComponent();
     }
 
-    public PortfolioFundOrderEditorModel FundOrder => _viewModel.FundOrder;
+    public ManualFundOrderDraftEditorModel FundOrder => _viewModel.FundOrder;
 
     public void SetViewModel(FundOrderEditorViewModel viewModel)
     {

@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -600,7 +601,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             _ironCondorTrade = optionTrade ?? CreateIronCondorTrade(TradeStatus);
             MapOptionLeg();
             MapOptionLegData();
-            MapOptionPriceFromTradeReference(_fundOrderTrade.TradeAction, _fundOrderTrade.Reference);
+            MapOptionPriceFromTradeReference(_fundOrderTrade.TradeAction, _fundOrderTrade.InstructionReference);
 
             if (_portfolioId > 0)
             {
@@ -832,7 +833,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             CompositionId = compositionId,
             WorkflowId = Guid.NewGuid(),
             DecisionHorizon = assignment.DecisionHorizon,
-            StrategyKind = TradeStrategyKind.IronCondor,
+            StrategyKind = PortfolioExecutionStrategyKind.IronCondor,
             ValueDate = tradeOrder.ValueDate,
             ValidUntilUtc = now.AddMinutes(5),
             Origin = "DesktopTradeOrder",
@@ -848,7 +849,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                     MinimumSignedNetDebitLimit = tradeOrder.OrderPrice,
                     MaximumSignedNetDebitLimit = tradeOrder.OrderPrice,
                     TickIncrement = 0.05m
-                }
+                }.ToPortfolioComponent()
             ],
             RequiredCapital = risk,
             EvidenceHash = evidenceHash,
@@ -859,15 +860,15 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             ProductSymbol = _baseContract.Symbol,
             ProductExchange = _baseContract.Exchange,
             ProductCurrency = _baseContract.Currency,
-            PositionType = TradeOrderPositionType.Opening,
+            PositionType = PortfolioExecutionPositionType.Opening,
             BrokerAccountAlias = accountAlias,
-            BrokerEnvironment = BrokerEnvironment.Emulator,
+            BrokerEnvironment = PortfolioBrokerEnvironment.Emulator,
             MicroExecutionProfileId = "ManualExactLimit",
             MicroExecutionProfileVersion = 1,
             MicroExecutionProfileHash = evidenceHash,
             AccountPromotionApprovalReference = approvalReference,
-            BrokerOrderType = _brokerOrderType,
-            BrokerAlgorithm = _brokerAlgorithm
+            BrokerOrderType = (PortfolioBrokerOrderType)_brokerOrderType,
+            BrokerAlgorithm = (PortfolioBrokerAlgorithm)_brokerAlgorithm
         };
     }
 
@@ -1530,14 +1531,15 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     private OptionTradeReadModel CreateIronCondorTrade(TradeStatus tradeStatus)
     {
-        var daysToExpiry = _fundOrderTrade.MaturityDate.DayNumber - _fundOrderTrade.TradeDate.DayNumber;
+        var maturityDate = _fundOrderTrade.RequestedMaturityDate ?? _fundOrderTrade.RequestedTradeDate;
+        var daysToExpiry = maturityDate.DayNumber - _fundOrderTrade.RequestedTradeDate.DayNumber;
         var optionLegs = GetOptionLegs();
         var ironCondorTrade = new OptionTradeReadModel (
             orderId: _fundOrderTrade.OrderId,
             tradeId: _fundOrderTrade.TradeId,
             tradeStrategy: string.Empty,
-            tradeDate: _fundOrderTrade.TradeDate,
-            maturityDate: _fundOrderTrade.MaturityDate,
+            tradeDate: _fundOrderTrade.RequestedTradeDate,
+            maturityDate: maturityDate,
             tradeType: _fundOrderTrade.TradeType,
             tradeState: _fundOrderTrade.TradeState,
             tradeAction: _fundOrderTrade.TradeAction,

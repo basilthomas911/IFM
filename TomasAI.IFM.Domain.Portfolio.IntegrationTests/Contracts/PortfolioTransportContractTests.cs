@@ -25,12 +25,12 @@ public sealed class PortfolioTransportContractTests
     [Fact]
     [Trait("Gate", "PF-03")]
     [Trait("Category", "Portfolio")]
-    public void Draft_deletion_payload_round_trips_expected_revision_and_audit_reason()
+    public void Draft_deletion_command_round_trips_expected_revision_and_audit_reason()
     {
         var serializer = new MessagePackBinarySerializer();
-        var source = new DeleteDraftPortfolioPayload(17, "duplicate operator draft");
+        var source = new DeleteDraftPortfolioCommand(17, "duplicate operator draft");
 
-        var copy = serializer.Deserialize<DeleteDraftPortfolioPayload>(serializer.Serialize(source)!);
+        var copy = serializer.Deserialize<DeleteDraftPortfolioCommand>(serializer.Serialize(source)!);
 
         copy.Should().Be(source);
     }

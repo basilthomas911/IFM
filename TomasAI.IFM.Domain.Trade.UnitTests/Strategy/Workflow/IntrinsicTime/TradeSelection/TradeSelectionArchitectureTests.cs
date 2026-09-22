@@ -29,7 +29,8 @@ public sealed class TradeSelectionArchitectureTests
         assembly.GetName().Name.Should().Be("TomasAI.IFM.Domain.Strategy.Contracts.Shared");
         assembly.GetReferencedAssemblies().Should().NotContain(x=>x.Name=="TomasAI.IFM.Domain.Trade.Shared" || x.Name=="TomasAI.IFM.Domain.Portfolio.Shared" || x.Name=="TomasAI.IFM.Domain.Reference.Shared");
         var portfolio=typeof(TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi).Assembly;
-        portfolio.GetForwardedTypes().Should().Contain(typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot));
+        ReferenceEquals(typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot).Assembly, portfolio).Should().BeTrue();
+        portfolio.GetForwardedTypes().Should().NotContain(typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot));
     }
     [Theory]
     [InlineData("portfolio")] [InlineData("fund")] [InlineData("date")] [InlineData("size")] [InlineData("corrupt")]

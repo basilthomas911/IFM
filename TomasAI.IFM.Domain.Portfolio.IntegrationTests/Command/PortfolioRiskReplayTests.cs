@@ -1,5 +1,7 @@
 using FluentAssertions;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -32,17 +34,17 @@ public sealed class PortfolioRiskReplayTests
             RemainingLossBudget = 10000, EffectiveFromUtc = now, ExpiresAtUtc = now.AddDays(30),
             SourcePolicyId = 9001, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "admin"
         };
-        PortfolioDomainEvent[] history =
+        IPortfolioDomainEvent[] history =
         [
-            new PortfolioCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "admin", new PortfolioReadModel
+            new PortfolioCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "admin", new PortfolioReadModel
             {
                 PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
                 OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
                 CreatedOnUtc = now, CreatedBy = "admin"
             }),
-            new FundAddedToPortfolio(Guid.NewGuid(), Guid.NewGuid(), 2, now, "admin", new PortfolioFundId(101, 205)),
-            new FundAllocationDelegated(Guid.NewGuid(), Guid.NewGuid(), 3, now, "admin", allocation),
-            new FundRiskEnvelopeDelegated(Guid.NewGuid(), Guid.NewGuid(), 4, now, "admin", envelope)
+            new FundAddedToPortfolioEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now, "admin", new PortfolioFundId(101, 205)),
+            new FundAllocationDelegatedEvent(Guid.NewGuid(), Guid.NewGuid(), 3, now, "admin", allocation),
+            new FundRiskEnvelopeDelegatedEvent(Guid.NewGuid(), Guid.NewGuid(), 4, now, "admin", envelope)
         ];
         var portfolio = new PortfolioAggregate();
 

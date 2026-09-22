@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -144,7 +145,7 @@ public static class ExecuteRiskManagement
         {
             PortfolioOrderCompositionMapper.ValidateCompletion(view, request, completed);
             foreach (var order in completed.Receipt.TradeOrders.OrderBy(value => value.Id.FundId))
-                await DispatchTradeOrderAsync(order, completed.Id, context).ConfigureAwait(false);
+                await DispatchTradeOrderAsync(order.ToTradeOrder(), completed.Id, context).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {

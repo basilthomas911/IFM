@@ -1,7 +1,9 @@
 using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +44,7 @@ public sealed partial class TradeSelectionRuntimeTests
             (await db.UpsertRiskHistoryAsync(last with {State=last.State with {StopReasonCode="conflicting"}})).Disposition.Should().Be(RiskHistoryProjectionDisposition.Conflict);
             var row=RiskHistoryIdentity.Row(last)!;var api=new RiskQueryApi(producer);
             var aggregate=new PortfolioFundAggregate();
-            aggregate.Replay([new FundCompositionReserved(Guid.NewGuid(),Guid.NewGuid(),1,DateTime.UtcNow,"fixture",new(){Order=new(){PortfolioId=row.PortfolioId,FundId=row.FundId,OrderId=checked((int)row.OrderId),IdempotencyKey=Guid.NewGuid(),Status="RiskPending"},Trades=[new(){OrderId=checked((int)row.OrderId)}]})]);
+            aggregate.Replay([new FundCompositionReservedEvent(Guid.NewGuid(),Guid.NewGuid(),1,DateTime.UtcNow,"fixture",new(){Order=new(){PortfolioId=row.PortfolioId,FundId=row.FundId,OrderId=checked((int)row.OrderId),IdempotencyKey=Guid.NewGuid(),Status="RiskPending"},Trades=[new(){OrderId=checked((int)row.OrderId)}]})]);
             funds.LoadFundAsync(new PortfolioFundId(row.PortfolioId,row.FundId),Arg.Any<CancellationToken>()).Returns(aggregate);
             var exact=await api.GetInvocationAsync(input.WorkflowId,input.CommandId);
             exact.Success.Should().BeTrue(exact.ErrorMessage);exact.Value!.Calculation!.ResultId.Should().Be(result.ResultId);

@@ -354,7 +354,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblBaseContractSymbol.Name = "lblBaseContractSymbol";
             lblBaseContractSymbol.Size = new Size(94, 17);
             lblBaseContractSymbol.TabIndex = 3;
-            lblBaseContractSymbol.Text = "Base Symbol:";
+            lblBaseContractSymbol.Text = "Base Contract:";
             // 
             // ddlBaseSymbol
             // 

@@ -21,9 +21,6 @@ partial class OperationsView
         lblItiStatus = new Label();
         lblTimeFrame = new Label();
         ddlTimeFrame = new ComboBox();
-        btnWorkflowPreviousPage = new Button();
-        lblWorkflowPage = new Label();
-        btnWorkflowNextPage = new Button();
         strategySplitter = new SplitContainer();
         strategyContentSplitter = new SplitContainer();
         itiChart = new System.Windows.Forms.DataVisualization.Charting.Chart();
@@ -107,19 +104,13 @@ partial class OperationsView
         // pnlStrategyHeader
         //
         pnlStrategyHeader.BackColor = Color.Black;
-        pnlStrategyHeader.ColumnCount = 6;
+        pnlStrategyHeader.ColumnCount = 3;
         pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125F));
         pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
-        pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34F));
-        pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82F));
-        pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34F));
         pnlStrategyHeader.Controls.Add(lblItiStatus, 0, 0);
         pnlStrategyHeader.Controls.Add(lblTimeFrame, 1, 0);
         pnlStrategyHeader.Controls.Add(ddlTimeFrame, 2, 0);
-        pnlStrategyHeader.Controls.Add(btnWorkflowPreviousPage, 3, 0);
-        pnlStrategyHeader.Controls.Add(lblWorkflowPage, 4, 0);
-        pnlStrategyHeader.Controls.Add(btnWorkflowNextPage, 5, 0);
         pnlStrategyHeader.Dock = DockStyle.Top;
         pnlStrategyHeader.Location = new Point(3, 3);
         pnlStrategyHeader.Name = "pnlStrategyHeader";
@@ -162,28 +153,6 @@ partial class OperationsView
         ddlTimeFrame.Name = "ddlTimeFrame";
         ddlTimeFrame.TabIndex = 1;
         ddlTimeFrame.SelectedIndexChanged += ddlTimeFrame_SelectedIndexChanged;
-        //
-        // workflow paging
-        //
-        btnWorkflowPreviousPage.Dock = DockStyle.Fill;
-        btnWorkflowPreviousPage.FlatStyle = FlatStyle.Flat;
-        btnWorkflowPreviousPage.ForeColor = Color.White;
-        btnWorkflowPreviousPage.Margin = new Padding(2);
-        btnWorkflowPreviousPage.Name = "btnWorkflowPreviousPage";
-        btnWorkflowPreviousPage.Text = "<";
-        btnWorkflowPreviousPage.Click += btnWorkflowPreviousPage_Click;
-        lblWorkflowPage.Dock = DockStyle.Fill;
-        lblWorkflowPage.ForeColor = Color.LightGray;
-        lblWorkflowPage.Name = "lblWorkflowPage";
-        lblWorkflowPage.Text = "Page 1 of 1";
-        lblWorkflowPage.TextAlign = ContentAlignment.MiddleCenter;
-        btnWorkflowNextPage.Dock = DockStyle.Fill;
-        btnWorkflowNextPage.FlatStyle = FlatStyle.Flat;
-        btnWorkflowNextPage.ForeColor = Color.White;
-        btnWorkflowNextPage.Margin = new Padding(2);
-        btnWorkflowNextPage.Name = "btnWorkflowNextPage";
-        btnWorkflowNextPage.Text = ">";
-        btnWorkflowNextPage.Click += btnWorkflowNextPage_Click;
         //
         // strategySplitter
         //
@@ -359,9 +328,6 @@ partial class OperationsView
     Label lblItiStatus = null!;
     Label lblTimeFrame = null!;
     ComboBox ddlTimeFrame = null!;
-    Button btnWorkflowPreviousPage = null!;
-    Label lblWorkflowPage = null!;
-    Button btnWorkflowNextPage = null!;
     TableLayoutPanel pnlStrategyHeader = null!;
     SplitContainer strategySplitter = null!;
     SplitContainer strategyContentSplitter = null!;

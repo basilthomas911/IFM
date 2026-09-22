@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Portfolio.Query.Actor;
 using TomasAI.IFM.Domain.Portfolio.Query.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using AllocatePortfolioBusinessIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioBusinessIdAllocation>;
+using AllocatePortfolioBusinessIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdQuery;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 

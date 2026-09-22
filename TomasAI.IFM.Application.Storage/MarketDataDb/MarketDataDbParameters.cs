@@ -212,6 +212,10 @@ internal readonly record struct GetFuturesItiSignals(string contractId, DateOnly
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod };
 }
+internal readonly record struct GetFuturesItiSignalContractIdsByDate(DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { valueDate };
+}
 internal readonly record struct GetFuturesItiTrendClassData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
 {
     public object Bind() => new object?[] { symbol, startDate, endDate };

@@ -1,4 +1,6 @@
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -21,7 +23,7 @@ public sealed class PortfolioAggregate
     public IReadOnlyList<FundAllocationReadModel> Allocations(int fundId) => _allocations.GetValueOrDefault(fundId) ?? [];
     public IReadOnlyList<FundRiskEnvelopeReadModel> RiskEnvelopes(int fundId) => _envelopes.GetValueOrDefault(fundId) ?? [];
 
-    public PortfolioDomainEvent Create(Guid commandId, PortfolioReadModel portfolio, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent Create(Guid commandId, PortfolioReadModel portfolio, DateTime nowUtc, string principal)
     {
         ValidateCommand(commandId, nowUtc, principal);
         if (Exists) throw new InvalidOperationException("Portfolio already exists.");
@@ -29,10 +31,10 @@ public sealed class PortfolioAggregate
         if (portfolio.OperatingState != PortfolioOperatingState.Draft)
             throw new ArgumentException("A new Portfolio must begin in Draft.", nameof(portfolio));
         ThrowIfInvalid(portfolio.Validate());
-        return ApplyAndReturn(new PortfolioCreated(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, portfolio.DefensiveCopy()));
+        return ApplyAndReturn(new PortfolioCreatedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, portfolio.DefensiveCopy()));
     }
 
-    public PortfolioDomainEvent AddVersion(Guid commandId, long expectedRevision, PortfolioReadModel replacement, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent AddVersion(Guid commandId, long expectedRevision, PortfolioReadModel replacement, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
@@ -43,10 +45,10 @@ public sealed class PortfolioAggregate
             && !CanTransition(Current.OperatingState, replacement.OperatingState, Current.OperatingState == PortfolioOperatingState.Disabled))
             throw new InvalidOperationException($"Portfolio transition {Current.OperatingState} -> {replacement.OperatingState} is not allowed through a new version.");
         ThrowIfInvalid(replacement.Validate());
-        return ApplyAndReturn(new PortfolioVersionAdded(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, replacement.DefensiveCopy()));
+        return ApplyAndReturn(new PortfolioVersionAddedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, replacement.DefensiveCopy()));
     }
 
-    public PortfolioDomainEvent ChangeState(Guid commandId, long expectedRevision, PortfolioOperatingState state, string reason, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent ChangeState(Guid commandId, long expectedRevision, PortfolioOperatingState state, string reason, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
@@ -54,10 +56,10 @@ public sealed class PortfolioAggregate
         if (!CanTransition(Current!.OperatingState, state, throughNewVersion: false))
             throw new InvalidOperationException($"Portfolio transition {Current.OperatingState} -> {state} is not allowed.");
         if (state == PortfolioOperatingState.Active) ThrowIfInvalid((Current with { OperatingState = state }).Validate());
-        return ApplyAndReturn(new PortfolioOperatingStateChanged(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, state, reason.Trim()));
+        return ApplyAndReturn(new PortfolioOperatingStateChangedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, state, reason.Trim()));
     }
 
-    public PortfolioDomainEvent AssignFinancialPolicy(Guid commandId, long expectedRevision, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent AssignFinancialPolicy(Guid commandId, long expectedRevision, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
@@ -65,10 +67,10 @@ public sealed class PortfolioAggregate
         if (policy.PortfolioId != Current!.PortfolioId || policy.OperatingState != PortfolioFinancialPolicyState.Active)
             throw new InvalidOperationException("Portfolio can only select its own Active financial policy.");
         ThrowIfInvalid(policy.Validate(forActivation: true));
-        return ApplyAndReturn(new PortfolioFinancialPolicyAssigned(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, policy.PolicyId, policy.PolicyVersion));
+        return ApplyAndReturn(new PortfolioFinancialPolicyAssignedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, policy.PolicyId, policy.PolicyVersion));
     }
 
-    public PortfolioDomainEvent AddFund(Guid commandId, long expectedRevision, PortfolioFundId fundId, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent AddFund(Guid commandId, long expectedRevision, PortfolioFundId fundId, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
@@ -76,29 +78,29 @@ public sealed class PortfolioAggregate
         if (fundId.PortfolioId != Current!.PortfolioId) throw new ArgumentException("Fund parent does not match Portfolio.", nameof(fundId));
         if (_fundIds.Contains(fundId.FundId)) throw new InvalidOperationException("Fund already belongs to Portfolio.");
         if (Current.OperatingState == PortfolioOperatingState.Retired) throw new InvalidOperationException("A retired Portfolio cannot add Funds.");
-        return ApplyAndReturn(new FundAddedToPortfolio(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, fundId));
+        return ApplyAndReturn(new FundAddedToPortfolioEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, fundId));
     }
 
-    public PortfolioDomainEvent Retire(Guid commandId, long expectedRevision, string reason, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent Retire(Guid commandId, long expectedRevision, string reason, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         if (Current!.OperatingState == PortfolioOperatingState.Retired) throw new InvalidOperationException("Portfolio is already retired.");
-        return ApplyAndReturn(new PortfolioRetired(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reason.Trim()));
+        return ApplyAndReturn(new PortfolioRetiredEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reason.Trim()));
     }
 
-    public PortfolioDomainEvent DeleteDraft(Guid commandId, long expectedRevision, string reason, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent DeleteDraft(Guid commandId, long expectedRevision, string reason, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         if (Current!.OperatingState != PortfolioOperatingState.Draft)
             throw new InvalidOperationException("Only a Draft Portfolio can be deleted.");
-        return ApplyAndReturn(new DraftPortfolioDeleted(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reason.Trim()));
+        return ApplyAndReturn(new DraftPortfolioDeletedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reason.Trim()));
     }
 
-    public PortfolioDomainEvent DelegateAllocation(Guid commandId, long expectedRevision, FundAllocationReadModel allocation, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent DelegateAllocation(Guid commandId, long expectedRevision, FundAllocationReadModel allocation, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
@@ -108,10 +110,10 @@ public sealed class PortfolioAggregate
         var versions = _allocations.GetValueOrDefault(allocation.FundId);
         var latest = versions?.Count > 0 ? versions.Max(x => x.AllocationVersion) : 0;
         if (allocation.AllocationVersion != latest + 1) throw new ArgumentException("AllocationVersion must increment by one.", nameof(allocation));
-        return ApplyAndReturn(new FundAllocationDelegated(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, allocation));
+        return ApplyAndReturn(new FundAllocationDelegatedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, allocation));
     }
 
-    public PortfolioDomainEvent DelegateRiskEnvelope(Guid commandId, long expectedRevision, FundRiskEnvelopeReadModel envelope, DateTime nowUtc, string principal)
+    public IPortfolioDomainEvent DelegateRiskEnvelope(Guid commandId, long expectedRevision, FundRiskEnvelopeReadModel envelope, DateTime nowUtc, string principal)
     {
         RequireCurrent(expectedRevision);
         ValidateCommand(commandId, nowUtc, principal);
@@ -125,10 +127,10 @@ public sealed class PortfolioAggregate
         var versions = _envelopes.GetValueOrDefault(envelope.FundId);
         var latest = versions?.Count > 0 ? versions.Max(x => x.EnvelopeVersion) : 0;
         if (envelope.EnvelopeVersion != latest + 1) throw new ArgumentException("EnvelopeVersion must increment by one.", nameof(envelope));
-        return ApplyAndReturn(new FundRiskEnvelopeDelegated(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, envelope));
+        return ApplyAndReturn(new FundRiskEnvelopeDelegatedEvent(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, envelope));
     }
 
-    public void Replay(IEnumerable<PortfolioDomainEvent> events)
+    public void Replay(IEnumerable<IPortfolioDomainEvent> events)
     {
         foreach (var domainEvent in events.OrderBy(x => x.Revision)) Apply(domainEvent, isReplay: true);
     }
@@ -182,13 +184,13 @@ public sealed class PortfolioAggregate
             _ => false,
         };
 
-    PortfolioDomainEvent ApplyAndReturn(PortfolioDomainEvent domainEvent)
+    IPortfolioDomainEvent ApplyAndReturn(IPortfolioDomainEvent domainEvent)
     {
         Apply(domainEvent, isReplay: false);
         return domainEvent;
     }
 
-    void Apply(PortfolioDomainEvent domainEvent, bool isReplay)
+    void Apply(IPortfolioDomainEvent domainEvent, bool isReplay)
     {
         if (domainEvent.Revision != Revision + 1) throw new InvalidOperationException("Portfolio event revision is not contiguous.");
         if (IsDeleted) throw new InvalidOperationException("Portfolio event history cannot continue after Draft deletion.");
@@ -199,17 +201,17 @@ public sealed class PortfolioAggregate
         }
         switch (domainEvent)
         {
-            case PortfolioCreated created:
+            case PortfolioCreatedEvent created:
                 if (Current is not null) throw new InvalidOperationException("Portfolio create event is duplicated.");
                 Current = created.Portfolio.DefensiveCopy();
                 break;
-            case PortfolioVersionAdded versionAdded:
+            case PortfolioVersionAddedEvent versionAdded:
                 Current = versionAdded.Portfolio.DefensiveCopy();
                 break;
-            case PortfolioOperatingStateChanged changed:
+            case PortfolioOperatingStateChangedEvent changed:
                 Current = Current! with { OperatingState = changed.State };
                 break;
-            case PortfolioFinancialPolicyAssigned assigned:
+            case PortfolioFinancialPolicyAssignedEvent assigned:
                 Current = Current! with
                 {
                     PortfolioVersion = Current.PortfolioVersion + 1,
@@ -219,22 +221,22 @@ public sealed class PortfolioAggregate
                     CreatedBy = assigned.Principal,
                 };
                 break;
-            case FundAddedToPortfolio fundAdded:
+            case FundAddedToPortfolioEvent fundAdded:
                 if (!_fundIds.Add(fundAdded.FundId.FundId)) throw new InvalidOperationException("Fund membership event is duplicated.");
                 break;
-            case PortfolioRetired:
+            case PortfolioRetiredEvent:
                 Current = Current! with { OperatingState = PortfolioOperatingState.Retired };
                 break;
-            case DraftPortfolioDeleted:
+            case DraftPortfolioDeletedEvent:
                 if (Current is null || Current.OperatingState != PortfolioOperatingState.Draft)
                     throw new InvalidOperationException("Only a Draft Portfolio can apply a deletion tombstone.");
                 IsDeleted = true;
                 break;
-            case FundAllocationDelegated delegated:
+            case FundAllocationDelegatedEvent delegated:
                 if (!_allocations.TryGetValue(delegated.Allocation.FundId, out var allocations)) _allocations[delegated.Allocation.FundId] = allocations = [];
                 allocations.Add(delegated.Allocation);
                 break;
-            case FundRiskEnvelopeDelegated delegated:
+            case FundRiskEnvelopeDelegatedEvent delegated:
                 if (!_envelopes.TryGetValue(delegated.Envelope.FundId, out var envelopes)) _envelopes[delegated.Envelope.FundId] = envelopes = [];
                 envelopes.Add(delegated.Envelope);
                 break;

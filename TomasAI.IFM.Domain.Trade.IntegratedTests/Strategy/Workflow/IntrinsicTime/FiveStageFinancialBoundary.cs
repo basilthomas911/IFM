@@ -2,7 +2,9 @@ using FluentAssertions;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Model;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
@@ -34,7 +36,7 @@ public sealed partial class TradeSelectionRuntimeTests
         await transactions.ExecuteAsync(async(db,ct)=>{
             foreach(var stream in new[] { $"Portfolio.{book.PortfolioId}",$"PortfolioFund.{book.PortfolioId}.{candidate.FundId}",$"PortfolioFinancialPolicy.{book.PortfolioId}.{authority.PolicyId}" })
             {
-                var command=Guid.NewGuid();await db.AppendAsync(stream,command,new PortfolioCreated(Guid.NewGuid(),command,1,DateTime.UtcNow,"FiveStageAuthorityFixture",new()),0,ct);
+                var command=Guid.NewGuid();await db.AppendAsync(stream,command,new PortfolioCreatedEvent(Guid.NewGuid(),command,1,DateTime.UtcNow,"FiveStageAuthorityFixture",new()),0,ct);
             }
             return true;
         });
@@ -70,10 +72,10 @@ public sealed partial class TradeSelectionRuntimeTests
         grant.Receipt.RiskResultId.Should().Be(risk.ResultId);grant.Receipt.StrategyUnits.Should().Be(risk.StrategyUnits);
         var authorization=RiskFinancialHandoff.Authorize(reserve,grant);
         output.WriteLine($"Fund authorization boundary: portfolio={book.PortfolioId}, fund={risk.FundId}, authorizationPortfolio={authorization.PortfolioId}, authorizationFund={authorization.FundId}, bookEpoch={book.AuthorityEpoch}, authorizationEpoch={authorization.AuthorityEpoch}, granted={grant.Receipt.GrantedAtUtc:O}, now={DateTime.UtcNow:O}, expires={authorization.ValidUntilUtc:O}");
-        var fundEvent=new FundCompositionStateChanged(Guid.NewGuid(),RiskFinancialHandoff.Identity(risk.InvocationId,"Fund"),2,DateTime.UtcNow,"FiveStageFixture",
+        var fundEvent=new FundCompositionStateChangedEvent(Guid.NewGuid(),RiskFinancialHandoff.Identity(risk.InvocationId,"Fund"),2,DateTime.UtcNow,"FiveStageFixture",
             new() { PortfolioId=book.PortfolioId,FundId=risk.FundId,OrderId=authorization.OrderId,Status="RiskApproved",RiskAuthorization=authorization });
         var fundStore = new PortfolioEventStore(database.ActorEventSourceDb,new PortfolioAuthorityFence(FinancialBoundaryTransactions()));
-        var expired = new FundCompositionStateChanged(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"FiveStageExpiredFixture",
+        var expired = new FundCompositionStateChangedEvent(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"FiveStageExpiredFixture",
             new() { PortfolioId=book.PortfolioId,FundId=risk.FundId,OrderId=authorization.OrderId,Status="RiskApproved",
                 RiskAuthorization=authorization with { ValidUntilUtc=DateTime.UtcNow.AddSeconds(-1) } });
         var refusal = await FluentActions.Awaiting(() => fundStore.AppendFundAsync(new(book.PortfolioId,risk.FundId),expired,1))

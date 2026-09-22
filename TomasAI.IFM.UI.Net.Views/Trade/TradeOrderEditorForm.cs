@@ -476,15 +476,15 @@ public partial class TradeOrderEditorForm
                 if (filter != "All" && filter != source) continue;
                 lstTradeOrders.Items.Add(new ListViewItem([
                     $"{fundOrder.OrderId}",
-                    $"{EasternTime.FromUtc(fundOrder.OrderDate):yyyy-MMM-dd}",
-                    $"{fundOrder.OrderStatus}",
-                    fundOrder.Reference ?? string.Empty,
+                    $"{EasternTime.FromUtc(fundOrder.CreatedOnUtc):yyyy-MMM-dd}",
+                    fundOrder.Status,
+                    fundOrder.OperatorReference,
                     source
                 ]) { Tag = fundOrder });
             }
             lstTradeOrders.AccessibleDescription = string.Join(" || ", _viewModel.FundOrders.Select(fundOrder =>
-                $"{fundOrder.OrderId} | {EasternTime.FromUtc(fundOrder.OrderDate):yyyy-MMM-dd} | "
-                + $"{fundOrder.OrderStatus} | {fundOrder.Reference ?? string.Empty}"));
+                $"{fundOrder.OrderId} | {EasternTime.FromUtc(fundOrder.CreatedOnUtc):yyyy-MMM-dd} | "
+                + $"{fundOrder.Status} | {fundOrder.OperatorReference}"));
             lstTradeOrders.AccessibleName = $"Portfolio fund orders; rows: {lstTradeOrders.AccessibleDescription}";
             var index = _lastTradeOrderIndex >= 0 ? _lastTradeOrderIndex : _viewModel.FundOrderSelectedIndex;
             _lastTradeOrderIndex = -1;
@@ -507,14 +507,14 @@ public partial class TradeOrderEditorForm
             foreach (var trade in _viewModel.FundOrderTrades)
             {
                 lstTrades.Items.Add(new ListViewItem([
-                    $"{trade.TradeId}", $"{trade.TradeType}", $"{trade.TradeDate:yyyy-MMM-dd}",
-                    $"{trade.MaturityDate:yyyy-MMM-dd}", $"{trade.TradeState}",
-                    $"{trade.TradeAction} {trade.Reference}"
+                    $"{trade.TradeId}", $"{trade.TradeType}", $"{trade.RequestedTradeDate:yyyy-MMM-dd}",
+                    $"{trade.RequestedMaturityDate:yyyy-MMM-dd}", $"{trade.TradeState}",
+                    $"{trade.TradeAction} {trade.InstructionReference}"
                 ]) { Tag = trade });
             }
             lstTrades.AccessibleDescription = string.Join(" || ", _viewModel.FundOrderTrades.Select(trade =>
-                $"{trade.TradeId} | {trade.TradeType} | {trade.TradeDate:yyyy-MMM-dd} | "
-                + $"{trade.MaturityDate:yyyy-MMM-dd} | {trade.TradeState} | {trade.TradeAction} {trade.Reference}"));
+                $"{trade.TradeId} | {trade.TradeType} | {trade.RequestedTradeDate:yyyy-MMM-dd} | "
+                + $"{trade.RequestedMaturityDate:yyyy-MMM-dd} | {trade.TradeState} | {trade.TradeAction} {trade.InstructionReference}"));
             lstTrades.AccessibleName = $"Portfolio fund order trades; rows: {lstTrades.AccessibleDescription}";
             var index = _lastTradeIndex >= 0 ? _lastTradeIndex : _viewModel.FundOrderTradeSelectedIndex;
             _lastTradeIndex = -1;
@@ -575,10 +575,11 @@ public partial class TradeOrderEditorForm
                case TradeType.ShortIronCondor:
                case TradeType.LongIronCondor:
                     var orderActionType = GetOrderActionType(fundOrderTrade.TradeState);
-                    var valueDate = orderActionType == OrderActionType.Open
-                        ? fundOrder!.TradeDate
-                        : fundOrderTrade!.TradeDate;
-                    var baseContract = _viewModel.BaseContracts.Where(e => e.Symbol == fundOrderTrade.BaseContractSymbol).FirstOrDefault();
+                    var valueDate = fundOrderTrade.RequestedTradeDate;
+                    var baseContract = _viewModel.BaseContracts.FirstOrDefault(contract =>
+                        string.Equals(contract.ContractId, fundOrderTrade.BaseContractId, StringComparison.OrdinalIgnoreCase))
+                        ?? _viewModel.BaseContracts.FirstOrDefault(contract =>
+                            string.Equals(contract.Symbol, fundOrderTrade.BaseContractSymbol, StringComparison.OrdinalIgnoreCase));
                    baseContract = baseContract ?? _viewModel.BaseContracts.ElementAt(0);
                    var viewModel = new IronCondorTradeOrderViewModel(
                        _appRoot,
@@ -597,9 +598,12 @@ public partial class TradeOrderEditorForm
                case TradeType.PutDebitSpread:
                case TradeType.CallCreditSpread:
                case TradeType.CallDebitSpread:
-                   var brokerBaseContract = _viewModel.BaseContracts.FirstOrDefault(contract =>
-                       string.Equals(contract.Symbol, fundOrderTrade.BaseContractSymbol,
-                           StringComparison.OrdinalIgnoreCase))
+                    var brokerBaseContract = _viewModel.BaseContracts.FirstOrDefault(contract =>
+                        string.Equals(contract.ContractId, fundOrderTrade.BaseContractId,
+                            StringComparison.OrdinalIgnoreCase))
+                        ?? _viewModel.BaseContracts.FirstOrDefault(contract =>
+                            string.Equals(contract.Symbol, fundOrderTrade.BaseContractSymbol,
+                                StringComparison.OrdinalIgnoreCase))
                        ?? _viewModel.BaseContracts.FirstOrDefault()
                        ?? throw new InvalidOperationException(
                            $"No Futures contract is available for {fundOrderTrade.BaseContractSymbol}.");
@@ -743,7 +747,7 @@ public partial class TradeOrderEditorForm
             foreach (var control in new Control[] { dtpTradeDate, ddlOrderActionType })
                 control.Enabled = trade.TradeState == TradeState.NewTrade;
             txtTradeType.Text = trade.TradeType.ToString();
-            dtpTradeDate.Value = trade.TradeDate.ToDateTime(TimeOnly.MinValue);
+            dtpTradeDate.Value = trade.RequestedTradeDate.ToDateTime(TimeOnly.MinValue);
             txtDaysToExpiry.Visible = true;
             lblDaysToExpiry.Visible = true;
             if (_displayedTradeId != trade.Id)
@@ -802,15 +806,21 @@ public partial class TradeOrderEditorForm
             {
                 var fundOrderTrade = dlg.FundOrderTrade with
                 {
+                    PortfolioId = _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
                     FundId = fundOrder!.FundId,
                     OrderId = fundOrder.OrderId,
-                    TradeDate = fundOrder.TradeDate,
-                    MaturityDate = fundOrder.MaturityDate,
                     PrimaryTrade = fundOrder.Trades.Length == 0
                 };
                 _lastTradeOrderIndex = lstTradeOrders.SelectedIndices[0];
                 _lastTradeIndex = lstTrades.Items.Count;
-                var canonical = _viewModel.CanonicalOrders.Single(order => order.OrderId == fundOrder!.OrderId);
+                var canonical = _viewModel.CanonicalOrders.FirstOrDefault(order => order.OrderId == fundOrder!.OrderId);
+                if (canonical is null)
+                {
+                    this.ShowErrorMessage(
+                        "The selected Portfolio order changed while the trade dialog was open. Reload the order and try again.",
+                        "Add Trade Error");
+                    return;
+                }
                 await ObserveAsync(() => _viewModel.AddManualTradeAsync(canonical, fundOrderTrade));
             }
         }

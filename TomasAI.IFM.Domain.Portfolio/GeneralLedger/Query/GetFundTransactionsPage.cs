@@ -10,6 +10,6 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 public static class GetFundTransactionsPage
 {
     /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-    public static ValueTask ExecuteAsync<TActor>(this FinancialQuery<GetFundTransactionsPageRequest, FinancialPage<FinancialTransactionRow>> query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+    public static ValueTask ExecuteAsync<TActor>(this GetFundTransactionsPageQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
         => FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetFundTransactionsPage", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
 }

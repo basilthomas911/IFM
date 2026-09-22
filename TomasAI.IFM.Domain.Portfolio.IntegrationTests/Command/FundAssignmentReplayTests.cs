@@ -1,5 +1,7 @@
 using FluentAssertions;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -15,10 +17,10 @@ public sealed class FundAssignmentReplayTests
     {
         var now = new DateTime(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc);
         var assignment = Assignment(now);
-        var history = new PortfolioFundDomainEvent[]
+        var history = new IPortfolioFundDomainEvent[]
         {
-            new FundMandateCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "admin", Mandate(now)),
-            new FundTradeTemplateAssigned(Guid.NewGuid(), Guid.NewGuid(), 2, now, "admin", assignment),
+            new FundMandateCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "admin", Mandate(now)),
+            new FundTradeTemplateAssignedEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now, "admin", assignment),
         };
         var aggregate = new PortfolioFundAggregate();
         aggregate.Replay(history);

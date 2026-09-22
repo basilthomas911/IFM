@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 
@@ -42,7 +43,7 @@ public sealed class PortfolioTradeOrderService(
         ArgumentNullException.ThrowIfNull(candidate);
         if (portfolioId <= 0)
             throw new ArgumentOutOfRangeException(nameof(portfolioId));
-        if (candidate.PositionType != TradeOrderPositionType.Opening)
+        if (candidate.PositionType != PortfolioExecutionPositionType.Opening)
             throw new ArgumentException("The desktop Trade Order editor can submit opening candidates only.", nameof(candidate));
 
         var operationId = Guid.NewGuid();
@@ -84,10 +85,11 @@ public sealed class PortfolioTradeOrderService(
             completed.Receipt.CompositionId != candidate.CompositionId)
             throw new InvalidOperationException("Portfolio returned a mismatched order-composition completion.");
 
-        var orders = completed.Receipt.TradeOrders;
-        if ((completed.Receipt.Status == PortfolioOrderCompositionStatus.ExecuteTradeOrders && orders.Length == 0) ||
-            (completed.Receipt.Status == PortfolioOrderCompositionStatus.NoTradeOrders && orders.Length != 0))
+        var instructions = completed.Receipt.TradeOrders;
+        if ((completed.Receipt.Status == PortfolioOrderCompositionStatus.ExecuteTradeOrders && instructions.Length == 0) ||
+            (completed.Receipt.Status == PortfolioOrderCompositionStatus.NoTradeOrders && instructions.Length != 0))
             throw new InvalidOperationException("Portfolio returned an inconsistent order-composition status.");
+        var orders = instructions.Select(PortfolioExecutionContractMapper.ToTradeOrder).ToArray();
         if (orders.Any(order => !order.Id.IsValid || order.Id.PortfolioId != portfolioId ||
                 order.PositionType != TradeOrderPositionType.Opening))
             throw new InvalidOperationException("Portfolio returned an invalid opening Trade Order identity.");

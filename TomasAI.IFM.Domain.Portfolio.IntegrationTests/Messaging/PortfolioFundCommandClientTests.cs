@@ -82,7 +82,7 @@ public sealed class PortfolioFundCommandClientTests
         result.Value.Trades.Should().ContainSingle().Which.TradeId.Should().Be(401);
         result.Value.Disposition.Should().Be(ReservationDisposition.IdempotentReplay);
         producer.ResultType.Should().Be<GuidResult>();
-        producer.Subject.Name.Should().Be(PortfolioCommandSubjects.FundActor);
+        producer.Subject.Name.Should().Be(CreateFundMandateCommand.Actor);
         producer.Subject.Verb.Should().Be("ReserveFundOrderComposition");
     }
 

@@ -1,6 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -24,7 +26,7 @@ public sealed class FundRiskTerminalIntegrationTests(PortfolioEventStoreFixture 
         await Transactions().ExecuteAsync(async(db,ct)=>{await db.AppendAsync($"RiskTerminalTest.{source.CommandId}",source.CommandId,source,0,ct);return true;});
         var evidence=source.TerminalRisk!;evidence.Should().NotBeNull();
         if(tamper)evidence=evidence with {Reason="different"};
-        var changed=new FundCompositionStateChanged(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"test",new(){PortfolioId=book.PortfolioId,FundId=fund,OrderId=pending.Body.OrderId,Status="Expired",TerminalRisk=evidence});
+        var changed=new FundCompositionStateChangedEvent(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"test",new(){PortfolioId=book.PortfolioId,FundId=fund,OrderId=pending.Body.OrderId,Status="Expired",TerminalRisk=evidence});
         var store=new PortfolioEventStore(fixture.EventSourceDb,new PortfolioAuthorityFence(Transactions()));
         if(tamper || held)
             await FluentActions.Awaiting(()=>store.AppendFundAsync(new(book.PortfolioId,fund),changed,1)).Should().ThrowAsync<FinancialOperationException>();
@@ -40,7 +42,7 @@ public sealed class FundRiskTerminalIntegrationTests(PortfolioEventStoreFixture 
     public async Task Unfenced_store_cannot_append_terminal_risk()
     {
         var evidence=new RiskTerminalEvidence(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),1,2,3,"hash","Expired",Guid.Empty,"","Expired",DateTime.UtcNow);
-        var changed=new FundCompositionStateChanged(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"test",new(){TerminalRisk=evidence});
+        var changed=new FundCompositionStateChangedEvent(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"test",new(){TerminalRisk=evidence});
         await FluentActions.Awaiting(()=>new PortfolioEventStore(fixture.EventSourceDb).AppendFundAsync(new(1,2),changed,1)).Should().ThrowAsync<InvalidOperationException>();
     }
 }

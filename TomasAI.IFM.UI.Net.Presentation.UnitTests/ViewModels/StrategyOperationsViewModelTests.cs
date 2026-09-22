@@ -263,6 +263,40 @@ public sealed class StrategyOperationsViewModelTests
             .Which.SequenceId.Should().Be(boundary.SequenceId);
         await subject.ViewModel.DisposeAsync();
     }
+
+    [Theory]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public async Task Initialize_GraphIncludesBothContractsAcrossRollover(TimeFrameType timePeriod)
+    {
+        const string previousContractId = "ES20260918";
+        const string currentContractId = "ES20261218";
+        var beforeRollover = Signal(timePeriod, 1, IntrinsicTimeModeType.Trending) with
+        {
+            ContractId = previousContractId,
+            ValueDate = ValueDate.AddDays(-3),
+            IntrinsicTime = new DateTime(2026, 8, 18, 15, 0, 0, DateTimeKind.Utc)
+        };
+        var afterRollover = Signal(timePeriod, 2, IntrinsicTimeModeType.Trending) with
+        {
+            ContractId = currentContractId,
+            ValueDate = ValueDate.AddDays(-2),
+            IntrinsicTime = new DateTime(2026, 8, 19, 15, 0, 0, DateTimeKind.Utc)
+        };
+        var subject = CreateSubject();
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(Symbol, ValueDate, timePeriod)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([beforeRollover, afterRollover])));
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        subject.ViewModel.SelectedTimeFrame = timePeriod;
+
+        subject.ViewModel.Events.Select(row => row.ContractId)
+            .Should().BeEquivalentTo([previousContractId, currentContractId]);
+        subject.ViewModel.Events.Select(row => row.OccurredOn)
+            .Should().BeInDescendingOrder();
+        await subject.ViewModel.DisposeAsync();
+    }
     [Fact]
     public async Task DuplicateSignal_DoesNotRepublishUnchangedEventSnapshot()
     {
@@ -695,7 +729,7 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
-    public async Task WorkflowHistory_CanPageForwardAndBackWithinSelectedTimeframe()
+    public async Task WorkflowHistory_LoadMoreAccumulatesRowsWithinSelectedTimeframe()
     {
         var first = Workflow(1);
         var second = Workflow(2) with { WorkflowId = new StrategyWorkflowId(Guid.NewGuid()) };
@@ -721,14 +755,13 @@ public sealed class StrategyOperationsViewModelTests
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(first.WorkflowId);
-        subject.ViewModel.WorkflowPageText.Should().Be("Page 1 of 2");
+        subject.ViewModel.WorkflowTotalCount.Should().Be(51);
+        subject.ViewModel.HasMoreWorkflows.Should().BeTrue();
 
-        await subject.ViewModel.MoveToNextWorkflowPageAsync();
-        subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(second.WorkflowId);
-        subject.ViewModel.CanMoveToPreviousWorkflowPage.Should().BeTrue();
-
-        await subject.ViewModel.MoveToPreviousWorkflowPageAsync();
-        subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(first.WorkflowId);
+        await subject.ViewModel.LoadMoreWorkflowsAsync();
+        subject.ViewModel.Workflows.Select(row => row.WorkflowId)
+            .Should().BeEquivalentTo([first.WorkflowId, second.WorkflowId]);
+        subject.ViewModel.HasMoreWorkflows.Should().BeFalse();
         await subject.ViewModel.DisposeAsync();
     }
 

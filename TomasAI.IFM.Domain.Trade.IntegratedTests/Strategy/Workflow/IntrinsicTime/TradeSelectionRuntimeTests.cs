@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Trade.Shared;
 using NSubstitute;
 using TomasAI.IFM.Application.Api.Nats.Client;

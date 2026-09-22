@@ -1,6 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -33,7 +35,7 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
 
         loaded.Current.Should().BeEquivalentTo(aggregate.Current);
         loaded.Revision.Should().Be(2);
-        (await store.FindCommittedPolicyCommandAsync(id, activated.CommandId)).Should().BeOfType<PortfolioFinancialPolicyActivated>();
+        (await store.FindCommittedPolicyCommandAsync(id, activated.CommandId)).Should().BeOfType<PortfolioFinancialPolicyActivatedEvent>();
         (await store.LoadPolicyHistoryAsync(id)).Should().HaveCount(2);
     }
 
@@ -60,7 +62,7 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
         loaded.Current!.PortfolioId.Should().Be(id);
         loaded.Revision.Should().Be(2);
         history.Should().HaveCount(2);
-        history[^1].Should().BeOfType<DraftPortfolioDeleted>().Which.Reason.Should().Be("duplicate");
+        history[^1].Should().BeOfType<DraftPortfolioDeletedEvent>().Which.Reason.Should().Be("duplicate");
     }
 
     [Fact]
@@ -92,11 +94,11 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
         loadedPortfolio.FundIds.Should().Contain(fundId.FundId);
         loadedFund.Revision.Should().Be(1);
         loadedFund.Current.Should().BeEquivalentTo(fund.Current);
-        (await store.FindCommittedPortfolioCommandAsync(portfolioId, created.CommandId)).Should().BeOfType<PortfolioCreated>();
-        (await store.FindCommittedFundCommandAsync(fundId, mandateCreated.CommandId)).Should().BeOfType<FundMandateCreated>();
+        (await store.FindCommittedPortfolioCommandAsync(portfolioId, created.CommandId)).Should().BeOfType<PortfolioCreatedEvent>();
+        (await store.FindCommittedFundCommandAsync(fundId, mandateCreated.CommandId)).Should().BeOfType<FundMandateCreatedEvent>();
         var persisted = await fixture.EventSourceDb.LoadActorEventStreamAsync<TestState>(
             (await fixture.EventSourceDb.GetEventStreamIdFromDbAsync(PortfolioEventStore.PortfolioStream(portfolioId)))!.EventStreamId);
-        var persistedCreated = persisted.Select(x => x.ToDomainEvent()).OfType<PortfolioCreated>().Single();
+        var persistedCreated = persisted.Select(x => x.ToDomainEvent()).OfType<PortfolioCreatedEvent>().Single();
         persistedCreated.CorrelationId.Should().Be(created.CommandId);
         persistedCreated.CausationId.Should().Be(created.Id);
         await FluentActions.Invoking(() => store.AppendPortfolioAsync(portfolioId, fundAdded, 1))
@@ -112,7 +114,7 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
         var portfolioId = new PortfolioId(id);
         var fundId = new PortfolioFundId(id, id + 1);
         var now = new DateTime(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc);
-        var incompatible = new FundMandateCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "integration", Mandate(fundId, now));
+        var incompatible = new FundMandateCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "integration", Mandate(fundId, now));
         await fixture.EventSourceDb.SaveEventsAsync(
             PortfolioEventStore.PortfolioStream(portfolioId), incompatible.CommandId,
             new DomainEventCollection([incompatible]), 0, CancellationToken.None);

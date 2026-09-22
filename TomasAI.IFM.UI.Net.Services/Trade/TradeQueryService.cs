@@ -209,9 +209,9 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
                 TradeId = e.TradeId,
                 OrderId = e.OrderId,
                 TradeType = e.TradeType,
-                TradeDate = e.TradeDate,
+                TradeDate = e.RequestedTradeDate,
                 Quantity = tradeQuantity,
-                MaturityDate = e.MaturityDate,
+                MaturityDate = e.RequestedMaturityDate ?? e.RequestedTradeDate,
                 TradeState = e.TradeState,
                 TradeAction = e.TradeAction,
                 OptionLegContractIds = optionLegContractIds!

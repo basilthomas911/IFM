@@ -1,7 +1,9 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Storage;
 
@@ -28,7 +30,7 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
         await new PortfolioFinancialSchema(transactions).InitializeAsync();
         var id = Random.Shared.Next(100000, int.MaxValue); var source = Guid.NewGuid().ToString("N");
         var stream = $"FinancialAtomicTest.{source}"; var commandId = Guid.NewGuid();
-        var domainEvent = new PortfolioCreated(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new());
+        var domainEvent = new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new());
         async Task Commit() => await transactions.ExecuteAsync(async (db, token) =>
         {
             await InsertBook(db, id, source, token);
@@ -65,7 +67,7 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
                 {
                     await InsertBook(db, Random.Shared.Next(100000, int.MaxValue), source, token);
                     await db.AppendAsync(stream, commandId,
-                        new PortfolioCreated(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new()), 0, token);
+                        new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new()), 0, token);
                     return true;
                 });
             }

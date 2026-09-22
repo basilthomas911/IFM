@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Newtonsoft.Json;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -19,21 +21,21 @@ public sealed class PortfolioEventRoundTripVerificationTests
         var portfolio = new PortfolioReadModel { PortfolioId = 101, Name = "Core", PortfolioVersion = 1, OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verify" };
         var mandate = new FundMandateReadModel { PortfolioId = 101, FundId = 205, FundCode = "DIR", Name = "Directional", FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Draft, DecisionHorizon = "Daily", Objective = "Directional futures", UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"], PermittedTradeFamilies = ["Futures"], EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verify" };
         var assignment = new FundTradeTemplateAssignmentReadModel { PortfolioId = 101, PortfolioVersion = 1, FundId = 205, FundMandateVersion = 1, AssignmentVersion = 1, TradeTemplateId = Guid.NewGuid(), TradeTemplateVersion = 1, Enabled = true, DecisionHorizon = "Daily", UnderlyingUniverse = ["ES"], AssetType = "Futures", TradeFamily = "Futures", Priority = 1, EffectiveFromUtc = now, TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = Guid.NewGuid(), OrderCompositionProfileVersion = 1, CreatedOnUtc = now, CreatedBy = "verify" };
-        PortfolioDomainEvent[] portfolioEvents =
+        IPortfolioDomainEvent[] portfolioEvents =
         [
-            new PortfolioCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "verify", portfolio),
-            new PortfolioVersionAdded(Guid.NewGuid(), Guid.NewGuid(), 2, now, "verify", portfolio with { PortfolioVersion = 2 }),
-            new PortfolioOperatingStateChanged(Guid.NewGuid(), Guid.NewGuid(), 3, now, "verify", PortfolioOperatingState.Disabled, "pause"),
-            new FundAddedToPortfolio(Guid.NewGuid(), Guid.NewGuid(), 4, now, "verify", new PortfolioFundId(101, 205)),
-            new PortfolioRetired(Guid.NewGuid(), Guid.NewGuid(), 5, now, "verify", "closed"),
-            new DraftPortfolioDeleted(Guid.NewGuid(), Guid.NewGuid(), 6, now, "verify", "duplicate draft")
+            new PortfolioCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "verify", portfolio),
+            new PortfolioVersionAddedEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now, "verify", portfolio with { PortfolioVersion = 2 }),
+            new PortfolioOperatingStateChangedEvent(Guid.NewGuid(), Guid.NewGuid(), 3, now, "verify", PortfolioOperatingState.Disabled, "pause"),
+            new FundAddedToPortfolioEvent(Guid.NewGuid(), Guid.NewGuid(), 4, now, "verify", new PortfolioFundId(101, 205)),
+            new PortfolioRetiredEvent(Guid.NewGuid(), Guid.NewGuid(), 5, now, "verify", "closed"),
+            new DraftPortfolioDeletedEvent(Guid.NewGuid(), Guid.NewGuid(), 6, now, "verify", "duplicate draft")
         ];
-        PortfolioFundDomainEvent[] fundEvents =
+        IPortfolioFundDomainEvent[] fundEvents =
         [
-            new FundMandateCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "verify", mandate),
-            new FundMandateVersionAdded(Guid.NewGuid(), Guid.NewGuid(), 2, now, "verify", mandate with { FundMandateVersion = 2 }),
-            new FundOperatingStateChanged(Guid.NewGuid(), Guid.NewGuid(), 3, now, "verify", FundOperatingState.Disabled, "pause"),
-            new FundTradeTemplateAssigned(Guid.NewGuid(), Guid.NewGuid(), 4, now, "verify", assignment)
+            new FundMandateCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "verify", mandate),
+            new FundMandateVersionAddedEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now, "verify", mandate with { FundMandateVersion = 2 }),
+            new FundOperatingStateChangedEvent(Guid.NewGuid(), Guid.NewGuid(), 3, now, "verify", FundOperatingState.Disabled, "pause"),
+            new FundTradeTemplateAssignedEvent(Guid.NewGuid(), Guid.NewGuid(), 4, now, "verify", assignment)
         ];
         var policy = new PortfolioFinancialPolicyReadModel
         {
@@ -44,12 +46,12 @@ public sealed class PortfolioEventRoundTripVerificationTests
             TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }],
             EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verify"
         };
-        PortfolioFinancialPolicyDomainEvent[] policyEvents =
+        IPortfolioFinancialPolicyDomainEvent[] policyEvents =
         [
-            new PortfolioFinancialPolicyCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "verify", policy, Guid.NewGuid()),
-            new PortfolioFinancialPolicyVersionAdded(Guid.NewGuid(), Guid.NewGuid(), 2, now, "verify", policy with { PolicyVersion = 2 }),
-            new PortfolioFinancialPolicyActivated(Guid.NewGuid(), Guid.NewGuid(), 3, now, "verify", 2),
-            new PortfolioFinancialPolicyRetired(Guid.NewGuid(), Guid.NewGuid(), 4, now, "verify", 1, "superseded"),
+            new PortfolioFinancialPolicyCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "verify", policy, Guid.NewGuid()),
+            new PortfolioFinancialPolicyVersionAddedEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now, "verify", policy with { PolicyVersion = 2 }),
+            new PortfolioFinancialPolicyActivatedEvent(Guid.NewGuid(), Guid.NewGuid(), 3, now, "verify", 2),
+            new PortfolioFinancialPolicyRetiredEvent(Guid.NewGuid(), Guid.NewGuid(), 4, now, "verify", 1, "superseded"),
         ];
 
         portfolioEvents.Cast<object>().Concat(fundEvents).Concat(policyEvents).Select(RoundTrip).Should().OnlyContain(x => x);

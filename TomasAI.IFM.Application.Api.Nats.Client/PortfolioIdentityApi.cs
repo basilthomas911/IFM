@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
@@ -30,18 +31,18 @@ public sealed class PortfolioIdentityApi(IActorProducer actorProducer) : NatsCli
         CancellationToken cancellationToken)
     {
         var correlationId = PortfolioRequestCorrelation.CurrentOrNew();
-        var subject = new ActorSubject(ActorType.Query, PortfolioQuerySubjects.Actor, "AllocatePortfolioBusinessId", kind.ToString());
-        var query = new PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation>
+        var subject = new ActorSubject(ActorType.Query, GetPortfolioQuery.Actor, "AllocatePortfolioBusinessId", kind.ToString());
+        var query = new AllocatePortfolioBusinessIdQuery
         {
             Subject = subject,
-            Parameters = new(kind),
+            Kind = kind,
             CorrelationId = correlationId,
             RequestedOnUtc = DateTime.UtcNow,
             Access = PortfolioAccessScope.Current ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}"),
         };
         try
         {
-            return await RequestAsync<PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation>, PortfolioBusinessIdAllocation>(
+            return await RequestAsync<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>(
                 subject, query, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

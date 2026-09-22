@@ -1987,7 +1987,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     /// Unit test for GetFuturesItiSignalsAsync method
     /// </summary>
     [Fact]
-    public async Task GetFuturesItiSignalsAsync_ReturnsExpectedResults()
+    public async Task GetFuturesItiSignalsAsync_IncludesIndexedContractRemovedFromSecuritiesAfterRollover()
     {
         // Arrange
         var symbol = SampleData.FuturesContract1.Symbol;
@@ -2001,15 +2001,25 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal2.ContractId, SampleData.FuturesItiSignal2.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal2);
+        await TestFixture.SecDatabase.DbWriter.DeleteFuturesContractAsync(
+            SampleData.FuturesContract1.ContractId);
 
-        // Act
-        var result = await TestFixture.DevDatabase.GetFuturesItiSignalsAsync(symbol, startDate, endDate);
+        try
+        {
+            // Act
+            var result = await TestFixture.DevDatabase.GetFuturesItiSignalsAsync(symbol, startDate, endDate);
 
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().HaveCountGreaterThanOrEqualTo(2);
-        result.Should().Contain(signal => signal.ContractId == $"{SampleData.FuturesContract1.ContractId}");
-        result.Should().Contain(signal => signal.ContractId == $"{SampleData.FuturesContract2.ContractId}");
+            // Assert
+            result.Should().NotBeNull();
+            result.Should().HaveCountGreaterThanOrEqualTo(2);
+            result.Should().Contain(signal => signal.ContractId == $"{SampleData.FuturesContract1.ContractId}");
+            result.Should().Contain(signal => signal.ContractId == $"{SampleData.FuturesContract2.ContractId}");
+        }
+        finally
+        {
+            await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(
+                SampleData.FuturesContract1);
+        }
     }
 
     /// <summary>

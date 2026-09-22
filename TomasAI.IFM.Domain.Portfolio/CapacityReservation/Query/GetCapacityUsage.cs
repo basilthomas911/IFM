@@ -10,6 +10,6 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Query;
 public static class GetCapacityUsage
 {
     /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-    public static ValueTask ExecuteAsync<TActor>(this FinancialQuery<GetCapacityUsageRequest, FinancialCapacityUsage> query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+    public static ValueTask ExecuteAsync<TActor>(this GetCapacityUsageQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
         => FinancialQueryReply.ExecuteAsync(query, context, "CapacityReservationQuery", "GetCapacityUsage", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
 }

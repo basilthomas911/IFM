@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
@@ -93,14 +94,14 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         var order = aggregate.Composition(evidence.OrderId).Order;
         if (order.TerminalRisk == evidence) return;
         if (order.RiskAuthorization is not null) throw new InvalidOperationException("Fund authorization requires explicit financial reconciliation.");
-        var command = new PortfolioCommand<SynchronizeFundRiskOutcomePayload, PortfolioFundId>
+        var command = new SynchronizeFundRiskOutcomeCommand
         {
             CommandId = RiskFinancialHandoff.Identity(evidence.SourceCommandId, $"FundTerminal/{order.AggregateVersion}"),
-            EntityId = id, Subject = new(ActorType.Command, PortfolioCommandSubjects.FundActor, PortfolioCommandVerbs.SynchronizeFundRiskOutcome, id.Format()),
+            EntityId = id, Subject = new(ActorType.Command, CreateFundMandateCommand.Actor, SynchronizeFundRiskOutcomeCommand.Verb, id.Format()),
             ErrorCode = 34100, CorrelationId = snapshot.CorrelationId, RequestedOnUtc = evidence.DecidedAtUtc,
-            Access = PortfolioAccessContext.Workflow("RiskOutcomeRecovery"), Payload = new(order.AggregateVersion, evidence)
+            Access = PortfolioAccessContext.Workflow("RiskOutcomeRecovery"), ExpectedVersion = order.AggregateVersion, Evidence = evidence
         };
-        var result = await actors.RequestAsync<PortfolioCommand<SynchronizeFundRiskOutcomePayload, PortfolioFundId>, PortfolioFundId>(command, token);
+        var result = await actors.RequestAsync<SynchronizeFundRiskOutcomeCommand, PortfolioFundId>(command, token);
         if (!result.Success) throw new InvalidOperationException(result.ErrorMessage);
         if ((await funds.LoadFundAsync(id, token)).Composition(evidence.OrderId).Order.TerminalRisk != evidence)
             throw new InvalidOperationException("Fund outcome acknowledgement is not yet authoritative.");

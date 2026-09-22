@@ -1,7 +1,9 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
@@ -41,11 +43,11 @@ public sealed partial class TradeSelectionRuntimeTests
         // Fund transitions, ledger funding, reservation and authorization use production services.
         await transactions.ExecuteAsync(async (db, ct) => {
             var command = Guid.NewGuid();
-            await db.AppendAsync($"Portfolio.{id}", command, new PortfolioCreated(Guid.NewGuid(),command,1,DateTime.UtcNow,"FullWorkflowFixture",source.Portfolio),0,ct);
+            await db.AppendAsync($"Portfolio.{id}", command, new PortfolioCreatedEvent(Guid.NewGuid(),command,1,DateTime.UtcNow,"FullWorkflowFixture",source.Portfolio),0,ct);
             command = Guid.NewGuid();
-            await db.AppendAsync($"PortfolioFund.{id}.{source.Fund.FundId}",command,new FundMandateCreated(Guid.NewGuid(),command,1,DateTime.UtcNow,"FullWorkflowFixture",source.Fund),0,ct);
+            await db.AppendAsync($"PortfolioFund.{id}.{source.Fund.FundId}",command,new FundMandateCreatedEvent(Guid.NewGuid(),command,1,DateTime.UtcNow,"FullWorkflowFixture",source.Fund),0,ct);
             command = Guid.NewGuid();
-            await db.AppendAsync($"PortfolioFinancialPolicy.{id}.1",command,new PortfolioFinancialPolicyCreated(Guid.NewGuid(),command,1,DateTime.UtcNow,"FullWorkflowFixture",source.FinancialPolicy,Guid.NewGuid()),0,ct);
+            await db.AppendAsync($"PortfolioFinancialPolicy.{id}.1",command,new PortfolioFinancialPolicyCreatedEvent(Guid.NewGuid(),command,1,DateTime.UtcNow,"FullWorkflowFixture",source.FinancialPolicy,Guid.NewGuid()),0,ct);
             return true;
         });
         var rule=new LedgerPostingRule(Guid.NewGuid(),1,"five-stage-funding-rule",LedgerTransactionKind.DepositConfirmed,new(101,1),new(102,1),true);

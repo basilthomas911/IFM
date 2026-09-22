@@ -3,6 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Services.Trade;
@@ -119,7 +120,7 @@ public sealed class PortfolioTradeOrderServiceTests
     static PortfolioOrderCandidate Candidate() => new()
     {
         CompositionId = Guid.NewGuid(),
-        PositionType = TradeOrderPositionType.Opening,
+        PositionType = PortfolioExecutionPositionType.Opening,
         ValidUntilUtc = DateTime.UtcNow.AddMinutes(5)
     };
 
@@ -142,7 +143,7 @@ public sealed class PortfolioTradeOrderServiceTests
             PortfolioId = 11,
             CompositionId = candidate.CompositionId,
             Status = status,
-            TradeOrders = orders
+            TradeOrders = [.. orders.Select(order => order.ToPortfolioInstruction())]
         }
     };
 

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;

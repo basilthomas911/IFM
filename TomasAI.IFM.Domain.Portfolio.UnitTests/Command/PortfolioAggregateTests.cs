@@ -51,7 +51,7 @@ public sealed class PortfolioAggregateTests
         draft.Create(Guid.NewGuid(), Draft(), Now, "test-admin");
         var deleted = draft.DeleteDraft(Guid.NewGuid(), 1, "created in error", Now.AddMinutes(1), "test-admin");
 
-        deleted.Should().BeOfType<TomasAI.IFM.Domain.Portfolio.Command.Model.DraftPortfolioDeleted>();
+        deleted.Should().BeOfType<TomasAI.IFM.Domain.Portfolio.Shared.Events.DraftPortfolioDeletedEvent>();
         draft.IsDeleted.Should().BeTrue();
         draft.Revision.Should().Be(2);
         FluentActions.Invoking(() => draft.AddFund(Guid.NewGuid(), 2, new(101, 205), Now.AddMinutes(2), "test-admin"))

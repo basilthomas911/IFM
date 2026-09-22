@@ -21,4 +21,5 @@
   </ItemGroup>
 
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Strategy.Contracts.Shared/TomasAI.IFM.Domain.Strategy.Contracts.Shared.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Portfolio.Shared/TomasAI.IFM.Domain.Portfolio.Shared.csproj" /></ItemGroup>
 </Project>

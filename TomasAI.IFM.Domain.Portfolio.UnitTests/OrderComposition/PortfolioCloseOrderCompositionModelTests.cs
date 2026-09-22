@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.Portfolio.OrderComposition.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.OrderComposition;
@@ -19,14 +20,14 @@ public sealed class PortfolioCloseOrderCompositionModelTests
         var identities = new IdentityAllocator();
 
         var receipt = await PortfolioCloseOrderCompositionModel.EvaluateAsync(
-            request, Book(), 8, openingOrder, identities);
+            request, Book(), 8, openingOrder.ToPortfolioInstruction(), identities);
 
         receipt.Status.Should().Be(PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder);
-        receipt.TradeOrder!.PositionType.Should().Be(TradeOrderPositionType.Closing);
-        receipt.TradeOrder.TargetPositionId.Should().Be(request.Body.Position.Id);
+        receipt.TradeOrder!.PositionType.Should().Be(PortfolioExecutionPositionType.Closing);
+        receipt.TradeOrder.TargetPosition.Should().Be(request.Body.Position.Id);
         receipt.TradeOrder.Id.OrderId.Should().Be(901);
         receipt.TradeOrder.Components.Should().ContainSingle()
-            .Which.ReservedTradeId.Should().Be(request.Body.Position.Id.Trade.TradeId);
+            .Which.ReservedTradeId.Should().Be(request.Body.Position.Id.TradeId);
         identities.OrderAllocations.Should().Be(1);
         identities.TradeAllocations.Should().Be(0);
     }
@@ -47,7 +48,7 @@ public sealed class PortfolioCloseOrderCompositionModelTests
         };
 
         var action = () => PortfolioCloseOrderCompositionModel.EvaluateAsync(
-            request, Book(), 8, openingOrder, new IdentityAllocator()).AsTask();
+            request, Book(), 8, openingOrder.ToPortfolioInstruction(), new IdentityAllocator()).AsTask();
 
         await action.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*exactly reverse*");
@@ -59,11 +60,11 @@ public sealed class PortfolioCloseOrderCompositionModelTests
         var (request, openingOrder) = Fixture();
         request = request with
         {
-            Body = request.Body with { PositionType = TradeOrderPositionType.Opening }
+            Body = request.Body with { PositionType = PortfolioExecutionPositionType.Opening }
         };
 
         var action = () => PortfolioCloseOrderCompositionModel.EvaluateAsync(
-            request, Book(), 8, openingOrder, new IdentityAllocator()).AsTask();
+            request, Book(), 8, openingOrder.ToPortfolioInstruction(), new IdentityAllocator()).AsTask();
 
         await action.Should().ThrowAsync<ArgumentException>();
     }
@@ -102,7 +103,7 @@ public sealed class PortfolioCloseOrderCompositionModelTests
             ExpiresAtUtc = Now.AddMinutes(1), InputSha256 = new('b', 64),
             Body = new PortfolioCloseOrderCandidate
             {
-                CompositionId = workflowId.ExitDecisionId, WorkflowId = workflowId,
+                CompositionId = workflowId.ExitDecisionId, WorkflowId = workflowId.ToPortfolioWorkflow(),
                 Position = new StrategyPositionSnapshot
                 {
                     Id = positionId, StrategyKind = TradeStrategyKind.FuturesOutright,
@@ -117,15 +118,15 @@ public sealed class PortfolioCloseOrderCompositionModelTests
                             CurrentPrice = 101, LastPriceAtUtc = Now
                         }
                     ]
-                },
-                StrategyKind = TradeStrategyKind.FuturesOutright,
+                }.ToPortfolioPosition(),
+                StrategyKind = PortfolioExecutionStrategyKind.FuturesOutright,
                 ValueDate = DateOnly.FromDateTime(Now), ValidUntilUtc = Now.AddMinutes(1),
-                Origin = "FuturesExitPositionWorkflow", PositionType = TradeOrderPositionType.Closing,
+                Origin = "FuturesExitPositionWorkflow", PositionType = PortfolioExecutionPositionType.Closing,
                 EvidenceHash = new('c', 64),
-                Component = component with
+                Component = (component with
                 {
                     Legs = [openLeg with { SignedQuantity = -openLeg.SignedQuantity }]
-                }
+                }).ToPortfolioComponent()
             }
         };
         return (request, openingOrder);

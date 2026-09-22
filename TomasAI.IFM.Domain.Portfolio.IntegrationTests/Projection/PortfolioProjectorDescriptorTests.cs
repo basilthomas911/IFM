@@ -5,7 +5,9 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Projection;
 using TomasAI.IFM.Framework.Messaging.Nats;
@@ -30,17 +32,21 @@ public sealed class PortfolioProjectorDescriptorTests
         var policy = new PortfolioFinancialPolicyEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFinancialPolicyEventProjector>>(), events, projections);
 
         portfolio.ProjectedEventTypes.Should().BeEquivalentTo([
-            typeof(PortfolioCreated), typeof(PortfolioVersionAdded), typeof(PortfolioOperatingStateChanged),
-            typeof(FundAddedToPortfolio), typeof(PortfolioRetired), typeof(FundAllocationDelegated), typeof(FundRiskEnvelopeDelegated),
-            typeof(DraftPortfolioDeleted)]);
+            typeof(PortfolioCreatedEvent), typeof(PortfolioVersionAddedEvent), typeof(PortfolioOperatingStateChangedEvent),
+            typeof(FundAddedToPortfolioEvent), typeof(PortfolioRetiredEvent), typeof(FundAllocationDelegatedEvent), typeof(FundRiskEnvelopeDelegatedEvent),
+            typeof(DraftPortfolioDeletedEvent)]);
         fund.ProjectedEventTypes.Should().BeEquivalentTo([
-            typeof(FundMandateCreated), typeof(FundMandateVersionAdded), typeof(FundOperatingStateChanged),
-            typeof(FundTradeTemplateAssigned), typeof(FundCompositionReserved), typeof(FundCompositionStateChanged)]);
+            typeof(FundMandateCreatedEvent), typeof(FundMandateVersionAddedEvent), typeof(FundOperatingStateChangedEvent),
+            typeof(FundTradeTemplateAssignedEvent), typeof(FundCompositionReservedEvent), typeof(FundCompositionStateChangedEvent),
+            typeof(FundManualOrderChangedEvent), typeof(FundManualOrderDeletedEvent)]);
         policy.ProjectedEventTypes.Should().BeEquivalentTo([
-            typeof(PortfolioFinancialPolicyCreated), typeof(PortfolioFinancialPolicyVersionAdded),
-            typeof(PortfolioFinancialPolicyActivated), typeof(PortfolioFinancialPolicyRetired),
-            typeof(DraftPortfolioFinancialPolicyDeleted)]);
+            typeof(PortfolioFinancialPolicyCreatedEvent), typeof(PortfolioFinancialPolicyVersionAddedEvent),
+            typeof(PortfolioFinancialPolicyActivatedEvent), typeof(PortfolioFinancialPolicyRetiredEvent),
+            typeof(DraftPortfolioFinancialPolicyDeletedEvent)]);
         portfolio.ProjectionDescriptors.Concat(fund.ProjectionDescriptors).Concat(policy.ProjectionDescriptors).Should().OnlyContain(x => x.UseDurableReplay);
+        portfolio.ProjectedEventTypes.Should().BeEquivalentTo(portfolio.ProjectionDescriptors.Select(x => x.SourceEventType));
+        fund.ProjectedEventTypes.Should().BeEquivalentTo(fund.ProjectionDescriptors.Select(x => x.SourceEventType));
+        policy.ProjectedEventTypes.Should().BeEquivalentTo(policy.ProjectionDescriptors.Select(x => x.SourceEventType));
         new[] { portfolio.DurableProcessQueueName, fund.DurableProcessQueueName, policy.DurableProcessQueueName }.Should().OnlyHaveUniqueItems();
     }
 }

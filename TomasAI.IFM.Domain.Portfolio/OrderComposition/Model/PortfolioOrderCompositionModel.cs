@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Model;
 
@@ -22,7 +21,7 @@ public static class PortfolioOrderCompositionModel
         var candidate = request.Body;
         if (request.PortfolioId <= 0 || request.OperationId == Guid.Empty || candidate.CompositionId == Guid.Empty
             || candidate.WorkflowId == Guid.Empty || candidate.Components.Length == 0
-            || candidate.PositionType != TradeOrderPositionType.Opening
+            || candidate.PositionType != PortfolioExecutionPositionType.Opening
             || candidate.Components.Any(component => component.Legs.Length == 0 ||
                 component.Legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId)))
             || candidate.DeploymentKey.Kind != TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment
@@ -37,7 +36,7 @@ public static class PortfolioOrderCompositionModel
             throw new InvalidOperationException("Portfolio financial authority is unavailable.");
 
         var decisions = new List<PortfolioFundOrderDecision>(book.Funds.Length);
-        var orders = new List<TradeOrderDefinition>(book.Funds.Length);
+        var orders = new List<PortfolioExecutionOrderInstruction>(book.Funds.Length);
         var effects = new List<PortfolioAcceptedCapacityEffect>(book.Funds.Length);
         var provisional = new Dictionary<(CapacityScopeKind ScopeKind,string ScopeKey,CapacityMeasure Measure,CapacityUnit Unit),decimal>();
         foreach (var fund in book.Funds.OrderBy(value => value.FundId))
@@ -77,7 +76,7 @@ public static class PortfolioOrderCompositionModel
                 continue;
             }
             var orderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-            var components = new TradeOrderComponentDefinition[candidate.Components.Length];
+            var components = new PortfolioExecutionComponent[candidate.Components.Length];
             for (var componentIndex = 0; componentIndex < candidate.Components.Length; componentIndex++)
             {
                 var component = candidate.Components[componentIndex];
@@ -88,10 +87,10 @@ public static class PortfolioOrderCompositionModel
                 };
             }
             decisions.Add(new(fund.FundId, true, "Accepted", orderId));
-            orders.Add(new TradeOrderDefinition
+            orders.Add(new PortfolioExecutionOrderInstruction
             {
                 Id = new(request.PortfolioId, fund.FundId, orderId), Revision = 1,
-                Status = TradeOrderStatus.Approved, ValueDate = candidate.ValueDate,
+                Status = PortfolioExecutionOrderStatus.Approved, ValueDate = candidate.ValueDate,
                 PositionType = candidate.PositionType,
                 ValidUntilUtc = candidate.ValidUntilUtc, Origin = candidate.Origin,
                 Components = components,

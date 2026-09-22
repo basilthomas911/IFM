@@ -1,5 +1,7 @@
 using TomasAI.IFM.Application.Storage.PortfolioDb;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -10,25 +12,25 @@ namespace TomasAI.IFM.Domain.Portfolio.Projection;
 /// <summary>Deterministic committed-event to Scylla projection mapping used by durable projector descriptors and rebuild.</summary>
 public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPortfolioDbWriteContext projections)
 {
-    public async Task ApplyAsync(PortfolioDomainEvent domainEvent, CancellationToken cancellationToken = default)
+    public async Task ApplyAsync(IPortfolioDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
         if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed events can be projected.");
         var portfolioId = ParsePortfolioId(domainEvent.AggregateId);
         var aggregate = await events.LoadPortfolioAsync(portfolioId, cancellationToken).ConfigureAwait(false);
         var current = aggregate.Current ?? throw new InvalidOperationException("Committed Portfolio history did not rebuild a Portfolio.");
-        if (domainEvent is DraftPortfolioDeleted)
+        if (domainEvent is DraftPortfolioDeletedEvent)
         {
             var funds = new List<DraftFundProjectionDeletion>();
             foreach (var fundId in aggregate.FundIds.Order())
             {
                 var history = await events.LoadFundHistoryAsync(new PortfolioFundId(portfolioId.Id, fundId), cancellationToken).ConfigureAwait(false);
-                if (history.OfType<FundCompositionReserved>().Any())
+                if (history.OfType<FundCompositionReservedEvent>().Any())
                     throw new InvalidOperationException("A Portfolio with composition history cannot be deleted.");
                 var versions = history.Select(x => x switch
                 {
-                    FundMandateCreated created => created.Mandate.FundMandateVersion,
-                    FundMandateVersionAdded added => added.Mandate.FundMandateVersion,
+                    FundMandateCreatedEvent created => created.Mandate.FundMandateVersion,
+                    FundMandateVersionAddedEvent added => added.Mandate.FundMandateVersion,
                     _ => 0,
                 }).Where(x => x > 0).Distinct().Order().ToArray();
                 funds.Add(new(fundId, versions));
@@ -41,17 +43,17 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
         await projections.UpsertPortfolioAsync(
             PortfolioProjection<PortfolioReadModel>.Create(current, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
             StateBucket(current.PortfolioId), cancellationToken).ConfigureAwait(false);
-        if (domainEvent is FundAllocationDelegated allocation)
+        if (domainEvent is FundAllocationDelegatedEvent allocation)
             await projections.UpsertAllocationAsync(
                 PortfolioProjection<FundAllocationReadModel>.Create(allocation.Allocation, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
                 cancellationToken).ConfigureAwait(false);
-        if (domainEvent is FundRiskEnvelopeDelegated risk)
+        if (domainEvent is FundRiskEnvelopeDelegatedEvent risk)
             await projections.UpsertRiskEnvelopeAsync(
                 PortfolioProjection<FundRiskEnvelopeReadModel>.Create(risk.Envelope, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
                 cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task ApplyAsync(PortfolioFundDomainEvent domainEvent, CancellationToken cancellationToken = default)
+    public async Task ApplyAsync(IPortfolioFundDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
         if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed events can be projected.");
@@ -61,20 +63,20 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
         await projections.UpsertFundAsync(
             PortfolioProjection<FundMandateReadModel>.Create(current, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
             cancellationToken).ConfigureAwait(false);
-        if (domainEvent is FundTradeTemplateAssigned assigned)
+        if (domainEvent is FundTradeTemplateAssignedEvent assigned)
             await projections.UpsertAssignmentAsync(
                 PortfolioProjection<FundTradeTemplateAssignmentReadModel>.Create(assigned.Assignment, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
                 cancellationToken).ConfigureAwait(false);
-        if (domainEvent is FundCompositionReserved reserved)
+        if (domainEvent is FundCompositionReservedEvent reserved)
             await ApplyCompositionAsync(reserved.Reservation, domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
-        if (domainEvent is FundCompositionStateChanged changed)
+        if (domainEvent is FundCompositionStateChangedEvent changed)
             await ApplyCompositionAsync(aggregate.Composition(changed.Order.OrderId), domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
-        if (domainEvent is FundManualOrderDeleted deleted)
+        if (domainEvent is FundManualOrderDeletedEvent deleted)
         {
             await projections.DeleteOrderAsync(deleted.OrderId, domainEvent.EventId, cancellationToken).ConfigureAwait(false);
             return;
         }
-        if (domainEvent is FundManualOrderChanged manual)
+        if (domainEvent is FundManualOrderChangedEvent manual)
         {
             if (manual.RemovedTradeId > 0)
                 await projections.DeleteTradeAsync(manual.RemovedTradeId, domainEvent.EventId, cancellationToken).ConfigureAwait(false);
@@ -82,13 +84,13 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
         }
     }
 
-    public async Task ApplyAsync(PortfolioFinancialPolicyDomainEvent domainEvent, CancellationToken cancellationToken = default)
+    public async Task ApplyAsync(IPortfolioFinancialPolicyDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
         if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed policy events can be projected.");
         var policyId = ParsePolicyId(domainEvent.AggregateId);
         var aggregate = await events.LoadPolicyAsync(policyId, cancellationToken).ConfigureAwait(false);
-        if (domainEvent is DraftPortfolioFinancialPolicyDeleted)
+        if (domainEvent is DraftPortfolioFinancialPolicyDeletedEvent)
         {
             await projections.DeleteDraftPolicyAsync(
                 new(policyId.PortfolioId, policyId.PolicyId, domainEvent.EventId), cancellationToken).ConfigureAwait(false);

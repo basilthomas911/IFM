@@ -20,11 +20,11 @@ internal static class PortfolioQueryHandlerModel
 
     /// <summary>Allocates a business identifier of the requested Portfolio identity kind.</summary>
     internal static async Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateAsync(
-        PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation> query,
+        AllocatePortfolioBusinessIdQuery query,
         IPortfolioBusinessIdAllocator allocator,
         CancellationToken cancellationToken)
     {
-        var value = query.Parameters.Kind switch
+        var value = query.Kind switch
         {
             PortfolioBusinessIdentityKind.Portfolio => (await allocator.AllocatePortfolioIdAsync(cancellationToken).ConfigureAwait(false)).Id,
             PortfolioBusinessIdentityKind.Fund => await allocator.AllocateFundIdAsync(cancellationToken).ConfigureAwait(false),
@@ -33,6 +33,6 @@ internal static class PortfolioQueryHandlerModel
             PortfolioBusinessIdentityKind.Policy => await allocator.AllocatePolicyIdAsync(cancellationToken).ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(query), "A supported business identity kind is required."),
         };
-        return new ServiceOk<PortfolioBusinessIdAllocation>(new() { Kind = query.Parameters.Kind, Value = value, CorrelationId = query.CorrelationId });
+        return new ServiceOk<PortfolioBusinessIdAllocation>(new() { Kind = query.Kind, Value = value, CorrelationId = query.CorrelationId });
     }
 }

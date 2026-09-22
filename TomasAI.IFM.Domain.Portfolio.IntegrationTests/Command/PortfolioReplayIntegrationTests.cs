@@ -1,5 +1,7 @@
 using FluentAssertions;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -15,7 +17,7 @@ public sealed class PortfolioReplayIntegrationTests
     {
         var now = new DateTime(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc);
         var source = new PortfolioAggregate();
-        PortfolioDomainEvent[] history =
+        IPortfolioDomainEvent[] history =
         [
             source.Create(Guid.NewGuid(), new PortfolioReadModel
             {
@@ -41,7 +43,7 @@ public sealed class PortfolioReplayIntegrationTests
     {
         var now = new DateTime(2026, 8, 30, 14, 0, 0, DateTimeKind.Utc);
         var source = new PortfolioAggregate();
-        PortfolioDomainEvent[] history =
+        IPortfolioDomainEvent[] history =
         [
             source.Create(Guid.NewGuid(), new PortfolioReadModel
             {

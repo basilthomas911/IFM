@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.SequenceId;
@@ -2243,12 +2244,42 @@ public partial class MarketDataDbContext(
     /// <returns>A task representing the asynchronous operation, containing a collection of <see cref="FuturesItiSignalV2ReadModel"/>.</returns>
     public async Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalsAsync(string symbol, DateOnly startDate, DateOnly endDate)
     {
+        if (endDate < startDate)
+            return [];
+
         var dbSec = (_dbFactory.SecuritiesDb as ISecuritiesDbReadContext)!;
         var contractIds = (await dbSec.GetFuturesContractsBySymbolAsync(symbol))
             .Select(static contract => contract.ContractId)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+            .ToHashSet(StringComparer.Ordinal);
+        var db = _dbFactory.MarketDataDb;
+        var valueDates = Enumerable.Range(0, endDate.DayNumber - startDate.DayNumber + 1)
+            .Select(startDate.AddDays);
+        foreach (var batch in valueDates.Chunk(ProjectionReadConcurrency))
+        {
+            var reads = batch.Select(valueDate => db
+                .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalContractIdsByDate)}", MarketDataDbCql.GetFuturesItiSignalContractIdsByDate)
+                .SetParameters(new GetFuturesItiSignalContractIdsByDate(valueDate))
+                .ExecuteQueryAsync(static row => row.GetString(0)));
+            foreach (var indexedContractIds in await Task.WhenAll(reads))
+                contractIds.UnionWith(indexedContractIds.Where(contractId =>
+                    IsFuturesContractForSymbol(contractId, symbol)));
+        }
         return await ReadFuturesItiSignalsByDateRangeAsync(contractIds, startDate, endDate);
+    }
+
+    internal static bool IsFuturesContractForSymbol(string contractId, string symbol)
+    {
+        if (!contractId.StartsWith(symbol, StringComparison.Ordinal))
+            return false;
+
+        var suffix = contractId.AsSpan(symbol.Length);
+        if (suffix.Length == 8 &&
+            DateOnly.TryParseExact(suffix, "yyyyMMdd", null, DateTimeStyles.None, out _))
+            return true;
+
+        return suffix.Length is >= 2 and <= 5 &&
+               "FGHJKMNQUVXZ".Contains(suffix[0]) &&
+               suffix[1..].IndexOfAnyExceptInRange('0', '9') < 0;
     }
 
     /// <summary>

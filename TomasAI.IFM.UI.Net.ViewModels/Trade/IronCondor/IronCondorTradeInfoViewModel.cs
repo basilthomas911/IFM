@@ -17,8 +17,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor
             _baseViewModel = baseViewModel;
         }
 
-        public string OrderReference => _baseViewModel.FundOrder.Reference;
-        public string TradeReference => _baseViewModel.FundOrderTrade.Reference;
+        public string OrderReference => _baseViewModel.FundOrder.OperatorReference;
+        public string TradeReference => _baseViewModel.FundOrderTrade.InstructionReference;
         public TradeAction TradeAction => _baseViewModel.FundOrderTrade.TradeAction;
         public TradeType TradeType => _baseViewModel.FundOrderTrade.TradeType;
     }

@@ -13,27 +13,27 @@ using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using AllocatePortfolioBusinessIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioBusinessIdAllocation>;
-using GetActivePortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetActivePolicyRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>;
-using GetFundAllocationQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetAllocationRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundAllocationReadModel>;
-using GetFundCompositionByWorkflowQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetCompositionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundCompositionWorkflowProjectionReadModel[]>;
-using GetFundOrderByOrderIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetOrderRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel>;
-using GetFundOrderTradeByTradeIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetTradeRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel>;
-using GetFundOrderTradesPageQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetOrderTradesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel>>;
-using GetFundOrdersPageQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetOrdersRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel>>;
-using GetFundQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel>;
-using GetFundRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundRevisionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioAggregateRevision>;
-using GetFundRiskEnvelopeQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetEnvelopeRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel>;
-using GetFundsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel>>;
-using GetFundTemplateAssignmentsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetAssignmentsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel[]>;
-using GetPortfolioFinancialPoliciesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPoliciesRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>>;
-using GetPortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPolicyRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel>;
-using GetPortfolioFundStrategyReferenceCombinationsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategyReferenceCombinationsRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioFundStrategyReferenceCombination[]>;
-using ResolveForSelectionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.ResolveForSelectionRequest, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot>;
-using GetPortfolioFundStrategySnapshotQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetStrategySnapshotRequest, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot>;
-using GetPortfolioQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRequest, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel>;
-using GetPortfolioRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRevisionRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioAggregateRevision>;
-using GetPortfoliosQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.PortfolioQuery<TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfoliosRequest, TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel>>;
+using AllocatePortfolioBusinessIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdQuery;
+using GetActivePortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetActivePortfolioFinancialPolicyQuery;
+using GetFundAllocationQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundAllocationQuery;
+using GetFundCompositionByWorkflowQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundCompositionByWorkflowQuery;
+using GetFundOrderByOrderIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundOrderByOrderIdQuery;
+using GetFundOrderTradeByTradeIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundOrderTradeByTradeIdQuery;
+using GetFundOrderTradesPageQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundOrderTradesPageQuery;
+using GetFundOrdersPageQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundOrdersPageQuery;
+using GetFundQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundQuery;
+using GetFundRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundRevisionQuery;
+using GetFundRiskEnvelopeQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundRiskEnvelopeQuery;
+using GetFundsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundsQuery;
+using GetFundTemplateAssignmentsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundTemplateAssignmentsQuery;
+using GetPortfolioFinancialPoliciesQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioFinancialPoliciesQuery;
+using GetPortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioFinancialPolicyQuery;
+using GetPortfolioFundStrategyReferenceCombinationsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioFundStrategyReferenceCombinationsQuery;
+using ResolveForSelectionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.ResolveForSelectionQuery;
+using GetPortfolioFundStrategySnapshotQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioFundStrategySnapshotQuery;
+using GetPortfolioQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioQuery;
+using GetPortfolioRevisionQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioRevisionQuery;
+using GetPortfoliosQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfoliosQuery;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query.Actor;
 
@@ -48,7 +48,7 @@ public interface IPortfolioQueryContext : IQueryActorContext<PortfolioQueryActor
 public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> actorContext, IPortfolioOperationalGuard operationalGuard)
     : BaseQueryActor<PortfolioQueryActor>(actorContext, RequireContext(actorContext).Logger)
 {
-    public const string ActorName = PortfolioQuerySubjects.Actor;
+    public const string ActorName = GetPortfolioQuery.Actor;
     readonly PortfolioQueryParameters _parameters = new(RequireContext(actorContext));
 
     static IPortfolioQueryContext RequireContext(IQueryActorContext<PortfolioQueryActor> context) =>
@@ -61,27 +61,27 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
-        [PortfolioQueryVerbs.GetPortfolio] = static message => message.AsQuery<GetPortfolioQuery, PortfolioReadModel>()!,
-        [PortfolioQueryVerbs.GetPortfolioRevision] = static message => message.AsQuery<GetPortfolioRevisionQuery, PortfolioAggregateRevision>()!,
-        [PortfolioQueryVerbs.GetPortfolios] = static message => message.AsQuery<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>()!,
-        [PortfolioQueryVerbs.GetFund] = static message => message.AsQuery<GetFundQuery, FundMandateReadModel>()!,
-        [PortfolioQueryVerbs.GetFundRevision] = static message => message.AsQuery<GetFundRevisionQuery, PortfolioAggregateRevision>()!,
-        [PortfolioQueryVerbs.GetFunds] = static message => message.AsQuery<GetFundsQuery, PortfolioPage<FundMandateReadModel>>()!,
-        [PortfolioQueryVerbs.GetFundAllocation] = static message => message.AsQuery<GetFundAllocationQuery, FundAllocationReadModel>()!,
-        [PortfolioQueryVerbs.GetFundRiskEnvelope] = static message => message.AsQuery<GetFundRiskEnvelopeQuery, FundRiskEnvelopeReadModel>()!,
-        [PortfolioQueryVerbs.GetFundTemplateAssignments] = static message => message.AsQuery<GetFundTemplateAssignmentsQuery, FundTradeTemplateAssignmentReadModel[]>()!,
-        [PortfolioQueryVerbs.ResolveForSelection] = static message => message.AsQuery<ResolveForSelectionQuery, PortfolioFundStrategySnapshot>()!,
-        [PortfolioQueryVerbs.GetPortfolioFundStrategySnapshot] = static message => message.AsQuery<GetPortfolioFundStrategySnapshotQuery, PortfolioFundStrategySnapshot>()!,
-        [PortfolioQueryVerbs.GetFundOrderByOrderId] = static message => message.AsQuery<GetFundOrderByOrderIdQuery, FundOrderProjectionReadModel>()!,
-        [PortfolioQueryVerbs.GetFundOrderTradeByTradeId] = static message => message.AsQuery<GetFundOrderTradeByTradeIdQuery, FundOrderTradeProjectionReadModel>()!,
-        [PortfolioQueryVerbs.GetFundCompositionByWorkflow] = static message => message.AsQuery<GetFundCompositionByWorkflowQuery, FundCompositionWorkflowProjectionReadModel[]>()!,
-        [PortfolioQueryVerbs.GetFundOrdersPage] = static message => message.AsQuery<GetFundOrdersPageQuery, PortfolioPage<FundOrderProjectionReadModel>>()!,
-        [PortfolioQueryVerbs.GetFundOrderTradesPage] = static message => message.AsQuery<GetFundOrderTradesPageQuery, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
-        [PortfolioQueryVerbs.GetPortfolioFundStrategyReferenceCombinations] = static message => message.AsQuery<GetPortfolioFundStrategyReferenceCombinationsQuery, PortfolioFundStrategyReferenceCombination[]>()!,
-        [PortfolioQueryVerbs.AllocatePortfolioBusinessId] = static message => message.AsQuery<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>()!,
-        [PortfolioQueryVerbs.GetPortfolioFinancialPolicy] = static message => message.AsQuery<GetPortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
-        [PortfolioQueryVerbs.GetPortfolioFinancialPolicies] = static message => message.AsQuery<GetPortfolioFinancialPoliciesQuery, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
-        [PortfolioQueryVerbs.GetActivePortfolioFinancialPolicy] = static message => message.AsQuery<GetActivePortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
+        [GetPortfolioQuery.Verb] = static message => message.AsQuery<GetPortfolioQuery, PortfolioReadModel>()!,
+        [GetPortfolioRevisionQuery.Verb] = static message => message.AsQuery<GetPortfolioRevisionQuery, PortfolioAggregateRevision>()!,
+        [GetPortfoliosQuery.Verb] = static message => message.AsQuery<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>()!,
+        [GetFundQuery.Verb] = static message => message.AsQuery<GetFundQuery, FundMandateReadModel>()!,
+        [GetFundRevisionQuery.Verb] = static message => message.AsQuery<GetFundRevisionQuery, PortfolioAggregateRevision>()!,
+        [GetFundsQuery.Verb] = static message => message.AsQuery<GetFundsQuery, PortfolioPage<FundMandateReadModel>>()!,
+        [GetFundAllocationQuery.Verb] = static message => message.AsQuery<GetFundAllocationQuery, FundAllocationReadModel>()!,
+        [GetFundRiskEnvelopeQuery.Verb] = static message => message.AsQuery<GetFundRiskEnvelopeQuery, FundRiskEnvelopeReadModel>()!,
+        [GetFundTemplateAssignmentsQuery.Verb] = static message => message.AsQuery<GetFundTemplateAssignmentsQuery, FundTradeTemplateAssignmentReadModel[]>()!,
+        [ResolveForSelectionQuery.Verb] = static message => message.AsQuery<ResolveForSelectionQuery, PortfolioFundStrategySnapshot>()!,
+        [GetPortfolioFundStrategySnapshotQuery.Verb] = static message => message.AsQuery<GetPortfolioFundStrategySnapshotQuery, PortfolioFundStrategySnapshot>()!,
+        [GetFundOrderByOrderIdQuery.Verb] = static message => message.AsQuery<GetFundOrderByOrderIdQuery, FundOrderProjectionReadModel>()!,
+        [GetFundOrderTradeByTradeIdQuery.Verb] = static message => message.AsQuery<GetFundOrderTradeByTradeIdQuery, FundOrderTradeProjectionReadModel>()!,
+        [GetFundCompositionByWorkflowQuery.Verb] = static message => message.AsQuery<GetFundCompositionByWorkflowQuery, FundCompositionWorkflowProjectionReadModel[]>()!,
+        [GetFundOrdersPageQuery.Verb] = static message => message.AsQuery<GetFundOrdersPageQuery, PortfolioPage<FundOrderProjectionReadModel>>()!,
+        [GetFundOrderTradesPageQuery.Verb] = static message => message.AsQuery<GetFundOrderTradesPageQuery, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
+        [GetPortfolioFundStrategyReferenceCombinationsQuery.Verb] = static message => message.AsQuery<GetPortfolioFundStrategyReferenceCombinationsQuery, PortfolioFundStrategyReferenceCombination[]>()!,
+        [AllocatePortfolioBusinessIdQuery.Verb] = static message => message.AsQuery<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>()!,
+        [GetPortfolioFinancialPolicyQuery.Verb] = static message => message.AsQuery<GetPortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
+        [GetPortfolioFinancialPoliciesQuery.Verb] = static message => message.AsQuery<GetPortfolioFinancialPoliciesQuery, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
+        [GetActivePortfolioFinancialPolicyQuery.Verb] = static message => message.AsQuery<GetActivePortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
     };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
@@ -145,11 +145,11 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<PortfolioQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
-        var request = (IPortfolioRequestMetadata)query;
-        using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request);
+        dynamic request = query;
+        using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request.CorrelationId);
         var allocatesIdentity = query is AllocatePortfolioBusinessIdQuery;
         operationalGuard.Demand(allocatesIdentity ? PortfolioOperation.AdministerPortfolio : PortfolioOperation.Read,
-            request, mutation: allocatesIdentity);
+            request.Access, mutation: allocatesIdentity);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using FluentAssertions;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -14,9 +15,9 @@ public sealed class PortfolioOperationalGuardTests
     public void Authorized_personas_can_use_only_their_bounded_journeys()
     {
         var guard = new PortfolioOperationalGuard(new());
-        var admin = Request(PortfolioAccessContext.Administrator("alice"));
-        var workflow = Request(PortfolioAccessContext.Workflow("workflow-7"));
-        var reader = Request(PortfolioAccessContext.Reader("auditor"));
+        var admin = PortfolioAccessContext.Administrator("alice");
+        var workflow = PortfolioAccessContext.Workflow("workflow-7");
+        var reader = PortfolioAccessContext.Reader("auditor");
 
         guard.Demand(PortfolioOperation.AdministerPortfolio, admin, true).Principal.Should().Be("alice");
         guard.Demand(PortfolioOperation.RecordRiskResult, workflow, true).Principal.Should().Be("workflow-7");
@@ -31,7 +32,7 @@ public sealed class PortfolioOperationalGuardTests
     public void Anonymous_and_deferred_execution_authority_are_prohibited()
     {
         var guard = new PortfolioOperationalGuard(new());
-        guard.Invoking(x => x.Demand(PortfolioOperation.Read, Request(new()), false))
+        guard.Invoking(x => x.Demand(PortfolioOperation.Read, new(), false))
             .Should().Throw<PortfolioAuthorizationException>();
         Enum.GetNames<PortfolioOperation>().Should().NotContain(name => name.Contains("Execution", StringComparison.OrdinalIgnoreCase));
     }
@@ -45,12 +46,12 @@ public sealed class PortfolioOperationalGuardTests
         var queryOff = new PortfolioOperationalGuard(new() { QueriesEnabled = false });
 
         mutationOff.Invoking(x => x.Demand(PortfolioOperation.AdministerPortfolio,
-            Request(PortfolioAccessContext.Administrator("admin")), true)).Should().Throw<PortfolioOperationalException>();
-        mutationOff.Demand(PortfolioOperation.Read, Request(PortfolioAccessContext.Reader("reader")), false).Should().NotBeNull();
+            PortfolioAccessContext.Administrator("admin"), true)).Should().Throw<PortfolioOperationalException>();
+        mutationOff.Demand(PortfolioOperation.Read, PortfolioAccessContext.Reader("reader"), false).Should().NotBeNull();
         queryOff.Invoking(x => x.Demand(PortfolioOperation.Read,
-            Request(PortfolioAccessContext.Reader("reader")), false)).Should().Throw<PortfolioOperationalException>();
+            PortfolioAccessContext.Reader("reader"), false)).Should().Throw<PortfolioOperationalException>();
         queryOff.Demand(PortfolioOperation.AdministerPortfolio,
-            Request(PortfolioAccessContext.Administrator("admin")), true).Should().NotBeNull();
+            PortfolioAccessContext.Administrator("admin"), true).Should().NotBeNull();
     }
 
     [Fact]
@@ -90,13 +91,13 @@ public sealed class PortfolioOperationalGuardTests
             ActivityStopped = activity => captured = activity,
         };
         ActivitySource.AddActivityListener(listener);
-        var request = Request(PortfolioAccessContext.Administrator("secret-principal"));
+        var correlationId = Guid.NewGuid();
 
-        using (PortfolioTelemetry.StartRequest("command", "CreatePortfolio", request)) { }
+        using (PortfolioTelemetry.StartRequest("command", "CreatePortfolio", correlationId)) { }
 
         captured.Should().NotBeNull();
         captured!.Tags.Should().Contain(x => x.Key == "portfolio.operation" && x.Value == "CreatePortfolio");
-        captured.Tags.Should().Contain(x => x.Key == "correlation.id" && x.Value == request.CorrelationId.ToString("N"));
+        captured.Tags.Should().Contain(x => x.Key == "correlation.id" && x.Value == correlationId.ToString("N"));
         captured.Tags.Should().NotContain(x => x.Value != null && x.Value.Contains("secret-principal", StringComparison.Ordinal));
     }
 
@@ -116,22 +117,11 @@ public sealed class PortfolioOperationalGuardTests
         listener.Start();
 
         new PortfolioOperationalGuard(new()).Demand(PortfolioOperation.Read,
-            Request(PortfolioAccessContext.Reader("must-not-be-a-label")), false);
+            PortfolioAccessContext.Reader("must-not-be-a-label"), false);
 
         var capture = captures.Should().ContainSingle(x => x.Name == "portfolio.authorization.checks").Subject;
         capture.Tags.Select(x => x.Key).Should().BeEquivalentTo("portfolio.operation", "portfolio.outcome");
         capture.Tags.Select(x => x.Value?.ToString()).Should().NotContain("must-not-be-a-label");
     }
 
-    static IPortfolioRequestMetadata Request(PortfolioAccessContext access) => new RequestMetadata
-    {
-        CorrelationId = Guid.NewGuid(), RequestedOnUtc = DateTime.UtcNow, Access = access,
-    };
-
-    sealed record RequestMetadata : IPortfolioRequestMetadata
-    {
-        public Guid CorrelationId { get; init; }
-        public DateTime RequestedOnUtc { get; init; }
-        public PortfolioAccessContext Access { get; init; } = new();
-    }
 }

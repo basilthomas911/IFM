@@ -3,7 +3,9 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Workflow;
@@ -170,11 +172,15 @@ public sealed class PortfolioWorkflowTests
             Reference = "manual-16001",
             PrimaryTrade = true,
             BaseContractSymbol = "ES",
+            BaseContractId = "ESZ26",
             RequestedAtUtc = Now,
         }, "operator");
 
         opened.Trades.Should().ContainSingle();
         opened.Trades[0].PrimaryTrade.Should().BeTrue();
+        opened.Trades[0].BaseContractId.Should().Be("ESZ26");
+        opened.Trades[0].InstructionReference.Should().Be(
+            $"ESZ26 @ {request.RequestedTradeDate:yyyyMMdd} - {request.RequestedMaturityDate:yyyyMMdd}");
         opened.Order.AggregateVersion.Should().Be(2);
 
         var closed = aggregate.AddManualTrade(new AddManualFundOrderTradeRequest
@@ -192,6 +198,7 @@ public sealed class PortfolioWorkflowTests
             Reference = "manual-16001",
             PrimaryTrade = false,
             BaseContractSymbol = "ES",
+            BaseContractId = "ESZ26",
             RequestedAtUtc = Now,
         }, "operator");
 
@@ -319,7 +326,7 @@ public sealed class PortfolioWorkflowTests
 
         var replay = new PortfolioFundAggregate();
         replay.RestoreSnapshot(new PortfolioFundAggregateSnapshot(1, snapshot.Fund, snapshot.Assignments, [], [Guid.NewGuid()]));
-        replay.Replay([(PortfolioFundDomainEvent)reserved, composing, composed, risk]);
+        replay.Replay([(IPortfolioFundDomainEvent)reserved, composing, composed, risk]);
         var restored = new PortfolioFundAggregate();
         restored.RestoreSnapshot(replay.CaptureSnapshot());
 

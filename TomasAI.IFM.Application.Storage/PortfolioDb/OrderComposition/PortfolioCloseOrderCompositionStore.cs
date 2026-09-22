@@ -2,6 +2,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition;
 
@@ -11,7 +12,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
     public Task<PortfolioCloseOrderCompositionCompletedEvent> EvaluateAsync(
         EvaluatePortfolioCloseOrderCompositionCommand request,
         Func<EvaluatePortfolioCloseOrderCompositionCommand, FinancialBookConfiguration, long,
-            TradeOrderDefinition, CancellationToken, ValueTask<PortfolioCloseOrderCompositionReceipt>> evaluate,
+            PortfolioExecutionOrderInstruction, CancellationToken, ValueTask<PortfolioCloseOrderCompositionReceipt>> evaluate,
         CancellationToken cancellationToken = default) =>
         transactions.ExecuteAsync(async (db, token) =>
         {
@@ -32,7 +33,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
 
             var positionId = request.Body.Position.Id;
             await PortfolioDbFinancialSupport.ValidateFundSourcesAsync(
-                db, authority.Book, positionId.Trade.FundId, false, token).ConfigureAwait(false);
+                db, authority.Book, positionId.FundId, false, token).ConfigureAwait(false);
 
             var priorClose = await db.ScalarAsync(
                 PortfolioDbSql.OrderComposition.SelectAcceptedClose,
@@ -42,12 +43,13 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
 
             var openingJson = await db.ScalarAsync(
                 PortfolioDbSql.OrderComposition.SelectOpeningOrder,
-                [positionId.Trade.OrderId, positionId.Trade.PortfolioId, positionId.Trade.FundId], token)
+                [positionId.OrderId, positionId.PortfolioId, positionId.FundId], token)
                 .ConfigureAwait(false) as string
                 ?? throw new InvalidOperationException("The accepted opening Trade Order was not found.");
-            var openingOrder = PortfolioDbFinancialSupport.Decode<TradeOrderDefinition>(openingJson);
-            if (openingOrder.SchemaVersion <= 2 && openingOrder.PositionType == TradeOrderPositionType.Unknown)
-                openingOrder = openingOrder with { PositionType = TradeOrderPositionType.Opening };
+            var openingTradeOrder = PortfolioDbFinancialSupport.Decode<TradeOrderDefinition>(openingJson);
+            if (openingTradeOrder.SchemaVersion <= 2 && openingTradeOrder.PositionType == TradeOrderPositionType.Unknown)
+                openingTradeOrder = openingTradeOrder with { PositionType = TradeOrderPositionType.Opening };
+            var openingOrder = openingTradeOrder.ToPortfolioInstruction();
 
             var receipt = await evaluate(
                 request, authority.Book, checked(authority.Revision + 1), openingOrder, token)
@@ -77,7 +79,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
                     request.InputSha256, PortfolioDbFinancialSupport.Json(receipt), now], token)
                 .ConfigureAwait(false);
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertFundDecision,
-                [request.OperationId, positionId.Trade.FundId, true, receipt.ReasonCode, order.Id.OrderId], token)
+                [request.OperationId, positionId.FundId, true, receipt.ReasonCode, order.Id.OrderId], token)
                 .ConfigureAwait(false);
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertOrder,
                 [order.Id.OrderId, request.OperationId, order.Id.PortfolioId, order.Id.FundId,
@@ -90,8 +92,8 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
                         [order.Id.OrderId, component.ComponentId, leg.TradeLegId, ordinal++,
                             PortfolioDbFinancialSupport.Json(leg)], token).ConfigureAwait(false);
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertAcceptedClose,
-                [request.OperationId, positionId.Format(), positionId.Trade.OrderId,
-                    positionId.Trade.TradeId, order.Id.OrderId, now], token).ConfigureAwait(false);
+                [request.OperationId, positionId.Format(), positionId.OrderId,
+                    positionId.TradeId, order.Id.OrderId, now], token).ConfigureAwait(false);
             await PortfolioDbFinancialSupport.SaveOutcomeAsync(
                 db, request, completed, receipt.FinancialRevision, true, token).ConfigureAwait(false);
             return completed;

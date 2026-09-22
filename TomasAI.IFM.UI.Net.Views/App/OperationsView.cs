@@ -21,6 +21,8 @@ public partial class OperationsView : DarkTradingView
     const string DownEventSeriesName = "Direction Down";
     const string SelectionSeriesName = "Selection";
     const int MinimumTimeColumnWidth = 185;
+    const int WorkflowRowCacheSize = 128;
+    const int WorkflowPrefetchDistance = 20;
     OperationsViewModel? _viewModel;
     IReadOnlyList<FuturesItiSignalEventRow>? _renderedEvents;
     IReadOnlyList<StrategyWorkflowRow>? _renderedWorkflows;
@@ -29,6 +31,10 @@ public partial class OperationsView : DarkTradingView
     bool _synchronizingSelection;
     bool _synchronizingTimeFrame;
     bool _synchronizingWorkflowSelection;
+    readonly ListViewItem?[] _workflowRowCache = new ListViewItem?[WorkflowRowCacheSize];
+    readonly int[] _workflowRowIndices = new int[WorkflowRowCacheSize];
+    bool _workflowPagingQueued;
+    bool _workflowPageFailed;
 
     public OperationsView()
     {
@@ -40,6 +46,19 @@ public partial class OperationsView : DarkTradingView
         ConfigureChart();
         lstStrategyWorkflows.SetDoubleBuffered(true);
         lstStrategyWorkflows.OwnerDraw = true;
+        lstStrategyWorkflows.VirtualMode = true;
+        lstStrategyWorkflows.RetrieveVirtualItem += RetrieveWorkflowVirtualItem;
+        lstStrategyWorkflows.CacheVirtualItems += CacheWorkflowVirtualItems;
+        lstStrategyWorkflows.ItemActivate += (_, _) =>
+        {
+            if (_renderedWorkflows is not null
+                && lstStrategyWorkflows.SelectedIndices.Count > 0
+                && lstStrategyWorkflows.SelectedIndices[0] >= _renderedWorkflows.Count)
+            {
+                _workflowPageFailed = false;
+                QueueNextWorkflowPage();
+            }
+        };
         lstStrategyWorkflows.DrawColumnHeader += (_, e) => e.DrawDefault = true;
         lstStrategyWorkflows.DrawItem += (_, e) => e.DrawDefault = false;
         DarkTradingTheme.UseSubItemRenderer(lstStrategyWorkflows, DrawWorkflowSubItem);
@@ -92,9 +111,6 @@ public partial class OperationsView : DarkTradingView
         lblItiStatus.ForeColor = strategy.LastError is not null
             ? Color.Gold
             : strategy.IsListening ? Color.LimeGreen : Color.Silver;
-        lblWorkflowPage.Text = strategy.WorkflowPageText;
-        btnWorkflowPreviousPage.Enabled = strategy.CanMoveToPreviousWorkflowPage;
-        btnWorkflowNextPage.Enabled = strategy.CanMoveToNextWorkflowPage;
 
         if (!ReferenceEquals(_renderedEvents, strategy.Events))
         {
@@ -112,41 +128,31 @@ public partial class OperationsView : DarkTradingView
     void RenderEvents(IReadOnlyList<FuturesItiSignalEventRow> events)
     {
         RenderChart(events);
-        if (lstStrategyWorkflows.SelectedItems.Count > 0
-            && lstStrategyWorkflows.SelectedItems[0].Tag is StrategyWorkflowRow selected)
+        if (GetSelectedWorkflowRow() is { } selected)
             HighlightChartPoint(selected.TriggerStableIdentity);
     }
 
     void RenderWorkflows(IReadOnlyList<StrategyWorkflowRow> workflows)
     {
-        var selectedId = lstStrategyWorkflows.SelectedItems.Count == 0
-            ? _viewModel?.Strategy.SelectedWorkflowId
-            : (lstStrategyWorkflows.SelectedItems[0].Tag as StrategyWorkflowRow)?.WorkflowId;
+        var selectedId = GetSelectedWorkflowRow()?.WorkflowId
+            ?? _viewModel?.Strategy.SelectedWorkflowId;
+        _renderedWorkflows = workflows;
+        Array.Clear(_workflowRowCache);
 
         _synchronizingWorkflowSelection = true;
         lstStrategyWorkflows.BeginUpdate();
         try
         {
-            lstStrategyWorkflows.Items.Clear();
-            foreach (var row in workflows)
-            {
-                var item = new ListViewItem(FormatListTime(row.OccurredOn, row.TimePeriod))
-                {
-                    Tag = row,
-                    Name = row.WorkflowId.ToString(),
-                    ToolTipText = row.PipelineActors.Count == 0
-                        ? "No pipeline actor has started."
-                        : string.Join(Environment.NewLine, row.PipelineActors.Select(actor => actor.AccessibleStatus))
-                };
-                item.SubItems.Add(row.SignalEvent.ToStringFast());
-                item.SubItems.Add(row.Trend.ToStringFast());
-                item.SubItems.Add(row.FuturesPrice.ToString("N2", CultureInfo.InvariantCulture));
-                item.SubItems.Add(string.Empty);
-                item.SubItems.Add(row.EndState);
-                lstStrategyWorkflows.Items.Add(item);
-                if (row.WorkflowId == selectedId)
-                    item.Selected = true;
-            }
+            lstStrategyWorkflows.VirtualListSize = workflows.Count
+                + (_viewModel?.Strategy.HasMoreWorkflows == true ? 1 : 0);
+            lstStrategyWorkflows.Invalidate();
+            var selectedIndex = selectedId is null
+                ? -1
+                : workflows.ToList().FindIndex(row => row.WorkflowId == selectedId);
+            if (selectedIndex >= 0)
+                lstStrategyWorkflows.Items[selectedIndex].Selected = true;
+            else if (workflows.Count > 0)
+                lstStrategyWorkflows.Items[0].Selected = true;
         }
         finally
         {
@@ -155,9 +161,115 @@ public partial class OperationsView : DarkTradingView
         }
 
         ResizeTimeColumnToFit();
-        if (lstStrategyWorkflows.SelectedItems.Count == 0 && lstStrategyWorkflows.Items.Count > 0)
-            lstStrategyWorkflows.Items[0].Selected = true;
         RenderSelectedWorkflow();
+    }
+    void RetrieveWorkflowVirtualItem(object? sender, RetrieveVirtualItemEventArgs e)
+    {
+        var workflows = _renderedWorkflows ?? [];
+        var row = e.ItemIndex < workflows.Count ? workflows[e.ItemIndex] : null;
+        e.Item = row is null
+            ? CreateWorkflowLoadingItem()
+            : GetCachedWorkflowItem(e.ItemIndex, row);
+        if (e.ItemIndex >= Math.Max(0, workflows.Count - WorkflowPrefetchDistance))
+            QueueNextWorkflowPage();
+    }
+
+    void CacheWorkflowVirtualItems(object? sender, CacheVirtualItemsEventArgs e)
+    {
+        var count = _renderedWorkflows?.Count ?? 0;
+        if (e.EndIndex >= Math.Max(0, count - WorkflowPrefetchDistance))
+            QueueNextWorkflowPage();
+    }
+
+    ListViewItem GetCachedWorkflowItem(int index, StrategyWorkflowRow row)
+    {
+        var slot = index % _workflowRowCache.Length;
+        if (_workflowRowCache[slot] is { } existing
+            && _workflowRowIndices[slot] == index
+            && existing.Tag is StrategyWorkflowRow cached
+            && cached.WorkflowId == row.WorkflowId
+            && cached.WorkflowRevision == row.WorkflowRevision)
+            return existing;
+
+        _workflowRowIndices[slot] = index;
+        return _workflowRowCache[slot] = CreateWorkflowItem(row);
+    }
+
+    static ListViewItem CreateWorkflowItem(StrategyWorkflowRow row)
+    {
+        var item = new ListViewItem(FormatListTime(row.OccurredOn, row.TimePeriod))
+        {
+            Tag = row,
+            Name = row.WorkflowId.ToString(),
+            ToolTipText = row.PipelineActors.Count == 0
+                ? "No pipeline actor has started."
+                : string.Join(Environment.NewLine, row.PipelineActors.Select(actor => actor.AccessibleStatus))
+        };
+        item.SubItems.Add(row.SignalEvent.ToStringFast());
+        item.SubItems.Add(row.Trend.ToStringFast());
+        item.SubItems.Add(row.FuturesPrice.ToString("N2", CultureInfo.InvariantCulture));
+        item.SubItems.Add(string.Empty);
+        item.SubItems.Add(row.EndState);
+        return item;
+    }
+
+    ListViewItem CreateWorkflowLoadingItem()
+    {
+        var text = _workflowPageFailed ? "Unable to load more — double-click to retry" : "Loading more…";
+        var item = new ListViewItem(text);
+        while (item.SubItems.Count < lstStrategyWorkflows.Columns.Count)
+            item.SubItems.Add(string.Empty);
+        return item;
+    }
+
+    StrategyWorkflowRow? GetSelectedWorkflowRow()
+    {
+        if (_renderedWorkflows is null || lstStrategyWorkflows.SelectedIndices.Count == 0)
+            return null;
+        var index = lstStrategyWorkflows.SelectedIndices[0];
+        return index >= 0 && index < _renderedWorkflows.Count
+            ? _renderedWorkflows[index]
+            : null;
+    }
+
+    void QueueNextWorkflowPage()
+    {
+        if (_viewModel is null
+            || IsDisposed
+            || _workflowPagingQueued
+            || _workflowPageFailed
+            || !_viewModel.Strategy.HasMoreWorkflows
+            || !IsHandleCreated)
+            return;
+
+        _workflowPagingQueued = true;
+        BeginInvoke((Action)(async () =>
+        {
+            try
+            {
+                if (_viewModel is null || IsDisposed)
+                    return;
+                var pageNumber = _viewModel.Strategy.WorkflowPageNumber;
+                await _viewModel.Strategy.LoadMoreWorkflowsAsync();
+                if (IsDisposed)
+                    return;
+                _workflowPageFailed = _viewModel.Strategy.WorkflowPageNumber == pageNumber
+                    && _viewModel.Strategy.HasMoreWorkflows;
+                RefreshView(_viewModel);
+            }
+            catch (OperationCanceledException) when (IsDisposed)
+            {
+            }
+            catch
+            {
+                _workflowPageFailed = true;
+                lstStrategyWorkflows.Invalidate();
+            }
+            finally
+            {
+                _workflowPagingQueued = false;
+            }
+        }));
     }
 
     void operationsTabs_SelectedIndexChanged(object? sender, EventArgs e)
@@ -191,24 +303,6 @@ public partial class OperationsView : DarkTradingView
         RefreshView(_viewModel);
     }
 
-    void btnWorkflowPreviousPage_Click(object? sender, EventArgs e)
-        => _ = MoveWorkflowPageAsync(previous: true);
-
-    void btnWorkflowNextPage_Click(object? sender, EventArgs e)
-        => _ = MoveWorkflowPageAsync(previous: false);
-
-    async Task MoveWorkflowPageAsync(bool previous)
-    {
-        if (_viewModel is null)
-            return;
-        btnWorkflowPreviousPage.Enabled = false;
-        btnWorkflowNextPage.Enabled = false;
-        if (previous)
-            await _viewModel.Strategy.MoveToPreviousWorkflowPageAsync();
-        else
-            await _viewModel.Strategy.MoveToNextWorkflowPageAsync();
-        RefreshView(_viewModel);
-    }
 
     void strategySplitter_Resize(object? sender, EventArgs e)
         => ResizeStrategyPanels();
@@ -251,8 +345,7 @@ public partial class OperationsView : DarkTradingView
     {
         if (_viewModel is null)
             return;
-        if (lstStrategyWorkflows.SelectedItems.Count == 0
-            || lstStrategyWorkflows.SelectedItems[0].Tag is not StrategyWorkflowRow row)
+        if (GetSelectedWorkflowRow() is not { } row)
         {
             _viewModel.Strategy.SelectWorkflow(null);
             RenderWorkflowDetails(_viewModel.Strategy.SelectedWorkflowDetails);
@@ -440,20 +533,20 @@ public partial class OperationsView : DarkTradingView
         if (stableIdentity is null)
             return;
 
-        foreach (ListViewItem item in lstStrategyWorkflows.Items)
-        {
-            if (item.Tag is not StrategyWorkflowRow row
-                || !string.Equals(row.TriggerStableIdentity, stableIdentity, StringComparison.Ordinal))
-            {
-                continue;
-            }
+        var index = _renderedWorkflows?.ToList().FindIndex(row =>
+            string.Equals(row.TriggerStableIdentity, stableIdentity, StringComparison.Ordinal)) ?? -1;
+        if (index < 0)
+            return;
 
-            item.Selected = true;
-            item.Focused = true;
-            item.EnsureVisible();
-            lstStrategyWorkflows.Focus();
-            break;
-        }
+        _synchronizingWorkflowSelection = true;
+        lstStrategyWorkflows.SelectedIndices.Clear();
+        var item = lstStrategyWorkflows.Items[index];
+        item.Selected = true;
+        item.Focused = true;
+        item.EnsureVisible();
+        _synchronizingWorkflowSelection = false;
+        lstStrategyWorkflows.Focus();
+        RenderSelectedWorkflow();
     }
 
     void ResizeTimeColumnToFit()
@@ -463,12 +556,12 @@ public partial class OperationsView : DarkTradingView
             lstStrategyWorkflows.Font,
             Size.Empty,
             TextFormatFlags.NoPadding).Width;
-        foreach (ListViewItem item in lstStrategyWorkflows.Items)
+        foreach (var row in _renderedWorkflows ?? [])
         {
             requiredWidth = Math.Max(
                 requiredWidth,
                 TextRenderer.MeasureText(
-                    item.Text,
+                    FormatListTime(row.OccurredOn, row.TimePeriod),
                     lstStrategyWorkflows.Font,
                     Size.Empty,
                     TextFormatFlags.NoPadding).Width);

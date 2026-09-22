@@ -16,47 +16,47 @@ public sealed class PortfolioCommandActorMapConventionTests
         {
             typeof(PortfolioCommandActor),
             [
-                PortfolioCommandVerbs.CreatePortfolio,
-                PortfolioCommandVerbs.AddPortfolioVersion,
-                PortfolioCommandVerbs.ChangePortfolioOperatingState,
-                PortfolioCommandVerbs.AddFundToPortfolio,
-                PortfolioCommandVerbs.DelegateFundAllocation,
-                PortfolioCommandVerbs.DelegateFundRiskEnvelope,
-                PortfolioCommandVerbs.RetirePortfolio,
-                PortfolioCommandVerbs.DeleteDraftPortfolio,
+                CreatePortfolioCommand.Verb,
+                AddPortfolioVersionCommand.Verb,
+                ChangePortfolioOperatingStateCommand.Verb,
+                AddFundToPortfolioCommand.Verb,
+                DelegateFundAllocationCommand.Verb,
+                DelegateFundRiskEnvelopeCommand.Verb,
+                RetirePortfolioCommand.Verb,
+                DeleteDraftPortfolioCommand.Verb,
             ]
         },
         {
             typeof(PortfolioFinancialPolicyCommandActor),
             [
-                PortfolioCommandVerbs.CreatePortfolioFinancialPolicy,
-                PortfolioCommandVerbs.AddPortfolioFinancialPolicyVersion,
-                PortfolioCommandVerbs.ActivateAndAssignPortfolioFinancialPolicy,
-                PortfolioCommandVerbs.RetirePortfolioFinancialPolicy,
-                PortfolioCommandVerbs.DeleteDraftPortfolioFinancialPolicy,
+                CreatePortfolioFinancialPolicyCommand.Verb,
+                AddPortfolioFinancialPolicyVersionCommand.Verb,
+                ActivateAndAssignPortfolioFinancialPolicyCommand.Verb,
+                RetirePortfolioFinancialPolicyCommand.Verb,
+                DeleteDraftPortfolioFinancialPolicyCommand.Verb,
             ]
         },
         {
             typeof(PortfolioFundCommandActor),
             [
-                PortfolioCommandVerbs.CreateFundMandate,
-                PortfolioCommandVerbs.AddFundMandateVersion,
-                PortfolioCommandVerbs.ChangeFundOperatingState,
-                PortfolioCommandVerbs.AssignTradeTemplate,
-                PortfolioCommandVerbs.ReserveFundOrderComposition,
-                PortfolioCommandVerbs.CreateManualFundOrder,
-                PortfolioCommandVerbs.AddManualFundOrderTrade,
-                PortfolioCommandVerbs.RemoveManualFundOrderTrade,
-                PortfolioCommandVerbs.ChangeManualFundOrderTradeState,
-                PortfolioCommandVerbs.CloseManualFundOrder,
-                PortfolioCommandVerbs.DeleteManualFundOrder,
-                PortfolioCommandVerbs.MarkFundOrderComposing,
-                PortfolioCommandVerbs.RecordFundOrderComposed,
-                PortfolioCommandVerbs.RecordFundOrderRiskOutcome,
-                PortfolioCommandVerbs.AuthorizeFundOrderRisk,
-                PortfolioCommandVerbs.SynchronizeFundRiskOutcome,
-                PortfolioCommandVerbs.CancelFundOrderComposition,
-                PortfolioCommandVerbs.ExpireFundOrderComposition,
+                CreateFundMandateCommand.Verb,
+                AddFundMandateVersionCommand.Verb,
+                ChangeFundOperatingStateCommand.Verb,
+                AssignTradeTemplateCommand.Verb,
+                ReserveFundOrderCompositionCommand.Verb,
+                CreateManualFundOrderCommand.Verb,
+                AddManualFundOrderTradeCommand.Verb,
+                RemoveManualFundOrderTradeCommand.Verb,
+                ChangeManualFundOrderTradeStateCommand.Verb,
+                CloseManualFundOrderCommand.Verb,
+                DeleteManualFundOrderCommand.Verb,
+                MarkFundOrderComposingCommand.Verb,
+                RecordFundOrderComposedCommand.Verb,
+                RecordFundOrderRiskOutcomeCommand.Verb,
+                AuthorizeFundOrderRiskCommand.Verb,
+                SynchronizeFundRiskOutcomeCommand.Verb,
+                CancelFundOrderCompositionCommand.Verb,
+                ExpireFundOrderCompositionCommand.Verb,
             ]
         },
     };
@@ -91,23 +91,22 @@ public sealed class PortfolioCommandActorMapConventionTests
 
             errors.Should().Contain(error => error.ErrorMessage.Contains("CommandId", StringComparison.Ordinal));
             errors.Should().Contain(error => error.ErrorMessage.Contains("EntityId", StringComparison.Ordinal));
-            errors.Should().Contain(error => error.ErrorMessage.Contains("Payload", StringComparison.Ordinal));
         }
     }
 
     [Fact]
     public void Cancel_and_expire_use_distinct_exact_command_types()
     {
-        typeof(PortfolioCommand<CancelFundOrderCompositionPayload, PortfolioFundId>)
-            .Should().NotBe(typeof(PortfolioCommand<ExpireFundOrderCompositionPayload, PortfolioFundId>));
+        typeof(CancelFundOrderCompositionCommand)
+            .Should().NotBe(typeof(ExpireFundOrderCompositionCommand));
     }
 
     [Fact]
     public void Cancel_and_expire_payloads_preserve_the_same_wire_shape()
     {
         var orderId = new PortfolioFundOrderId(1, 2, 3);
-        var cancel = new CancelFundOrderCompositionPayload(orderId, 4, "reason");
-        var expire = new ExpireFundOrderCompositionPayload(orderId, 4, "reason");
+        var cancel = new CancelFundOrderCompositionCommand(orderId, 4, "reason");
+        var expire = new ExpireFundOrderCompositionCommand(orderId, 4, "reason");
 
         MessagePackSerializer.Serialize(cancel)
             .Should().Equal(MessagePackSerializer.Serialize(expire));

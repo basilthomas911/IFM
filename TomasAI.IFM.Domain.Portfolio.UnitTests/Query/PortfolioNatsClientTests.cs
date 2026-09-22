@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Application.Api.Nats.Client;
@@ -18,25 +19,25 @@ public sealed class PortfolioNatsClientTests
     [Fact]
     public void Portfolio_retry_identity_excludes_only_correlation_and_timestamp()
     {
-        var original = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
+        var original = new CreatePortfolioCommand
         {
             CommandId = Guid.NewGuid(), EntityId = new(101),
-            Subject = new(ActorType.Command, PortfolioCommandSubjects.PortfolioActor, PortfolioCommandVerbs.CreatePortfolio, "101"),
-            Payload = new(new PortfolioReadModel { PortfolioId = 101, Name = "Original" }, Guid.NewGuid()),
+            Subject = new(ActorType.Command, CreatePortfolioCommand.Actor, CreatePortfolioCommand.Verb, "101"),
+            Portfolio = new PortfolioReadModel { PortfolioId = 101, Name = "Original" }, IdempotencyKey = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid(), RequestedOnUtc = DateTime.UtcNow,
             Access = PortfolioAccessContext.Administrator("admin")
         };
         var retry = original with { CorrelationId = Guid.NewGuid(), RequestedOnUtc = original.RequestedOnUtc.AddSeconds(1) };
         ICommand Normalize(ICommand value) => ((ICommandRetryIdentity)value).ForRetryIdentity();
         Normalize(retry).Should().BeEquivalentTo(Normalize(original));
-        var normalized = (PortfolioCommand<CreatePortfolioPayload, PortfolioId>)Normalize(original);
+        var normalized = (CreatePortfolioCommand)Normalize(original);
         normalized.Should().BeEquivalentTo(original, options => options.Excluding(x => x.CorrelationId).Excluding(x => x.RequestedOnUtc));
         normalized.CorrelationId.Should().BeEmpty();
         normalized.RequestedOnUtc.Should().Be(default);
         normalized.Access.Should().BeEquivalentTo(original.Access);
         Normalize(retry with { Access = PortfolioAccessContext.Reader("admin") }).Should().NotBeEquivalentTo(normalized);
         Normalize(retry with { Access = PortfolioAccessContext.Administrator("other") }).Should().NotBeEquivalentTo(normalized);
-        Normalize(retry with { Payload = original.Payload with { Portfolio = original.Payload.Portfolio with { Name = "Changed" } } }).Should().NotBeEquivalentTo(normalized);
+        Normalize(retry with { Portfolio = original.Portfolio with { Name = "Changed" } }).Should().NotBeEquivalentTo(normalized);
     }
 
     [Fact]
@@ -45,20 +46,20 @@ public sealed class PortfolioNatsClientTests
     public void Command_envelope_preserves_base_keys_and_appends_correlation_and_access_metadata()
     {
         var id = new PortfolioId(101);
-        var subject = new ActorSubject(ActorType.Command, PortfolioCommandSubjects.PortfolioActor, "ChangePortfolioOperatingState", id.Format());
-        var command = new PortfolioCommand<ChangePortfolioStatePayload, PortfolioId>
+        var subject = new ActorSubject(ActorType.Command, CreatePortfolioCommand.Actor, "ChangePortfolioOperatingState", id.Format());
+        var command = new ChangePortfolioOperatingStateCommand
         {
             CommandId = Guid.NewGuid(), Subject = subject, EntityId = id, ErrorCode = 34005,
-            Payload = new(2, PortfolioOperatingState.Paused, "test"),
+            ExpectedVersion = 2, State = PortfolioOperatingState.Paused, Reason = "test",
             Access = PortfolioAccessContext.Administrator("unit-admin"),
         };
 
         var json = MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(command));
 
         using var document = System.Text.Json.JsonDocument.Parse(json);
-        document.RootElement.GetArrayLength().Should().Be(10);
-        var copy = MessagePackSerializer.Deserialize<PortfolioCommand<ChangePortfolioStatePayload, PortfolioId>>(MessagePackSerializer.Serialize(command));
-        copy.Payload.ExpectedVersion.Should().Be(2);
+        document.RootElement.GetArrayLength().Should().Be(12);
+        var copy = MessagePackSerializer.Deserialize<ChangePortfolioOperatingStateCommand>(MessagePackSerializer.Serialize(command));
+        copy.ExpectedVersion.Should().Be(2);
         copy.CorrelationId.Should().Be(Guid.Empty, "older producers deserialize appended metadata to compatible defaults");
         copy.Access.Principal.Should().Be("unit-admin");
     }
@@ -74,15 +75,18 @@ public sealed class PortfolioNatsClientTests
         var result = await api.GetPortfolioAsync(101, 2);
 
         result.Success.Should().BeTrue();
-        producer.Subject.Name.Should().Be(PortfolioQuerySubjects.Actor);
+        producer.Subject.Name.Should().Be(GetPortfolioQuery.Actor);
         producer.Subject.Verb.Should().Be("GetPortfolio");
         producer.Subject.EntityId.Should().Be("101");
-        var query = producer.Query.Should().BeOfType<PortfolioQuery<GetPortfolioRequest, PortfolioReadModel>>().Subject;
-        query.Parameters.Should().Be(new GetPortfolioRequest(101, 2));
+        var query = producer.Query.Should().BeOfType<GetPortfolioQuery>().Subject;
+        query.PortfolioId.Should().Be(101);
+        query.Version.Should().Be(2);
         query.CorrelationId.Should().NotBeEmpty();
         query.RequestedOnUtc.Kind.Should().Be(DateTimeKind.Utc);
         query.Access.Roles.Should().ContainSingle(PortfolioOperationalPolicy.ReaderRole);
-        MessagePackSerializer.Deserialize<PortfolioQuery<GetPortfolioRequest, PortfolioReadModel>>(MessagePackSerializer.Serialize(query)).Parameters.Should().Be(query.Parameters);
+        var copy = MessagePackSerializer.Deserialize<GetPortfolioQuery>(MessagePackSerializer.Serialize(query));
+        copy.PortfolioId.Should().Be(query.PortfolioId);
+        copy.Version.Should().Be(query.Version);
     }
 
     [Fact]
@@ -112,11 +116,12 @@ public sealed class PortfolioNatsClientTests
         var result = await api.DeleteDraftPortfolioAsync(new PortfolioId(101), 7, "duplicate");
 
         result.Success.Should().BeTrue();
-        producer.Subject.Name.Should().Be(PortfolioCommandSubjects.PortfolioActor);
+        producer.Subject.Name.Should().Be(CreatePortfolioCommand.Actor);
         producer.Subject.Verb.Should().Be("DeleteDraftPortfolio");
-        var command = producer.Query.Should().BeOfType<PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId>>().Subject;
+        var command = producer.Query.Should().BeOfType<DeleteDraftPortfolioCommand>().Subject;
         command.EntityId.Should().Be(new PortfolioId(101));
-        command.Payload.Should().Be(new DeleteDraftPortfolioPayload(7, "duplicate"));
+        command.ExpectedVersion.Should().Be(7);
+        command.Reason.Should().Be("duplicate");
     }
 
     sealed class CapturingProducer : IActorProducer

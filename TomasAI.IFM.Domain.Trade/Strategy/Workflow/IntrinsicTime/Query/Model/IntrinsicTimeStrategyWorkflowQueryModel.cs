@@ -1,9 +1,11 @@
 using MessagePack;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
@@ -97,18 +99,25 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         CancellationToken cancellationToken)
     {
         RequireHistoryPage(query);
-        var signals = await services.DbFactory.MarketDataDb.GetFuturesItiSignalsAsync(
-            query.Symbol.Trim().ToUpperInvariant(),
+        var symbol = query.Symbol.Trim().ToUpperInvariant();
+        var frameStarts = ResolveCalendarBucketStarts(
             DateOnly.FromDateTime(query.FromUtc),
-            DateOnly.FromDateTime(query.ToUtc)).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var entities = signals
-            .Where(signal => signal.TimePeriod == query.TimePeriod)
-            .Select(signal => IntrinsicTimeStrategyWorkflowEntityId.Create(signal.EntityId).Format())
-            .Distinct(StringComparer.Ordinal);
+            DateOnly.FromDateTime(query.ToUtc),
+            query.TimePeriod);
         var history = new List<IntrinsicTimeStrategyWorkflowHistoryReadModel>();
-        foreach (var entity in entities)
-            await AddHistoryAsync(services, query, entity, history, cancellationToken).ConfigureAwait(false);
+        foreach (var status in Enum.GetValues<StrategyWorkflowStatus>().Where(static status => status != StrategyWorkflowStatus.None))
+        {
+            for (var date = DateOnly.FromDateTime(query.FromUtc); date <= DateOnly.FromDateTime(query.ToUtc); date = date.AddDays(1))
+            {
+                var candidates = await services.DbFactory.TradeDb
+                    .GetIntrinsicTimeStrategyWorkflowsByStatusAsync(status, date, date, 1000, cancellationToken)
+                    .ConfigureAwait(false);
+                history.AddRange(candidates.Where(item =>
+                    item.StartedAtUtc >= query.FromUtc &&
+                    item.StartedAtUtc <= query.ToUtc &&
+                    MatchesHistoryEntity(item.WorkflowEntityId, symbol, frameStarts, query.TimePeriod)));
+            }
+        }
         var ordered = history
             .GroupBy(static item => item.WorkflowId)
             .Select(static group => group.OrderByDescending(item => item.WorkflowRevision).First())
@@ -162,32 +171,84 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         RequirePageSize(query.PageSize);
     }
 
-    static async Task AddHistoryAsync(
-        IIntrinsicTimeStrategyWorkflowQueryContext services,
-        GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query,
-        string entity,
-        ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel> history,
-        CancellationToken cancellationToken)
+    internal static bool MatchesHistoryEntity(
+        string workflowEntityId,
+        string symbol,
+        IReadOnlyCollection<DateOnly> frameStarts,
+        TimeFrameType timePeriod)
     {
-        var beforeUtc = query.ToUtc == DateTime.MaxValue ? query.ToUtc : query.ToUtc.AddTicks(1);
-        while (beforeUtc > query.FromUtc)
-        {
-            var batch = await services.DbFactory.TradeDb
-                .GetIntrinsicTimeStrategyWorkflowsByEntityAsync(entity, beforeUtc, 1000, cancellationToken)
-                .ConfigureAwait(false);
-            if (batch.Count == 0)
-                break;
-            foreach (var item in batch.Where(item =>
-                         item.StartedAtUtc >= query.FromUtc && item.StartedAtUtc <= query.ToUtc))
-                history.Add(item);
-            if (batch.Count < 1000)
-                break;
-            var nextBefore = batch.Min(static item => item.StartedAtUtc);
-            if (nextBefore >= beforeUtc || nextBefore <= query.FromUtc)
-                break;
-            beforeUtc = nextBefore;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(workflowEntityId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        ArgumentNullException.ThrowIfNull(frameStarts);
+
+        var prefix = $"{IntrinsicTimeStrategyWorkflowDefinition.Id}.";
+        if (!workflowEntityId.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+
+        var timePeriodSeparator = workflowEntityId.LastIndexOf('.');
+        if (timePeriodSeparator <= prefix.Length ||
+            !Enum.TryParse<TimeFrameType>(workflowEntityId[(timePeriodSeparator + 1)..], out var entityTimePeriod) ||
+            entityTimePeriod != timePeriod)
+            return false;
+
+        var valueDateSeparator = workflowEntityId.LastIndexOf('.', timePeriodSeparator - 1);
+        if (valueDateSeparator <= prefix.Length ||
+            !DateOnly.TryParseExact(
+                workflowEntityId.AsSpan(valueDateSeparator + 1, timePeriodSeparator - valueDateSeparator - 1),
+                "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var frameStart) ||
+            !frameStarts.Contains(frameStart))
+            return false;
+
+        var contractId = workflowEntityId[prefix.Length..valueDateSeparator];
+        return IsContractForSymbol(contractId, symbol);
     }
+
+    static bool IsContractForSymbol(string contractId, string symbol)
+    {
+        if (!contractId.StartsWith(symbol, StringComparison.Ordinal))
+            return false;
+
+        var suffix = contractId.AsSpan(symbol.Length);
+        if (suffix.Length == 8 &&
+            DateOnly.TryParseExact(suffix, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            return true;
+
+        return suffix.Length is >= 2 and <= 5 &&
+               "FGHJKMNQUVXZ".Contains(suffix[0]) &&
+               suffix[1..].IndexOfAnyExceptInRange('0', '9') < 0;
+    }
+
+    internal static IReadOnlyList<DateOnly> ResolveCalendarBucketStarts(
+        DateOnly startValueDate,
+        DateOnly endValueDate,
+        TimeFrameType timePeriod)
+    {
+        if (endValueDate < startValueDate)
+            throw new ArgumentOutOfRangeException(nameof(endValueDate));
+
+        var first = ResolveCalendarBucketStart(startValueDate, timePeriod);
+        var last = ResolveCalendarBucketStart(endValueDate, timePeriod);
+        List<DateOnly> result = [];
+        for (var current = first; current <= last; current = timePeriod switch
+             {
+                 TimeFrameType.Daily => current.AddDays(1),
+                 TimeFrameType.Weekly => current.AddDays(7),
+                 TimeFrameType.Monthly => current.AddMonths(1),
+                 _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
+             })
+            result.Add(current);
+        return result;
+    }
+
+    static DateOnly ResolveCalendarBucketStart(DateOnly valueDate, TimeFrameType timePeriod)
+        => timePeriod switch
+        {
+            TimeFrameType.Daily => valueDate,
+            TimeFrameType.Weekly => valueDate.AddDays(-(((int)valueDate.DayOfWeek + 6) % 7)),
+            TimeFrameType.Monthly => new DateOnly(valueDate.Year, valueDate.Month, 1),
+            _ => throw new ArgumentOutOfRangeException(nameof(timePeriod), timePeriod,
+                "Only Daily, Weekly, and Monthly workflow history is supported.")
+        };
 
     static async ValueTask ReplyArray<T>(
         IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,

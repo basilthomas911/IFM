@@ -65,9 +65,48 @@ public sealed class PortfolioFinancialApi(IActorProducer producer):NatsClientApi
     async Task<ServiceResult<FinancialRead<TResult>>> Read<TRequest,TResult>(FinancialReadScope scope,TRequest parameters,string actor,string verb,CancellationToken token)
         where TResult:class
     {
-        var entity=new LedgerPortfolioId(scope.PortfolioId);
-        var query=new FinancialQuery<TRequest,TResult> { Subject=new(ActorType.Query,actor,verb,entity.Format()),QueryEntityId=entity,
-            Scope=scope,Parameters=parameters,CorrelationId=PortfolioRequestCorrelation.CurrentOrNew(),RequestedAtUtc=DateTime.UtcNow };
-        return await RequestAsync<FinancialQuery<TRequest,TResult>,FinancialRead<TResult>>(query.Subject,query,token);
+        var entity = new LedgerPortfolioId(scope.PortfolioId);
+        var subject = new ActorSubject(ActorType.Query, actor, verb, entity.Format());
+        var correlationId = PortfolioRequestCorrelation.CurrentOrNew();
+        var requestedAtUtc = DateTime.UtcNow;
+        object query = parameters switch
+        {
+            PrepareFinancialAuthorityRequest value => new PrepareFinancialAuthorityQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            PrepareFinancialBookRequest value => new PrepareFinancialBookQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFinancialLedgerConfigurationRequest value => new GetFinancialLedgerConfigurationQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFinancialPostingConfigurationRequest value => new GetFinancialPostingConfigurationQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFundRiskAuthorizationRequest value => new GetFundRiskAuthorizationQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFinancialAdmissionSnapshotRequest value => new GetFinancialAdmissionSnapshotQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetPostingReceiptRequest value => new GetPostingReceiptQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetJournalRequest value => new GetJournalQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetAccountBalancesRequest value => new GetAccountBalancesQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetTrialBalanceRequest value => new GetTrialBalanceQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFundTransactionsPageRequest value => new GetFundTransactionsPageQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetReconciliationRequest value => new GetReconciliationQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetCapacityReservationRequest value => new GetCapacityReservationQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetCapacityUsageRequest value => new GetCapacityUsageQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFundReservationsPageRequest value => new GetFundReservationsPageQuery(value) { Subject = subject, QueryEntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            _ => throw new InvalidOperationException($"Unsupported Portfolio financial query parameters {typeof(TRequest).FullName}."),
+        };
+        var result = query switch
+        {
+            PrepareFinancialAuthorityQuery value => (object)await RequestAsync<PrepareFinancialAuthorityQuery, FinancialRead<FinancialAuthorityDraft>>(subject, value, token).ConfigureAwait(false),
+            PrepareFinancialBookQuery value => (object)await RequestAsync<PrepareFinancialBookQuery, FinancialRead<FinancialBookSetup>>(subject, value, token).ConfigureAwait(false),
+            GetFinancialLedgerConfigurationQuery value => (object)await RequestAsync<GetFinancialLedgerConfigurationQuery, FinancialRead<FinancialLedgerConfiguration>>(subject, value, token).ConfigureAwait(false),
+            GetFinancialPostingConfigurationQuery value => (object)await RequestAsync<GetFinancialPostingConfigurationQuery, FinancialRead<FinancialPostingConfiguration>>(subject, value, token).ConfigureAwait(false),
+            GetFundRiskAuthorizationQuery value => (object)await RequestAsync<GetFundRiskAuthorizationQuery, FinancialRead<FundRiskAuthorizationEvidence>>(subject, value, token).ConfigureAwait(false),
+            GetFinancialAdmissionSnapshotQuery value => (object)await RequestAsync<GetFinancialAdmissionSnapshotQuery, FinancialRead<FinancialAdmissionSnapshot>>(subject, value, token).ConfigureAwait(false),
+            GetPostingReceiptQuery value => (object)await RequestAsync<GetPostingReceiptQuery, FinancialRead<FinancialOperationOutcome>>(subject, value, token).ConfigureAwait(false),
+            GetJournalQuery value => (object)await RequestAsync<GetJournalQuery, FinancialRead<FinancialJournal>>(subject, value, token).ConfigureAwait(false),
+            GetAccountBalancesQuery value => (object)await RequestAsync<GetAccountBalancesQuery, FinancialRead<FinancialBalanceSnapshot>>(subject, value, token).ConfigureAwait(false),
+            GetTrialBalanceQuery value => (object)await RequestAsync<GetTrialBalanceQuery, FinancialRead<FinancialTrialBalance>>(subject, value, token).ConfigureAwait(false),
+            GetFundTransactionsPageQuery value => (object)await RequestAsync<GetFundTransactionsPageQuery, FinancialRead<FinancialPage<FinancialTransactionRow>>>(subject, value, token).ConfigureAwait(false),
+            GetReconciliationQuery value => (object)await RequestAsync<GetReconciliationQuery, FinancialRead<FinancialReconciliationView>>(subject, value, token).ConfigureAwait(false),
+            GetCapacityReservationQuery value => (object)await RequestAsync<GetCapacityReservationQuery, FinancialRead<FinancialReservationView>>(subject, value, token).ConfigureAwait(false),
+            GetCapacityUsageQuery value => (object)await RequestAsync<GetCapacityUsageQuery, FinancialRead<FinancialCapacityUsage>>(subject, value, token).ConfigureAwait(false),
+            GetFundReservationsPageQuery value => (object)await RequestAsync<GetFundReservationsPageQuery, FinancialRead<FinancialPage<FinancialReservationView>>>(subject, value, token).ConfigureAwait(false),
+            _ => throw new InvalidOperationException($"Unsupported Portfolio financial query {query.GetType().FullName}."),
+        };
+        return (ServiceResult<FinancialRead<TResult>>)result;
     }
 }

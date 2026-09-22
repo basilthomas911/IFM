@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -23,7 +24,7 @@ public sealed class PortfolioOperationalOptions
 
 public interface IPortfolioOperationalGuard
 {
-    PortfolioAccessContext Demand(PortfolioOperation operation, IPortfolioRequestMetadata request, bool mutation);
+    PortfolioAccessContext Demand(PortfolioOperation operation, PortfolioAccessContext access, bool mutation);
     PortfolioOperationalOptions Options { get; }
 }
 
@@ -31,9 +32,9 @@ public sealed class PortfolioOperationalGuard(PortfolioOperationalOptions option
 {
     public PortfolioOperationalOptions Options { get; } = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
 
-    public PortfolioAccessContext Demand(PortfolioOperation operation, IPortfolioRequestMetadata request, bool mutation)
+    public PortfolioAccessContext Demand(PortfolioOperation operation, PortfolioAccessContext access, bool mutation)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(access);
         var outcome = "allowed";
         try
         {
@@ -43,7 +44,7 @@ public sealed class PortfolioOperationalGuard(PortfolioOperationalOptions option
                 throw new PortfolioOperationalException("The requested Portfolio path is disabled by the operator rollback switch.");
             }
 
-            var access = request.Access ?? new PortfolioAccessContext();
+
             if (Options.AuthorizationRequired)
             {
                 if (string.IsNullOrWhiteSpace(access.Principal))
@@ -83,12 +84,12 @@ public static class PortfolioTelemetry
     public static readonly Counter<long> CommandOutcomes = Meter.CreateCounter<long>("portfolio.command.outcomes");
     public static readonly Histogram<double> QueryDuration = Meter.CreateHistogram<double>("portfolio.query.duration", "ms");
 
-    public static Activity? StartRequest(string kind, string verb, IPortfolioRequestMetadata request)
+    public static Activity? StartRequest(string kind, string verb, Guid correlationId, ICommand? command = null)
     {
         var activity = ActivitySource.StartActivity($"portfolio.{kind}", ActivityKind.Consumer);
         activity?.SetTag("portfolio.operation", verb);
-        activity?.SetTag("correlation.id", request.CorrelationId.ToString("N"));
-        if (request is ICommand command)
+        activity?.SetTag("correlation.id", correlationId.ToString("N"));
+        if (command is not null)
         {
             activity?.SetTag("command.id", command.CommandId.ToString("N"));
             activity?.SetTag("portfolio.entity", command.Subject.EntityId);

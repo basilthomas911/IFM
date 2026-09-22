@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.Model;
 internal static class FinancialQueryReply
 {
     /// <summary>Executes a financial read after validating its contract and response-size limits.</summary>
-    internal static async ValueTask ExecuteAsync<TRequest, TResult, TActor>(FinancialQuery<TRequest, TResult> query,
+    internal static async ValueTask ExecuteAsync<TRequest, TResult, TActor>(IFinancialQueryMessage<TRequest, TResult> query,
         IQueryActorContext<TActor> context, string actor, string verb, Func<Task<FinancialRead<TResult>>> read, CancellationToken cancellationToken)
         where TResult : class where TActor : IActor
     {

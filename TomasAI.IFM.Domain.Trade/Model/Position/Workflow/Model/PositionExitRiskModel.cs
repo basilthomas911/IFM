@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -33,15 +34,15 @@ public static class PositionExitRiskModel
         {
             CompositionId = TradePlanContractIdentity.DeterministicId(
                 $"{composition.WorkflowId.Format()}|composition"),
-            WorkflowId = composition.WorkflowId,
-            Position = composition.Position,
-            StrategyKind = composition.StrategyKind,
+            WorkflowId = composition.WorkflowId.ToPortfolioWorkflow(),
+            Position = composition.Position.ToPortfolioPosition(),
+            StrategyKind = (PortfolioExecutionStrategyKind)composition.StrategyKind,
             ValueDate = composition.WorkflowId.ValueDate,
             ValidUntilUtc = now.AddMinutes(2),
             Origin = $"{composition.StrategyKind}ExitPositionWorkflow",
-            Component = composition.Component,
+            Component = composition.Component.ToPortfolioComponent(),
             EvidenceHash = composition.CompositionHash,
-            PositionType = TradeOrderPositionType.Closing
+            PositionType = PortfolioExecutionPositionType.Closing
         };
         var entityId = new FinancialExecutionId(portfolioId, operationId);
         var request = new EvaluatePortfolioCloseOrderCompositionCommand
@@ -72,20 +73,20 @@ public static class PositionExitRiskModel
             throw new InvalidOperationException("EXIT.PORTFOLIO.RESULT_MISSING");
         var receipt = completed.Receipt;
         if (completed.CommandId != request.CommandId || completed.OperationId != request.OperationId ||
-            completed.InputHash != request.InputSha256 || receipt.WorkflowId != composition.WorkflowId ||
+            completed.InputHash != request.InputSha256 || receipt.WorkflowId != composition.WorkflowId.ToPortfolioWorkflow() ||
             receipt.PortfolioId != portfolioId ||
             receipt.Status == PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder && receipt.TradeOrder is null ||
             receipt.Status == PortfolioCloseOrderCompositionStatus.NoTradeOrder && receipt.TradeOrder is not null)
             throw new InvalidOperationException("EXIT.PORTFOLIO.RESULT_INVALID");
         if (receipt.TradeOrder is { } order &&
-            (order.PositionType != TradeOrderPositionType.Closing ||
-             order.TargetPositionId != composition.Position.Id || order.Components.Length != 1 ||
+            (order.PositionType != PortfolioExecutionPositionType.Closing ||
+             order.TargetPosition != composition.Position.Id.ToPortfolioPositionReference() || order.Components.Length != 1 ||
              order.Components[0].ReservedTradeId != composition.Position.Id.Trade.TradeId))
             throw new InvalidOperationException("EXIT.PORTFOLIO.CLOSE_ORDER_INVALID");
         return new()
         {
             PortfolioCompletedEventId = completed.Id,
-            TradeOrder = receipt.TradeOrder,
+            TradeOrder = receipt.TradeOrder?.ToTradeOrder(),
             ExecuteTradeOrder = receipt.Status == PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder,
             ReasonCode = receipt.ReasonCode,
             FinancialRevision = receipt.FinancialRevision

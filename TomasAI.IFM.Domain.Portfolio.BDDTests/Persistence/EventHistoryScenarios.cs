@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Newtonsoft.Json;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -32,7 +34,7 @@ public sealed class EventHistoryScenarios
         });
         var reloaded = new PortfolioAggregate();
 
-        reloaded.Replay(rows.Select(x => x.ToDomainEvent()).OfType<PortfolioDomainEvent>());
+        reloaded.Replay(rows.Select(x => x.ToDomainEvent()).OfType<IPortfolioDomainEvent>());
 
         reloaded.Current.Should().BeEquivalentTo(source.Current);
         reloaded.Revision.Should().Be(2);

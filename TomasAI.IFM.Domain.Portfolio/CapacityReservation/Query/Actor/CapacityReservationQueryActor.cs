@@ -16,18 +16,18 @@ public sealed class CapacityReservationQueryActor(IQueryActorContext<CapacityRes
     static readonly IReadOnlyDictionary<string,Func<IActorMessage,IQuery>> _parseMap=
         new Dictionary<string,Func<IActorMessage,IQuery>>(StringComparer.Ordinal)
         {
-            ["GetFinancialAdmissionSnapshot"]=message=>message.AsQuery<FinancialQuery<GetFinancialAdmissionSnapshotRequest,FinancialAdmissionSnapshot>,FinancialRead<FinancialAdmissionSnapshot>>()!,
-            ["GetCapacityReservation"]=message=>message.AsQuery<FinancialQuery<GetCapacityReservationRequest,FinancialReservationView>,FinancialRead<FinancialReservationView>>()!,
-            ["GetCapacityUsage"]=message=>message.AsQuery<FinancialQuery<GetCapacityUsageRequest,FinancialCapacityUsage>,FinancialRead<FinancialCapacityUsage>>()!,
-            ["GetFundReservationsPage"]=message=>message.AsQuery<FinancialQuery<GetFundReservationsPageRequest,FinancialPage<FinancialReservationView>>,FinancialRead<FinancialPage<FinancialReservationView>>>()!,
+            ["GetFinancialAdmissionSnapshot"]=message=>message.AsQuery<GetFinancialAdmissionSnapshotQuery,FinancialRead<FinancialAdmissionSnapshot>>()!,
+            ["GetCapacityReservation"]=message=>message.AsQuery<GetCapacityReservationQuery,FinancialRead<FinancialReservationView>>()!,
+            ["GetCapacityUsage"]=message=>message.AsQuery<GetCapacityUsageQuery,FinancialRead<FinancialCapacityUsage>>()!,
+            ["GetFundReservationsPage"]=message=>message.AsQuery<GetFundReservationsPageQuery,FinancialRead<FinancialPage<FinancialReservationView>>>()!,
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type,Func<IQuery,IFinancialQueryStore,IQueryActorContext<CapacityReservationQueryActor>,CancellationToken,ValueTask>> _receiveMap=
         new Dictionary<Type,Func<IQuery,IFinancialQueryStore,IQueryActorContext<CapacityReservationQueryActor>,CancellationToken,ValueTask>>
         {
-            [typeof(FinancialQuery<GetFinancialAdmissionSnapshotRequest,FinancialAdmissionSnapshot>)]=(query,database,owner,token)=>((FinancialQuery<GetFinancialAdmissionSnapshotRequest,FinancialAdmissionSnapshot>)query).ExecuteAsync(database,owner,token),
-            [typeof(FinancialQuery<GetCapacityReservationRequest,FinancialReservationView>)]=(query,database,owner,token)=>((FinancialQuery<GetCapacityReservationRequest,FinancialReservationView>)query).ExecuteAsync(database,owner,token),
-            [typeof(FinancialQuery<GetCapacityUsageRequest,FinancialCapacityUsage>)]=(query,database,owner,token)=>((FinancialQuery<GetCapacityUsageRequest,FinancialCapacityUsage>)query).ExecuteAsync(database,owner,token),
-            [typeof(FinancialQuery<GetFundReservationsPageRequest,FinancialPage<FinancialReservationView>>)]=(query,database,owner,token)=>((FinancialQuery<GetFundReservationsPageRequest,FinancialPage<FinancialReservationView>>)query).ExecuteAsync(database,owner,token),
+            [typeof(GetFinancialAdmissionSnapshotQuery)]=(query,database,owner,token)=>((GetFinancialAdmissionSnapshotQuery)query).ExecuteAsync(database,owner,token),
+            [typeof(GetCapacityReservationQuery)]=(query,database,owner,token)=>((GetCapacityReservationQuery)query).ExecuteAsync(database,owner,token),
+            [typeof(GetCapacityUsageQuery)]=(query,database,owner,token)=>((GetCapacityUsageQuery)query).ExecuteAsync(database,owner,token),
+            [typeof(GetFundReservationsPageQuery)]=(query,database,owner,token)=>((GetFundReservationsPageQuery)query).ExecuteAsync(database,owner,token),
         }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type,QueryExceptionHandler> _exceptionMap=CreateQueryExceptionMap(_receiveMap.Keys,
         (query,error)=>error is FinancialOperationException financial?financial.Code:FinancialReasons.PersistenceFailed);

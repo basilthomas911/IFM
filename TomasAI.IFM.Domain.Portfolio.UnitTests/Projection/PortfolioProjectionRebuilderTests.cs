@@ -1,6 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Projection;
@@ -20,7 +22,7 @@ public sealed class PortfolioProjectionRebuilderTests
         var now = new DateTime(2026, 8, 30, 12, 0, 0, DateTimeKind.Utc);
         var id = new PortfolioId(101);
         var aggregate = new PortfolioAggregate();
-        var committed = (PortfolioCreated)aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
+        var committed = (PortfolioCreatedEvent)aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
             PortfolioId = id.Id, Name = "Core", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "test",
@@ -44,24 +46,24 @@ public sealed class PortfolioProjectionRebuilderTests
     sealed class StubEventStore(
         PortfolioId portfolioId,
         PortfolioAggregate aggregate,
-        PortfolioDomainEvent committed) : IPortfolioEventStore
+        IPortfolioDomainEvent committed) : IPortfolioEventStore
     {
         public Task<PortfolioAggregate> LoadPortfolioAsync(PortfolioId id, CancellationToken cancellationToken = default) =>
             Task.FromResult(id == portfolioId ? aggregate : throw new InvalidOperationException($"Unexpected portfolio {id}."));
 
-        public Task<IReadOnlyList<PortfolioDomainEvent>> LoadPortfolioHistoryAsync(PortfolioId id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<PortfolioDomainEvent>>(id == portfolioId ? [committed] : []);
+        public Task<IReadOnlyList<IPortfolioDomainEvent>> LoadPortfolioHistoryAsync(PortfolioId id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IPortfolioDomainEvent>>(id == portfolioId ? [committed] : []);
 
-        public Task AppendPortfolioAsync(PortfolioId id, PortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task AppendFundAsync(PortfolioFundId id, PortfolioFundDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task AppendPortfolioAsync(PortfolioId id, IPortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task AppendFundAsync(PortfolioFundId id, IPortfolioFundDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PortfolioFundAggregate> LoadFundAsync(PortfolioFundId id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SavePortfolioSnapshotAsync(PortfolioId id, PortfolioAggregate value, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SaveFundSnapshotAsync(PortfolioFundId id, PortfolioFundAggregate value, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<PortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId id, Guid commandId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<PortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId id, Guid commandId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<PortfolioCreated?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId id, Guid idempotencyKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<FundMandateCreated?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId id, Guid idempotencyKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<PortfolioFundDomainEvent>> LoadFundHistoryAsync(PortfolioFundId id, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PortfolioFundDomainEvent>>([]);
+        public Task<IPortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId id, Guid commandId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IPortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId id, Guid commandId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PortfolioCreatedEvent?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId id, Guid idempotencyKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<FundMandateCreatedEvent?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId id, Guid idempotencyKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<IPortfolioFundDomainEvent>> LoadFundHistoryAsync(PortfolioFundId id, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<IPortfolioFundDomainEvent>>([]);
     }
 
     sealed class FailOnceWriter : IPortfolioDbWriteContext

@@ -1,6 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLedgerPostingIntegrationTests;
@@ -84,6 +86,6 @@ public sealed class FundRiskAuthorizationIntegrationTests(PortfolioEventStoreFix
     }
     static FinancialReadScope Scope(FundRiskAuthorizationReference grant)=>new()
     { PortfolioId=grant.PortfolioId,FundId=grant.FundId,Access=new("integration",["LedgerRead"],[grant.PortfolioId]) };
-    static FundCompositionStateChanged Event(FundRiskAuthorizationReference grant)=>new(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"integration",
+    static FundCompositionStateChangedEvent Event(FundRiskAuthorizationReference grant)=>new(Guid.NewGuid(),Guid.NewGuid(),2,DateTime.UtcNow,"integration",
         new() { PortfolioId=grant.PortfolioId,FundId=grant.FundId,OrderId=grant.OrderId,Status="RiskApproved",RiskAuthorization=grant });
 }

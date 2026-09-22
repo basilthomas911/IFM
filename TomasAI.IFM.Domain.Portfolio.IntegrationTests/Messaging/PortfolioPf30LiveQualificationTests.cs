@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using FluentAssertions;

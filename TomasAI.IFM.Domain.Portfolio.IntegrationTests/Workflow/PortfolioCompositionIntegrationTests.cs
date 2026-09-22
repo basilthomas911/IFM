@@ -6,7 +6,9 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Domain.Portfolio.Command;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using NSubstitute;
@@ -65,7 +67,7 @@ public sealed class PortfolioCompositionIntegrationTests
         var eventStore = Substitute.For<IPortfolioEventStore>();
         eventStore.LoadFundAsync(Arg.Any<PortfolioFundId>(), Arg.Any<CancellationToken>()).Returns(aggregate);
         eventStore.FindCommittedFundCommandAsync(Arg.Any<PortfolioFundId>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((PortfolioFundDomainEvent?)null);
+            .Returns((IPortfolioFundDomainEvent?)null);
         var allocator = new CountingAllocator();
         var handler = new PortfolioFundCompositionCommandHandler(eventStore, allocator);
 
@@ -78,7 +80,7 @@ public sealed class PortfolioCompositionIntegrationTests
         allocator.OrderAllocations.Should().Be(1);
         allocator.TradeAllocations.Should().Be(4);
         await eventStore.Received(1).AppendFundAsync(
-            new PortfolioFundId(101, 203), Arg.Is<PortfolioFundDomainEvent>(e => e is FundCompositionReserved), 1,
+            new PortfolioFundId(101, 203), Arg.Is<IPortfolioFundDomainEvent>(e => e is FundCompositionReservedEvent), 1,
             null, Arg.Any<CancellationToken>());
     }
 

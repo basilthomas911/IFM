@@ -1,7 +1,9 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -52,7 +54,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 foreach (var stream in new[] { $"Portfolio.{portfolio}", $"PortfolioFund.{portfolio}.{fund}", $"PortfolioFinancialPolicy.{portfolio}.{portfolio+2}" })
                 {
                     var id=Guid.NewGuid();
-                    await db.AppendAsync(stream,id,new PortfolioCreated(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticAccountingQualification",new()),0,token);
+                    await db.AppendAsync(stream,id,new PortfolioCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticAccountingQualification",new()),0,token);
                 }
                 return true;
             }, deadline.Token);

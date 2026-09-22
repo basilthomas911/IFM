@@ -357,8 +357,8 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         lstTradeHistory.SetDoubleBuffered(true);
         lstTradeHistory.Enabled = true;
         lblTradeDescription.Text = _viewModel.IsHistoricalReadOnly
-            ? $"READ-ONLY HISTORICAL TRADE | {_viewModel.Fund.Name} | {_viewModel.FundOrder.Reference ?? string.Empty}"
-            : $"{_viewModel.Fund.Name} | {_viewModel.FundOrder.Reference ?? string.Empty}";
+            ? $"READ-ONLY HISTORICAL TRADE | {_viewModel.Fund.Name} | {_viewModel.FundOrder.OperatorReference}"
+            : $"{_viewModel.Fund.Name} | {_viewModel.FundOrder.OperatorReference}";
         try
         {
             if (!_viewModel.IsHistoricalReadOnly)

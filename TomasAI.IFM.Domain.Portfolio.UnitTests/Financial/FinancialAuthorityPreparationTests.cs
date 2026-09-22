@@ -1,6 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
@@ -55,14 +57,14 @@ public sealed class FinancialAuthorityPreparationTests
             CapacityState=FundCapacityState.Available,AllocatedCapital=10000,AvailableCapital=9000,MaximumRiskPerTrade=800,MaximumAggregateRisk=4000,
             RemainingLossBudget=5000,MaximumMargin=5000,MaximumGrossNotional=100000,MaximumContracts=20,MaximumOpenPositions=10,
             MaximumAbsoluteDelta=100,EffectiveFromUtc=Now.AddHours(-1),ExpiresAtUtc=Now.AddHours(1),SourcePolicyId=9,SourcePolicyVersion=1 };
-        portfolio.Replay([new PortfolioCreated(Guid.NewGuid(),Guid.NewGuid(),1,Now,"fixture",new() { PortfolioId=1,PortfolioVersion=1,OperatingState=PortfolioOperatingState.Active,
+        portfolio.Replay([new PortfolioCreatedEvent(Guid.NewGuid(),Guid.NewGuid(),1,Now,"fixture",new() { PortfolioId=1,PortfolioVersion=1,OperatingState=PortfolioOperatingState.Active,
             BrokerAccountRefs=["DEV"],ActivePolicyId=9,ActivePolicyVersion=1,EffectiveFromUtc=Now.AddDays(-1) }),
-            new FundAddedToPortfolio(Guid.NewGuid(),Guid.NewGuid(),2,Now,"fixture",new(1,2)),new FundRiskEnvelopeDelegated(Guid.NewGuid(),Guid.NewGuid(),3,Now,"fixture",envelope)]);
-        fund.Replay([new FundMandateCreated(Guid.NewGuid(),Guid.NewGuid(),1,Now,"fixture",new() { PortfolioId=1,FundId=2,FundMandateVersion=1,Name="Test Fund",
+            new FundAddedToPortfolioEvent(Guid.NewGuid(),Guid.NewGuid(),2,Now,"fixture",new(1,2)),new FundRiskEnvelopeDelegatedEvent(Guid.NewGuid(),Guid.NewGuid(),3,Now,"fixture",envelope)]);
+        fund.Replay([new FundMandateCreatedEvent(Guid.NewGuid(),Guid.NewGuid(),1,Now,"fixture",new() { PortfolioId=1,FundId=2,FundMandateVersion=1,Name="Test Fund",
             OperatingState=FundOperatingState.Active,UnderlyingUniverse=["ES"],PermittedTradeStrategyFamilies=[family],EffectiveFromUtc=Now.AddDays(-1) }),
-            new FundTradeTemplateAssigned(Guid.NewGuid(),Guid.NewGuid(),2,Now,"fixture",new() { PortfolioId=1,PortfolioVersion=1,FundId=2,FundMandateVersion=1,
+            new FundTradeTemplateAssignedEvent(Guid.NewGuid(),Guid.NewGuid(),2,Now,"fixture",new() { PortfolioId=1,PortfolioVersion=1,FundId=2,FundMandateVersion=1,
                 AssignmentVersion=3,TradeTemplateId=key.Id,TradeTemplateVersion=key.Version,TradeStrategyFamily=family,Enabled=true,UnderlyingUniverse=["ES"],EffectiveFromUtc=Now.AddDays(-1) })]);
-        policy.Replay([new PortfolioFinancialPolicyCreated(Guid.NewGuid(),Guid.NewGuid(),1,Now,"fixture",new() { PortfolioId=1,PolicyId=9,PolicyVersion=1,
+        policy.Replay([new PortfolioFinancialPolicyCreatedEvent(Guid.NewGuid(),Guid.NewGuid(),1,Now,"fixture",new() { PortfolioId=1,PolicyId=9,PolicyVersion=1,
             OperatingState=PortfolioFinancialPolicyState.Active,CapitalBase=100000,MaximumDeployableCapital=90000,MaximumRiskPerTrade=1000,MaximumAggregateRisk=10000,
             MaximumMargin=10000,MaximumGrossNotional=1000000,MaximumOpenPositions=100,EffectiveFromUtc=Now.AddDays(-1),TradeFamilyLimits=[new() {
                 CatalogDeployment=key,Enabled=true,MaximumRiskPerTrade=500,MaximumAggregateRisk=6000,MaximumMargin=10000,MaximumGrossNotional=1000000,MaximumOpenPositions=20 }] },Guid.NewGuid())]);

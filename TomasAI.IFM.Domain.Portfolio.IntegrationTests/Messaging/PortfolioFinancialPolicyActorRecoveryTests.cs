@@ -1,10 +1,13 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Command.Actor;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Operations;
@@ -48,7 +51,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         var healed = await store.LoadPortfolioAsync(new(701));
         healed.Current!.ActivePolicyId.Should().Be(8101);
         healed.Current.ActivePolicyVersion.Should().Be(1);
-        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is PortfolioFinancialPolicyActivated));
+        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is PortfolioFinancialPolicyActivatedEvent));
         await projections.Received().UpsertPortfolioAsync(Arg.Any<PortfolioProjection<PortfolioReadModel>>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await projections.Received().UpsertPolicyAsync(Arg.Any<PortfolioProjection<PortfolioFinancialPolicyReadModel>>(), Arg.Any<CancellationToken>());
     }
@@ -79,7 +82,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
 
         outcomes.Count(x => x.Success).Should().Be(1);
         outcomes.Count(x => x.Error is InvalidOperationException).Should().Be(1);
-        store.PolicyHistory(firstId).Concat(store.PolicyHistory(secondId)).OfType<PortfolioFinancialPolicyActivated>().Should().ContainSingle();
+        store.PolicyHistory(firstId).Concat(store.PolicyHistory(secondId)).OfType<PortfolioFinancialPolicyActivatedEvent>().Should().ContainSingle();
         var portfolio = await store.LoadPortfolioAsync(new(702));
         portfolio.Revision.Should().Be(2);
         portfolio.Current!.ActivePolicyId.Should().BeOneOf(8201, 8202);
@@ -105,14 +108,14 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
             Substitute.For<ILogger<PortfolioFinancialPolicyCommandActor>>()), context, projections, projector);
     }
 
-    static PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> Activation(
+    static ActivateAndAssignPortfolioFinancialPolicyCommand Activation(
         PortfolioFinancialPolicyId id, Guid commandId, long expectedPolicyRevision, long expectedPortfolioRevision) => new()
     {
         CommandId = commandId,
         EntityId = id,
         ErrorCode = 34020,
         Subject = new(ActorType.Command, PortfolioFinancialPolicyCommandActor.ActorName, "ActivateAndAssignPortfolioFinancialPolicy", id.Format()),
-        Payload = new(1, expectedPolicyRevision, expectedPortfolioRevision),
+        PolicyVersion = 1, ExpectedPolicyRevision = expectedPolicyRevision, ExpectedPortfolioRevision = expectedPortfolioRevision,
         Access = PortfolioAccessContext.Administrator("integration-admin"),
     };
 
@@ -136,8 +139,8 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
     sealed class InMemoryPolicyStore : IPortfolioEventStore
     {
         readonly object sync = new();
-        readonly Dictionary<int, List<PortfolioDomainEvent>> portfolios = [];
-        readonly Dictionary<PortfolioFinancialPolicyId, List<PortfolioFinancialPolicyDomainEvent>> policies = [];
+        readonly Dictionary<int, List<IPortfolioDomainEvent>> portfolios = [];
+        readonly Dictionary<PortfolioFinancialPolicyId, List<IPortfolioFinancialPolicyDomainEvent>> policies = [];
         public bool FailNextPortfolioAppend { get; set; }
 
         public void SeedPortfolio(PortfolioReadModel model)
@@ -154,10 +157,10 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
             policies[id] = [created];
         }
 
-        public IReadOnlyList<PortfolioFinancialPolicyDomainEvent> PolicyHistory(PortfolioFinancialPolicyId id)
+        public IReadOnlyList<IPortfolioFinancialPolicyDomainEvent> PolicyHistory(PortfolioFinancialPolicyId id)
         { lock (sync) return policies[id].ToArray(); }
 
-        public Task AppendPortfolioAsync(PortfolioId id, PortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
+        public Task AppendPortfolioAsync(PortfolioId id, IPortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
         {
             lock (sync)
             {
@@ -169,7 +172,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
             return Task.CompletedTask;
         }
 
-        public Task AppendPolicyAsync(PortfolioFinancialPolicyId id, PortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
+        public Task AppendPolicyAsync(PortfolioFinancialPolicyId id, IPortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
         {
             lock (sync)
             {
@@ -200,19 +203,19 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
             }
         }
 
-        public Task<PortfolioFinancialPolicyDomainEvent?> FindCommittedPolicyCommandAsync(PortfolioFinancialPolicyId id, Guid commandId, CancellationToken cancellationToken = default)
+        public Task<IPortfolioFinancialPolicyDomainEvent?> FindCommittedPolicyCommandAsync(PortfolioFinancialPolicyId id, Guid commandId, CancellationToken cancellationToken = default)
         { lock (sync) return Task.FromResult(policies[id].SingleOrDefault(x => x.CommandId == commandId)); }
-        public Task<IReadOnlyList<PortfolioFinancialPolicyDomainEvent>> LoadPolicyHistoryAsync(PortfolioFinancialPolicyId id, CancellationToken cancellationToken = default) => Task.FromResult(PolicyHistory(id));
-        public Task<IReadOnlyList<PortfolioDomainEvent>> LoadPortfolioHistoryAsync(PortfolioId id, CancellationToken cancellationToken = default)
-        { lock (sync) return Task.FromResult<IReadOnlyList<PortfolioDomainEvent>>(portfolios[id.Id].ToArray()); }
-        public Task AppendFundAsync(PortfolioFundId fundId, PortfolioFundDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<IPortfolioFinancialPolicyDomainEvent>> LoadPolicyHistoryAsync(PortfolioFinancialPolicyId id, CancellationToken cancellationToken = default) => Task.FromResult(PolicyHistory(id));
+        public Task<IReadOnlyList<IPortfolioDomainEvent>> LoadPortfolioHistoryAsync(PortfolioId id, CancellationToken cancellationToken = default)
+        { lock (sync) return Task.FromResult<IReadOnlyList<IPortfolioDomainEvent>>(portfolios[id.Id].ToArray()); }
+        public Task AppendFundAsync(PortfolioFundId fundId, IPortfolioFundDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PortfolioFundAggregate> LoadFundAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SavePortfolioSnapshotAsync(PortfolioId portfolioId, PortfolioAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SaveFundSnapshotAsync(PortfolioFundId fundId, PortfolioFundAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<PortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId portfolioId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioDomainEvent?>(null);
-        public Task<PortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId fundId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFundDomainEvent?>(null);
-        public Task<PortfolioCreated?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId portfolioId, Guid idempotencyKey, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioCreated?>(null);
-        public Task<FundMandateCreated?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId fundId, Guid idempotencyKey, CancellationToken cancellationToken = default) => Task.FromResult<FundMandateCreated?>(null);
-        public Task<IReadOnlyList<PortfolioFundDomainEvent>> LoadFundHistoryAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PortfolioFundDomainEvent>>([]);
+        public Task<IPortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId portfolioId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<IPortfolioDomainEvent?>(null);
+        public Task<IPortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId fundId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<IPortfolioFundDomainEvent?>(null);
+        public Task<PortfolioCreatedEvent?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId portfolioId, Guid idempotencyKey, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioCreatedEvent?>(null);
+        public Task<FundMandateCreatedEvent?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId fundId, Guid idempotencyKey, CancellationToken cancellationToken = default) => Task.FromResult<FundMandateCreatedEvent?>(null);
+        public Task<IReadOnlyList<IPortfolioFundDomainEvent>> LoadFundHistoryAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<IPortfolioFundDomainEvent>>([]);
     }
 }

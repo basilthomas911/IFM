@@ -1,5 +1,7 @@
 using FluentAssertions;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -23,13 +25,13 @@ public sealed class PortfolioEventStoreContractTests
     public void Portfolio_events_are_native_event_source_contracts()
     {
         var now = DateTime.SpecifyKind(DateTime.Parse("2026-08-29T16:00:00"), DateTimeKind.Utc);
-        IEvent domainEvent = new PortfolioCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "unit", new PortfolioReadModel
+        IEvent domainEvent = new PortfolioCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "unit", new PortfolioReadModel
         {
             PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "unit"
         });
 
-        domainEvent.EventName.Should().Be(nameof(PortfolioCreated));
+        domainEvent.EventName.Should().Be(nameof(PortfolioCreatedEvent));
         domainEvent.EventType.Should().Be(EventType.DomainEvent);
     }
 }

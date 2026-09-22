@@ -1,8 +1,9 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
-using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.UI.Net.Models.Portfolio;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
@@ -12,15 +13,17 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     TradeOrderEditorViewModel? _viewModel;
     PortfolioFundOrderTradeEditorModel? _fundOrderTrade;
     PortfolioFundOrderTradeEditorModel? _openingTrade;
-    Dictionary<string, LookupTypeUiModel> _baseSymbolMap;
+    readonly Dictionary<string, FuturesContractV3ReadModel> _baseContractMap = [];
 
     public PortfolioFundOrderTradeEditorModel FundOrderTrade => _fundOrderTrade!;
 
     public CreateFundOrderTradeForm()
     {
-        _baseSymbolMap = [];
         InitializeComponent();
+        txtReference.ReadOnly = true;
         ddlBaseSymbol.SelectedIndexChanged += ddlBaseSymbol_SelectedIndexChanged;
+        dtpTradeDate.ValueChanged += TradeReferenceInputChanged;
+        dtpMaturityDate.ValueChanged += TradeReferenceInputChanged;
     }
 
     /// <summary>Assigns the canonical trade-order editor view model.</summary>
@@ -32,10 +35,17 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     public void SetFundOrder(PortfolioFundOrderEditorModel fundOrder)
     {
         _openingTrade = fundOrder.Trades.FirstOrDefault(trade => trade.PrimaryTrade);
-        dtpTradeDate.Value = fundOrder.TradeDate.ToDateTime(TimeOnly.MinValue);
-        dtpTradeDate.Enabled = false;
-        dtpMaturityDate.Value = fundOrder.MaturityDate.ToDateTime(TimeOnly.MinValue);
-        dtpMaturityDate.Enabled = false;
+        var tradeDate = _openingTrade?.RequestedTradeDate
+            ?? _viewModel?.ValueDate
+            ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
+        var maturityDate = _openingTrade?.RequestedMaturityDate
+            ?? _viewModel?.BaseContracts.FirstOrDefault()?.LastTradeDate
+            ?? tradeDate;
+        dtpTradeDate.Value = tradeDate.ToDateTime(TimeOnly.MinValue);
+        dtpTradeDate.Enabled = _openingTrade is null;
+        dtpMaturityDate.Value = maturityDate.ToDateTime(TimeOnly.MinValue);
+        dtpMaturityDate.Enabled = _openingTrade is null;
+        UpdateTradeReference();
     }
 
     private void LoadTradeTypes()
@@ -59,13 +69,12 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         try
         {
             var tradeId = await _viewModel!.GetNewTradeIdAsync();
-            var symbols = await _viewModel.GetSymbolsAsync();
             this.Post(() =>
             {
                 txtTradeId.Text = $"{tradeId}";
                 txtTradeState.Text = $"{TradeState.NewTrade}";
                 LoadTradeTypes();
-                LoadSymbols([.. symbols]);
+                LoadBaseContracts(_viewModel.BaseContracts);
                 ConfigureClosingTrade();
             });
         }
@@ -90,20 +99,23 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     {
     }
 
-    void LoadSymbols(LookupTypeUiModel[] lookupTypes)
+    void LoadBaseContracts(IReadOnlyList<FuturesContractV3ReadModel> contracts)
     {
         ddlBaseSymbol.Enabled = false;
         ddlBaseSymbol.Items.Clear();
-        _baseSymbolMap.Clear();
-        if (lookupTypes?.Length > 0)
+        _baseContractMap.Clear();
+        foreach (var contract in contracts
+                     .Where(contract => !string.IsNullOrWhiteSpace(contract.ContractId))
+                     .OrderBy(contract => contract.Symbol)
+                     .ThenBy(contract => contract.LastTradeDate))
         {
-            foreach (var e in lookupTypes)
-            {
-                _baseSymbolMap.Add(e.Description, e);
-                ddlBaseSymbol.Items.Add(e.Description);
-            }
+            if (_baseContractMap.TryAdd(contract.ContractId, contract))
+                ddlBaseSymbol.Items.Add(contract.ContractId);
+        }
+        if (ddlBaseSymbol.Items.Count > 0)
+        {
             ddlBaseSymbol.SelectedIndex = 0;
-            UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
+            UpdateSelectorAccessibility(ddlBaseSymbol, "Base contract selector");
             ddlBaseSymbol.Enabled = true;
         }
     }
@@ -115,23 +127,21 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
 
         SetClosingTradeType(_openingTrade.TradeType);
         ddlTradeType.Enabled = false;
-        txtReference.Text = _openingTrade.Reference;
-        txtReference.ReadOnly = true;
 
-        var matchingSymbol = _baseSymbolMap
-            .FirstOrDefault(entry => string.Equals(
-                entry.Value.ShortCode,
-                _openingTrade.BaseContractSymbol,
-                StringComparison.OrdinalIgnoreCase));
-        if (matchingSymbol.Value is not null)
-            ddlBaseSymbol.SelectedItem = matchingSymbol.Key;
+        var matchingContract = _baseContractMap.Values.FirstOrDefault(contract =>
+            string.Equals(contract.ContractId, _openingTrade.BaseContractId, StringComparison.OrdinalIgnoreCase))
+            ?? _baseContractMap.Values.FirstOrDefault(contract =>
+                string.Equals(contract.Symbol, _openingTrade.BaseContractSymbol, StringComparison.OrdinalIgnoreCase));
+        if (matchingContract is not null)
+            ddlBaseSymbol.SelectedItem = matchingContract.ContractId;
         else
         {
-            ddlBaseSymbol.Items.Add(_openingTrade.BaseContractSymbol);
-            ddlBaseSymbol.SelectedItem = _openingTrade.BaseContractSymbol;
+            ddlBaseSymbol.Items.Add(_openingTrade.BaseContractId);
+            ddlBaseSymbol.SelectedItem = _openingTrade.BaseContractId;
         }
         ddlBaseSymbol.Enabled = false;
-        UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
+        UpdateSelectorAccessibility(ddlBaseSymbol, "Base contract selector");
+        UpdateTradeReference();
     }
 
     PortfolioFundOrderTradeEditorModel? ValidateNewFundOrderTrade()
@@ -156,34 +166,40 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             MessageBox.Show("Invalid Trade Action", "Fund Order Trade Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
         }
-        var baseContractSymbol = _openingTrade?.BaseContractSymbol;
-        if (string.IsNullOrWhiteSpace(baseContractSymbol))
-            baseContractSymbol = _baseSymbolMap
-                .SingleOrDefault(e => e.Key == $"{ddlBaseSymbol.SelectedItem}")
-                .Value?.ShortCode;
-        if (string.IsNullOrWhiteSpace(baseContractSymbol))
+        var selectedContract = _baseContractMap.GetValueOrDefault($"{ddlBaseSymbol.SelectedItem}");
+        var baseContractId = string.IsNullOrWhiteSpace(_openingTrade?.BaseContractId)
+            ? selectedContract?.ContractId
+            : _openingTrade.BaseContractId;
+        var baseContractSymbol = string.IsNullOrWhiteSpace(_openingTrade?.BaseContractSymbol)
+            ? selectedContract?.Symbol
+            : _openingTrade.BaseContractSymbol;
+        if (string.IsNullOrWhiteSpace(baseContractId) || string.IsNullOrWhiteSpace(baseContractSymbol))
         {
-            MessageBox.Show("Invalid Base Symbol", "Fund Order Trade Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("A valid base contract is required", "Fund Order Trade Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
         }
+        var tradeDate = DateOnly.FromDateTime(dtpTradeDate.Value);
+        var maturityDate = DateOnly.FromDateTime(dtpMaturityDate.Value);
+        var reference = FundOrderTradeReference.Create(baseContractId, tradeDate, maturityDate);
+        txtReference.Text = reference;
 
-        return new PortfolioFundOrderTradeEditorModel(
-            fundId: 0,
-            orderId: 0,
-            tradeId: tradeId,
-            tradeType: tradeType,
-            tradeDate: DateOnly.FromDateTime(dtpTradeDate.Value),
-            maturityDate: DateOnly.FromDateTime(dtpMaturityDate.Value),
-            tradeState: tradeState,
-            tradeAction: tradeAction,
-            reference: txtReference.Text,
-            primaryTrade: true,
-            baseContractSymbol: baseContractSymbol,
-            createdBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
-            createdOn: DateTime.UtcNow,
-            updatedBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
-            updatedOn: DateTime.UtcNow
-        );
+        return new PortfolioFundOrderTradeEditorModel
+        {
+            TradeId = tradeId,
+            TradeFamily = tradeType.ToString(),
+            TradeType = tradeType,
+            RequestedTradeDate = tradeDate,
+            RequestedMaturityDate = maturityDate,
+            TradeState = tradeState,
+            TradeAction = tradeAction,
+            InstructionReference = reference,
+            PrimaryTrade = true,
+            UnderlyingRoot = baseContractSymbol,
+            BaseContractSymbol = baseContractSymbol,
+            BaseContractId = baseContractId,
+            CreatedBy = $"{Environment.UserDomainName}\\{Environment.UserName}",
+            CreatedOnUtc = DateTime.UtcNow,
+        };
     }
 
 
@@ -222,7 +238,29 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     }
 
     void ddlBaseSymbol_SelectedIndexChanged(object? sender, EventArgs e)
-        => UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
+    {
+        UpdateSelectorAccessibility(ddlBaseSymbol, "Base contract selector");
+        if (_openingTrade is null
+            && _baseContractMap.GetValueOrDefault($"{ddlBaseSymbol.SelectedItem}") is { } contract
+            && contract.LastTradeDate >= DateOnly.FromDateTime(dtpTradeDate.Value))
+            dtpMaturityDate.Value = contract.LastTradeDate.ToDateTime(TimeOnly.MinValue);
+        UpdateTradeReference();
+    }
+
+    void TradeReferenceInputChanged(object? sender, EventArgs e) => UpdateTradeReference();
+
+    void UpdateTradeReference()
+    {
+        var baseContractId = string.IsNullOrWhiteSpace(_openingTrade?.BaseContractId)
+            ? $"{ddlBaseSymbol.SelectedItem}".Trim()
+            : _openingTrade.BaseContractId.Trim();
+        txtReference.Text = string.IsNullOrWhiteSpace(baseContractId)
+            ? string.Empty
+            : FundOrderTradeReference.Create(
+                baseContractId,
+                DateOnly.FromDateTime(dtpTradeDate.Value),
+                DateOnly.FromDateTime(dtpMaturityDate.Value));
+    }
 
     static void UpdateSelectorAccessibility(ComboBox selector, string label)
     {

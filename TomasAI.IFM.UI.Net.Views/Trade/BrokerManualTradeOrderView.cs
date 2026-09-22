@@ -57,7 +57,7 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
         Add(layout, "Fund / Order / Trade",
             ValueLabel($"{viewModel.Trade.FundId} / {viewModel.Trade.OrderId} / {viewModel.Trade.TradeId}"));
         Add(layout, "Contracts", ValueLabel(string.Join(Environment.NewLine, viewModel.ContractIds)));
-        Add(layout, "Reference", ValueLabel(viewModel.Trade.Reference));
+        Add(layout, "Reference", ValueLabel(viewModel.Trade.InstructionReference));
         Add(layout, "Quantity", _quantity);
         Add(layout, "Signed net debit / credit limit", _limit);
         Add(layout, "Broker environment", ValueLabel("Emulator"));
@@ -72,7 +72,8 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
     }
 
     /// <inheritdoc />
-    public DateOnly MaturityDate => _viewModel.Trade.MaturityDate;
+    public DateOnly MaturityDate => _viewModel.Trade.RequestedMaturityDate
+        ?? _viewModel.Trade.RequestedTradeDate;
 
     /// <inheritdoc />
     public Task RemoveTradeAsync(int fundId, int orderId, int tradeId) => _viewModel.RemoveAsync();

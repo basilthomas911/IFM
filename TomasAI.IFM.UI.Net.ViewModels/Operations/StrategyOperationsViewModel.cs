@@ -95,9 +95,9 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         1,
         (int)Math.Ceiling(_workflowTotalCounts.GetValueOrDefault(SelectedTimeFrame) /
                           (double)WorkflowHistoryPageSize));
-    public string WorkflowPageText => $"Page {WorkflowPageNumber} of {WorkflowPageCount}";
-    public bool CanMoveToPreviousWorkflowPage => WorkflowPageNumber > 1;
     public bool CanMoveToNextWorkflowPage => WorkflowPageNumber < WorkflowPageCount;
+    public int WorkflowTotalCount => _workflowTotalCounts.GetValueOrDefault(SelectedTimeFrame);
+    public bool HasMoreWorkflows => CanMoveToNextWorkflowPage;
 
     public TimeFrameType SelectedTimeFrame
     {
@@ -116,17 +116,13 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         }
     }
 
-    public Task MoveToPreviousWorkflowPageAsync(CancellationToken cancellationToken = default)
-        => LoadWorkflowPageAsync(
-            SelectedTimeFrame,
-            Math.Max(1, WorkflowPageNumber - 1),
-            cancellationToken);
 
-    public Task MoveToNextWorkflowPageAsync(CancellationToken cancellationToken = default)
-        => LoadWorkflowPageAsync(
-            SelectedTimeFrame,
-            Math.Min(WorkflowPageCount, WorkflowPageNumber + 1),
-            cancellationToken);
+    public Task LoadMoreWorkflowsAsync(CancellationToken cancellationToken = default)
+        => HasMoreWorkflows
+            ? LoadWorkflowPageAsync(
+                SelectedTimeFrame, WorkflowPageNumber + 1, cancellationToken)
+            : Task.CompletedTask;
+
 
     /// <summary>Gets the ITI observations used exclusively by the existing chart.</summary>
     public IReadOnlyList<FuturesItiSignalEventRow> Events
@@ -332,10 +328,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     }
 
     async Task ReconcileWorkflowPeriodAsync(TimeFrameType period, CancellationToken cancellationToken)
-        => await LoadWorkflowPageAsync(
-            period,
-            _workflowPageNumbers.GetValueOrDefault(period, 1),
-            cancellationToken);
+        => await LoadWorkflowPageAsync(period, 1, cancellationToken);
 
     async Task LoadWorkflowPageAsync(
         TimeFrameType period,
@@ -376,14 +369,18 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     {
         lock (_stateGate)
         {
-            foreach (var workflowId in _workflowViews.Values
-                         .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == period)
-                         .Select(view => view.WorkflowId)
-                         .ToArray())
-                _workflowViews.Remove(workflowId);
+            if (!_workflowPageNumbers.ContainsKey(period))
+            {
+                foreach (var workflowId in _workflowViews.Values
+                             .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == period)
+                             .Select(view => view.WorkflowId)
+                             .ToArray())
+                    _workflowViews.Remove(workflowId);
+            }
             foreach (var view in page.Items.Where(IsRelevantWorkflow))
                 _workflowViews[view.WorkflowId] = view;
-            _workflowPageNumbers[period] = page.PageNumber;
+            _workflowPageNumbers[period] = Math.Max(
+                _workflowPageNumbers.GetValueOrDefault(period, 1), page.PageNumber);
             _workflowTotalCounts[period] = page.TotalCount;
         }
         if (period == SelectedTimeFrame)
@@ -404,13 +401,6 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     {
         if (Volatile.Read(ref _acceptEvents) == 0)
             return;
-        var period = notification.State.EntityId.ItiSignalEntityId.TimePeriod;
-        lock (_stateGate)
-        {
-            if (_workflowPageNumbers.GetValueOrDefault(period, 1) != 1
-                && !_workflowViews.ContainsKey(notification.State.WorkflowId))
-                return;
-        }
         AddWorkflowRange([notification.State]);
     }
 
@@ -489,13 +479,13 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                          .Select(view => view.EntityId.ItiSignalEntityId.TimePeriod)
                          .Distinct())
             {
-                if (_workflowPageNumbers.GetValueOrDefault(period, 1) != 1)
-                    continue;
+                var loadedCapacity = _workflowPageNumbers.GetValueOrDefault(period, 1)
+                    * WorkflowHistoryPageSize;
                 foreach (var workflowId in _workflowViews.Values
                              .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == period)
                              .OrderByDescending(WorkflowTime)
                              .ThenByDescending(view => view.WorkflowId.Value)
-                             .Skip(WorkflowHistoryPageSize)
+                             .Skip(loadedCapacity)
                              .Select(view => view.WorkflowId)
                              .ToArray())
                     _workflowViews.Remove(workflowId);
@@ -595,8 +585,8 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     {
         OnPropertyChanged(nameof(WorkflowPageNumber));
         OnPropertyChanged(nameof(WorkflowPageCount));
-        OnPropertyChanged(nameof(WorkflowPageText));
-        OnPropertyChanged(nameof(CanMoveToPreviousWorkflowPage));
+        OnPropertyChanged(nameof(WorkflowTotalCount));
+        OnPropertyChanged(nameof(HasMoreWorkflows));
         OnPropertyChanged(nameof(CanMoveToNextWorkflowPage));
     }
 

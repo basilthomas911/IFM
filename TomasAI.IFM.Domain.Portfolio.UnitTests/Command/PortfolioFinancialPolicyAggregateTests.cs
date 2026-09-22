@@ -2,7 +2,9 @@ using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using System.Text.Json;
 using FluentAssertions;
 using MessagePack;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -87,7 +89,7 @@ public sealed class PortfolioFinancialPolicyAggregateTests
     public void Immutable_version_activation_supersedes_prior_version_and_replays_identically()
     {
         var aggregate = new PortfolioFinancialPolicyAggregate();
-        List<PortfolioFinancialPolicyDomainEvent> history = [];
+        List<IPortfolioFinancialPolicyDomainEvent> history = [];
         history.Add(aggregate.Create(Guid.NewGuid(), Guid.NewGuid(), ValidPolicy(), Now, "risk-admin"));
         history.Add(aggregate.Activate(Guid.NewGuid(), 1, 1, Now.AddMinutes(1), "risk-admin"));
         history.Add(aggregate.AddVersion(Guid.NewGuid(), 2, ValidPolicy() with

@@ -14,10 +14,13 @@ public sealed class PortfolioQueryActorMapConventionTests
         var parseMap = GetMap("_parseMap");
         var receiveMap = GetMap("_receiveMap");
         var exceptionMap = GetMap("_exceptionMap");
-        var expectedVerbs = typeof(PortfolioQueryVerbs)
-            .GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Where(field => field.IsLiteral && !field.IsInitOnly && field.FieldType == typeof(string))
-            .Select(field => (string)field.GetRawConstantValue()!)
+        var expectedVerbs = typeof(GetPortfolioQuery).Assembly.GetTypes()
+            .Where(type => type.IsClass && !type.IsAbstract && type.Name.EndsWith("Query", StringComparison.Ordinal))
+            .Select(type => type.GetField("Actor", BindingFlags.Public | BindingFlags.Static))
+            .Where(field => field?.GetRawConstantValue() as string == GetPortfolioQuery.Actor)
+            .Select(field => field!.DeclaringType!.GetField("Verb", BindingFlags.Public | BindingFlags.Static))
+            .Where(field => field is not null && field.IsLiteral && field.FieldType == typeof(string))
+            .Select(field => (string)field!.GetRawConstantValue()!)
             .ToArray();
 
         parseMap.Keys.Cast<string>().Should().BeEquivalentTo(expectedVerbs);

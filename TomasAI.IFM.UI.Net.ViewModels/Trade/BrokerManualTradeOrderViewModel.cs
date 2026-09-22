@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
@@ -111,7 +112,7 @@ public sealed class BrokerManualTradeOrderViewModel
     public async Task RemoveAsync()
     {
         var orders = await _appRoot.Services.PortfolioQueries.GetOrdersAsync(_portfolioId, _trade.FundId,
-            new DateOnly(_fundOrder.TradeDate.Year, _fundOrder.TradeDate.Month, 1), 200);
+            new DateOnly(_trade.RequestedTradeDate.Year, _trade.RequestedTradeDate.Month, 1), 200);
         var order = orders.Success && orders.Value is not null
             ? orders.Value.Items.SingleOrDefault(value => value.OrderId == _trade.OrderId)
             : null;
@@ -135,8 +136,9 @@ public sealed class BrokerManualTradeOrderViewModel
             throw new ArgumentOutOfRangeException(nameof(quantity), "Order quantity must be positive.");
         var now = DateTime.UtcNow;
         var summary = new TradeOrderReadModel(
-            _trade.FundId, _trade.OrderId, _trade.TradeId, _fundOrder.TradeDate,
-            _trade.TradeType, TradeSubType.Primary, _trade.TradeDate, _trade.MaturityDate,
+            _trade.FundId, _trade.OrderId, _trade.TradeId, _trade.RequestedTradeDate,
+            _trade.TradeType, TradeSubType.Primary, _trade.RequestedTradeDate,
+            _trade.RequestedMaturityDate ?? _trade.RequestedTradeDate,
             global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderState.OrderPlaced,
             _baseContract.ContractId, AssetType.Futures, string.Join(" / ", ContractIds),
             _trade.TradeAction == TradeAction.Sell ? OrderAction.Sell : OrderAction.Buy,
@@ -226,8 +228,8 @@ public sealed class BrokerManualTradeOrderViewModel
             CompositionId = compositionId,
             WorkflowId = Guid.NewGuid(),
             DecisionHorizon = assignment.DecisionHorizon,
-            StrategyKind = StrategyKind,
-            ValueDate = _fundOrder.TradeDate,
+            StrategyKind = (PortfolioExecutionStrategyKind)StrategyKind,
+            ValueDate = _trade.RequestedTradeDate,
             ValidUntilUtc = now.AddMinutes(5),
             Origin = "DesktopTradeOrder",
             Components =
@@ -241,7 +243,7 @@ public sealed class BrokerManualTradeOrderViewModel
                     MinimumSignedNetDebitLimit = limit,
                     MaximumSignedNetDebitLimit = limit,
                     TickIncrement = StrategyKind == TradeStrategyKind.FuturesOutright ? 0.25m : 0.05m
-                }
+                }.ToPortfolioComponent()
             ],
             RequiredCapital = notional,
             EvidenceHash = hash,
@@ -252,15 +254,15 @@ public sealed class BrokerManualTradeOrderViewModel
             ProductSymbol = _baseContract.Symbol,
             ProductExchange = _baseContract.Exchange,
             ProductCurrency = _baseContract.Currency,
-            PositionType = TradeOrderPositionType.Opening,
+            PositionType = PortfolioExecutionPositionType.Opening,
             BrokerAccountAlias = EmulatorAccountAlias,
-            BrokerEnvironment = BrokerEnvironment.Emulator,
+            BrokerEnvironment = PortfolioBrokerEnvironment.Emulator,
             MicroExecutionProfileId = "ManualExactLimit",
             MicroExecutionProfileVersion = 1,
             MicroExecutionProfileHash = hash,
             AccountPromotionApprovalReference = approvalReference,
-            BrokerOrderType = _brokerOrderType,
-            BrokerAlgorithm = _brokerAlgorithm
+            BrokerOrderType = (PortfolioBrokerOrderType)_brokerOrderType,
+            BrokerAlgorithm = (PortfolioBrokerAlgorithm)_brokerAlgorithm
         };
     }
 
@@ -296,7 +298,7 @@ public sealed class BrokerManualTradeOrderViewModel
         SignedQuantity = signedQuantity,
         ContractId = contractId,
         ContractKey = contractId,
-        Expiry = _trade.MaturityDate,
+        Expiry = _trade.RequestedMaturityDate ?? _trade.RequestedTradeDate,
         Strike = strike,
         PutCall = putCall,
         CashMultiplier = multiplier
@@ -304,7 +306,7 @@ public sealed class BrokerManualTradeOrderViewModel
 
     (decimal[] Strikes, byte PutCall) ParseVerticalReference()
     {
-        var value = _trade.Reference.Trim().ToUpperInvariant();
+        var value = _trade.InstructionReference.Trim().ToUpperInvariant();
         var strikes = value.Length > 1
             ? value[1..].Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : [];

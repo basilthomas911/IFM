@@ -60,16 +60,16 @@ public sealed class PortfolioOrderCompositionModelTests
         {
             Body = request.Body with
             {
-                BrokerOrderType = BrokerOrderType.Market,
-                BrokerAlgorithm = BrokerAlgorithm.Adaptive
+                BrokerOrderType = PortfolioBrokerOrderType.Market,
+                BrokerAlgorithm = PortfolioBrokerAlgorithm.Adaptive
             }
         };
 
         var result = await PortfolioOrderCompositionModel.EvaluateAsync(
             request, Book(true), 2, Financial(Book(true)), new TestIdentityAllocator());
 
-        result.TradeOrders.Single().BrokerOrderType.Should().Be(BrokerOrderType.Market);
-        result.TradeOrders.Single().BrokerAlgorithm.Should().Be(BrokerAlgorithm.Adaptive);
+        result.TradeOrders.Single().BrokerOrderType.Should().Be(PortfolioBrokerOrderType.Market);
+        result.TradeOrders.Single().BrokerAlgorithm.Should().Be(PortfolioBrokerAlgorithm.Adaptive);
     }
 
     [Fact]
@@ -184,15 +184,15 @@ public sealed class PortfolioOrderCompositionModelTests
             InputSha256=new('a',64), Body=new()
             {
                 CompositionId=Guid.Parse("11111111-1111-1111-1111-111111111111"), WorkflowId=Guid.NewGuid(),
-                DecisionHorizon="Daily", StrategyKind=TradeStrategyKind.FuturesOutright,
-                PositionType=TradeOrderPositionType.Opening,
+                DecisionHorizon="Daily", StrategyKind=PortfolioExecutionStrategyKind.FuturesOutright,
+                PositionType=PortfolioExecutionPositionType.Opening,
                 ValueDate=DateOnly.FromDateTime(now), ValidUntilUtc=now.AddMinutes(1), Origin="ITI",
                 EvidenceHash=new('b',64), DeploymentKey=new(StrategyCatalogKind.Deployment,
                     Guid.Parse("22222222-2222-2222-2222-222222222222"),1),
                 ProductSymbol="ES",ProductExchange="XCME",ProductCurrency="USD",
                 RequiredCapital=100,MaximumLoss=100,StressLoss=100,Notional=1000,
-                Components=[new() { ComponentId=Guid.NewGuid(),StrategyKind=TradeStrategyKind.FuturesOutright,
-                    Legs=[new() { TradeLegId=Guid.NewGuid(),ContractId="ESZ6",AssetFamily=TradeAssetFamily.Futures,SignedQuantity=1,ContractKey="ESZ6" }] }]
+                Components=[new() { ComponentId=Guid.NewGuid(),StrategyKind=PortfolioExecutionStrategyKind.FuturesOutright,
+                    Legs=[new() { TradeLegId=Guid.NewGuid(),ContractId="ESZ6",AssetFamily=PortfolioExecutionAssetFamily.Futures,SignedQuantity=1,ContractKey="ESZ6" }] }]
             }
         };
     }

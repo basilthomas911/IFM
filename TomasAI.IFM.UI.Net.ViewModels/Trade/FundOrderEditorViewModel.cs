@@ -1,5 +1,4 @@
 using TomasAI.IFM.UI.Net.Models.Portfolio;
-using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -147,25 +146,25 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     public IAsyncOperation RefreshReferenceOperation { get; }
 
     /// <summary>Gets the immutable domain read model represented by the current editor state.</summary>
-    public PortfolioFundOrderEditorModel FundOrder
+    public ManualFundOrderDraftEditorModel FundOrder
     {
         get
         {
             var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-            return new PortfolioFundOrderEditorModel(
-                fundId: _fundId,
-                orderId: OrderId,
-                orderDate: EasternTime.ToUtc(OrderDate),
-                orderStatus: OrderStatus,
-                baseContractId: SelectedBaseContractId,
-                tradeDate: TradeDate,
-                maturityDate: MaturityDate,
-                reference: Reference,
-                createdBy: user,
-                createdOn: nowUtc,
-                updatedBy: user,
-                updatedOn: nowUtc);
+            return new ManualFundOrderDraftEditorModel(
+                FundId: _fundId,
+                OrderId: OrderId,
+                OrderDate: EasternTime.ToUtc(OrderDate),
+                OrderStatus: OrderStatus,
+                BaseContractId: SelectedBaseContractId,
+                TradeDate: TradeDate,
+                MaturityDate: MaturityDate,
+                Reference: Reference,
+                CreatedBy: user,
+                CreatedOn: nowUtc,
+                UpdatedBy: user,
+                UpdatedOn: nowUtc);
         }
     }
 

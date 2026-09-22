@@ -1,5 +1,7 @@
 using FluentAssertions;
-using TomasAI.IFM.Domain.Portfolio.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
@@ -91,18 +93,18 @@ public sealed class PortfolioRealProjectionIntegrationTests(
             AggregateVersion = 3, CommittedOnUtc = now, Disposition = ReservationDisposition.Committed, CanonicalRequestSha256 = new string('a', 64),
         };
         var store = new PortfolioEventStore(eventSource.EventSourceDb);
-        PortfolioDomainEvent[] portfolioHistory =
+        IPortfolioDomainEvent[] portfolioHistory =
         [
-            new PortfolioCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "rebuild", portfolio),
-            new FundAddedToPortfolio(Guid.NewGuid(), Guid.NewGuid(), 2, now.AddSeconds(1), "rebuild", fundId),
-            new FundAllocationDelegated(Guid.NewGuid(), Guid.NewGuid(), 3, now.AddSeconds(2), "rebuild", allocation),
-            new FundRiskEnvelopeDelegated(Guid.NewGuid(), Guid.NewGuid(), 4, now.AddSeconds(3), "rebuild", envelope),
+            new PortfolioCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "rebuild", portfolio),
+            new FundAddedToPortfolioEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now.AddSeconds(1), "rebuild", fundId),
+            new FundAllocationDelegatedEvent(Guid.NewGuid(), Guid.NewGuid(), 3, now.AddSeconds(2), "rebuild", allocation),
+            new FundRiskEnvelopeDelegatedEvent(Guid.NewGuid(), Guid.NewGuid(), 4, now.AddSeconds(3), "rebuild", envelope),
         ];
-        PortfolioFundDomainEvent[] fundHistory =
+        IPortfolioFundDomainEvent[] fundHistory =
         [
-            new FundMandateCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "rebuild", fund),
-            new FundTradeTemplateAssigned(Guid.NewGuid(), Guid.NewGuid(), 2, now.AddSeconds(1), "rebuild", assignment),
-            new FundCompositionReserved(Guid.NewGuid(), Guid.NewGuid(), 3, now.AddSeconds(2), "rebuild", reservation),
+            new FundMandateCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, now, "rebuild", fund),
+            new FundTradeTemplateAssignedEvent(Guid.NewGuid(), Guid.NewGuid(), 2, now.AddSeconds(1), "rebuild", assignment),
+            new FundCompositionReservedEvent(Guid.NewGuid(), Guid.NewGuid(), 3, now.AddSeconds(2), "rebuild", reservation),
         ];
         for (var index = 0; index < portfolioHistory.Length; index++) await store.AppendPortfolioAsync(portfolioId, portfolioHistory[index], index);
         for (var index = 0; index < fundHistory.Length; index++) await store.AppendFundAsync(fundId, fundHistory[index], index);

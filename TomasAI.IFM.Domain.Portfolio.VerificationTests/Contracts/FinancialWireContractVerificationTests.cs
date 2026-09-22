@@ -44,7 +44,7 @@ public sealed class FinancialWireContractVerificationTests
         RoundTrip(request);
         RoundTrip(new CapacityConsumptionFailedEvent { CommitDisposition=FinancialCommitDisposition.OutcomeUnknown,FailedAtUtc=now,ExistingOperationId=Guid.NewGuid() });
         RoundTrip(new ConfigureLedgerCommand { Body=new() { Action=LedgerConfigurationAction.OpenPeriod,PeriodStart=new(2026,9,1),PeriodEnd=new(2026,9,30) } });
-        RoundTrip(new FinancialQuery<GetPostingReceiptRequest,FinancialOperationOutcome> { Parameters=new(Guid.NewGuid()),
+        RoundTrip(new GetPostingReceiptQuery { Parameters=new(Guid.NewGuid()),
             Scope=new() { PortfolioId=1101,Access=new("reader",["LedgerRead"],[1101]) } });
         RoundTrip(FunctionResult<CapacityReservationCompletedEvent,CapacityReservationFailedEvent>.Complete(new()
         { Receipt=new() { Requirements=new() { SettlementCash=1.23m,MarginFunding=700m,Exposures=[new() { Amount=-0.125m,Measure=CapacityMeasure.Delta }] } } }));
@@ -117,7 +117,7 @@ public sealed class FinancialWireContractVerificationTests
             [new(new(Guid.NewGuid(),4,new('B',64),LedgerTransactionKind.Commission,new(102,1),new(101,2),true),"Active",new(2026,1,1),null)],
             new(Guid.NewGuid(),12,5,10,125.50m,125.50m,[],"source:12",new('C',64)));
         RoundTrip(new FinancialRead<FinancialLedgerConfiguration>(FinancialReadStatus.Found,value,13,DateTime.UtcNow));
-        RoundTrip(new FinancialQuery<GetFinancialLedgerConfigurationRequest,FinancialLedgerConfiguration>
+        RoundTrip(new GetFinancialLedgerConfigurationQuery
             { Parameters=new(),Scope=new() { PortfolioId=1,Access=new("reader",["LedgerRead"],[1]) } });
         typeof(FinancialLedgerConfiguration).GetProperties().Select(x=>x.GetCustomAttribute<KeyAttribute>()).OfType<KeyAttribute>()
             .Select(x=>x.IntKey!.Value).Order().Should().Equal(Enumerable.Range(0,10));
@@ -127,7 +127,7 @@ public sealed class FinancialWireContractVerificationTests
     public void Book_preparation_preserves_generated_configuration_in_standard_transport()
     {
         RoundTrip(new FinancialPostingConfiguration(1,2,new(),[],true,new(2026,9,8),true));
-        RoundTrip(new FinancialQuery<PrepareFinancialBookRequest,FinancialBookSetup> { Parameters=new("DEV",new(2026,1,1),new(2026,12,31)),
+        RoundTrip(new PrepareFinancialBookQuery { Parameters=new("DEV",new(2026,1,1),new(2026,12,31)),
             Scope=new() { PortfolioId=1,Access=new("operator",["LedgerConfigure"],[1]) } });
         RoundTrip(new FinancialBookSetup(["DEV"],["Development Fund"],new() { Action=LedgerConfigurationAction.CreateBook,BookId=7,
             Book=new() { BookId=7,PortfolioId=1,AccountingEntityId=Guid.NewGuid(),Environment="Emulator",ExecutionAccountReference="DEV",Funds=[new() { FundId=2 }] },

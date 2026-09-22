@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;

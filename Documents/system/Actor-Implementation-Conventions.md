@@ -3,7 +3,7 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
 **Created:** 2026-08-14  
-**Last updated:** 2026-09-13
+**Last updated:** 2026-09-21
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -1072,7 +1072,7 @@ Bar-publisher tests cover first publication, a proven same-interval repeat with 
 
 Closed-generic `ICommandActorContext<TActor>` is the dependency boundary. Actor-specific readonly context properties are exposed through the approved typed context and context-extension pattern. A command extension does not resolve arbitrary services from the container.
 
-An actor-centric computation used only by one CommandActor belongs in that actor's `Model` folder. The model performs calculation and returns an immutable result; it does not create actor events, mutate actor state, send messages, or write storage. The command extension converts the model result into the private domain event.
+An actor-centric computation used only by one CommandActor belongs in that CommandActor's optional `Command/Model` folder. The model performs calculation and returns an immutable result; it does not create actor events, mutate actor state, send messages, or write storage. The command extension converts the model result into the private domain event. The system-wide actor-specific `Model` ownership rule is defined in section 13.4.3.
 
 CPU-bound parallel calculation uses bounded .NET thread-pool work that is owned and awaited by the command extension. Dedicated threads, `TaskCreationOptions.LongRunning`, and unobserved background work are not part of the convention. Sequential and parallel implementations must produce identical deterministic results, and parallel execution is selected only after representative benchmarks demonstrate a material benefit without unacceptable allocation, thread-pool, or tail-latency cost.
 
@@ -1448,11 +1448,67 @@ The class and source filename are the concrete message name with the trailing me
 | `FuturesTickTradeDataChangedEvent` | `FuturesTickTradeDataChanged.cs` |
 | `FuturesMarketPriceUpdatedRealtimeEvent` | `FuturesMarketPriceUpdated.cs` |
 
-The handler source file resides directly in the owning actor-role folder: `Command`, `Query`, `Event`, `Realtime`, or `Function`. The actor implementation remains in that role's `Actor` child folder. Supporting calculation or domain algorithms may remain in a `Model` child folder, but a generic `Extensions` or actor-wide `Handlers` class must not hide multiple receive-map handlers.
+The handler source file resides directly in the owning actor-role folder: `Command`, `Query`, `Event`, `Realtime`, or `Function`. The actor implementation remains in that role's `Actor` child folder. Supporting calculation or domain algorithms used only by that actor role may reside in its optional `Model` child folder, but a generic `Extensions` or actor-wide `Handlers` class must not hide multiple receive-map handlers.
 
 The receive-map delegate remains a thin, exact-type dispatcher. It casts the mapped message and invokes the dedicated extension through `Execute` or `ExecuteAsync`; it does not contain domain behavior. Parsing, validation, state loading, persistence, and exception flow continue to follow the owning actor-type convention.
 
 This rule applies immediately to new or modified receive handlers. Existing actors are migrated through explicitly scoped changes so adoption does not silently alter runtime behavior. The first scoped application is `FuturesRealtimeActor`, whose two entries map to `FuturesTickTradeDataChanged` and `OpenPositionRoutesChanged`.
+
+#### 13.4.3 Domain actor groups, Shared mirrors, and actor-specific Models
+
+Every domain and subdomain owns one cohesive actor group. The group contains only the actor roles required by that owner, selected from `Command`, `Query`, `Event`, `Realtime`, and `Function`. Each role places its actor implementation in an `Actor` child folder and its dedicated mapped-message handlers directly in the role folder. A parent domain actor must not absorb messages or behavior owned by a child or sibling subdomain merely because they share a project or storage implementation.
+
+The corresponding `*.Shared` project mirrors the domain and subdomain ownership hierarchy. Commands, queries, events, realtime messages, Function request/result contracts, identities, and read models that cross an actor, process, or assembly boundary live beneath their owning mirrored Shared folder. Transport contracts do not live in an implementation `Model` folder. Every MessagePack contract uses explicit permanent numeric keys; a published property or key is not removed, renumbered, or reused, and new properties append new keys.
+
+Each actor role may have its own `Model` child folder when actor-specific computation is required:
+
+```text
+SomeSubdomain/
+  Command/
+    Actor/
+    Model/       # optional; computation used only by this Command actor
+  Query/
+    Actor/
+    Model/       # optional; computation used only by this Query actor
+  Event/
+    Actor/
+    Model/       # optional; computation used only by this Event actor
+  Realtime/
+    Actor/
+    Model/       # optional; computation used only by this Realtime actor
+  Function/
+    Actor/
+    Model/       # optional; computation used only by this Function actor
+```
+
+An actor-specific Model is a pure implementation detail of exactly one actor role. It may calculate, normalize, classify, select, or construct immutable results for that actor's handler. It must not define actor transport messages, own mapped-message dispatch, publish messages, mutate actor state, perform persistence, or become an indirect service locator. A Model used by more than one actor role is not actor-specific and must move to an explicitly named domain service or common domain-model location owned at the narrowest valid domain boundary. Empty or speculative `Model` folders are not created.
+
+For example, `Fund/Command/Model` may contain computation used only while handling Fund commands, while `Fund/Query/Model` may contain query-only result assembly. Neither folder may contain `Fund...Command`, `Fund...Query`, or `Fund...Event` contracts; those contracts belong in the mirrored `Domain.Portfolio.Shared/Fund` hierarchy.
+
+#### 13.4.4 Concrete Shared message contracts
+
+The concrete message pattern established by `Domain.OptionPricer.Shared` is the standard for actor messages. A command, query, or event has its own named, non-generic CLR message type. A local alias for a closed generic envelope is not a message contract, and a generic transport envelope must not be used to manufacture semantic command or query identities.
+
+Shared message source is organized by owner and message role. The domain root uses `Commands`, `Queries`, and `Events`; a subdomain mirrors those folders beneath its owning Shared folder. Each command and query resides in its own source file. Each domain-event family resides in its own source file; that file may also contain the corresponding complete and failure event variants when those variants form one lifecycle contract.
+
+Every concrete message:
+
+- is directly annotated with `[MessagePackObject(AllowPrivate = true)]`;
+- implements its applicable `ICommand<TEntityId>`, `IQuery<TResult>`, `IEvent<TEntityId>`, `ICompleteEvent<TEntityId>`, or `IErrorEvent<TEntityId>` contract;
+- declares every serialized property directly on the concrete type with an explicit permanent numeric `[Key(n)]`;
+- marks constants, calculated values, interface conveniences, and other non-wire members with `[IgnoreMember]` where MessagePack could otherwise treat them as contract state;
+- owns stable actor, verb, error, route, entity, and subject semantics rather than deriving its semantic identity from a payload type name; and
+- has no serialized inheritance dependency, abstract serialized message base, or cross-owner MessagePack union.
+
+Command keys `0..5` retain the standard actor-command envelope in this order: `CommandId`, `Subject`, `PostEvents`, `EntityId`, `ErrorCode`, and `RouteTo`. Command-specific properties begin at key `6`. Those properties are placed directly on the command; a generic `Payload` wrapper is not the command contract.
+
+Query keys `0` and `1` retain `Subject` and `EntityId`. Query-specific properties begin at key `2`. `ErrorCode` and `QueryParams` remain ignored derived members unless a separately approved query contract explicitly makes them wire state. A query-parameter value object may implement entity identity or formatting behavior, but the concrete query still declares its own serialized request fields.
+
+Domain-event keys `0..7` retain the standard event metadata in this order: `Subject`, `Id`, `EntityId`, `EventId`, `CommandId`, `AggregateId`, `EventSource`, and `ReceivedOn`. Event-specific properties begin at key `8`. Complete and failure variants likewise declare their entire wire schema directly; they do not inherit serialized keys from the domain event.
+
+Each concrete message provides a public parameterless constructor for serializers. Where callers construct the message from domain input, it also provides a focused public application constructor that establishes its required identifiers, routing defaults, and error defaults. A public `[SerializationConstructor]` lists every serialized value in numeric key order. Published keys are permanent: an existing property or key is never removed, renumbered, repurposed, or reordered, and additions append new keys.
+
+All public message constructors and public message methods require XML documentation. Documentation includes every parameter, type parameter, return value, and declared exception where applicable. This requirement is stricter than legacy examples that contain undocumented event conversion methods or serialization constructors; those omissions are not copied into new or migrated contracts.
 
 ## 14. Related documents
 
@@ -1472,6 +1528,8 @@ This rule applies immediately to new or modified receive handlers. Existing acto
 
 | Date | Revision |
 | --- | --- |
+| 2026-09-21 | Defined cohesive actor groups per domain and subdomain, required mirrored ownership in each `*.Shared` project, and made `Model` an optional actor-role-specific folder for pure internal computation only. |
+| 2026-09-21 | Adopted the OptionPricer-style concrete Shared message convention: one named non-generic command/query type per file, one event family per file, full direct MessagePack schemas without serialized inheritance or payload envelopes, permanent keys, explicit constructors, and complete XML documentation for public constructors and methods. |
 | 2026-09-15 | Defined the system-wide bar-publishing Command actor rule: acknowledge only a durably proven interval repeat, publish valid older or overlapping distinct intervals, distinguish latest appended from newest market interval, and qualify each bar actor's separate lifecycle. |
 | 2026-09-14 | Required every actual Realtime/Event extension-handler failure to produce exactly one structured Error log, including converted failures and handler-owned asynchronous work; distinguished expected realtime no-op outcomes from failures. |
 | 2026-09-13 | Required every concrete FunctionActor to inherit the framework FunctionActor base directly, retain its own five frozen maps, and delegate shared behavior through Models or static helpers; removed the strategy-exit intermediate actor bases. |
