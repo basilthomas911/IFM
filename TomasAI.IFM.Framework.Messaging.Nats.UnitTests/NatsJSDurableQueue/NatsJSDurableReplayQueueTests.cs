@@ -284,6 +284,27 @@ public sealed class NatsJSDurableReplayQueueTests
     }
 
     [Fact]
+    public async Task Unreadable_replay_envelope_is_retried_then_acknowledged_without_stopping_worker()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        queue.SetMaxReplayAttemps("projector", 2);
+        await queue.DequeueAsync("projector", _ => CompletedDelivery);
+        await queue.StartAsync("projector", TimeSpan.FromMilliseconds(1));
+        var state = transport.Queues["projector"];
+        var poisonMessage = new FakeNatsJSDurableQueueTransport.FakeMessage(
+            [0xc1],
+            state.Replay.Writer);
+
+        await state.Replay.Writer.WriteAsync(poisonMessage);
+
+        await EventuallyAsync(() => poisonMessage.AckCount == 1);
+        poisonMessage.DeliveryCount.Should().Be(2);
+        poisonMessage.NakCount.Should().Be(1);
+        state.ReplayConsumerStarts.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Projector_state_and_handlers_are_isolated_by_projector_name()
     {
         var transport = new FakeNatsJSDurableQueueTransport();

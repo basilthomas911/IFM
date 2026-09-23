@@ -31,6 +31,32 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
             new ServiceResult<IntrinsicTimeStrategyWorkflowReadModel>(result!)).ConfigureAwait(false);
     }
 
+    internal static async ValueTask ExecuteAsync(
+        IIntrinsicTimeStrategyWorkflowQueryContext services,
+        IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowsByIdsQuery query,
+        CancellationToken cancellationToken)
+    {
+        if (query.WorkflowIds is null || query.MinimumRevisions is null
+            || query.WorkflowIds.Length == 0 || query.WorkflowIds.Length > 100
+            || query.WorkflowIds.Length != query.MinimumRevisions.Length)
+            throw new ArgumentException("A batch requires 1-100 workflow IDs and one minimum revision per ID.");
+
+        var results = new IntrinsicTimeStrategyWorkflowReadModel[query.WorkflowIds.Length];
+        await Parallel.ForEachAsync(Enumerable.Range(0, results.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = cancellationToken },
+            async (index, token) =>
+            {
+                var id = query.WorkflowIds[index];
+                var result = await services.DbFactory.TradeDb
+                    .GetIntrinsicTimeStrategyWorkflowAsync(id, token).ConfigureAwait(false);
+                RequireRevision(result?.WorkflowRevision, query.MinimumRevisions[index], id.ToString());
+                results[index] = result ?? throw new KeyNotFoundException($"Workflow {id} was not found.");
+            }).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]>(results)).ConfigureAwait(false);
+    }
+
     internal static async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, GetActiveIntrinsicTimeStrategyWorkflowQuery query, CancellationToken cancellationToken)
     {
         ActiveIntrinsicTimeStrategyWorkflowReadModel? result;

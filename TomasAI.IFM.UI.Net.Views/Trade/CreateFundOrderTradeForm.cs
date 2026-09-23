@@ -14,12 +14,19 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     PortfolioFundOrderTradeEditorModel? _fundOrderTrade;
     PortfolioFundOrderTradeEditorModel? _openingTrade;
     readonly Dictionary<string, FuturesContractV3ReadModel> _baseContractMap = [];
+    readonly ComboBox _tradeStrategySelector = new()
+    {
+        Name = "ddlTradeStrategy", DropDownStyle = ComboBoxStyle.DropDownList,
+        Font = new Font("Microsoft Sans Serif", 10.2F), Dock = DockStyle.Left, Width = 311
+    };
+    bool _loadingTradeSelectors;
 
     public PortfolioFundOrderTradeEditorModel FundOrderTrade => _fundOrderTrade!;
 
     public CreateFundOrderTradeForm()
     {
         InitializeComponent();
+        ConfigureTradeStrategySelector();
         txtReference.ReadOnly = true;
         ddlBaseSymbol.SelectedIndexChanged += ddlBaseSymbol_SelectedIndexChanged;
         dtpTradeDate.ValueChanged += TradeReferenceInputChanged;
@@ -50,18 +57,23 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
 
     private void LoadTradeTypes()
     {
+        _loadingTradeSelectors = true;
         ddlTradeType.Enabled = false;
         ddlTradeType.Items.Clear();
-        ddlTradeType.Items.Add($"{TradeType.ShortIronCondor}");
-        ddlTradeType.Items.Add($"{TradeType.LongIronCondor}");
-        ddlTradeType.Items.Add($"{TradeType.PutCreditSpread}");
-        ddlTradeType.Items.Add($"{TradeType.PutDebitSpread}");
-        ddlTradeType.Items.Add($"{TradeType.CallCreditSpread}");
-        ddlTradeType.Items.Add($"{TradeType.CallDebitSpread}");
-        ddlTradeType.Items.Add($"{TradeType.FuturesOutright}");
+        var types = $"{_tradeStrategySelector.SelectedItem}" switch
+        {
+            "Iron Condor" => new[] { TradeType.ShortIronCondor, TradeType.LongIronCondor },
+            "Vertical Spread" => new[] { TradeType.PutCreditSpread, TradeType.PutDebitSpread,
+                TradeType.CallCreditSpread, TradeType.CallDebitSpread },
+            "Futures Outright" => new[] { TradeType.FuturesOutright },
+            _ => []
+        };
+        foreach (var tradeType in types)
+            ddlTradeType.Items.Add($"{tradeType}");
         ddlTradeType.SelectedIndex = 0;
         UpdateSelectorAccessibility(ddlTradeType, "Trade type selector");
         ddlTradeType.Enabled = true;
+        _loadingTradeSelectors = false;
     }
 
     private async void CreateFundOrderTradeForm_Load(object sender, EventArgs e)
@@ -73,6 +85,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             {
                 txtTradeId.Text = $"{tradeId}";
                 txtTradeState.Text = $"{TradeState.NewTrade}";
+                _tradeStrategySelector.SelectedIndex = 0;
                 LoadTradeTypes();
                 LoadBaseContracts(_viewModel.BaseContracts);
                 ConfigureClosingTrade();
@@ -82,6 +95,34 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         {
             MessageBox.Show(ex.Message, "Create Fund Order Trade Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    void ConfigureTradeStrategySelector()
+    {
+        foreach (Control control in tableLayoutPanel1.Controls.Cast<Control>().ToArray())
+        {
+            var row = tableLayoutPanel1.GetRow(control);
+            if (row >= 1)
+                tableLayoutPanel1.SetRow(control, row + 1);
+        }
+        var label = new Label
+        {
+            Name = "lblTradeStrategy", Text = "Trade Strategy:", Dock = DockStyle.Fill,
+            ForeColor = SystemColors.ControlLightLight, Font = new Font("Microsoft Sans Serif", 10.2F),
+            TextAlign = ContentAlignment.MiddleRight
+        };
+        tableLayoutPanel1.Controls.Add(label, 0, 1);
+        tableLayoutPanel1.Controls.Add(_tradeStrategySelector, 1, 1);
+        tableLayoutPanel1.SetRow(pnlBaseContractSymbol, 7);
+        tableLayoutPanel1.SetRow(ddlBaseSymbol, 7);
+        tableLayoutPanel1.SetRow(panel2, 8);
+        tableLayoutPanel1.SetRow(txtReference, 8);
+        _tradeStrategySelector.Items.AddRange(["Iron Condor", "Vertical Spread", "Futures Outright"]);
+        _tradeStrategySelector.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_loadingTradeSelectors)
+                LoadTradeTypes();
+        };
     }
 
     void SetClosingTradeType(TradeType openingTradeType)
@@ -125,7 +166,12 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         if (_openingTrade is null)
             return;
 
+        _loadingTradeSelectors = true;
+        _tradeStrategySelector.SelectedItem = StrategyFor(_openingTrade.TradeType);
+        _loadingTradeSelectors = false;
+        LoadTradeTypes();
         SetClosingTradeType(_openingTrade.TradeType);
+        _tradeStrategySelector.Enabled = false;
         ddlTradeType.Enabled = false;
 
         var matchingContract = _baseContractMap.Values.FirstOrDefault(contract =>
@@ -143,6 +189,13 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         UpdateSelectorAccessibility(ddlBaseSymbol, "Base contract selector");
         UpdateTradeReference();
     }
+
+    static string StrategyFor(TradeType tradeType) => tradeType switch
+    {
+        TradeType.ShortIronCondor or TradeType.LongIronCondor => "Iron Condor",
+        TradeType.FuturesOutright => "Futures Outright",
+        _ => "Vertical Spread"
+    };
 
     PortfolioFundOrderTradeEditorModel? ValidateNewFundOrderTrade()
     {

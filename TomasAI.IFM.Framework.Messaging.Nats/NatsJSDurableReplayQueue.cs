@@ -583,7 +583,30 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 .ConfigureAwait(false))
             {
                 ResetIdleTimeout(idleCancellation);
-                var domainEvent = Deserialize(message.Data);
+                IEvent domainEvent;
+                try
+                {
+                    domainEvent = Deserialize(message.Data);
+                }
+                catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch
+                {
+                    if (message.DeliveryCount >= (ulong)Volatile.Read(ref state.MaxReplayAttempts))
+                    {
+                        await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await message.NakAsync(
+                            GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                            idleCancellation.Token).ConfigureAwait(false);
+                    }
+                    ResetIdleTimeout(idleCancellation);
+                    continue;
+                }
                 try
                 {
                     var handler = state.ProcessMessage

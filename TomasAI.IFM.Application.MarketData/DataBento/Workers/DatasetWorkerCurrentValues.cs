@@ -327,5 +327,51 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             return reference?.GetOptionChainAsync(contractId, maturityDate)
                 ?? throw new NotSupportedException("Option-chain reference discovery requires the Stage 4 supervised query integration.");
         }
+
+        public Task<FuturesOptionContractReadModel[]> GetOptionChainBySymbolAsync(
+            string underlyingSymbol,
+            DateOnly maturityDate)
+        {
+            IDatabentoMarketDataCatalog? reference;
+            lock (owner.gate)
+                reference = owner.datasets.Values.FirstOrDefault(state =>
+                    state.Catalog is not null && state.Contracts.Values.Any(registration =>
+                        string.Equals(registration.RootSymbol, underlyingSymbol, StringComparison.OrdinalIgnoreCase)))?.Catalog;
+            return reference?.GetOptionChainBySymbolAsync(underlyingSymbol, maturityDate)
+                ?? throw new NotSupportedException(
+                    $"No supervised Databento catalogue is available for underlying symbol '{underlyingSymbol}'.");
+        }
+
+        public Task<OptionContractExpiryReadModel[]> DiscoverOptionContractExpiriesAsync(
+            string underlyingSymbol,
+            DateOnly fromExpiry,
+            DateOnly throughExpiry,
+            CancellationToken cancellationToken = default)
+        {
+            IDatabentoMarketDataCatalog? reference;
+            lock (owner.gate)
+                reference = owner.datasets.Values.FirstOrDefault(state =>
+                    state.Catalog is not null && state.Contracts.Values.Any(registration =>
+                        string.Equals(registration.RootSymbol, underlyingSymbol, StringComparison.OrdinalIgnoreCase)))?.Catalog;
+            return reference?.DiscoverOptionContractExpiriesAsync(
+                    underlyingSymbol, fromExpiry, throughExpiry, cancellationToken)
+                ?? throw new NotSupportedException(
+                    $"No supervised Databento catalogue is available for underlying symbol '{underlyingSymbol}'.");
+        }
+
+        public Task<FuturesOptionContractReadModel[]> GetOptionChainByRootAsync(
+            string underlyingSymbol,
+            string providerRoot,
+            DateOnly maturityDate)
+        {
+            IDatabentoMarketDataCatalog? reference;
+            lock (owner.gate)
+                reference = owner.datasets.Values.FirstOrDefault(state =>
+                    state.Catalog is not null && state.Contracts.Values.Any(registration =>
+                        string.Equals(registration.RootSymbol, underlyingSymbol, StringComparison.OrdinalIgnoreCase)))?.Catalog;
+            return reference?.GetOptionChainByRootAsync(underlyingSymbol, providerRoot, maturityDate)
+                ?? throw new NotSupportedException(
+                    $"No supervised Databento catalogue is available for underlying symbol '{underlyingSymbol}'.");
+        }
     }
 }

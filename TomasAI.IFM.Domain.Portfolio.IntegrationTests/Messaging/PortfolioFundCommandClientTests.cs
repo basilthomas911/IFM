@@ -24,8 +24,7 @@ public sealed class PortfolioFundCommandClientTests
         var request = new CreateManualFundOrderRequest
         {
             PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
-            UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(now),
-            RequestedMaturityDate = DateOnly.FromDateTime(now.AddMonths(1)), IdempotencyKey = key,
+            IdempotencyKey = key,
             RequestedAtUtc = now, ExpiresAtUtc = now.AddDays(1),
         };
         var projected = new FundOrderProjectionReadModel

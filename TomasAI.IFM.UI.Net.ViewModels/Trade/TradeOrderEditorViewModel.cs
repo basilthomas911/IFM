@@ -41,6 +41,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 {
     readonly IAppRoot _appRoot;
     readonly TimeProvider _timeProvider;
+    readonly BrokerEnvironment _brokerEnvironment;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
     readonly IReadOnlyList<FuturesContractV3ReadModel> _baseContracts;    readonly IReferenceDataService _referenceDataService;    IReadOnlyList<PortfolioFundEditorModel> _funds = [];
@@ -61,6 +62,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     string _lastStatusMessage = string.Empty;
     long _errorSequence;
     long _scopeGeneration;
+    long _orderSelectionGeneration;
 
     /// <summary>Creates the main editor for one trading date and its available futures contracts.</summary>
     public TradeOrderEditorViewModel(
@@ -68,7 +70,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         DateOnly? valueDate,
         ICollection<FuturesContractV3ReadModel> baseContracts,
         IReferenceDataService referenceDataService,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        BrokerEnvironment brokerEnvironment = BrokerEnvironment.Live)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
@@ -76,6 +79,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             ?? throw new ArgumentNullException(nameof(referenceDataService));
         _appRoot = appRoot;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _brokerEnvironment = brokerEnvironment;
         _valueDate = valueDate;
         _baseContracts = baseContracts.ToArray();
         LoadOperation = new AsyncOperation(LoadCoreAsync, () => !IsCommandRunning);
@@ -205,6 +209,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// </summary>
     public bool CanSubmitOrderAction(OrderActionType orderActionType)
         => orderActionType == OrderActionType.Close
+            || _brokerEnvironment == BrokerEnvironment.Emulator
             || PositionEntryWindow.IsOpen(_timeProvider.GetUtcNow());
 
     /// <summary>Validates the time-sensitive entry policy without using exceptions for normal control flow.</summary>
@@ -216,7 +221,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         LastError = new PresentationError(
             Interlocked.Increment(ref _errorSequence),
             0,
-            "New positions can only be opened between 03:00 and 16:00 Eastern, Monday through Friday. "
+            "New positions can only be opened between 03:00 and 16:00 Eastern, Monday through Friday, unless the broker is in Emulator mode. "
                 + "Existing positions may still be closed.",
             "Position Entry Closed");
         return false;
@@ -283,6 +288,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     {
 
         if (SelectedPortfolio is null || SelectedFund is null) { CanonicalOrders = []; return; }
+        var selectedOrderId = SelectedFundOrder?.OrderId;
         var generation = Volatile.Read(ref _scopeGeneration);
         var portfolioId = SelectedPortfolio.PortfolioId;
         var fundId = SelectedFund.FundId;
@@ -299,7 +305,11 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             return;
         CanonicalOrders = rows.OrderByDescending(x => x.CreatedOnUtc).ThenByDescending(x => x.OrderId).ToArray();
         FundOrders = CanonicalOrders.Select(ToEditorOrder).ToArray();
-        _fundOrderSelectedIndex = FundOrders.Count > 0 ? 0 : -1;
+        _fundOrderSelectedIndex = selectedOrderId is null
+            ? (FundOrders.Count > 0 ? 0 : -1)
+            : FundOrders.ToList().FindIndex(order => order.OrderId == selectedOrderId.Value);
+        if (_fundOrderSelectedIndex < 0 && FundOrders.Count > 0)
+            _fundOrderSelectedIndex = 0;
         OnPropertyChanged(nameof(FundOrderSelectedIndex));
         OnPropertyChanged(nameof(SelectedFundOrder));
         FundOrderTrades = []; _fundOrderTradeSelectedIndex = -1;
@@ -323,9 +333,6 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             PortfolioVersion = portfolio.PortfolioVersion,
             FundId = mandate.FundId,
             FundMandateVersion = mandate.FundMandateVersion,
-            UnderlyingRoot = draft.BaseContractId,
-            RequestedTradeDate = draft.TradeDate,
-            RequestedMaturityDate = draft.MaturityDate,
             Reference = draft.Reference ?? string.Empty,
             IdempotencyKey = Guid.NewGuid(),
             RequestedAtUtc = now,
@@ -333,7 +340,13 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         };
         var result = await _appRoot.Services.PortfolioFundCommands.CreateManualOrderAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Success || result.Value is null)
-            throw new UiServiceOperationException(result.ErrorCode, result.ErrorMessage ?? "Unable to create the manual Portfolio order.");
+        {
+            var exception = new UiServiceOperationException(
+                result.ErrorCode,
+                result.ErrorMessage ?? "Unable to create the manual Portfolio order.");
+            PublishError(exception, "Add Order Error");
+            throw exception;
+        }
         LastStatusMessage = $"Manual Portfolio order {result.Value.Order.OrderId} created.";
         await LoadCanonicalOrdersAsync(cancellationToken).ConfigureAwait(false);
         return result.Value;
@@ -386,6 +399,14 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         }
         LastStatusMessage = $"Trade {trade.TradeId} added to Portfolio order {order.OrderId}.";
         await LoadCanonicalOrdersAsync(cancellationToken).ConfigureAwait(false);
+        var orderIndex = FundOrders.ToList().FindIndex(value => value.OrderId == order.OrderId);
+        if (orderIndex >= 0)
+        {
+            await SelectCanonicalOrderAsync(order.OrderId, cancellationToken).ConfigureAwait(false);
+            var tradeIndex = FundOrderTrades.ToList().FindIndex(value => value.TradeId == trade.TradeId);
+            if (tradeIndex >= 0)
+                SelectFundOrderTrade(tradeIndex);
+        }
         return result.Value;
     }
     /// <summary>Gets the canonical Portfolio trades attached to an order.</summary>
@@ -498,9 +519,13 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         var result = await _appRoot.Services.PortfolioFundCommands
             .DeleteManualOrderAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Success || result.Value == Guid.Empty)
-            throw new UiServiceOperationException(
+        {
+            var exception = new UiServiceOperationException(
                 result.ErrorCode,
                 result.ErrorMessage ?? "Unable to delete the manual Portfolio order.");
+            PublishError(exception, "Remove Order Error");
+            throw exception;
+        }
         LastStatusMessage = $"Portfolio order {order.OrderId} deleted.";
         await LoadCanonicalOrdersAsync(cancellationToken).ConfigureAwait(false);
         return result.Value;
@@ -522,20 +547,52 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 
 
     /// <summary>Loads and selects trades for a canonical Portfolio order.</summary>
-    /// <param name="index">The canonical order index.</param>
+    /// <param name="orderId">The stable canonical order identifier.</param>
     /// <param name="cancellationToken">A token that cancels the Portfolio query.</param>
-    public async Task SelectCanonicalOrderAsync(int index, CancellationToken cancellationToken = default)
+    public async Task SelectCanonicalOrderAsync(int orderId, CancellationToken cancellationToken = default)
     {
-        SelectFundOrder(index);
-        var order = SelectedFundOrder;
-        if (order is null) { FundOrderTrades = []; return; }
-        var result = await _appRoot.Services.PortfolioQueries.GetOrderTradesAsync(order.OrderId, 200, cancellationToken: cancellationToken);
-        var trades = result.Success && result.Value is not null ? result.Value.Items.Select(ToEditorTrade).ToArray() : [];
-        var replacement = ToEditorOrder(CanonicalOrders[index]);
+        var generation = Interlocked.Increment(ref _orderSelectionGeneration);
+        var index = FundOrders.ToList().FindIndex(order => order.OrderId == orderId);
+        if (index < 0)
+        {
+            SelectFundOrder(-1);
+            return;
+        }
+
+        _fundOrderSelectedIndex = index;
+        _fundOrderTradeSelectedIndex = -1;
+        FundOrderTrades = [];
+        OnPropertyChanged(nameof(FundOrderSelectedIndex));
+        OnPropertyChanged(nameof(SelectedFundOrder));
+        OnPropertyChanged(nameof(FundOrderTradeSelectedIndex));
+        OnPropertyChanged(nameof(SelectedFundOrderTrade));
+        NotifyCapabilitiesChanged();
+
+        var result = await _appRoot.Services.PortfolioQueries
+            .GetOrderTradesAsync(orderId, 200, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (generation != Volatile.Read(ref _orderSelectionGeneration)
+            || SelectedFundOrder?.OrderId != orderId)
+            return;
+        if (!result.Success || result.Value is null)
+        {
+            var exception = new UiServiceOperationException(
+                result.ErrorCode,
+                result.ErrorMessage ?? $"Unable to load trades for Portfolio order {orderId}.");
+            PublishError(exception, "Loading Order Trades Error");
+            throw exception;
+        }
+
+        var canonical = CanonicalOrders.SingleOrDefault(order => order.OrderId == orderId);
+        if (canonical is null) return;
+        var trades = result.Value.Items.Select(ToEditorTrade).ToArray();
+        var replacement = ToEditorOrder(canonical);
         foreach (var trade in trades) replacement.Add(trade);
-        FundOrders = FundOrders.Select((value, position) => position == index ? replacement : value).ToArray();
+        FundOrders = FundOrders.Select(value => value.OrderId == orderId ? replacement : value).ToArray();
+        _fundOrderSelectedIndex = FundOrders.ToList().FindIndex(order => order.OrderId == orderId);
         FundOrderTrades = trades;
         _fundOrderTradeSelectedIndex = trades.Length > 0 ? 0 : -1;
+        OnPropertyChanged(nameof(FundOrderSelectedIndex));
         OnPropertyChanged(nameof(SelectedFundOrder));
         OnPropertyChanged(nameof(FundOrderTradeSelectedIndex));
         OnPropertyChanged(nameof(SelectedFundOrderTrade));

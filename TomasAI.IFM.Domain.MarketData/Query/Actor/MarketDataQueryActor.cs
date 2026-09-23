@@ -42,6 +42,9 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
         [GetTradeStrategySymbolsQuery.Verb] = message => message.AsQuery<GetTradeStrategySymbolsQuery, TradeStrategySymbolReadModel[]>()!,
+        [GetDatabentoOptionChainRangeQuery.Verb] = message => message.AsQuery<GetDatabentoOptionChainRangeQuery, OptionContractExpiryReadModel[]>()!,
+        [GetDatabentoOptionChainQuery.Verb] = message => message.AsQuery<GetDatabentoOptionChainQuery, FuturesOptionContractReadModel[]>()!,
+        [GetEvaluatedOptionChainQuery.Verb] = message => message.AsQuery<GetEvaluatedOptionChainQuery, EvaluatedOptionChainReadModel>()!,
         [GetLastRateOfReturnQuery.Verb] = message =>
             message.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>()!,
         [GetTradingDaysQuery.Verb] = message =>
@@ -71,6 +74,12 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     {
         [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) =>
             ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetDatabentoOptionChainRangeQuery)] = static (context, query, cancellationToken) =>
+            ((GetDatabentoOptionChainRangeQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetDatabentoOptionChainQuery)] = static (context, query, cancellationToken) =>
+            ((GetDatabentoOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
+        [typeof(GetEvaluatedOptionChainQuery)] = static (context, query, cancellationToken) =>
+            ((GetEvaluatedOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
         [typeof(GetLastRateOfReturnQuery)] = static (context, query, cancellationToken) =>
             ((GetLastRateOfReturnQuery)query).ExecuteAsync(context, cancellationToken),
         [typeof(GetTradingDaysQuery)] = static (context, query, cancellationToken) =>

@@ -73,6 +73,8 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
             await ApplyCompositionAsync(aggregate.Composition(changed.Order.OrderId), domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
         if (domainEvent is FundManualOrderDeletedEvent deleted)
         {
+            foreach (var tradeId in deleted.RemovedTradeIds)
+                await projections.DeleteTradeAsync(tradeId, domainEvent.EventId, cancellationToken).ConfigureAwait(false);
             await projections.DeleteOrderAsync(deleted.OrderId, domainEvent.EventId, cancellationToken).ConfigureAwait(false);
             return;
         }

@@ -2,6 +2,38 @@
 
 internal static class SecuritiesSchemaCql
 {
+    public const string CreateOptionContractExpiryCalendarTable = """
+    CREATE TABLE IF NOT EXISTS option_contract_expiry_calendar (
+    symbol text,
+    generation uuid,
+    expiryDate date,
+    providerRoot text,
+    contractId text,
+    underlyingContractId text,
+    optionFamily text,
+    definitionPayload blob,
+    refreshedAtUtc timestamp,
+    PRIMARY KEY ((symbol, generation), expiryDate, providerRoot, contractId)
+    ) WITH CLUSTERING ORDER BY (expiryDate ASC, providerRoot ASC, contractId ASC);
+    """;
+
+    public const string AddOptionExpiryDefinitionColumns = """
+    ALTER TABLE option_contract_expiry_calendar ADD (
+        underlyingContractId text,
+        definitionPayload blob
+    );
+    """;
+
+    public const string CreateOptionContractExpiryCalendarStateTable = """
+    CREATE TABLE IF NOT EXISTS option_contract_expiry_calendar_state (
+    symbol text PRIMARY KEY,
+    generation uuid,
+    coverageFrom date,
+    coverageThrough date,
+    refreshedAtUtc timestamp
+    );
+    """;
+
     public const string CreateFuturesContractRolloverTable = """
     CREATE TABLE IF NOT EXISTS futures_contract_rollover (
     symbol text PRIMARY KEY,

@@ -79,6 +79,27 @@ public sealed class OrderCompositionDiscoveryTests
         await market.Received(2).AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Renewal_extends_the_same_worker_lease_without_releasing_the_feed()
+    {
+        var c = Contract(); var mappings = Substitute.For<IOptionPricingConventionStore>();
+        mappings.GetAsync(c.ContractId, c.MappingVersion, Arg.Any<CancellationToken>()).Returns(c);
+        var market = Substitute.For<ICompositionMarketDataApi>(); var clock = new MutableClock();
+        market.AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new WorkerOptionChainResult(true, null));
+        await using var discovery = new QualifiedCompositionDiscovery(new(mappings),
+            new OptionPricingContextProvider(new(new CurveSource(Curve()), clock)), market, clock);
+        var original = (await discovery.AcquireAsync(Request(c), default)).Lease!;
+        clock.Now = At.AddSeconds(50);
+        var renewed = await discovery.RenewAsync(original, clock.Now.AddSeconds(60), default);
+        Assert.NotNull(renewed);
+        Assert.Equal(original.LeaseId, renewed.LeaseId);
+        Assert.Equal(original.ScopeId, renewed.ScopeId);
+        Assert.Equal(At.AddSeconds(110), renewed.LeaseExpiresAtUtc);
+        await market.DidNotReceive().ReleaseAsync(Arg.Any<string>(), Arg.Any<WorkerOptionChainRelease>(), Arg.Any<CancellationToken>());
+        await market.Received(2).AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>());
+    }
+
     sealed class MutableClock : TimeProvider
     {
         public DateTimeOffset Now = At;

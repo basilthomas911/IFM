@@ -15,6 +15,8 @@ public sealed class MarketDataOperationsHealthForm : DarkTradingForm, IForm<Mark
     readonly Button refresh = new() { Name = "refreshOperationsHealth", Text = "Refresh status", AutoSize = true };
     readonly DataGridView stages = Grid("operationsStageGrid");
     readonly DataGridView datasets = Grid("operationsDatasetGrid");
+    IReadOnlyList<MarketDataOperationsStageRow> renderedStages = [];
+    IReadOnlyList<MarketDataOperationsDatasetRow> renderedDatasets = [];
     bool closeComplete;
     bool disposed;
 
@@ -112,14 +114,29 @@ public sealed class MarketDataOperationsHealthForm : DarkTradingForm, IForm<Mark
 
     void Render()
     {
-        summary.Text = viewModel.Summary;
-        summary.AccessibleName = summary.Text;
+        var nextSummary = viewModel.Summary;
+        if (summary.Text != nextSummary)
+        {
+            summary.Text = nextSummary;
+            summary.AccessibleName = nextSummary;
+        }
         summary.ForeColor = StatusColor(viewModel.Status);
-        observation.Text = viewModel.Observation;
-        stages.DataSource = viewModel.Stages.ToList();
-        datasets.DataSource = viewModel.Datasets.ToList();
-        FormatRows(stages);
-        FormatRows(datasets);
+        var nextObservation = viewModel.Observation;
+        if (observation.Text != nextObservation) observation.Text = nextObservation;
+        var nextStages = viewModel.Stages;
+        if (!renderedStages.SequenceEqual(nextStages))
+        {
+            stages.DataSource = nextStages;
+            renderedStages = nextStages;
+            FormatRows(stages);
+        }
+        var nextDatasets = viewModel.Datasets;
+        if (!renderedDatasets.SequenceEqual(nextDatasets))
+        {
+            datasets.DataSource = nextDatasets;
+            renderedDatasets = nextDatasets;
+            FormatRows(datasets);
+        }
     }
 
     static void FormatRows(DataGridView grid)

@@ -205,17 +205,20 @@ public sealed class PortfolioFundCompositionAggregate
 
     /// <summary>Deletes an empty draft manual Portfolio Fund order.</summary>
     /// <param name="request">The scoped order deletion request.</param>
-    public void DeleteManualOrder(ManualFundOrderMutationRequest request)
+    public int[] DeleteManualOrder(ManualFundOrderMutationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateUtc(request.RequestedAtUtc, nameof(request.RequestedAtUtc));
         var order = RequireManualOrder(
             request.PortfolioId, request.FundId, request.OrderId, request.ExpectedOrderVersion);
-        if (_trades[order.OrderId].Length != 0)
-            throw new InvalidOperationException("Only an empty manual order can be deleted.");
+        var trades = _trades[order.OrderId];
+        if (trades.Length > 1 || trades.Any(trade => trade.TradeState != nameof(TradeState.NewTrade)))
+            throw new InvalidOperationException("Only an empty order or an order containing one economically inactive new trade can be deleted.");
+        var removedTradeIds = trades.Select(trade => trade.TradeId).ToArray();
         _orders.Remove(order.OrderId);
         _trades.Remove(order.OrderId);
         _reservations.Remove(order.IdempotencyKey);
+        return removedTradeIds;
     }
 
     /// <summary>Replays deletion of a committed manual Portfolio Fund order.</summary>
@@ -290,13 +293,12 @@ public sealed class PortfolioFundCompositionAggregate
             return prior with { Disposition = ReservationDisposition.IdempotentReplay };
         }
         if (request.IdempotencyKey == Guid.Empty || request.PortfolioId <= 0 || request.PortfolioVersion <= 0 ||
-            request.FundId <= 0 || request.FundMandateVersion <= 0 || string.IsNullOrWhiteSpace(request.UnderlyingRoot) || orderId <= 0)
-            throw new ArgumentException("A manual draft requires positive Portfolio/Fund identities and a non-empty underlying root.", nameof(request));
+            request.FundId <= 0 || request.FundMandateVersion <= 0 || orderId <= 0)
+            throw new ArgumentException("A manual draft requires positive Portfolio/Fund identities.", nameof(request));
         ValidateUtc(request.RequestedAtUtc, nameof(request.RequestedAtUtc));
         ValidateUtc(request.ExpiresAtUtc, nameof(request.ExpiresAtUtc));
-        if (request.RequestedAtUtc > committedOnUtc || committedOnUtc >= request.ExpiresAtUtc ||
-            request.RequestedMaturityDate < request.RequestedTradeDate)
-            throw new InvalidOperationException("The manual draft request is stale or has an invalid date range.");
+        if (request.RequestedAtUtc > committedOnUtc || committedOnUtc >= request.ExpiresAtUtc)
+            throw new InvalidOperationException("The manual draft request is stale.");
         if (_orders.ContainsKey(orderId)) throw new InvalidOperationException("OrderId is already reserved.");
 
         var order = new FundOrderProjectionReadModel

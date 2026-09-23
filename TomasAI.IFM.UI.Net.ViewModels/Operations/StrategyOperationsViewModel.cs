@@ -30,6 +30,14 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     readonly TimeProvider _timeProvider;
     readonly TimeSpan _reconciliationInterval;
     readonly List<FuturesItiSignalEventRow> _eventBuffer = [];
+    static readonly IComparer<FuturesItiSignalEventRow> EventOrder = Comparer<FuturesItiSignalEventRow>.Create(
+        static (left, right) =>
+        {
+            var time = right.OccurredOn.CompareTo(left.OccurredOn);
+            if (time != 0) return time;
+            var sequence = right.SequenceId.CompareTo(left.SequenceId);
+            return sequence != 0 ? sequence : right.EventId.CompareTo(left.EventId);
+        });
     readonly HashSet<string> _eventIdentities = new(StringComparer.Ordinal);
     readonly Dictionary<StrategyWorkflowId, IntrinsicTimeStrategyWorkflowView> _workflowViews = [];
     readonly Dictionary<TimeFrameType, int> _workflowPageNumbers = [];
@@ -413,24 +421,23 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         var changed = false;
         lock (_stateGate)
         {
+            var bulk = accepted.Length > 8;
             foreach (var row in accepted)
             {
                 if (_eventIdentities.Add(row.StableIdentity))
                 {
-                    _eventBuffer.Add(row);
+                    if (bulk) _eventBuffer.Add(row);
+                    else
+                    {
+                        var insertion = _eventBuffer.BinarySearch(row, EventOrder);
+                        _eventBuffer.Insert(insertion < 0 ? ~insertion : insertion, row);
+                    }
                     changed = true;
                 }
             }
             if (!changed)
                 return;
-            _eventBuffer.Sort(static (left, right) =>
-            {
-                var time = right.OccurredOn.CompareTo(left.OccurredOn);
-                if (time != 0)
-                    return time;
-                var sequence = right.SequenceId.CompareTo(left.SequenceId);
-                return sequence != 0 ? sequence : right.EventId.CompareTo(left.EventId);
-            });
+            if (bulk) _eventBuffer.Sort(EventOrder);
         }
 
         PublishSelectedEvents();

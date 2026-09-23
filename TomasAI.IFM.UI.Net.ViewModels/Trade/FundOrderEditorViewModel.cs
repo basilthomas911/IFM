@@ -1,7 +1,5 @@
-using TomasAI.IFM.UI.Net.Models.Portfolio;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.Services.Operations;
 using TomasAI.IFM.UI.Net.Services.Reference;
@@ -11,141 +9,72 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
-/// <summary>
-/// Exposes observable state and guarded asynchronous loading for a new fund order.
-/// </summary>
+/// <summary>Exposes observable state for a new manual Portfolio Fund order.</summary>
 public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposable
 {
     readonly int _fundId;
     readonly DateTime _orderDate;
     readonly PortfolioOrderEditorStatus _orderStatus = PortfolioOrderEditorStatus.Open;
-    readonly DateOnly _valueDate;
     readonly IReferenceDataService _referenceDataService;
-    readonly MarketDataFeedQueryService _marketDataFeedQueryModel;
     readonly TimeProvider _timeProvider;
     readonly bool _allocateOrderId;
     int _orderId;
-    string _selectedBaseContractId;
-    DateOnly _tradeDate;
-    DateOnly _maturityDate;
     string _reference = string.Empty;
-    FuturesEodDataV2ReadModel? _futuresEodData;
     PresentationError? _lastError;
     long _errorSequence;
 
-    /// <summary>Creates a new-order editor for one fund and trading date.</summary>
+    /// <summary>Creates a new-order editor for one Portfolio Fund.</summary>
     public FundOrderEditorViewModel(
-        IAppRoot appRoot,
-        DateOnly valueDate,
-        IEnumerable<FuturesContractV3ReadModel> baseContracts,
         int fundId,
         IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null,
         bool allocateOrderId = true)
     {
-        ArgumentNullException.ThrowIfNull(appRoot);
-        ArgumentNullException.ThrowIfNull(baseContracts);
+        if (fundId <= 0) throw new ArgumentOutOfRangeException(nameof(fundId));
         _referenceDataService = referenceDataService
             ?? throw new ArgumentNullException(nameof(referenceDataService));
-
         _fundId = fundId;
-        _valueDate = valueDate;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _allocateOrderId = allocateOrderId;
         _orderDate = EasternTime.GetNow(_timeProvider);
-        _tradeDate = valueDate;
-        _maturityDate = DateOnly.FromDateTime(_orderDate);
-        BaseContractIds = baseContracts.Select(contract => contract.ContractId).ToArray();
-        _selectedBaseContractId = BaseContractIds.FirstOrDefault() ?? string.Empty;
-        _marketDataFeedQueryModel = appRoot.Services.FeedQueries;
         LoadOperation = new AsyncOperation(LoadCoreAsync);
-        RefreshReferenceOperation = new AsyncOperation(RefreshReferenceCoreAsync, () => !LoadOperation.IsRunning);
         LoadOperation.PropertyChanged += OperationPropertyChanged;
-        RefreshReferenceOperation.PropertyChanged += OperationPropertyChanged;
-        UpdateReference();
     }
 
-    /// <summary>Gets the generated order identifier.</summary>
+    /// <summary>Gets the generated order identifier, or zero when Portfolio authority allocates it on save.</summary>
     public int OrderId
     {
         get => _orderId;
         private set
         {
-            if (!SetProperty(ref _orderId, value))
-                return;
+            if (!SetProperty(ref _orderId, value)) return;
             OnPropertyChanged(nameof(FundOrder));
-            OnPropertyChanged(nameof(CanSave));
         }
     }
 
-    /// <summary>Gets the immutable order creation timestamp.</summary>
     public DateTime OrderDate => _orderDate;
-
-    /// <summary>Gets the initial order status.</summary>
     public PortfolioOrderEditorStatus OrderStatus => _orderStatus;
 
-    /// <summary>Gets the trading date.</summary>
-    public DateOnly TradeDate
-    {
-        get => _tradeDate;
-        private set => SetProperty(ref _tradeDate, value);
-    }
-
-    /// <summary>Gets the order maturity date.</summary>
-    public DateOnly MaturityDate
-    {
-        get => _maturityDate;
-        private set => SetProperty(ref _maturityDate, value);
-    }
-
-    /// <summary>Gets available base-contract identifiers.</summary>
-    public IReadOnlyList<string> BaseContractIds { get; }
-
-    /// <summary>Gets the selected base-contract identifier.</summary>
-    public string SelectedBaseContractId
-    {
-        get => _selectedBaseContractId;
-        private set => SetProperty(ref _selectedBaseContractId, value);
-    }
-
-    /// <summary>Gets the generated human-readable order reference.</summary>
+    /// <summary>Gets the optional, multiline operator reference.</summary>
     public string Reference
     {
         get => _reference;
         private set => SetProperty(ref _reference, value);
     }
 
-    /// <summary>Gets the latest EOD snapshot used to enrich the reference.</summary>
-    public FuturesEodDataV2ReadModel? FuturesEodData
-    {
-        get => _futuresEodData;
-        private set => SetProperty(ref _futuresEodData, value);
-    }
-
-    /// <summary>Gets the latest coded query error.</summary>
     public PresentationError? LastError
     {
         get => _lastError;
         private set => SetProperty(ref _lastError, value);
     }
 
-    /// <summary>Gets whether either editor query is running.</summary>
-    public bool IsBusy => LoadOperation.IsRunning || RefreshReferenceOperation.IsRunning;
+    public bool IsBusy => LoadOperation.IsRunning;
 
-    /// <summary>Gets whether the current snapshot can be accepted by the modal view.</summary>
-    public bool CanSave => !IsBusy
-        && (!_allocateOrderId || OrderId > 0)
-        && !string.IsNullOrWhiteSpace(SelectedBaseContractId)
-        && TradeDate > DateOnly.MinValue
-        && MaturityDate >= TradeDate;
+    /// <summary>Saving a draft has no required operator-entered fields.</summary>
+    public bool CanSave => true;
 
-    /// <summary>Gets the single-flight operation that loads the identifier and selected-contract EOD data.</summary>
     public IAsyncOperation LoadOperation { get; }
 
-    /// <summary>Gets the single-flight operation that refreshes selected-contract EOD data.</summary>
-    public IAsyncOperation RefreshReferenceOperation { get; }
-
-    /// <summary>Gets the immutable domain read model represented by the current editor state.</summary>
     public ManualFundOrderDraftEditorModel FundOrder
     {
         get
@@ -157,10 +86,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
                 OrderId: OrderId,
                 OrderDate: EasternTime.ToUtc(OrderDate),
                 OrderStatus: OrderStatus,
-                BaseContractId: SelectedBaseContractId,
-                TradeDate: TradeDate,
-                MaturityDate: MaturityDate,
-                Reference: Reference,
+                Reference: Reference.Trim(),
                 CreatedBy: user,
                 CreatedOn: nowUtc,
                 UpdatedBy: user,
@@ -168,141 +94,48 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         }
     }
 
-    /// <summary>Selects a base contract by safe list index.</summary>
-    public bool SelectBaseContract(int index)
-    {
-        if (IsBusy || index < 0 || index >= BaseContractIds.Count)
-            return false;
-
-        var contractId = BaseContractIds[index];
-        if (contractId == SelectedBaseContractId)
-            return false;
-
-        SelectedBaseContractId = contractId;
-        FuturesEodData = null;
-        UpdateReference();
-        OnPropertyChanged(nameof(FundOrder));
-        OnPropertyChanged(nameof(CanSave));
-        return true;
-    }
-
-    /// <summary>Updates the trading date and derived reference.</summary>
-    public void SetTradeDate(DateOnly tradeDate)
-    {
-        TradeDate = tradeDate;
-        UpdateReference();
-        OnPropertyChanged(nameof(FundOrder));
-        OnPropertyChanged(nameof(CanSave));
-    }
-
-    /// <summary>Updates the maturity date and derived reference.</summary>
-    public void SetMaturityDate(DateOnly maturityDate)
-    {
-        MaturityDate = maturityDate;
-        UpdateReference();
-        OnPropertyChanged(nameof(FundOrder));
-        OnPropertyChanged(nameof(CanSave));
-    }
-
-    /// <summary>Overrides the generated reference with an operator-provided audit reference.</summary>
+    /// <summary>Updates the optional reference without collapsing embedded line breaks.</summary>
     public void SetReference(string reference)
     {
-        Reference = reference?.Trim() ?? string.Empty;
+        Reference = reference ?? string.Empty;
         OnPropertyChanged(nameof(FundOrder));
-        OnPropertyChanged(nameof(CanSave));
     }
 
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         LoadOperation.PropertyChanged -= OperationPropertyChanged;
-        RefreshReferenceOperation.PropertyChanged -= OperationPropertyChanged;
-        await DisposeOperationAsync(LoadOperation);
-        await DisposeOperationAsync(RefreshReferenceOperation);
+        try
+        {
+            await ((IAsyncDisposable)LoadOperation).DisposeAsync();
+        }
+        catch (Exception exception) when (ReferenceEquals(LoadOperation.LastFailure, exception))
+        {
+            // The caller already observed this completed operation failure.
+        }
     }
 
     async Task LoadCoreAsync(CancellationToken cancellationToken)
     {
+        if (!_allocateOrderId) return;
         try
         {
-            if (_allocateOrderId)
-                OrderId = (await _referenceDataService.GetNextOrderIdAsync(cancellationToken)).RequireValue();
-            await RefreshReferenceCoreAsync(cancellationToken);
+            OrderId = (await _referenceDataService.GetNextOrderIdAsync(cancellationToken)).RequireValue();
         }
         catch (UiOperationException exception)
         {
-            PublishError(exception, "New Fund Order Error");
+            LastError = new PresentationError(
+                Interlocked.Increment(ref _errorSequence),
+                exception.ErrorCode,
+                exception.Message,
+                "New Fund Order Error");
             throw;
         }
     }
-
-    async Task RefreshReferenceCoreAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(SelectedBaseContractId))
-        {
-            UpdateReference();
-            return;
-        }
-
-        try
-        {
-            FuturesEodDataV2ReadModel? loaded = null;
-            await _marketDataFeedQueryModel.ExecuteObservableAsync(
-                async model => await model.GetFuturesEodDataAsync(
-                    SelectedBaseContractId,
-                    _valueDate,
-                    value => loaded = value),
-                cancellationToken);
-            FuturesEodData = loaded;
-            UpdateReference();
-            OnPropertyChanged(nameof(FundOrder));
-        }
-        catch (UiServiceOperationException exception)
-        {
-            PublishError(exception, "Futures EOD Data Error");
-            throw;
-        }
-    }
-
-    void UpdateReference()
-    {
-        Reference = FuturesEodData is null
-            ? $"{SelectedBaseContractId} @ {TradeDate:MMM dd} - {MaturityDate:MMM dd}"
-            : $"{SelectedBaseContractId} @ {TradeDate:MMM dd} - {MaturityDate:MMM dd} => {FuturesEodData.MarketDirection}:{FuturesEodData.MarketVolatility}:{FuturesEodData.PriceDirection}:{FuturesEodData.PriceVolatility}";
-    }
-
-    void PublishError(UiServiceOperationException exception, string caption)
-        => LastError = new PresentationError(
-            Interlocked.Increment(ref _errorSequence),
-            exception.ErrorCode,
-            exception.Message,
-            caption);
-
-    void PublishError(UiOperationException exception, string caption)
-        => LastError = new PresentationError(
-            Interlocked.Increment(ref _errorSequence),
-            exception.ErrorCode,
-            exception.Message,
-            caption);
 
     void OperationPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
         if (eventArgs.PropertyName is not (nameof(IAsyncOperation.IsRunning) or nameof(IAsyncOperation.CanExecute)))
             return;
-
         OnPropertyChanged(nameof(IsBusy));
-        OnPropertyChanged(nameof(CanSave));
-    }
-
-    static async ValueTask DisposeOperationAsync(IAsyncOperation operation)
-    {
-        try
-        {
-            await ((IAsyncDisposable)operation).DisposeAsync();
-        }
-        catch (Exception exception) when (ReferenceEquals(operation.LastFailure, exception))
-        {
-            // The caller already observed this completed operation failure.
-        }
     }
 }

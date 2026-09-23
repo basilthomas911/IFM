@@ -99,13 +99,10 @@ public sealed record CreateManualFundOrderRequest
     [Key(1)] public long PortfolioVersion { get; init; }
     [Key(2)] public int FundId { get; init; }
     [Key(3)] public long FundMandateVersion { get; init; }
-    [Key(4)] public string UnderlyingRoot { get; init; } = string.Empty;
-    [Key(5)] public DateOnly RequestedTradeDate { get; init; }
-    [Key(6)] public DateOnly? RequestedMaturityDate { get; init; }
-    [Key(7)] public string Reference { get; init; } = string.Empty;
-    [Key(8)] public Guid IdempotencyKey { get; init; }
-    [Key(9)] public DateTime RequestedAtUtc { get; init; }
-    [Key(10)] public DateTime ExpiresAtUtc { get; init; }
+    [Key(4)] public string Reference { get; init; } = string.Empty;
+    [Key(5)] public Guid IdempotencyKey { get; init; }
+    [Key(6)] public DateTime RequestedAtUtc { get; init; }
+    [Key(7)] public DateTime ExpiresAtUtc { get; init; }
 }
 
 /// <summary>Describes one operator-authored trade to add to a manual Portfolio Fund order.</summary>

@@ -200,7 +200,7 @@ public sealed class PortfolioCommandActor(
     {
         dynamic request = command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request.CorrelationId, command);
-        var principal = _guard.Demand(Operation(command.Subject.Verb), request, mutation: true).Principal;
+        var principal = _guard.Demand(Operation(command.Subject.Verb), request.Access, mutation: true).Principal;
         var committed = await _events.FindCommittedPortfolioCommandAsync(state.PortfolioId, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {

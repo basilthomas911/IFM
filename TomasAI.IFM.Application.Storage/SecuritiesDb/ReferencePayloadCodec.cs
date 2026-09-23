@@ -64,6 +64,14 @@ public static class ReferencePayloadCodec
         return value;
     }
 
+    public static FuturesOptionContractReadModel ReadOption(byte[] bytes)
+    {
+        var value = Decode<FuturesOptionContractReadModel>(bytes);
+        ValidateReview(value.SchemaVersion, value.ReviewState, () => FuturesReferenceQualification.Errors(value));
+        if (value.StrikePriceDecimal.HasValue) _ = value.GetExactStrikePrice();
+        return value;
+    }
+
     static T Decode<T>(byte[] bytes)
     {
         if (bytes.Length is 0 or > 65536) throw new InvalidDataException("Reference payload length is invalid.");

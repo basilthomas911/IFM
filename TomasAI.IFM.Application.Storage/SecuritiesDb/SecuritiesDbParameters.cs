@@ -2,6 +2,46 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
+internal readonly record struct InsertOptionContractExpiry(
+    string symbol, Guid generation, DateOnly expiryDate, string providerRoot,
+    string contractId, string underlyingContractId, string optionFamily,
+    byte[] definitionPayload, DateTime refreshedAtUtc) : IBindValue
+{
+    public object Bind() => new object?[]
+        { symbol, generation, expiryDate, providerRoot, contractId, underlyingContractId,
+            optionFamily, definitionPayload, refreshedAtUtc };
+}
+
+internal readonly record struct PublishOptionContractExpiryGeneration(
+    string symbol, Guid generation, DateOnly coverageFrom, DateOnly coverageThrough,
+    DateTime refreshedAtUtc) : IBindValue
+{
+    public object Bind() => new object?[]
+        { symbol, generation, coverageFrom, coverageThrough, refreshedAtUtc };
+}
+
+internal readonly record struct GetOptionContractExpiryCalendarState(string symbol) : IBindValue
+{
+    public object Bind() => new object?[] { symbol };
+}
+
+internal readonly record struct GetOptionContractExpiries(
+    string symbol, Guid generation, DateOnly fromExpiry, DateOnly throughExpiry) : IBindValue
+{
+    public object Bind() => new object?[] { symbol, generation, fromExpiry, throughExpiry };
+}
+
+internal readonly record struct GetCachedOptionContractDefinitions(
+    string symbol, Guid generation, DateOnly expiryDate) : IBindValue
+{
+    public object Bind() => new object?[] { symbol, generation, expiryDate };
+}
+
+internal readonly record struct DeleteOptionContractExpiryGeneration(string symbol, Guid generation) : IBindValue
+{
+    public object Bind() => new object?[] { symbol, generation };
+}
+
 internal readonly record struct InsertFuturesContractRolloverIfMissing(
     string symbol,
     DateTime createdOn,

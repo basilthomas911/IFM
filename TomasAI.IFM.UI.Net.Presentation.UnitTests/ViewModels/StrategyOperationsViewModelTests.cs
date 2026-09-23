@@ -139,10 +139,7 @@ public sealed class StrategyOperationsViewModelTests
                 Arg.Any<int>())
             .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
                 new([History(previousWorkflow)], 1, 50, 1)));
-        subject.WorkflowQueryApi.GetByIdAsync(
-                previousWorkflow.WorkflowId,
-                previousWorkflow.WorkflowRevision)
-            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(previousWorkflow)));
+        ConfigureBatchDetails(subject.WorkflowQueryApi, previousWorkflow);
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         subject.ViewModel.SelectedTimeFrame = TimeFrameType.Monthly;
@@ -713,8 +710,7 @@ public sealed class StrategyOperationsViewModelTests
                     Interlocked.Increment(ref historyCalls) == 1
                         ? []
                         : [History(terminal)], 1, 50, historyCalls == 1 ? 0 : 1))));
-        subject.WorkflowQueryApi.GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision)
-            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(terminal)));
+        ConfigureBatchDetails(subject.WorkflowQueryApi, terminal);
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         subject.ViewModel.Workflows.Should().BeEmpty();
@@ -724,7 +720,33 @@ public sealed class StrategyOperationsViewModelTests
 
         timeProvider.Advance(interval);
         await WaitUntilAsync(() => Volatile.Read(ref historyCalls) >= 3);
-        await subject.WorkflowQueryApi.Received(1).GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision);
+        await subject.WorkflowQueryApi.Received(1).GetByIdsAsync(
+            Arg.Is<StrategyWorkflowId[]>(ids => ids.Length == 1 && ids[0] == terminal.WorkflowId),
+            Arg.Is<long[]>(revisions => revisions.Length == 1 && revisions[0] == terminal.WorkflowRevision));
+        await subject.WorkflowQueryApi.DidNotReceiveWithAnyArgs().GetByIdAsync(default);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task WorkflowHistory_HydratesMultipleRowsWithOneBatchRequest()
+    {
+        var first = Workflow(1);
+        var second = Workflow(2) with { WorkflowId = new StrategyWorkflowId(Guid.NewGuid()) };
+        var subject = CreateSubject();
+        subject.WorkflowQueryApi.GetHistoryPageAsync(
+                Symbol, TimeFrameType.Daily, Arg.Any<DateTime>(), Arg.Any<DateTime>(), 1, Arg.Any<int>())
+            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
+                new([History(first), History(second)], 1, 50, 2)));
+        ConfigureBatchDetails(subject.WorkflowQueryApi, first, second);
+
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+
+        subject.ViewModel.Workflows.Select(row => row.WorkflowId)
+            .Should().BeEquivalentTo([first.WorkflowId, second.WorkflowId]);
+        await subject.WorkflowQueryApi.Received(1).GetByIdsAsync(
+            Arg.Is<StrategyWorkflowId[]>(ids => ids.SequenceEqual(new[] { first.WorkflowId, second.WorkflowId })),
+            Arg.Is<long[]>(revisions => revisions.SequenceEqual(new[] { first.WorkflowRevision, second.WorkflowRevision })));
+        await subject.WorkflowQueryApi.DidNotReceiveWithAnyArgs().GetByIdAsync(default);
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -748,10 +770,7 @@ public sealed class StrategyOperationsViewModelTests
                 return new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
                     new([History(item)], pageNumber, 50, 51));
             });
-        subject.WorkflowQueryApi.GetByIdAsync(first.WorkflowId, first.WorkflowRevision)
-            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(first)));
-        subject.WorkflowQueryApi.GetByIdAsync(second.WorkflowId, second.WorkflowRevision)
-            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(second)));
+        ConfigureBatchDetails(subject.WorkflowQueryApi, first, second);
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         subject.ViewModel.Workflows.Single().WorkflowId.Should().Be(first.WorkflowId);
@@ -824,8 +843,7 @@ public sealed class StrategyOperationsViewModelTests
                 Arg.Any<int>())
             .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(
                 new([History(terminal)], 1, 50, 1)));
-        subject.WorkflowQueryApi.GetByIdAsync(terminal.WorkflowId, terminal.WorkflowRevision)
-            .Returns(new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel>(Detail(terminal)));
+        ConfigureBatchDetails(subject.WorkflowQueryApi, terminal);
 
         var timer = System.Diagnostics.Stopwatch.StartNew();
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
@@ -1110,6 +1128,20 @@ public sealed class StrategyOperationsViewModelTests
             workflow.WorkflowRevision,
             workflow.TerminalAtUtc,
             workflow.StopReasonCode);
+
+    static void ConfigureBatchDetails(
+        IIntrinsicTimeStrategyWorkflowQueryApi api,
+        params IntrinsicTimeStrategyWorkflowView[] workflows)
+    {
+        var details = workflows.ToDictionary(view => view.WorkflowId, Detail);
+        api.GetByIdsAsync(Arg.Any<StrategyWorkflowId[]>(), Arg.Any<long[]>())
+            .Returns(call =>
+            {
+                var ids = call.ArgAt<StrategyWorkflowId[]>(0);
+                return new ServiceOk<IntrinsicTimeStrategyWorkflowReadModel[]>(
+                    ids.Select(id => details[id]).ToArray());
+            });
+    }
 
     static IntrinsicTimeStrategyWorkflowReadModel Detail(IntrinsicTimeStrategyWorkflowView workflow)
         => new(

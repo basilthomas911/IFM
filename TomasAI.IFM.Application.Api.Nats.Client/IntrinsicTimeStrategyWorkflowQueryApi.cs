@@ -30,6 +30,23 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
             }).AsTask();
 
     /// <inheritdoc />
+    public Task<ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]>> GetByIdsAsync(
+        StrategyWorkflowId[] workflowIds, long[] minimumRevisions)
+    {
+        var entity = Guid.NewGuid().ToString("N");
+        var subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowsByIdsQuery.Verb, entity);
+        return RequestAsync<GetIntrinsicTimeStrategyWorkflowsByIdsQuery, IntrinsicTimeStrategyWorkflowReadModel[]>(
+            subject,
+            new GetIntrinsicTimeStrategyWorkflowsByIdsQuery
+            {
+                Subject = subject,
+                EntityId = new ActorEntityId(entity),
+                WorkflowIds = workflowIds,
+                MinimumRevisions = minimumRevisions
+            }).AsTask();
+    }
+
+    /// <inheritdoc />
     public Task<ServiceResult<ActiveIntrinsicTimeStrategyWorkflowReadModel>> GetActiveAsync(
         string workflowEntityId,
         long minimumRevision = 0)

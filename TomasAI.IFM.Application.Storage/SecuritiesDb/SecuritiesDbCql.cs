@@ -4,6 +4,45 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 internal class SecuritiesDbCql
 {
+    public const string InsertOptionContractExpiry = """
+        INSERT INTO option_contract_expiry_calendar
+            (symbol, generation, expiryDate, providerRoot, contractId, underlyingContractId,
+             optionFamily, definitionPayload, refreshedAtUtc)
+        VALUES (:symbol, :generation, :expiryDate, :providerRoot, :contractId, :underlyingContractId,
+                :optionFamily, :definitionPayload, :refreshedAtUtc);
+        """;
+
+    public const string PublishOptionContractExpiryGeneration = """
+        INSERT INTO option_contract_expiry_calendar_state
+            (symbol, generation, coverageFrom, coverageThrough, refreshedAtUtc)
+        VALUES (:symbol, :generation, :coverageFrom, :coverageThrough, :refreshedAtUtc);
+        """;
+
+    public const string GetOptionContractExpiryCalendarState = """
+        SELECT generation, coverageFrom, coverageThrough, refreshedAtUtc
+        FROM option_contract_expiry_calendar_state
+        WHERE symbol = :symbol;
+        """;
+
+    public const string GetOptionContractExpiries = """
+        SELECT symbol, underlyingContractId, expiryDate, providerRoot, optionFamily, refreshedAtUtc
+        FROM option_contract_expiry_calendar
+        WHERE symbol = :symbol AND generation = :generation
+          AND expiryDate >= :fromExpiry AND expiryDate <= :throughExpiry;
+        """;
+
+    public const string GetCachedOptionContractDefinitions = """
+        SELECT symbol, underlyingContractId, expiryDate, providerRoot, optionFamily,
+               definitionPayload, refreshedAtUtc
+        FROM option_contract_expiry_calendar
+        WHERE symbol = :symbol AND generation = :generation AND expiryDate = :expiryDate;
+        """;
+
+    public const string DeleteOptionContractExpiryGeneration = """
+        DELETE FROM option_contract_expiry_calendar
+        WHERE symbol = :symbol AND generation = :generation;
+        """;
+
     public const string InsertFuturesContractRolloverIfMissing = """
         INSERT INTO futures_contract_rollover (
             symbol, createdOn, createdBy)

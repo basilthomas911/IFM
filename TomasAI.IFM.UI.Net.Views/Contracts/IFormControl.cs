@@ -72,19 +72,20 @@ namespace TomasAI.IFM.UI.Net.Contracts
         const int WM_SETREDRAW = 11;
         public static void Draw(this Control view, Action drawAction)
         {
-            try
+            ArgumentNullException.ThrowIfNull(view);
+            ArgumentNullException.ThrowIfNull(drawAction);
+            if (view.IsDisposed || !view.IsHandleCreated) return;
+            view.BeginInvoke((MethodInvoker)(() =>
             {
-                view?.BeginInvoke((MethodInvoker)(() =>
+                if (view.IsDisposed || !view.IsHandleCreated) return;
+                SendMessage(view.Handle, WM_SETREDRAW, false, 0);
+                try { drawAction(); }
+                finally
                 {
-                    // SuspendDrawing...
-                    SendMessage(view.Handle, WM_SETREDRAW, false, 0);
-                    drawAction();
-                    // ResumeDrawing...
                     SendMessage(view.Handle, WM_SETREDRAW, true, 0);
-                    view.Refresh();
-                }));
-            }
-            catch { }
+                    view.Invalidate(true);
+                }
+            }));
         }
     }
 }

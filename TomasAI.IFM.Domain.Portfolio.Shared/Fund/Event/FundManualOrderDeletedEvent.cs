@@ -30,6 +30,8 @@ public sealed record FundManualOrderDeletedEvent : IPortfolioFundDomainEvent
     [Key(12)] public Guid CausationId { get; init; }
     [Key(13)] public DateTime OriginatedOnUtc { get; init; }
     [Key(14)] public int OrderId { get; init; } = default!;
+    /// <summary>Gets the economically inactive trades removed with the order.</summary>
+    [Key(15)] public int[] RemovedTradeIds { get; init; } = [];
 
     [IgnoreMember] public string UserName => Principal;
     [IgnoreMember] public string EventName => nameof(FundManualOrderDeletedEvent);
@@ -45,7 +47,8 @@ public sealed record FundManualOrderDeletedEvent : IPortfolioFundDomainEvent
     /// <param name="occurredOnUtc">The occurredOnUtc value.</param>
     /// <param name="principal">The principal value.</param>
     /// <param name="orderId">The orderId value.</param>
-    public FundManualOrderDeletedEvent(Guid id, Guid commandId, long revision, DateTime occurredOnUtc, string principal, int orderId)
+    /// <param name="removedTradeIds">The economically inactive trade identifiers removed with the order.</param>
+    public FundManualOrderDeletedEvent(Guid id, Guid commandId, long revision, DateTime occurredOnUtc, string principal, int orderId, int[]? removedTradeIds = null)
     {
         Id = id;
         CommandId = commandId;
@@ -55,5 +58,6 @@ public sealed record FundManualOrderDeletedEvent : IPortfolioFundDomainEvent
         ReceivedOn = occurredOnUtc;
         OriginatedOnUtc = occurredOnUtc;
         OrderId = orderId;
+        RemovedTradeIds = removedTradeIds is null ? [] : [.. removedTradeIds];
     }
 }

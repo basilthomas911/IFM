@@ -475,7 +475,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                 _appRoot,
                 _viewModel.ValueDate,
                 [.. _viewModel.BaseContracts],
-                _referenceDataService));
+                _referenceDataService,
+                brokerEnvironment: TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator));
         });
         switch (navigationResult)
         {

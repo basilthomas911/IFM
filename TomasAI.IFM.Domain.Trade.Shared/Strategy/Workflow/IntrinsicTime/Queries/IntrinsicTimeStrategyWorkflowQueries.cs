@@ -36,6 +36,21 @@ public sealed record GetIntrinsicTimeStrategyWorkflowByIdQuery : IQuery<Intrinsi
 
 /// <summary>Gets the active workflow for one stable workflow entity.</summary>
 [MessagePackObject(AllowPrivate = true)]
+public sealed record GetIntrinsicTimeStrategyWorkflowsByIdsQuery : IQuery<IntrinsicTimeStrategyWorkflowReadModel[]>
+{
+    [IgnoreMember] public const string Actor = GetIntrinsicTimeStrategyWorkflowByIdQuery.Actor;
+    [IgnoreMember] public const string Verb = "GetByIds";
+    [IgnoreMember] public const int ErrorId = 25012;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
+    [Key(2)] public StrategyWorkflowId[] WorkflowIds { get; init; } = [];
+    [Key(3)] public long[] MinimumRevisions { get; init; } = [];
+}
+
+/// <summary>Gets the active workflow for one stable workflow entity.</summary>
+[MessagePackObject(AllowPrivate = true)]
 public sealed record GetActiveIntrinsicTimeStrategyWorkflowQuery : IQuery<ActiveIntrinsicTimeStrategyWorkflowReadModel>
 {
     /// <summary>Query actor name.</summary>

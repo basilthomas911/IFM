@@ -52,7 +52,9 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         if (subscription.DataKinds == MarketDataKinds.None
             || (subscription.DataKinds & ~(MarketDataKinds.Quote
                                            | MarketDataKinds.Trade
-                                           | MarketDataKinds.MboOrderUpdate)) != 0)
+                                           | MarketDataKinds.MboOrderUpdate
+                                           | MarketDataKinds.Statistics
+                                           | MarketDataKinds.SessionVolume)) != 0)
         {
             throw new ArgumentException("Option market-data kinds are invalid.", nameof(subscription));
         }

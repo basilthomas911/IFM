@@ -74,7 +74,11 @@ public interface IRetainedOptionTradeEnricher
 public readonly record struct OptionChainContractState(
     DatabentoOptionChainRoute Route,
     LastQuoteTickWithGreeksSnapshot? Quote,
-    LastTradeTickWithGreeksSnapshot? Trade);
+    LastTradeTickWithGreeksSnapshot? Trade,
+    long? SessionVolume = null,
+    long? OpenInterest = null,
+    DateTimeOffset? StatisticsAtUtc = null,
+    bool SessionVolumeOfficial = false);
 
 public interface IOptionChainStateStore
 {

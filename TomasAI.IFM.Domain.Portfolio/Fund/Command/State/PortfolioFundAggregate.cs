@@ -229,9 +229,9 @@ public sealed class PortfolioFundAggregate
     {
         RequireCurrent(Revision);
         ValidateCommand(commandId, nowUtc, principal);
-        _compositions.DeleteManualOrder(request);
+        var removedTradeIds = _compositions.DeleteManualOrder(request);
         return CommitAlreadyApplied(new FundManualOrderDeletedEvent(
-            Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, request.OrderId));
+            Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, request.OrderId, removedTradeIds));
     }
     /// <summary>Changes a manual Portfolio Fund order trade lifecycle state.</summary>
     /// <param name="commandId">The stable command identifier.</param>

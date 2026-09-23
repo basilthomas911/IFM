@@ -930,6 +930,10 @@ public static class Startup
             services.AddHostedService(provider => provider.GetRequiredService<LivePipelineMonitor>());
             services.AddHostedService<HistoricalDailyAnalyticsInitializationService>();
             services.AddHostedService<FuturesRolloverPreparationHostedService>();
+            services.AddSingleton(config.GetSection("AppSettings:Databento:OptionExpiryCalendar")
+                .Get<OptionContractExpiryCalendarOptions>() ?? new());
+            services.AddSingleton<OptionContractExpiryCalendarRefreshService>();
+            services.AddHostedService<OptionContractExpiryCalendarStartupService>();
             services.AddHostedService<ApplicationStartupCommandDispatcher>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")

@@ -90,7 +90,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             tableLayoutPanel1.Controls.Add(txtReference, 1, 6);
             tableLayoutPanel1.Controls.Add(pnlBaseContractSymbol, 0, 7);
             tableLayoutPanel1.Controls.Add(ddlBaseSymbol, 1, 7);
-            tableLayoutPanel1.Dock = DockStyle.Fill;
+            tableLayoutPanel1.Dock = DockStyle.Top;
             tableLayoutPanel1.Location = new Point(0, 0);
             tableLayoutPanel1.Margin = new Padding(2);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -103,8 +103,8 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
-            tableLayoutPanel1.Size = new Size(621, 312);
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
+            tableLayoutPanel1.Size = new Size(621, 310);
             tableLayoutPanel1.TabIndex = 0;
             // 
             // pnlOrderId
@@ -328,10 +328,13 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             // txtReference
             // 
             txtReference.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            txtReference.Dock = DockStyle.Fill;
             txtReference.Location = new Point(157, 182);
             txtReference.Margin = new Padding(2);
+            txtReference.Multiline = true;
             txtReference.Name = "txtReference";
-            txtReference.Size = new Size(460, 23);
+            txtReference.ScrollBars = ScrollBars.Vertical;
+            txtReference.Size = new Size(462, 26);
             txtReference.TabIndex = 15;
             // 
             // pnlBaseContractSymbol
@@ -373,7 +376,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlButtons.Controls.Add(btnCancel);
             pnlButtons.Controls.Add(btnSave);
             pnlButtons.Dock = DockStyle.Bottom;
-            pnlButtons.Location = new Point(0, 250);
+            pnlButtons.Location = new Point(0, 320);
             pnlButtons.Margin = new Padding(2);
             pnlButtons.Name = "pnlButtons";
             pnlButtons.Size = new Size(621, 62);
@@ -410,7 +413,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = btnCancel;
-            ClientSize = new Size(621, 312);
+            ClientSize = new Size(621, 382);
             Controls.Add(pnlButtons);
             Controls.Add(tableLayoutPanel1);
             FormBorderStyle = FormBorderStyle.FixedSingle;

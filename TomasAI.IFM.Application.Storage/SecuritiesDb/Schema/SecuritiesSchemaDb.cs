@@ -10,6 +10,11 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("option_contract_expiry_calendar", SecuritiesSchemaCql.CreateOptionContractExpiryCalendarTable, "DROP TABLE IF EXISTS option_contract_expiry_calendar;"),
+        new("option_contract_expiry_calendar_definition_columns", SecuritiesSchemaCql.AddOptionExpiryDefinitionColumns,
+            "ALTER TABLE option_contract_expiry_calendar DROP underlyingContractId;",
+            ["conflicts with an existing column", "already exists"]),
+        new("option_contract_expiry_calendar_state", SecuritiesSchemaCql.CreateOptionContractExpiryCalendarStateTable, "DROP TABLE IF EXISTS option_contract_expiry_calendar_state;"),
         new("securities_reference_identity", ReferenceVersionStore.CreateIdentityTable, "DROP TABLE IF EXISTS securities_reference_identity;"),
         new("securities_reference_version", ReferenceVersionStore.CreateVersionTable, "DROP TABLE IF EXISTS securities_reference_version;"),
         new("futures_contract_rollover", SecuritiesSchemaCql.CreateFuturesContractRolloverTable, "DROP TABLE IF EXISTS futures_contract_rollover;"),

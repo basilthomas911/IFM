@@ -5,19 +5,13 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-/// <summary>
-/// Transitional WinForms adapter for observable new-fund-order state.
-/// </summary>
+/// <summary>WinForms adapter for observable new-fund-order state.</summary>
 public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrderForm>, IFormControl
 {
     FundOrderEditorViewModel _viewModel = null!;
-    bool _rendering;
     long _lastErrorSequence;
 
-    public CreateFundOrderForm()
-    {
-        InitializeComponent();
-    }
+    public CreateFundOrderForm() => InitializeComponent();
 
     public ManualFundOrderDraftEditorModel FundOrder => _viewModel.FundOrder;
 
@@ -29,12 +23,11 @@ public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrde
 
     async void CreateFundOrderForm_Load(object sender, EventArgs e)
     {
-        RenderStaticState();
-        RenderObservableState();
+        RenderState();
         try
         {
             await _viewModel.LoadOperation.ExecuteAsync();
-            RenderObservableState();
+            RenderState();
         }
         catch (Exception exception)
         {
@@ -58,87 +51,27 @@ public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrde
     void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
         => this.Post(() =>
         {
-            switch (eventArgs.PropertyName)
-            {
-                case nameof(FundOrderEditorViewModel.OrderId):
-                    txtOrderId.Text = $"{_viewModel.OrderId}";
-                    break;
-                case nameof(FundOrderEditorViewModel.Reference):
-                    txtReference.Text = _viewModel.Reference;
-                    break;
-                case nameof(FundOrderEditorViewModel.SelectedBaseContractId):
-                    RenderSelectedBaseContract();
-                    break;
-                case nameof(FundOrderEditorViewModel.IsBusy):
-                case nameof(FundOrderEditorViewModel.CanSave):
-                    RenderOperationState();
-                    break;
-                case nameof(FundOrderEditorViewModel.LastError):
-                    RenderLatestError();
-                    break;
-            }
+            if (eventArgs.PropertyName == nameof(FundOrderEditorViewModel.LastError))
+                RenderLatestError();
+            else
+                RenderState();
         });
 
-    void RenderStaticState()
-    {
-        _rendering = true;
-        try
-        {
-            txtOrderDate.Text = $"{_viewModel.OrderDate:yyyy-MMM-dd hh:mm tt}";
-            txtOrderStatus.Text = $"{_viewModel.OrderStatus}";
-            dtpTradeDate.Value = _viewModel.TradeDate.ToDateTime(TimeOnly.MinValue);
-            dtpMaturityDate.Value = _viewModel.MaturityDate.ToDateTime(TimeOnly.MinValue);
-            ddlBaseContracts.Items.Clear();
-            ddlBaseContracts.Items.AddRange(_viewModel.BaseContractIds.Cast<object>().ToArray());
-            ddlBaseContracts.AccessibleDescription = string.Join(", ", _viewModel.BaseContractIds);
-            RenderSelectedBaseContract();
-        }
-        finally
-        {
-            _rendering = false;
-        }
-    }
-
-    void RenderObservableState()
+    void RenderState()
     {
         txtOrderId.Text = _viewModel.OrderId > 0 ? $"{_viewModel.OrderId}" : "Allocated on Save";
-        txtReference.Text = _viewModel.Reference;
-        RenderSelectedBaseContract();
-        RenderOperationState();
-        RenderLatestError();
-    }
-
-    void RenderSelectedBaseContract()
-    {
-        var selectedIndex = _viewModel.BaseContractIds
-            .Select((contractId, index) => (contractId, index))
-            .Where(value => value.contractId == _viewModel.SelectedBaseContractId)
-            .Select(value => value.index)
-            .DefaultIfEmpty(-1)
-            .First();
-        if (ddlBaseContracts.SelectedIndex != selectedIndex)
-            ddlBaseContracts.SelectedIndex = selectedIndex;
-        UpdateBaseContractSelectorAccessibility();
-    }
-
-    void UpdateBaseContractSelectorAccessibility()
-        => ddlBaseContracts.AccessibleName = $"Base contract selector; selected={ddlBaseContracts.SelectedItem}; "
-            + $"catalog: {ddlBaseContracts.AccessibleDescription}";
-
-    void RenderOperationState()
-    {
-        ddlBaseContracts.Enabled = !_viewModel.IsBusy;
-        dtpTradeDate.Enabled = !_viewModel.IsBusy;
-        dtpMaturityDate.Enabled = !_viewModel.IsBusy;
-        btnSave.Enabled = _viewModel.CanSave;
+        txtOrderDate.Text = $"{_viewModel.OrderDate:yyyy-MMM-dd hh:mm tt}";
+        txtOrderStatus.Text = $"{_viewModel.OrderStatus}";
+        if (txtReference.Text != _viewModel.Reference)
+            txtReference.Text = _viewModel.Reference;
+        txtReference.Enabled = !_viewModel.IsBusy;
+        btnSave.Enabled = true;
         UseWaitCursor = _viewModel.IsBusy;
     }
 
     void RenderLatestError()
     {
-        if (_viewModel.LastError is not { } error || error.Sequence <= _lastErrorSequence)
-            return;
-
+        if (_viewModel.LastError is not { } error || error.Sequence <= _lastErrorSequence) return;
         _lastErrorSequence = error.Sequence;
         this.ShowErrorMessage(error.Message, error.Caption);
     }
@@ -150,20 +83,11 @@ public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrde
             RenderLatestError();
             return;
         }
-
         this.ShowErrorMessage(exception.Message, caption);
     }
 
     void btnSave_Click(object sender, EventArgs e)
     {
-        if (!_viewModel.CanSave)
-        {
-            this.ShowErrorMessage(
-                "A base contract and valid date range are required. The Portfolio authority allocates the Order ID on save.",
-                "New Fund Order Error");
-            return;
-        }
-
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -174,41 +98,9 @@ public partial class CreateFundOrderForm : DarkTradingForm, IForm<CreateFundOrde
         Close();
     }
 
-    async void ddlBaseContracts_SelectedIndexChanged(object sender, EventArgs e)
-    {
-        UpdateBaseContractSelectorAccessibility();
-        if (_rendering || !_viewModel.SelectBaseContract(ddlBaseContracts.SelectedIndex))
-            return;
-
-        try
-        {
-            await _viewModel.RefreshReferenceOperation.ExecuteAsync();
-        }
-        catch (Exception exception)
-        {
-            ShowOperationFailure(exception, "Futures EOD Data Error");
-        }
-    }
-
-    void dtpTradeDate_ValueChanged(object sender, EventArgs e)
-    {
-        if (!_rendering)
-            _viewModel.SetTradeDate(DateOnly.FromDateTime(dtpTradeDate.Value));
-    }
-
-    void dtpMaturityDate_ValueChanged(object sender, EventArgs e)
-    {
-        if (!_rendering)
-            _viewModel.SetMaturityDate(DateOnly.FromDateTime(dtpMaturityDate.Value));
-    }
-
     void txtReference_TextChanged(object sender, EventArgs e)
-    {
-        if (!_rendering)
-            _viewModel.SetReference(txtReference.Text);
-    }
+        => _viewModel.SetReference(txtReference.Text);
 
     public void Open() => throw new NotImplementedException();
-
     void IFormControl.Resize(Control parentControl) => throw new NotImplementedException();
 }

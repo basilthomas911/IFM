@@ -294,7 +294,7 @@ public sealed record OptionChainSubscription
     public OptionRightSelection Rights { get; init; } = OptionRightSelection.Both;
     public required IReadOnlyList<OptionContractDefinition> ResolvedContracts { get; init; }
     public MarketDataKinds DataKinds { get; init; } =
-        MarketDataKinds.Quote | MarketDataKinds.Trade;
+        MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume;
 }
 
 public interface IDatabentoOptionChainFeed : IDisposable

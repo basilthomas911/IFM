@@ -25,6 +25,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetIntrinsicTimeStrategyWorkflowByIdQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowByIdQuery, IntrinsicTimeStrategyWorkflowReadModel>()!,
+            [GetIntrinsicTimeStrategyWorkflowsByIdsQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowsByIdsQuery, IntrinsicTimeStrategyWorkflowReadModel[]>()!,
             [GetActiveIntrinsicTimeStrategyWorkflowQuery.Verb] = message => message.AsQuery<GetActiveIntrinsicTimeStrategyWorkflowQuery, ActiveIntrinsicTimeStrategyWorkflowReadModel>()!,
             [GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery, IntrinsicTimeStrategyWorkflowStartAttemptReadModel[]>()!,
             [GetIntrinsicTimeStrategyWorkflowStageStateQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowStageStateQuery, StrategyWorkflowStageState>()!,
@@ -68,6 +69,9 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
     {
         [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (services, context, query, cancellationToken) =>
             ((GetIntrinsicTimeStrategyWorkflowByIdQuery)query).ExecuteAsync(services, context, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyWorkflowsByIdsQuery)] = static (services, context, query, cancellationToken) =>
+            IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(
+                services, context, (GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query, cancellationToken),
         [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static (services, context, query, cancellationToken) =>
             ((GetActiveIntrinsicTimeStrategyWorkflowQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static (services, context, query, cancellationToken) =>

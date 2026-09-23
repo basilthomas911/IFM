@@ -134,6 +134,36 @@ public sealed class DatabentoOptionChainSessionManagerTests
         Assert.Empty(state.GetSession(new OptionChainSessionKey("ES-202609", Maturity)));
     }
 
+    [Fact]
+    public async Task Statistics_supply_official_volume_and_open_interest_without_trade_double_counting()
+    {
+        var feed = new FakeChainFeed(
+            Trade(1, 11_000_000_000),
+            Statistic(2, 6, 100, ValueDate),
+            Trade(3, 11_250_000_000),
+            Statistic(4, 9, 500, ValueDate));
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        var publisher = new CapturingChainPublisher(2);
+        var state = new OptionChainStateStore();
+        await using var manager = new DatabentoOptionChainSessionManager(
+            new FakeFactory(feed),
+            DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            new FakeAggregation(), lastPrices, new FakeEnricher(), publisher, state,
+            pollTimeout: TimeSpan.FromMilliseconds(5));
+
+        Assert.True(await manager.StartAsync(Request()));
+        await publisher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var key = new OptionChainSessionKey("ES-202609", Maturity);
+        Assert.True(SpinWait.SpinUntil(() => state.TryGet(key, "ES20260918C6500", out var value)
+            && value.OpenInterest == 500, TimeSpan.FromSeconds(2)));
+        Assert.True(state.TryGet(key, "ES20260918C6500", out var observed));
+        Assert.Equal(100, observed.SessionVolume);
+        Assert.Equal(500, observed.OpenInterest);
+        Assert.True(observed.SessionVolumeOfficial);
+
+        await manager.StopAsync("ES-202609", Maturity);
+    }
+
     private static DatabentoOptionChainSessionRequest Request()
     {
         var definition = new OptionContractDefinition
@@ -192,6 +222,16 @@ public sealed class DatabentoOptionChainSessionManagerTests
                 Instrument.InstrumentId, publisherId ?? Instrument.PublisherId,
                 MarketRecordKind.Trade, 0, sequence, sequence, sequence),
             price, 12, 1, 2, 0));
+
+    private static MarketRecord64 Statistic(uint sequence, ushort type, long quantity, DateOnly referenceDate)
+    {
+        var reference = new DateTimeOffset(referenceDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var nanoseconds = checked((reference.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100L);
+        return new(new StatisticsRecord64(
+            new MarketRecordHeader32(Instrument.InstrumentId, Instrument.PublisherId,
+                MarketRecordKind.Statistics, 0, nanoseconds, nanoseconds, sequence),
+            long.MaxValue, quantity, nanoseconds, type, 0, 1, 0));
+    }
 
     private sealed class FakeAggregation : ITickAggregationService
     {

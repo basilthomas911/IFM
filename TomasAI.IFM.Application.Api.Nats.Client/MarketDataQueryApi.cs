@@ -15,6 +15,11 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public partial class MarketDataQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataQueryApi
 {
+    public Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery query,CancellationToken token=default)
+    {
+        query.Subject=new ActorSubject(ActorType.Query,GetEvaluatedOptionChainQuery.Actor,GetEvaluatedOptionChainQuery.Verb,ActorEntityId.Default.Format());
+        return RequestAsync<GetEvaluatedOptionChainQuery,EvaluatedOptionChainReadModel>(query.Subject,query,token).AsTask();
+    }
     public Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -120,6 +125,42 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
             Subject = new ActorSubject(ActorType.Query, GetFuturesOptionContractsQuery.Actor, GetFuturesOptionContractsQuery.Verb, entityId.Format()),
         };
         return await RequestAsync<GetFuturesOptionContractsQuery, FuturesOptionContractReadModel[]>(query.Subject, query);
+    }
+
+    public Task<ServiceResult<OptionContractExpiryReadModel[]>> GetDatabentoOptionChainRangeAsync(
+        string underlyingSymbol,
+        DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new GetDatabentoOptionChainRangeQuery
+        {
+            UnderlyingSymbol = underlyingSymbol,
+            FromMaturityDate = fromMaturityDate,
+            ThroughMaturityDate = throughMaturityDate,
+            Subject = new ActorSubject(ActorType.Query, GetDatabentoOptionChainRangeQuery.Actor,
+                GetDatabentoOptionChainRangeQuery.Verb, ActorEntityId.Default.Format())
+        };
+        return RequestAsync<GetDatabentoOptionChainRangeQuery, OptionContractExpiryReadModel[]>(
+            query.Subject, query, cancellationToken).AsTask();
+    }
+
+    public Task<ServiceResult<FuturesOptionContractReadModel[]>> GetDatabentoOptionChainAsync(
+        string underlyingSymbol,
+        string providerRoot,
+        DateOnly maturityDate,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new GetDatabentoOptionChainQuery
+        {
+            UnderlyingSymbol = underlyingSymbol,
+            ProviderRoot = providerRoot,
+            MaturityDate = maturityDate,
+            Subject = new ActorSubject(ActorType.Query, GetDatabentoOptionChainQuery.Actor,
+                GetDatabentoOptionChainQuery.Verb, ActorEntityId.Default.Format())
+        };
+        return RequestAsync<GetDatabentoOptionChainQuery, FuturesOptionContractReadModel[]>(
+            query.Subject, query, cancellationToken).AsTask();
     }
 
     /// <inheritdoc />

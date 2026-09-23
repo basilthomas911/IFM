@@ -384,30 +384,75 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
     async Task EnsureFinancialBookAsync(int portfolioId, int[] fundIds, CancellationToken token)
     {
         var scope = new FinancialReadScope { PortfolioId = portfolioId, Access = new(Principal, ["PortfolioAdministrator"]) };
+        var resumeImporting = false;
+        FinancialLedgerConfiguration? importingConfiguration = null;
         var existing = await financial.GetFinancialLedgerConfigurationAsync(scope, new(), token).ConfigureAwait(false);
         if (existing.Success && existing.Value?.Status == FinancialReadStatus.Found)
         {
             var value = existing.Value.Value!;
-            if (value.Environment != "Emulator" || value.OperatingState != "Active")
-                throw new InvalidOperationException($"Development ledger exists but is {value.Environment}/{value.OperatingState}; operator recovery is required.");
-            var balance = await financial.GetAccountBalancesAsync(scope, new(), token).ConfigureAwait(false);
-            if (!balance.Success || balance.Value?.Value is not { MigrationQualified: true })
-                throw new InvalidOperationException("Development ledger is missing qualified, separately posted capital.");
-            for (var index = 0; index < fundIds.Length; index++)
+            if (value.Environment != "Emulator")
+                throw new InvalidOperationException($"Development ledger exists in {value.Environment}; operator recovery is required.");
+            if (value.OperatingState == "NeedsRefresh")
             {
-                var posting = await financial.GetPostingReceiptAsync(
-                    scope, new(StableId("development-capital/" + index)), token).ConfigureAwait(false);
-                if (!posting.Success || posting.Value is not { Status: FinancialReadStatus.Found, Value.Posting.Receipt.FundId: var fundId }
-                    || fundId != fundIds[index])
-                    throw new InvalidOperationException($"Development Fund {fundIds[index]} is missing its separately entered capital receipt.");
+                var refreshAuthority = await financial.PrepareFinancialAuthorityAsync(scope, new(true), token).ConfigureAwait(false);
+                var refreshAuthorityDraft = refreshAuthority.Value?.Value?.Draft
+                    ?? throw new InvalidOperationException("Development financial authority refresh preparation failed: " + refreshAuthority.ErrorMessage);
+                await ConfigureAsync(
+                    portfolioId,
+                    refreshAuthority.Value!.FinancialRevision,
+                    refreshAuthorityDraft with { Reason = "Refresh current Development Fund spending" },
+                    token,
+                    StableId("development-authority/" + refreshAuthority.Value.FinancialRevision)).ConfigureAwait(false);
+                existing = await financial.GetFinancialLedgerConfigurationAsync(scope, new(), token).ConfigureAwait(false);
+                value = existing.Value?.Value
+                    ?? throw new InvalidOperationException("Development ledger disappeared after authority refresh.");
             }
-            return;
+            if (value.OperatingState == "Importing")
+            {
+                resumeImporting = true;
+                importingConfiguration = value;
+            }
+            else
+            {
+                if (value.OperatingState != "Active")
+                    throw new InvalidOperationException($"Development ledger exists but is {value.Environment}/{value.OperatingState}; operator recovery is required.");
+                var balance = await financial.GetAccountBalancesAsync(scope, new(), token).ConfigureAwait(false);
+                if (!balance.Success || balance.Value?.Value is not { MigrationQualified: true })
+                    throw new InvalidOperationException("Development ledger is missing qualified, separately posted capital.");
+                for (var index = 0; index < fundIds.Length; index++)
+                {
+                    var posting = await financial.GetPostingReceiptAsync(
+                        scope, new(StableId("development-capital/" + index)), token).ConfigureAwait(false);
+                    if (!posting.Success || posting.Value is not { Status: FinancialReadStatus.Found, Value.Posting.Receipt.FundId: var fundId }
+                        || fundId != fundIds[index])
+                        throw new InvalidOperationException($"Development Fund {fundIds[index]} is missing its separately entered capital receipt.");
+                }
+                return;
+            }
         }
 
-        var prepared = await financial.PrepareFinancialBookAsync(scope,
-            new(options.ExecutionAccountReference, new(2026, 1, 1), new(2099, 12, 31)), token).ConfigureAwait(false);
-        var draft = prepared.Value?.Value?.Draft ?? throw new InvalidOperationException("Development ledger preparation failed: " + prepared.ErrorMessage);
-        await ConfigureAsync(portfolioId, 0, draft with { Reason = "Create Development paper-trading book" }, token).ConfigureAwait(false);
+        LedgerConfigurationRequest draft;
+        if (resumeImporting)
+        {
+            var configuration = importingConfiguration
+                ?? throw new InvalidOperationException("Development importing ledger configuration is unavailable.");
+            draft = new()
+            {
+                BookId = configuration.BookId,
+                Book = configuration.DevelopmentQualificationBook
+                    ?? throw new InvalidOperationException("Development importing ledger is missing its qualification book."),
+                Accounts = configuration.Accounts.Select(account => account.Definition).ToArray(),
+                Rules = configuration.Rules.Select(rule => rule.Definition).ToArray()
+            };
+        }
+        else
+        {
+            var prepared = await financial.PrepareFinancialBookAsync(scope,
+                new(options.ExecutionAccountReference, new(2026, 1, 1), new(2099, 12, 31)), token).ConfigureAwait(false);
+            draft = prepared.Value?.Value?.Draft
+                ?? throw new InvalidOperationException("Development ledger preparation failed: " + prepared.ErrorMessage);
+            await ConfigureAsync(portfolioId, 0, draft with { Reason = "Create Development paper-trading book" }, token).ConfigureAwait(false);
+        }
         var rule = draft.Rules.Single(x => x.Kind == LedgerTransactionKind.DepositConfirmed);
         var requested = ManifestEpoch;
         for (var index = 0; index < fundIds.Length; index++)
@@ -437,13 +482,16 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             await RequireFinancial(await financial.PostAsync(post, token).ConfigureAwait(false), "Post Development capital").ConfigureAwait(false);
         }
 
-        var reconcileId = StableId("development-reconciliation");
+        var reconcileId = StableId("development-reconciliation/" + portfolioId);
         var capitalCut = $"development-capital:{StableId("development-capital/0")}:{StableId("development-capital/1")}:{StableId("development-capital/2")}";
-        await ConfigureAsync(portfolioId, fundIds.Length + 1, new()
+        if (importingConfiguration?.LatestReconciliation?.ReconciliationId != reconcileId)
         {
-            Action = LedgerConfigurationAction.Reconcile, BookId = draft.BookId, SourceCut = capitalCut,
-            Reason = "Reconcile separately entered Development capital"
-        }, token, reconcileId).ConfigureAwait(false);
+            await ConfigureAsync(portfolioId, fundIds.Length + 1, new()
+            {
+                Action = LedgerConfigurationAction.Reconcile, BookId = draft.BookId, SourceCut = capitalCut,
+                Reason = "Reconcile separately entered Development capital"
+            }, token, reconcileId).ConfigureAwait(false);
+        }
         await ConfigureAsync(portfolioId, fundIds.Length + 2, new()
         {
             Action = LedgerConfigurationAction.QualifyDevelopmentBook, BookId = draft.BookId, Book = draft.Book,
@@ -562,7 +610,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         return Task.CompletedTask;
     }
 
-    static Guid StableId(string value) => DevelopmentTradingPortfolioDefaults.StableId(value);
+    Guid StableId(string value) => DevelopmentTradingPortfolioDefaults.StableId(options.PortfolioName + "/" + value);
 
     static DateTime PostgreSqlUtc(DateTime value)
     {

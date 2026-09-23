@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Services.Analytics;
 
@@ -96,30 +97,7 @@ public sealed class StrategyOperationsService(
                 history.ErrorCode,
                 history.ErrorMessage);
 
-        using var hydrationGate = new SemaphoreSlim(8, 8);
-        var hydrated = await Task.WhenAll(history.Value.Select(async item =>
-        {
-            if (TryGetTerminal(item.WorkflowId, item.WorkflowRevision, out var cached))
-                return cached;
-
-            await hydrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                var detail = await _workflowQueryApi.GetByIdAsync(item.WorkflowId, item.WorkflowRevision)
-                    .ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!detail.Success || detail.Value is null)
-                    throw new UiOperationException(new UiOperationError(detail.ErrorCode, detail.ErrorMessage));
-                var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(
-                    detail.Value.StatePayload);
-                CacheTerminal(view);
-                return view;
-            }
-            finally
-            {
-                hydrationGate.Release();
-            }
-        })).ConfigureAwait(false);
+        var hydrated = await HydrateAsync(history.Value, cancellationToken).ConfigureAwait(false);
 
         return UiOperationResult<IntrinsicTimeStrategyWorkflowView[]>.Success(hydrated);
     }
@@ -142,35 +120,51 @@ public sealed class StrategyOperationsService(
             return UiOperationResult<StrategyWorkflowPage>.Failure(
                 history.ErrorCode, history.ErrorMessage);
 
-        using var hydrationGate = new SemaphoreSlim(8, 8);
-        var hydrated = await Task.WhenAll(history.Value.Items.Select(async item =>
-        {
-            if (TryGetTerminal(item.WorkflowId, item.WorkflowRevision, out var cached))
-                return cached;
-            await hydrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                var detail = await _workflowQueryApi.GetByIdAsync(item.WorkflowId, item.WorkflowRevision)
-                    .ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!detail.Success || detail.Value is null)
-                    throw new UiOperationException(new UiOperationError(detail.ErrorCode, detail.ErrorMessage));
-                var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(
-                    detail.Value.StatePayload);
-                CacheTerminal(view);
-                return view;
-            }
-            finally
-            {
-                hydrationGate.Release();
-            }
-        })).ConfigureAwait(false);
+        var hydrated = await HydrateAsync(history.Value.Items, cancellationToken).ConfigureAwait(false);
 
         return UiOperationResult<StrategyWorkflowPage>.Success(new(
             hydrated,
             history.Value.PageNumber,
             history.Value.PageSize,
             history.Value.TotalCount));
+    }
+
+    async Task<IntrinsicTimeStrategyWorkflowView[]> HydrateAsync(
+        IntrinsicTimeStrategyWorkflowHistoryReadModel[] items, CancellationToken cancellationToken)
+    {
+        var hydrated = new IntrinsicTimeStrategyWorkflowView[items.Length];
+        var missing = new List<int>(items.Length);
+        for (var index = 0; index < items.Length; index++)
+        {
+            var item = items[index];
+            if (TryGetTerminal(item.WorkflowId, item.WorkflowRevision, out var cached))
+                hydrated[index] = cached;
+            else
+                missing.Add(index);
+        }
+
+        foreach (var batch in missing.Chunk(100))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var ids = batch.Select(index => items[index].WorkflowId).ToArray();
+            var revisions = batch.Select(index => items[index].WorkflowRevision).ToArray();
+            var detail = await _workflowQueryApi.GetByIdsAsync(ids, revisions).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!detail.Success || detail.Value is null)
+                throw new UiOperationException(new UiOperationError(detail.ErrorCode, detail.ErrorMessage));
+            if (detail.Value.Length != batch.Length)
+                throw new InvalidOperationException("Workflow detail batch length did not match the request.");
+            for (var position = 0; position < batch.Length; position++)
+            {
+                var row = detail.Value[position];
+                if (row.WorkflowId != ids[position] || row.WorkflowRevision < revisions[position])
+                    throw new InvalidOperationException("Workflow detail batch identity or revision did not match the request.");
+                var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(row.StatePayload);
+                CacheTerminal(view);
+                hydrated[batch[position]] = view;
+            }
+        }
+        return hydrated;
     }
 
     bool TryGetTerminal(
@@ -196,13 +190,12 @@ public sealed class StrategyOperationsService(
 
             if (_terminalCache.Count <= MaximumTerminalCacheEntries)
                 return;
-            foreach (var workflowId in _terminalCache.Values
-                         .OrderByDescending(item => item.UpdatedAtUtc)
-                         .ThenByDescending(item => item.WorkflowId.Value)
-                         .Skip(MaximumTerminalCacheEntries)
-                         .Select(item => item.WorkflowId)
-                         .ToArray())
-                _terminalCache.Remove(workflowId);
+            while (_terminalCache.Count > MaximumTerminalCacheEntries)
+            {
+                var oldest = _terminalCache.Values.MinBy(item => (item.UpdatedAtUtc, item.WorkflowId.Value));
+                if (oldest is null) break;
+                _terminalCache.Remove(oldest.WorkflowId);
+            }
         }
     }
 

@@ -25,6 +25,8 @@ public partial class OperationsView : DarkTradingView
     const int WorkflowPrefetchDistance = 20;
     OperationsViewModel? _viewModel;
     IReadOnlyList<FuturesItiSignalEventRow>? _renderedEvents;
+    FuturesItiSignalEventRow[] _chartedEvents = [];
+    readonly Font _eventMarkerFont = DashboardTypography.Create(FontStyle.Bold);
     IReadOnlyList<StrategyWorkflowRow>? _renderedWorkflows;
     StrategyWorkflowId? _renderedWorkflowDetailsId;
     long? _renderedWorkflowDetailsRevision;
@@ -39,6 +41,7 @@ public partial class OperationsView : DarkTradingView
     public OperationsView()
     {
         InitializeComponent();
+        Disposed += (_, _) => _eventMarkerFont.Dispose();
         DashboardTypography.ApplyFamilyAndSize(this);
         lblTimeFrame.Dock = DockStyle.None;
         lblTimeFrame.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -146,9 +149,11 @@ public partial class OperationsView : DarkTradingView
             lstStrategyWorkflows.VirtualListSize = workflows.Count
                 + (_viewModel?.Strategy.HasMoreWorkflows == true ? 1 : 0);
             lstStrategyWorkflows.Invalidate();
-            var selectedIndex = selectedId is null
-                ? -1
-                : workflows.ToList().FindIndex(row => row.WorkflowId == selectedId);
+            var selectedIndex = -1;
+            if (selectedId is not null)
+                for (var index = 0; index < workflows.Count; index++)
+                    if (workflows[index].WorkflowId == selectedId)
+                    { selectedIndex = index; break; }
             if (selectedIndex >= 0)
                 lstStrategyWorkflows.Items[selectedIndex].Selected = true;
             else if (workflows.Count > 0)
@@ -434,18 +439,22 @@ public partial class OperationsView : DarkTradingView
 
     void RenderChart(IReadOnlyList<FuturesItiSignalEventRow> events)
     {
-        foreach (var series in itiChart.Series)
-            series.Points.Clear();
-
         if (_viewModel is null)
             return;
 
         var strategy = _viewModel.Strategy;
         ConfigureChartWindow(strategy.SelectedGraphWindow, strategy.SelectedTimeFrame);
-
-        foreach (var row in events.OrderBy(static row => row.OccurredOn)
-                     .ThenBy(static row => row.SequenceId))
+        var ordered = events.OrderBy(static row => row.OccurredOn)
+            .ThenBy(static row => row.SequenceId).ToArray();
+        var append = ordered.Length >= _chartedEvents.Length;
+        for (var index = 0; append && index < _chartedEvents.Length; index++)
+            append = Equals(ordered[index], _chartedEvents[index]);
+        if (!append)
+            foreach (var series in itiChart.Series) series.Points.Clear();
+        var start = append ? _chartedEvents.Length : 0;
+        for (var index = start; index < ordered.Length; index++)
         {
+            var row = ordered[index];
             var x = EasternTime.FromUtc(row.OccurredOn).ToOADate();
             AddPoint(itiChart.Series[PriceSeriesName], row, x);
             if (row.Mode == IntrinsicTimeModeType.TrendDirectionChanged)
@@ -457,7 +466,7 @@ public partial class OperationsView : DarkTradingView
                 point.MarkerStyle = MarkerStyle.None;
                 point.Label = row.Trend == IntrinsicTimeTrendType.UpTrend ? "▲" : "▼";
                 point.LabelForeColor = marker.Color;
-                point.Font = DashboardTypography.Create(FontStyle.Bold);
+                point.Font = _eventMarkerFont;
             }
             else
             {
@@ -466,8 +475,8 @@ public partial class OperationsView : DarkTradingView
                 point.MarkerBorderWidth = 1;
             }
         }
-
-        itiChart.ChartAreas[0].RecalculateAxesScale();
+        _chartedEvents = ordered;
+        if (!append || start < ordered.Length) itiChart.ChartAreas[0].RecalculateAxesScale();
     }
 
     static DataPoint AddPoint(
@@ -533,8 +542,11 @@ public partial class OperationsView : DarkTradingView
         if (stableIdentity is null)
             return;
 
-        var index = _renderedWorkflows?.ToList().FindIndex(row =>
-            string.Equals(row.TriggerStableIdentity, stableIdentity, StringComparison.Ordinal)) ?? -1;
+        var index = -1;
+        if (_renderedWorkflows is { } workflows)
+            for (var candidate = 0; candidate < workflows.Count; candidate++)
+                if (string.Equals(workflows[candidate].TriggerStableIdentity, stableIdentity, StringComparison.Ordinal))
+                { index = candidate; break; }
         if (index < 0)
             return;
 
@@ -551,30 +563,22 @@ public partial class OperationsView : DarkTradingView
 
     void ResizeTimeColumnToFit()
     {
-        var requiredWidth = TextRenderer.MeasureText(
-            colTime.Text,
-            lstStrategyWorkflows.Font,
-            Size.Empty,
-            TextFormatFlags.NoPadding).Width;
-        foreach (var row in _renderedWorkflows ?? [])
-        {
-            requiredWidth = Math.Max(
-                requiredWidth,
-                TextRenderer.MeasureText(
-                    FormatListTime(row.OccurredOn, row.TimePeriod),
-                    lstStrategyWorkflows.Font,
-                    Size.Empty,
-                    TextFormatFlags.NoPadding).Width);
-        }
-
-        colTime.Width = Math.Max(MinimumTimeColumnWidth, requiredWidth + 16);
+        var example = _viewModel?.Strategy.SelectedTimeFrame == TimeFrameType.Daily
+            ? "12:59:59.999 PM"
+            : "31-WWW-8888 12:59:59.999 PM";
+        var width = Math.Max(
+            TextRenderer.MeasureText(colTime.Text, lstStrategyWorkflows.Font, Size.Empty,
+                TextFormatFlags.NoPadding).Width,
+            TextRenderer.MeasureText(example, lstStrategyWorkflows.Font, Size.Empty,
+                TextFormatFlags.NoPadding).Width);
+        width = Math.Max(MinimumTimeColumnWidth, width + 16);
+        if (colTime.Width != width) colTime.Width = width;
     }
 
     void DrawWorkflowSubItem(object? sender, DrawListViewSubItemEventArgs e)
     {
         var selected = e.Item.Selected;
-        using var background = new SolidBrush(selected ? SystemColors.Highlight : Color.Black);
-        e.Graphics.FillRectangle(background, e.Bounds);
+        e.Graphics.FillRectangle(selected ? SystemBrushes.Highlight : Brushes.Black, e.Bounds);
         if (e.ColumnIndex == 4 && e.Item.Tag is StrategyWorkflowRow workflow)
         {
             DrawPipelineActors(e.Graphics, e.Bounds, workflow.PipelineActors, selected);
@@ -603,10 +607,11 @@ public partial class OperationsView : DarkTradingView
         foreach (var actor in actors)
         {
             var circle = new Rectangle(x, bounds.Top + Math.Max(1, (bounds.Height - diameter) / 2), diameter, diameter);
-            using var brush = new SolidBrush(PipelineColor(actor.DisplayState));
+            var color = PipelineColor(actor.DisplayState);
+            var brush = color == Color.Yellow ? Brushes.Yellow
+                : color == Color.Lime ? Brushes.Lime : Brushes.Red;
             graphics.FillEllipse(brush, circle);
-            using var outline = new Pen(selected ? Color.White : Color.DimGray);
-            graphics.DrawEllipse(outline, circle);
+            graphics.DrawEllipse(selected ? Pens.White : Pens.DimGray, circle);
             x += diameter + 6;
         }
     }

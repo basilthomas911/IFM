@@ -123,6 +123,25 @@ public interface IDatabentoMarketDataCatalog
     Task<FuturesOptionContractReadModel[]> GetOptionChainAsync(
         string futuresContractId,
         DateOnly maturityDate);
+    Task<FuturesOptionContractReadModel[]> GetOptionChainBySymbolAsync(
+        string underlyingSymbol,
+        DateOnly maturityDate) =>
+        throw new NotSupportedException("Underlying-symbol option-chain discovery is unavailable.");
+    Task<OptionContractExpiryReadModel[]> DiscoverOptionContractExpiriesAsync(
+        string underlyingSymbol,
+        DateOnly fromExpiry,
+        DateOnly throughExpiry,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Option-expiry discovery is unavailable.");
+    Task<FuturesOptionContractReadModel[]> GetOptionChainByRootAsync(
+        string underlyingSymbol,
+        string providerRoot,
+        DateOnly maturityDate) =>
+        throw new NotSupportedException("Provider-root option-chain discovery is unavailable.");
+    Task<FuturesOptionContractReadModel[]> GetOptionChainByRootAsync(
+        string underlyingSymbol, string providerRoot, DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Provider-root option-chain range discovery is unavailable.");
 }
 
 public sealed record DatabentoMarketDataApiOptions

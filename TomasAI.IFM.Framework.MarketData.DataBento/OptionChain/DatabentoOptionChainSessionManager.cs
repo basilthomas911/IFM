@@ -15,6 +15,10 @@ public sealed class DatabentoOptionChainSessionManager :
 {
     private const decimal PriceScale = 1_000_000_000m;
     private const long UndefinedPrice = long.MaxValue;
+    private const ushort ClearedVolumeStatistic = 6;
+    private const ushort OpenInterestStatistic = 9;
+    private const byte NewStatistic = 1;
+    private const long UndefinedStatisticQuantity = long.MaxValue;
     private readonly object _sync = new();
     private readonly IDatabentoFeedFactory _feeds;
     private readonly DatabentoFeedOptions _feedOptions;
@@ -262,6 +266,9 @@ public sealed class DatabentoOptionChainSessionManager :
                     session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
                 break;
             }
+            case MarketRecordKind.Statistics:
+                ApplyStatistics(session, route, record.Statistics);
+                break;
         }
     }
 
@@ -278,6 +285,20 @@ public sealed class DatabentoOptionChainSessionManager :
         }
         if (failures is not null)
             throw new AggregateException("Option-chain session shutdown failed.", failures);
+    }
+
+    private void ApplyStatistics(Session session,DatabentoOptionChainRoute route,StatisticsRecord64 record)
+    {
+        if (record.UpdateAction != NewStatistic || record.Quantity < 0
+            || record.Quantity == UndefinedStatisticQuantity) return;
+        var referenceDate = DateOnly.FromDateTime(
+            FromUnixNanoseconds(record.ReferenceTimestampNanoseconds).UtcDateTime);
+        long? volume = record.StatisticType == ClearedVolumeStatistic
+            && referenceDate == session.ValueDate ? record.Quantity : null;
+        long? interest = record.StatisticType == OpenInterestStatistic ? record.Quantity : null;
+        if (volume is null && interest is null) return;
+        _state.UpdateStatistics(session.Key,route.FuturesOptionContractId,volume,interest,
+            FromUnixNanoseconds(record.Header.EventTimestampNanoseconds));
     }
 
     private static void ValidateRequest(DatabentoOptionChainSessionRequest request)

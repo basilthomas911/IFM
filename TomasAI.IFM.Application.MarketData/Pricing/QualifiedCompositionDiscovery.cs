@@ -108,6 +108,17 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         return market.ReleaseAsync("GLBX.MDP3", new(lease.ScopeId, lease.LeaseId, lease.GenerationId), cancellationToken);
     }
 
+    public async Task<WorkerOptionChainRequest?> RenewAsync(WorkerOptionChainRequest lease,
+        DateTimeOffset expiresAtUtc, CancellationToken cancellationToken)
+    {
+        if (!registrations.TryGetValue(lease.LeaseId, out var registration)) return null;
+        var renewed = registration.Lease with { LeaseExpiresAtUtc = expiresAtUtc };
+        var result = await market.AcquireAsync("GLBX.MDP3", renewed, cancellationToken).ConfigureAwait(false);
+        if (!result.Active || result.Failure is not null) return null;
+        registrations.TryUpdate(lease.LeaseId, registration with { Lease = renewed }, registration);
+        return renewed;
+    }
+
     /// <summary>
     /// Rebuilds all pricing contexts outside tick callbacks and atomically replaces the expected worker batch.
     /// Failure leaves the old contexts subject to their original expiry; it never extends stale evidence.

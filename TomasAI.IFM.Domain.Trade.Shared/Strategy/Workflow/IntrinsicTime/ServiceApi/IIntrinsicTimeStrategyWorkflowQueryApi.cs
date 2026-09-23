@@ -12,6 +12,9 @@ public interface IIntrinsicTimeStrategyWorkflowQueryApi
 {
     /// <summary>Gets one workflow by identity.</summary>
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowReadModel>> GetByIdAsync(StrategyWorkflowId workflowId, long minimumRevision = 0);
+    /// <summary>Gets a bounded set of workflow snapshots in one query.</summary>
+    Task<ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]>> GetByIdsAsync(
+        StrategyWorkflowId[] workflowIds, long[] minimumRevisions);
     /// <summary>Gets the active workflow for an entity.</summary>
     Task<ServiceResult<ActiveIntrinsicTimeStrategyWorkflowReadModel>> GetActiveAsync(string workflowEntityId, long minimumRevision = 0);
     /// <summary>Gets start attempts for an entity.</summary>

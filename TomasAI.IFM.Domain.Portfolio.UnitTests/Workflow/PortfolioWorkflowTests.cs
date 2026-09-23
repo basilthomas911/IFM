@@ -79,8 +79,7 @@ public sealed class PortfolioWorkflowTests
         var request = new CreateManualFundOrderRequest
         {
             PortfolioId = 101, PortfolioVersion = 4, FundId = 202, FundMandateVersion = 3,
-            UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now),
-            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)), Reference = "operator draft",
+            Reference = "operator draft",
             IdempotencyKey = key, RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
         };
         var aggregate = new PortfolioFundCompositionAggregate();
@@ -108,9 +107,6 @@ public sealed class PortfolioWorkflowTests
             PortfolioVersion = 4,
             FundId = 202,
             FundMandateVersion = 3,
-            UnderlyingRoot = "ES",
-            RequestedTradeDate = DateOnly.FromDateTime(Now),
-            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)),
             Reference = "operator draft",
             IdempotencyKey = Guid.NewGuid(),
             RequestedAtUtc = Now,
@@ -140,15 +136,14 @@ public sealed class PortfolioWorkflowTests
     [Trait("Category", "Portfolio")]
     public void Empty_manual_order_supports_the_complete_canonical_trade_lifecycle()
     {
+        var tradeDate = DateOnly.FromDateTime(Now);
+        var maturityDate = DateOnly.FromDateTime(Now.AddMonths(1));
         var request = new CreateManualFundOrderRequest
         {
             PortfolioId = 101,
             PortfolioVersion = 4,
             FundId = 202,
             FundMandateVersion = 3,
-            UnderlyingRoot = "ES",
-            RequestedTradeDate = DateOnly.FromDateTime(Now),
-            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)),
             Reference = "operator draft",
             IdempotencyKey = Guid.NewGuid(),
             RequestedAtUtc = Now,
@@ -165,8 +160,8 @@ public sealed class PortfolioWorkflowTests
             ExpectedOrderVersion = draft.AggregateVersion,
             TradeId = 17001,
             TradeType = nameof(TradeType.ShortIronCondor),
-            TradeDate = request.RequestedTradeDate,
-            MaturityDate = request.RequestedMaturityDate ?? request.RequestedTradeDate,
+            TradeDate = tradeDate,
+            MaturityDate = maturityDate,
             TradeState = nameof(TradeState.TradeToOpen),
             TradeAction = nameof(TradeAction.Sell),
             Reference = "manual-16001",
@@ -180,7 +175,7 @@ public sealed class PortfolioWorkflowTests
         opened.Trades[0].PrimaryTrade.Should().BeTrue();
         opened.Trades[0].BaseContractId.Should().Be("ESZ26");
         opened.Trades[0].InstructionReference.Should().Be(
-            $"ESZ26 @ {request.RequestedTradeDate:yyyyMMdd} - {request.RequestedMaturityDate:yyyyMMdd}");
+            $"ESZ26 @ {tradeDate:yyyyMMdd} - {maturityDate:yyyyMMdd}");
         opened.Order.AggregateVersion.Should().Be(2);
 
         var closed = aggregate.AddManualTrade(new AddManualFundOrderTradeRequest
@@ -191,8 +186,8 @@ public sealed class PortfolioWorkflowTests
             ExpectedOrderVersion = opened.AggregateVersion,
             TradeId = 17002,
             TradeType = nameof(TradeType.LongIronCondor),
-            TradeDate = request.RequestedTradeDate,
-            MaturityDate = request.RequestedMaturityDate ?? request.RequestedTradeDate,
+            TradeDate = tradeDate,
+            MaturityDate = maturityDate,
             TradeState = nameof(TradeState.NewTrade),
             TradeAction = nameof(TradeAction.Buy),
             Reference = "manual-16001",

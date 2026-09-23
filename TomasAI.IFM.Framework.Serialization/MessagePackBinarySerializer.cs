@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using MessagePack.Resolvers;
 using System.Buffers;
 
@@ -58,6 +58,16 @@ public class MessagePackBinarySerializer : IBinarySerializer
     {
         var writer = new ArrayBufferWriter<byte>();
         MessagePackSerializer.Serialize(writer, value, ContentOptions);
+        return writer.WrittenCount;
+    }
+
+    /// <summary>Measures uncompressed MessagePack content using the value's concrete runtime contract.</summary>
+    public static int MeasureContent(Type type, object value)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(value);
+        var writer = new ArrayBufferWriter<byte>();
+        MessagePackSerializer.Serialize(type, writer, value, ContentOptions);
         return writer.WrittenCount;
     }
 

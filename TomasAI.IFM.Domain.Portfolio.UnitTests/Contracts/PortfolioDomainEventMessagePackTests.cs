@@ -12,7 +12,7 @@ public sealed class PortfolioDomainEventMessagePackTests
     public void Fund_event_round_trips_through_its_concrete_contract()
     {
         var value = new FundManualOrderDeletedEvent(
-            Guid.NewGuid(), Guid.NewGuid(), 7, new DateTime(2026, 9, 21, 14, 30, 0, DateTimeKind.Utc), "test", 42)
+            Guid.NewGuid(), Guid.NewGuid(), 7, new DateTime(2026, 9, 21, 14, 30, 0, DateTimeKind.Utc), "test", 42, [84])
         {
             AggregateId = "portfolio-fund:10:20",
             CorrelationId = Guid.NewGuid(),
@@ -27,6 +27,7 @@ public sealed class PortfolioDomainEventMessagePackTests
         deleted.Revision.Should().Be(7);
         deleted.AggregateId.Should().Be("portfolio-fund:10:20");
         deleted.Principal.Should().Be("test");
+        deleted.RemovedTradeIds.Should().Equal(84);
     }
 
     [Fact]
@@ -36,6 +37,7 @@ public sealed class PortfolioDomainEventMessagePackTests
         KeyOf<FundManualOrderDeletedEvent>(nameof(FundManualOrderDeletedEvent.Id)).Should().Be(1);
         KeyOf<FundManualOrderDeletedEvent>(nameof(FundManualOrderDeletedEvent.OriginatedOnUtc)).Should().Be(13);
         KeyOf<FundManualOrderDeletedEvent>(nameof(FundManualOrderDeletedEvent.OrderId)).Should().Be(14);
+        KeyOf<FundManualOrderDeletedEvent>(nameof(FundManualOrderDeletedEvent.RemovedTradeIds)).Should().Be(15);
     }
 
     static int KeyOf<T>(string propertyName) =>

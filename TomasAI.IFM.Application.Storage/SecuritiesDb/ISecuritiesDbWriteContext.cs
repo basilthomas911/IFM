@@ -5,6 +5,10 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 public interface ISecuritiesDbWriteContext
 {
+    Task ReplaceOptionContractDefinitionsAsync(
+        string symbol, DateOnly coverageFrom, DateOnly coverageThrough,
+        IReadOnlyCollection<CachedOptionContractDefinitionReadModel> definitions,
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// Rebuilds the symbol projections. Supplying <paramref name="staleOperationCutoffUtc"/>
     /// explicitly recovers journaled operations at or before that UTC instant.

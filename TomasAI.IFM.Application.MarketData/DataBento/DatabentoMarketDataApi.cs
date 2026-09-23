@@ -628,6 +628,68 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         return catalog.GetOptionChainAsync(futuresContractId, maturityDate);
     }
 
+    public async Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsBySymbolAsync(
+        string underlyingSymbol,
+        DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
+        ValidateDate(fromMaturityDate, nameof(fromMaturityDate));
+        ValidateDate(throughMaturityDate, nameof(throughMaturityDate));
+        if (throughMaturityDate < fromMaturityDate)
+            throw new ArgumentOutOfRangeException(nameof(throughMaturityDate));
+        if (throughMaturityDate.DayNumber - fromMaturityDate.DayNumber > 730)
+            throw new ArgumentOutOfRangeException(nameof(throughMaturityDate), "Option-chain ranges cannot exceed two years.");
+        var catalog = GetRunningCatalog();
+        var contracts = new List<FuturesOptionContractReadModel>();
+        for (var maturity = fromMaturityDate; maturity <= throughMaturityDate; maturity = maturity.AddDays(1))
+            contracts.AddRange(await catalog.GetOptionChainBySymbolAsync(underlyingSymbol, maturity).ConfigureAwait(false));
+        return contracts
+            .DistinctBy(contract => contract.ContractId)
+            .OrderBy(contract => contract.ContractMonth)
+            .ThenBy(contract => contract.StrikePrice)
+            .ThenBy(contract => contract.OptionType, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public Task<OptionContractExpiryReadModel[]> DiscoverOptionContractExpiriesAsync(
+        string underlyingSymbol,
+        DateOnly fromExpiry,
+        DateOnly throughExpiry,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
+        ValidateDate(fromExpiry, nameof(fromExpiry));
+        ValidateDate(throughExpiry, nameof(throughExpiry));
+        if (throughExpiry < fromExpiry) throw new ArgumentOutOfRangeException(nameof(throughExpiry));
+        return GetRunningCatalog().DiscoverOptionContractExpiriesAsync(
+            underlyingSymbol, fromExpiry, throughExpiry, cancellationToken);
+    }
+
+    public Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsByRootAsync(
+        string underlyingSymbol,
+        string providerRoot,
+        DateOnly maturityDate)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerRoot);
+        ValidateDate(maturityDate, nameof(maturityDate));
+        return GetRunningCatalog().GetOptionChainByRootAsync(
+            underlyingSymbol, providerRoot, maturityDate);
+    }
+
+    public Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsByRootAsync(
+        string underlyingSymbol, string providerRoot, DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerRoot);
+        ValidateDate(fromMaturityDate, nameof(fromMaturityDate));
+        ValidateDate(throughMaturityDate, nameof(throughMaturityDate));
+        return GetRunningCatalog().GetOptionChainByRootAsync(
+            underlyingSymbol, providerRoot, fromMaturityDate, throughMaturityDate, cancellationToken);
+    }
+
     /// <summary>
     /// Gets the most recent usable futures price from the active aggregation
     /// epoch's in-memory last-price reader. A fresh trade is preferred; a fresh,

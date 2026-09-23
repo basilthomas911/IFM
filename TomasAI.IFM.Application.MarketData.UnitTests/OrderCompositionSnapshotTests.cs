@@ -58,6 +58,24 @@ public sealed class OrderCompositionSnapshotTests
         Assert.Null(result.Snapshot); Assert.Equal("StaleData", result.Failure!.Code);
     }
 
+    [Fact]
+    public async Task Market_selection_snapshot_keeps_unquoted_and_stale_contracts_without_weakening_strict_snapshots()
+    {
+        var fresh = Instrument("fresh");
+        var missing = Instrument("missing") with { Quote = null };
+        var stale = Instrument("stale") with { Quote = Quote("stale", 100) with { EventAtUtc = At.AddSeconds(-10) } };
+        var page = new CompositionMarketPage("scope/v1", Generation, 3, [fresh, missing, stale], null);
+        var strict = await Provider(page).CaptureAsync(Request(), default);
+        Assert.Equal("QuoteUnavailable", strict.Failure?.Code);
+
+        var partial = await Provider(page).CaptureAsync(Request() with { AllowMissingOptionQuotes = true }, default);
+        Assert.Null(partial.Failure);
+        Assert.Equal(3, partial.Snapshot!.Instruments.Length);
+        Assert.NotNull(partial.Snapshot.Instruments.Single(x => x.Instrument.ContractId == "fresh").Instrument.Quote);
+        Assert.Null(partial.Snapshot.Instruments.Single(x => x.Instrument.ContractId == "missing").Instrument.Quote);
+        Assert.Null(partial.Snapshot.Instruments.Single(x => x.Instrument.ContractId == "stale").Instrument.Quote);
+    }
+
     [Theory]
     [InlineData("Daily")] [InlineData("Weekly")] [InlineData("Monthly")]
     public async Task Futures_snapshot_needs_no_treasury_options_or_greeks_on_any_horizon(string horizon)

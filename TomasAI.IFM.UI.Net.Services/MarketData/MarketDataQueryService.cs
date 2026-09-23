@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 
 namespace TomasAI.IFM.UI.Net.Services.MarketData;
 
@@ -15,6 +16,18 @@ namespace TomasAI.IFM.UI.Net.Services.MarketData;
 public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFeedQueryApi queryFeedApi)
     : UiServiceBase<MarketDataQueryService>
 {
+    public Task<ServiceResult<EvaluatedOptionChainReadModel>> QueryEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery request,CancellationToken token=default)
+        => _queryApi.GetEvaluatedOptionChainAsync(request,token);
+
+    public async Task<ServiceResult<FuturesEodDataV2ReadModel>> QueryFuturesEodDataAsync(
+        string contractId, DateOnly valueDate, CancellationToken token = default)
+    {
+        var current = await _queryFeedApi.GetFuturesEodDataAsync(contractId, valueDate).WaitAsync(token);
+        return current.Success && current.Value is { ClosePrice: > 0, DailyStdDevAmount: > 0 }
+            && double.IsFinite(current.Value.DailyStdDevAmount)
+            ? current
+            : await _queryFeedApi.GetLastFuturesEodDataAsync(contractId, valueDate).WaitAsync(token);
+    }
     static readonly string[] DashboardSymbols = ["ES", "VX"];
     readonly IMarketDataQueryApi _queryApi = IsArgumentNull.Set(queryApi);
     readonly IMarketDataFeedQueryApi _queryFeedApi = IsArgumentNull.Set(queryFeedApi);
@@ -165,6 +178,33 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
 
     public async Task GetFuturesOptionContractsAsync(string symbol, Action<FuturesOptionContractReadModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesOptionContractsAsync(symbol), onCompleted);
+
+    public Task GetDatabentoOptionChainRangeAsync(
+        string underlyingSymbol,
+        DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate,
+        Action<OptionContractExpiryReadModel[]> onCompleted,
+        CancellationToken cancellationToken = default) =>
+        ExecuteAsync(
+            () => _queryApi.GetDatabentoOptionChainRangeAsync(
+                underlyingSymbol, fromMaturityDate, throughMaturityDate, cancellationToken),
+            onCompleted);
+
+    public Task<ServiceResult<OptionContractExpiryReadModel[]>> QueryDatabentoOptionChainRangeAsync(
+        string underlyingSymbol,
+        DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate,
+        CancellationToken cancellationToken = default) =>
+        _queryApi.GetDatabentoOptionChainRangeAsync(
+            underlyingSymbol, fromMaturityDate, throughMaturityDate, cancellationToken);
+
+    public Task<ServiceResult<FuturesOptionContractReadModel[]>> QueryDatabentoOptionChainAsync(
+        string underlyingSymbol,
+        string providerRoot,
+        DateOnly maturityDate,
+        CancellationToken cancellationToken = default) =>
+        _queryApi.GetDatabentoOptionChainAsync(
+            underlyingSymbol, providerRoot, maturityDate, cancellationToken);
 
     /// <summary>
     /// get yield curve rate time periods

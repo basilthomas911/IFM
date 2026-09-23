@@ -70,6 +70,7 @@ public sealed class ApplicationStartupCommandDispatcher(
             stoppingToken.ThrowIfCancellationRequested();
             try
             {
+                var observationStartedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
                 var result = await commandApi.StartApplicationAsync(valueDate).ConfigureAwait(false);
                 if (!result.Success || result.Value == Guid.Empty)
                 {
@@ -89,7 +90,7 @@ public sealed class ApplicationStartupCommandDispatcher(
                 }
 
                 var acceptedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-                acceptedCommands[result.Value] = acceptedAtUtc;
+                acceptedCommands[result.Value] = observationStartedAtUtc;
                 SetHandoff(new()
                 {
                     State = ApplicationStartupHandoffState.CommandAccepted,

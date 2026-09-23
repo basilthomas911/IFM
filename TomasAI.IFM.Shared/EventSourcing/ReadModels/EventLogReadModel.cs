@@ -26,6 +26,9 @@ internal static class EventLogBinaryReader
 {
     internal static IEvent Read(string typeName, long version, byte[] payload)
     {
+        var legacyPortfolioEvent = typeName.StartsWith(
+            "TomasAI.IFM.Domain.Portfolio.Command.Model.", StringComparison.Ordinal);
+        typeName = ResolveLegacyPortfolioEventType(typeName);
         // An unavailable event type remains observable. Corrupt known events must fail replay.
         if (Type.GetType(typeName, false, true) is null)
             return new UnknownEvent(subject: default, id: Guid.Empty, entityId: default,
@@ -33,6 +36,30 @@ internal static class EventLogBinaryReader
                 eventSource: string.Empty, receivedOn: DateTime.MinValue, eventSourceId: 0,
                 eventSourceVersion: 0, eventTypeName: typeName,
                 eventData: Convert.ToBase64String(payload), eventDate: DateTime.MinValue);
-        return EventLogMessagePackCodec.Shared.Deserialize(typeName, version, payload);
+        return legacyPortfolioEvent
+            ? EventLogMessagePackCodec.Shared.DeserializeLegacyContractless(typeName, version, payload)
+            : EventLogMessagePackCodec.Shared.Deserialize(typeName, version, payload);
+    }
+
+    static string ResolveLegacyPortfolioEventType(string typeName)
+    {
+        const string prefix = "TomasAI.IFM.Domain.Portfolio.Command.Model.";
+        if (!typeName.StartsWith(prefix, StringComparison.Ordinal)) return typeName;
+
+        var separator = typeName.IndexOf(',');
+        var legacyName = typeName[prefix.Length..(separator < 0 ? typeName.Length : separator)];
+        var targetNamespace = legacyName switch
+        {
+            "FundMandateCreated" or "FundMandateVersionAdded" or "FundOperatingStateChanged"
+                or "FundTradeTemplateAssigned" or "FundCompositionReserved"
+                or "FundCompositionStateChanged" or "FundManualOrderChanged" or "FundManualOrderDeleted"
+                => "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events",
+            "PortfolioFinancialPolicyCreated" or "PortfolioFinancialPolicyActivated"
+                or "PortfolioFinancialPolicyVersionAdded" or "PortfolioFinancialPolicyRetired"
+                or "DraftPortfolioFinancialPolicyDeleted"
+                => "TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events",
+            _ => "TomasAI.IFM.Domain.Portfolio.Shared.Events",
+        };
+        return $"{targetNamespace}.{legacyName}Event, TomasAI.IFM.Domain.Portfolio.Shared";
     }
 }

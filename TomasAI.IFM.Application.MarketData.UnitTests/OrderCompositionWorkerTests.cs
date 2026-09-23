@@ -68,6 +68,21 @@ public sealed partial class OrderCompositionWorkerTests
         new(2026, 10, 2), At.AddSeconds(60), [new(Context(), 5000, true)]);
 
     [Fact]
+    public async Task Market_selection_can_read_all_subscribed_contracts_before_any_option_quote_arrives()
+    {
+        using var prices = Prices();
+        using var feed = new ChainFeed();
+        await using var runtime = Runtime(Factory(feed), prices);
+        var request = Request();
+        Assert.True((await runtime.AcquireAsync(request, default)).Active);
+        var capture = new CompositionSnapshotRequest(Guid.NewGuid(), request.ScopeId, "Daily", Generation,
+            At, At.AddSeconds(2), true) { AllowMissingOptionQuotes = true };
+        var result = await new MarketCompositionSnapshotProvider(runtime, new Clock(At)).CaptureAsync(capture, default);
+        Assert.Null(result.Failure);
+        Assert.Null(Assert.Single(result.Snapshot!.Instruments).Instrument.Quote);
+    }
+
+    [Fact]
     public async Task Worker_uses_real_feed_consumer_pricer_and_snapshot_then_releases_only_last_owner()
     {
         using var prices = Prices();

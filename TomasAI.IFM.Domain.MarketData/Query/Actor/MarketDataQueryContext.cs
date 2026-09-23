@@ -4,6 +4,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Framework.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Query.Actor;
 
@@ -18,6 +21,11 @@ public interface IMarketDataQueryContext : IQueryActorContext<MarketDataQueryAct
     IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
     /// <summary>Gets provider-backed market metadata.</summary>
     TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
+    QualifiedCompositionDiscovery? CompositionDiscovery { get; }
+    ICompositionMarketDataApi? CompositionMarketData { get; }
+    DatasetWorkerAdmissionRegistry? WorkerAdmissions { get; }
+    TreasuryPublicationPolicy? TreasuryPublication { get; }
+    TreasuryRateConversionPolicy? TreasuryConversion { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="MarketDataQueryActor"/>.</summary>
@@ -29,13 +37,23 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
         IDbContextFactory dbFactory,
         ILogger<MarketDataQueryActor> logger,
         IFuturesMarketSessionAuthority marketSessionAuthority,
-        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketDataApi = null)
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketDataApi = null,
+        QualifiedCompositionDiscovery? compositionDiscovery = null,
+        ICompositionMarketDataApi? compositionMarketData = null,
+        DatasetWorkerAdmissionRegistry? workerAdmissions = null,
+        TreasuryPublicationPolicy? treasuryPublication = null,
+        TreasuryRateConversionPolicy? treasuryConversion = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, MarketDataQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
         MarketSessionAuthority = IsArgumentNull.Set(marketSessionAuthority);
         MarketDataApi = marketDataApi;
+        CompositionDiscovery = compositionDiscovery;
+        CompositionMarketData = compositionMarketData;
+        WorkerAdmissions = workerAdmissions;
+        TreasuryPublication = treasuryPublication;
+        TreasuryConversion = treasuryConversion;
     }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
@@ -45,4 +63,9 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
     public IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
     /// <inheritdoc/>
     public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
+    public QualifiedCompositionDiscovery? CompositionDiscovery { get; }
+    public ICompositionMarketDataApi? CompositionMarketData { get; }
+    public DatasetWorkerAdmissionRegistry? WorkerAdmissions { get; }
+    public TreasuryPublicationPolicy? TreasuryPublication { get; }
+    public TreasuryRateConversionPolicy? TreasuryConversion { get; }
 }

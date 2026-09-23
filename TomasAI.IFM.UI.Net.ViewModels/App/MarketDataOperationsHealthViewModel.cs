@@ -12,6 +12,8 @@ public sealed class MarketDataOperationsHealthViewModel : ObservableObject, IAsy
     readonly IMarketDataOperationsHealthQueryService service;
     readonly AsyncOperation refresh;
     MarketDataOperationsHealthSnapshot? snapshot;
+    IReadOnlyList<MarketDataOperationsStageRow> stageRows = [];
+    IReadOnlyList<MarketDataOperationsDatasetRow> datasetRows = [];
     string failureReason = "Operations health has not been queried.";
 
     public MarketDataOperationsHealthViewModel(IMarketDataOperationsHealthQueryService service)
@@ -29,13 +31,19 @@ public sealed class MarketDataOperationsHealthViewModel : ObservableObject, IAsy
     public string Observation => snapshot is null ? "No current central observation. Previous green values are not retained."
         : $"Central observation: {Utc(snapshot.ObservedOnUtc)} | Last probe: {Utc(snapshot.LastProbeUtc)} | "
           + $"Next probe: {Utc(snapshot.NextProbeUtc)} | Stale-generation publications rejected: {snapshot.RejectedStaleGenerationPublications}";
-    public IReadOnlyList<MarketDataOperationsStageRow> Stages => snapshot?.Stages.Select(value => new MarketDataOperationsStageRow(
+    public IReadOnlyList<MarketDataOperationsStageRow> Stages => stageRows;
+    public IReadOnlyList<MarketDataOperationsDatasetRow> Datasets => datasetRows;
+
+    void ProjectRows()
+    {
+        var current = snapshot;
+        stageRows = current?.Stages.Select(value => new MarketDataOperationsStageRow(
         value.Stage, value.Status, value.Required ? "Required" : "Optional", value.Pending, value.Capacity,
         value.HighWater, value.Received, value.Completed, value.Failed, value.Coalesced, value.Saturated,
-        Age(snapshot.ObservedOnUtc, value.MarketDataAsOfUtc), Utc(value.MarketDataAsOfUtc),
+        Age(current.ObservedOnUtc, value.MarketDataAsOfUtc), Utc(value.MarketDataAsOfUtc),
         Utc(value.LastSucceededUtc), Duration(value.OldestPendingAge), Duration(value.P50Latency),
         Duration(value.P95Latency), Duration(value.P99Latency), value.ReasonCode, value.Reason)).ToArray() ?? [];
-    public IReadOnlyList<MarketDataOperationsDatasetRow> Datasets => snapshot?.Datasets.Select(value => new MarketDataOperationsDatasetRow(
+        datasetRows = current?.Datasets.Select(value => new MarketDataOperationsDatasetRow(
         value.Dataset, value.Status, value.SessionState, value.ProcessId, value.GenerationId.ToString("D"),
         value.Running, value.Healthy, $"{value.RecordsConsumed}/{value.RecordsProduced}",
         $"{value.RingUsed}/{value.RingCapacity}", $"{value.ChannelBatchCount}/{value.ChannelBatchCapacity}",
@@ -43,6 +51,7 @@ public sealed class MarketDataOperationsHealthViewModel : ObservableObject, IAsy
         value.ProcessReplacementLatched, Duration(value.IncidentAge), Utc(value.LastHealthyUtc),
         Utc(value.NextProbeUtc), value.Reason, value.WorkerInstanceId.ToString("D"),
         Utc(value.StartedOnUtc), value.GracefulStopSucceeded, value.ForcedTermination)).ToArray() ?? [];
+    }
 
     public Task RefreshAsync(CancellationToken cancellationToken = default) => refresh.ExecuteAsync(cancellationToken);
     public void Cancel() => refresh.Cancel();
@@ -61,6 +70,7 @@ public sealed class MarketDataOperationsHealthViewModel : ObservableObject, IAsy
             snapshot = null;
             failureReason = "Operations health could not be read; current health is unknown.";
         }
+        ProjectRows();
         OnPropertyChanged(nameof(Snapshot));
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(Summary));

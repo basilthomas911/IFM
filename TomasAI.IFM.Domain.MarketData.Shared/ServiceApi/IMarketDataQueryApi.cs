@@ -1,11 +1,14 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 public interface IMarketDataQueryApi
 {
+    Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery request, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
     Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Instrument definition selection is unavailable.");
@@ -26,6 +29,16 @@ public interface IMarketDataQueryApi
     Task<ServiceResult<FuturesOptionContractPageReadModel>> GetFuturesOptionContractsPageAsync(
         GetFuturesOptionContractsPageParameter request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(string symbol);
+    Task<ServiceResult<OptionContractExpiryReadModel[]>> GetDatabentoOptionChainRangeAsync(
+        string underlyingSymbol,
+        DateOnly fromMaturityDate,
+        DateOnly throughMaturityDate,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Databento option-chain discovery is unavailable.");
+    Task<ServiceResult<FuturesOptionContractReadModel[]>> GetDatabentoOptionChainAsync(
+        string underlyingSymbol, string providerRoot, DateOnly maturityDate,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Databento option-chain loading is unavailable.");
     Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(string[] contractIds);
     Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync();
     Task<ServiceResult<RateOfReturnReadModel>> GetLastRateOfReturnAsync(string symbol, DateOnly valueDate);

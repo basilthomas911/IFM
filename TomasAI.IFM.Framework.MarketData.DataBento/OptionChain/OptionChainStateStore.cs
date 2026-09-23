@@ -41,7 +41,29 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         lock (_sync)
         {
             var current = _sessions[key][contractId];
-            _sessions[key][contractId] = current with { Trade = trade };
+            _sessions[key][contractId] = current with
+            {
+                Trade = trade,
+                SessionVolume = current.SessionVolumeOfficial
+                    ? current.SessionVolume
+                    : checked((current.SessionVolume ?? 0) + trade.Tick.Size)
+            };
+        }
+    }
+
+    internal void UpdateStatistics(OptionChainSessionKey key,string contractId,
+        long? volume,long? openInterest,DateTimeOffset observedAtUtc)
+    {
+        lock (_sync)
+        {
+            var current = _sessions[key][contractId];
+            _sessions[key][contractId] = current with
+            {
+                SessionVolume = volume ?? current.SessionVolume,
+                OpenInterest = openInterest ?? current.OpenInterest,
+                StatisticsAtUtc = observedAtUtc,
+                SessionVolumeOfficial = volume is not null || current.SessionVolumeOfficial
+            };
         }
     }
 

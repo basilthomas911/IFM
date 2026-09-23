@@ -341,7 +341,7 @@ public sealed class PortfolioFundCommandActor(
     {
         dynamic request = command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request.CorrelationId, command);
-        var principal = _guard.Demand(Operation(command.Subject.Verb), request, mutation: true).Principal;
+        var principal = _guard.Demand(Operation(command.Subject.Verb), request.Access, mutation: true).Principal;
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
@@ -646,8 +646,6 @@ public sealed class PortfolioFundCommandActor(
             errors.Add(new($"{command.CommandName}.Request identity does not match EntityId"));
         if (request.PortfolioVersion <= 0 || request.FundMandateVersion <= 0 || request.IdempotencyKey == Guid.Empty)
             errors.Add(new($"{command.CommandName}.Request version and idempotency values are invalid"));
-        if (string.IsNullOrWhiteSpace(request.UnderlyingRoot))
-            errors.Add(new($"{command.CommandName}.Request.UnderlyingRoot is required"));
         ValidateUtcWindow(errors, request.RequestedAtUtc, request.ExpiresAtUtc, command.CommandName);
     }
 

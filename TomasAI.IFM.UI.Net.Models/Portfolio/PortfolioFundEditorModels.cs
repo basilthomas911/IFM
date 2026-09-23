@@ -42,9 +42,6 @@ public sealed record ManualFundOrderDraftEditorModel(
     int OrderId,
     DateTime OrderDate,
     PortfolioOrderEditorStatus OrderStatus,
-    string BaseContractId,
-    DateOnly TradeDate,
-    DateOnly MaturityDate,
     string Reference,
     DateTime CreatedOn,
     string CreatedBy,
@@ -177,7 +174,9 @@ public static class PortfolioFundOrderEditorPolicy
            && order.Trades.All(candidate => candidate.TradeState is not (TradeState.TradeToClose or TradeState.OrderCompleted));
     /// <summary>Returns whether an economically inactive order may be deleted.</summary>
     public static bool CanDeleteOrder(PortfolioFundOrderEditorModel order)
-        => order.Status == nameof(FundCompositionState.Draft) && order.Trades.All(trade => CanRemoveTrade(order, trade));
+        => order.Status == nameof(FundCompositionState.Draft)
+           && (order.Trades.Length == 0
+               || order.Trades is [{ TradeState: TradeState.NewTrade }]);
     /// <summary>Returns whether another trade may be added.</summary>
     public static bool CanAddTrade(PortfolioFundOrderEditorModel order)
     {

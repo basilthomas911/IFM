@@ -1,9 +1,6 @@
-using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using MessagePack;
-using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
-using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

@@ -222,18 +222,25 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             foreach (var option in scope.Options)
             {
                 var id = option.Pricing.Contract.ContractId;
+                if (!current.TryGetValue(id, out var item))
+                    throw new CompositionMarketSourceException("QuoteUnavailable");
                 if (request.SelectionOnly)
                 {
                     var selection = pricing.ReadSelection(id);
                     if (selection is null || selection.Failure is not null || selection.Delta is null || selection.Iv is null)
                         throw new CompositionMarketSourceException(selection?.Failure?.Code ?? "SelectionCalculationPending");
                     values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
-                        { Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds) });
+                    {
+                        Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
+                        SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest,
+                        StatisticsAtUtc = item.StatisticsAtUtc
+                    });
                     continue;
                 }
-                if (!current.TryGetValue(id, out var item) || item.Quote is not { } quote)
+                if (item.Quote is not { } && !request.AllowMissingOptionQuotes)
                     throw new CompositionMarketSourceException("QuoteUnavailable");
-                values.Add(new(id, Convert(quote.Tick), option.Pricing, option.Strike, option.IsCall, underlying));
+                values.Add(new(id, item.Quote is { } quote ? Convert(quote.Tick) : null, option.Pricing, option.Strike, option.IsCall, underlying)
+                { SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest, StatisticsAtUtc = item.StatisticsAtUtc });
             }
             return new(scope.Digest, generation, values.Count, values.MoveToImmutable(), null);
         }

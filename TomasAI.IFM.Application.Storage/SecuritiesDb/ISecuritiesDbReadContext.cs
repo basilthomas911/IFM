@@ -21,6 +21,13 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// scenarios.</remarks>
 public interface ISecuritiesDbReadContext
 {
+    Task<IReadOnlyList<OptionContractExpiryReadModel>> GetOptionContractExpiriesAsync(
+        string symbol, DateOnly fromExpiry, DateOnly throughExpiry,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> GetCachedOptionContractDefinitionsAsync(
+        string symbol, string underlyingContractId, DateOnly expiryDate,
+        IReadOnlyCollection<string>? providerRoots = null,
+        CancellationToken cancellationToken = default);
     Task<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(string symbol);
     Task<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(string symbol, CancellationToken cancellationToken);
     Task<ICollection<FuturesContractV3ReadModel>> GetRolloverFuturesContractsAsync(string symbol);

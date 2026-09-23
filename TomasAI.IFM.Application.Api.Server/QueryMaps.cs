@@ -390,6 +390,15 @@ public static class MarketDataQueries
             return await e.RequestAsync<MarketSessionReadModel, GetMarketSessionQuery>(query);
         });
 
+        endpoints.MapPost("/api/market-data/option-expiries/refresh", async (
+            OptionContractExpiryCalendarRefreshService refresh,
+            [FromQuery] string symbol,
+            CancellationToken cancellationToken) =>
+        {
+            var count = await refresh.RefreshAsync(symbol, cancellationToken);
+            return Results.Ok(new { Symbol = symbol.Trim().ToUpperInvariant(), Count = count });
+        });
+
 
         return endpoints;
     }

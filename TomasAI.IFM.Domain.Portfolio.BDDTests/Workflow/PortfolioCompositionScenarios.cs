@@ -54,8 +54,7 @@ public sealed class PortfolioCompositionScenarios
         var request = new CreateManualFundOrderRequest
         {
             PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
-            UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now),
-            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)), Reference = "manual review",
+            Reference = "manual review",
             IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
         };
 

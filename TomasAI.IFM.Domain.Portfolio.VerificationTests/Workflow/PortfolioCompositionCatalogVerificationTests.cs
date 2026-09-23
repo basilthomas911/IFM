@@ -72,8 +72,7 @@ public sealed class PortfolioCompositionCatalogVerificationTests
         var request = new CreateManualFundOrderRequest
         {
             PortfolioId = 501, PortfolioVersion = 2, FundId = 601, FundMandateVersion = 3,
-            UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now),
-            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)), IdempotencyKey = Guid.NewGuid(),
+            IdempotencyKey = Guid.NewGuid(),
             RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
         };
         var manual = new PortfolioFundCompositionAggregate().CreateManualDraft(request, 7101, Now, "verification");

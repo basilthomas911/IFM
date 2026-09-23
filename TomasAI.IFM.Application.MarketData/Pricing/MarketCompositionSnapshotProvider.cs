@@ -14,6 +14,7 @@ public sealed record CompositionSnapshotRequest([property: Key(0)] Guid Snapshot
 {
     [Key(10)] public ImmutableArray<CompositionFutureDefinition> Futures { get; init; } = Futures.IsDefault ? [] : Futures;
     [Key(11)] public bool SelectionOnly { get; init; }
+    [Key(12)] public bool AllowMissingOptionQuotes { get; init; }
 }
 
 /// <summary>One atomic source view; scope token and generation must remain stable across all pages.</summary>
@@ -31,7 +32,7 @@ public sealed record CompositionFutureDefinition(
 [MessagePackObject]
 public sealed record CompositionMarketInstrument(
     [property: Key(0)] string ContractId,
-    [property: Key(1)] OptionPricingQuote Quote,
+    [property: Key(1)] OptionPricingQuote? Quote,
     [property: Key(2)] OptionPricingContext? Pricing,
     [property: Key(3)] decimal? Strike,
     [property: Key(4)] bool? IsCall,
@@ -41,6 +42,9 @@ public sealed record CompositionMarketInstrument(
     [Key(7)]
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public OptionSelectionValue? Selection { get; init; }
+    [Key(8)] public long? SessionVolume { get; init; }
+    [Key(9)] public long? OpenInterest { get; init; }
+    [Key(10)] public DateTimeOffset? StatisticsAtUtc { get; init; }
 }
 
 /// <summary>Source owns complete-scope enumeration and current-generation price observations.</summary>
@@ -118,7 +122,37 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                     return Fail("SnapshotLimit");
                 foreach (var instrument in page.Instruments)
                 {
-                    if (!seen.Add(instrument.ContractId) || instrument.Quote.ContractId != instrument.ContractId) return Fail("ConflictingDefinition");
+                    if (!seen.Add(instrument.ContractId) || instrument.Quote is { } observedQuote && observedQuote.ContractId != instrument.ContractId) return Fail("ConflictingDefinition");
+                    if (instrument.Quote is null)
+                    {
+                        if (!request.AllowMissingOptionQuotes || !request.IncludeOptions || request.SelectionOnly
+                            || instrument.Pricing is null || instrument.Strike is null || instrument.IsCall is null)
+                            return Fail("QuoteUnavailable", instrument.ContractId);
+                        values.Add(new(instrument with { Selection = null }, null));
+                        continue;
+                    }
+                    if (request.AllowMissingOptionQuotes && request.IncludeOptions && !request.SelectionOnly
+                        && instrument.Pricing is { } optionContext && instrument.Strike is { } optionStrike
+                        && instrument.IsCall is { } optionIsCall)
+                    {
+                        var liveQuote = instrument.Quote;
+                        var quoteUsable = liveQuote.Bid > 0 && liveQuote.Ask >= liveQuote.Bid
+                            && liveQuote.BidSize >= 0 && liveQuote.AskSize >= 0
+                            && liveQuote.GenerationId == request.GenerationId
+                            && liveQuote.EventAtUtc <= request.EvaluatedAtUtc
+                            && liveQuote.ReceivedAtUtc <= request.EvaluatedAtUtc
+                            && (request.EvaluatedAtUtc - liveQuote.EventAtUtc).TotalMilliseconds
+                                <= Math.Min(optionContext.MaximumQuoteAgeMilliseconds, request.MaximumQuoteAgeMilliseconds);
+                        if (!quoteUsable)
+                        {
+                            values.Add(new(instrument with { Quote = null, Selection = null }, null));
+                            continue;
+                        }
+                        var priced = instrument.Underlying is null ? null : Black76PricingModel.Calculate(
+                            optionContext, instrument.Underlying, liveQuote, optionStrike, optionIsCall, request.EvaluatedAtUtc).Value;
+                        values.Add(new(instrument with { Selection = null }, priced));
+                        continue;
+                    }
                     OptionPricingValue? value = null;
                     var effectiveInstrument = instrument;
                     int maximumAge = request.MaximumQuoteAgeMilliseconds;
