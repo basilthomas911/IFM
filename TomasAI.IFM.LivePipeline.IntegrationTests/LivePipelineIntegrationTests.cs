@@ -183,6 +183,27 @@ public sealed class LivePipelineIntegrationTests
     }
 
     [Fact]
+    public async Task Failed_hard_reset_retries_after_cooldown()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Aggregation";
+        host.Probe.ResetFailure = new IOException("Injected failure");
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(2, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(3, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(10));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(3, host.Probe.Resets);
+    }
+
+    [Fact]
     public async Task Configured_startup_boundary_forces_one_hard_reset_at_exactly_five_minutes()
     {
         await using var host = await Harness.StartAsync(new LivePipelineMonitorOptions

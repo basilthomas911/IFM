@@ -84,8 +84,12 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             var dueUpstream = upstream
                 .Where(check => !IsHealthy(check)
                     && upstreamRecoveries.TryGetValue(CheckKey(check), out var recovery)
-                    && recovery.Attempts == 0
-                    && now - recovery.UnhealthySinceUtc >= options.HardResetDelay)
+                    && recovery.Attempts < options.MaximumHardResetAttempts
+                    && (recovery.Attempts == 0
+                        ? now - recovery.UnhealthySinceUtc >= options.HardResetDelay
+                        : recovery.State is "HardResetFailed" or "HardResetRecoveryFailed"
+                          && recovery.LastAttemptUtc is { } attempted
+                          && now - attempted >= options.RecoveryObservationWindow))
                 .ToArray();
             var forcedResetDue = options.ForceOneHardResetAfterStartup
                 && !forcedHardResetRequested
@@ -267,7 +271,9 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 RecoveryState = upstream.LastError is null
                     ? upstream.State
                     : $"{upstream.State}: {upstream.LastError}",
-                NextRecoveryUtc = upstream.Attempts == 0
+                NextRecoveryUtc = upstream.Attempts >= options.MaximumHardResetAttempts
+                    ? null
+                    : upstream.Attempts == 0
                     ? upstream.UnhealthySinceUtc + options.HardResetDelay
                     : upstream.LastAttemptUtc + options.RecoveryObservationWindow
             };

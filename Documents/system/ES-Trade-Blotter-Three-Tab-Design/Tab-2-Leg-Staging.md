@@ -8,7 +8,7 @@ Receives selections from Tab 1, presents the complete composition, calculates pr
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [ Market Selection ] [ Leg Staging (4) ] [ Orders and Fills ]       Strategy: [ Iron Condor      ▼ ] │
+│ [ Market Selection ] [ Leg Staging  ] [ Orders and Fills ]       Strategy: [ Iron Condor      ▼ ] │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ IRON CONDOR   ESZ26 @ 5,420.50   EXP 16 Oct 26 (28 DTE)   IV 16.4% (Rank 32)                        │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────┤

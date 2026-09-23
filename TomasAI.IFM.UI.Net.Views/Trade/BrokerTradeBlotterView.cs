@@ -171,7 +171,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             Name = "tradeBlotterTabs", Dock = DockStyle.Fill, Appearance = TabAppearance.Normal
         };
         var market = new TabPage("Market Selection") { Name = "marketSelectionTab", BackColor = Color.Black, ForeColor = Color.White };
-        _stagingTab = new TabPage("Leg Staging (0)") { Name = "legStagingTab", BackColor = Color.Black, ForeColor = Color.White };
+        _stagingTab = new TabPage("Leg Staging") { Name = "legStagingTab", BackColor = Color.Black, ForeColor = Color.White };
         var orders = new TabPage("Orders and Fills") { Name = "ordersAndFillsTab", BackColor = Color.Black, ForeColor = Color.White };
         tabs.TabPages.AddRange([market, _stagingTab, orders]);
         _volatilityContext = new VolatilityContextHistoryControl();
@@ -1231,7 +1231,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private void UpdateMarketSelectionStatus()
     {
         _selectedMarketContractIds = _selectedMarketContracts.ToArray();
-        _stagingTab.Text = $"Leg Staging ({_selectedMarketContracts.Count})";
+        _stagingTab.Text = "Leg Staging";
         _marketSelectionLabel.Text =
             $"Selected legs: {_selectedMarketContracts.Count} / {MaximumSelectedLegs} - Select a Call or Put quote to stage a leg";
         RefreshSelectedLegRows();

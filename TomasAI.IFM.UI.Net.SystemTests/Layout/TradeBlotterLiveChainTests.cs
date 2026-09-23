@@ -276,7 +276,7 @@ public sealed class TradeBlotterLiveChainTests
         Assert.Equal("+LP", SelectedValue("PutSelected", 3));
         Assert.Equal(10m, SelectedValue("PutBid", 2));
         Assert.Null(SelectedValue("CallBid", 2));
-        Assert.Contains("(4)", ((TabControl)blotter.Controls.Find("tradeBlotterTabs", true).Single())
+        Assert.Equal("Leg Staging", ((TabControl)blotter.Controls.Find("tradeBlotterTabs", true).Single())
             .TabPages[1].Text);
 
         var format = typeof(EsTradeBlotterControl).GetMethod("MarketGridCellFormatting",

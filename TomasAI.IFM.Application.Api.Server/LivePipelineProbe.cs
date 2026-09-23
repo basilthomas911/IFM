@@ -143,8 +143,12 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
             {
                 var bar = await db.MarketDataDb.GetLastFuturesBarDataAsync(contract.ContractId, symbol, date).WaitAsync(token).ConfigureAwait(false);
                 var valid = bar is not null && bar.ContractId == contract.ContractId && bar.ValueDate == date;
-                Add("Chart storage/query", symbol, valid && now - bar!.BarDate < TimeSpan.FromSeconds(45),
-                    "Expected a current 15-second chart bar in durable storage.", bar?.BarDate);
+                Add("Chart storage/query", symbol,
+                    valid && (session.IsOffTrading || now - bar!.BarDate < TimeSpan.FromSeconds(45)),
+                    session.IsOffTrading
+                        ? "Off-trading storage/query must return a bar for the active value date; a quiet market does not require a new bar."
+                        : "Expected a current 15-second chart bar in durable storage.",
+                    bar?.BarDate);
                 if (valid) latest[symbol] = bar!.BarDate;
             }
             catch (Exception ex) when (!token.IsCancellationRequested)

@@ -1,0 +1,81 @@
+<div id="ifm-broker-order-fills-mockup">
+  <style>
+    #ifm-broker-order-fills-mockup { color-scheme: dark; color: light-dark(#171a20,#f1f3f6); font-family: "Segoe UI",Arial,sans-serif; }
+    #ifm-broker-order-fills-mockup .ifm-window { background: light-dark(#f7f8fa,#101215); border: 1px solid light-dark(#b9bdc4,#555b64); }
+    #ifm-broker-order-fills-mockup .ifm-top { padding: 8px 12px; display:flex; gap:16px; align-items:center; background:light-dark(#eceef1,#25282d); border-bottom:1px solid light-dark(#c4c8cf,#4d525b); flex-wrap:wrap; }
+    #ifm-broker-order-fills-mockup .ifm-tabs { display:flex; gap:5px; }
+    #ifm-broker-order-fills-mockup .ifm-tab { padding:5px 12px; border:1px solid light-dark(#aeb3bb,#626974); background:light-dark(#e8eaed,#31353b); }
+    #ifm-broker-order-fills-mockup .ifm-tab.active { background:light-dark(#fff,#121417); border-bottom-color:light-dark(#fff,#121417); }
+    #ifm-broker-order-fills-mockup .ifm-meta { margin-left:auto; }
+    #ifm-broker-order-fills-mockup .ifm-section { padding:8px 12px; }
+    #ifm-broker-order-fills-mockup .ifm-heading { display:flex; justify-content:space-between; gap:10px; align-items:center; border-bottom:1px solid light-dark(#b9bdc4,#555b64); padding-bottom:5px; margin-bottom:7px; }
+    #ifm-broker-order-fills-mockup .ifm-heading strong { font-weight:500; }
+    #ifm-broker-order-fills-mockup .ifm-subtle { color:light-dark(#555d69,#bac1cb); }
+    #ifm-broker-order-fills-mockup .ifm-legs { width:100%; border-collapse:collapse; }
+    #ifm-broker-order-fills-mockup .ifm-legs th,#ifm-broker-order-fills-mockup .ifm-legs td { border-bottom:1px solid light-dark(#d4d7dc,#3b4047); text-align:left; padding:4px 6px; white-space:nowrap; }
+    #ifm-broker-order-fills-mockup .ifm-legs th { background:light-dark(#e9ebee,#26292e); font-weight:500; }
+    #ifm-broker-order-fills-mockup .ifm-legs tr.short { background:light-dark(#fae5e6,#541b24); }
+    #ifm-broker-order-fills-mockup .ifm-legs tr.long { background:light-dark(#e5eeff,#173858); }
+    #ifm-broker-order-fills-mockup .ifm-row { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:7px; }
+    #ifm-broker-order-fills-mockup .ifm-row label { display:inline-flex; gap:5px; align-items:center; }
+    #ifm-broker-order-fills-mockup .ifm-row input,#ifm-broker-order-fills-mockup .ifm-row select { min-width:55px; max-width:126px; }
+    #ifm-broker-order-fills-mockup .ifm-economics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px 10px; margin-top:8px; padding:7px; background:light-dark(#e9ebef,#20242a); }
+    #ifm-broker-order-fills-mockup .ifm-economic { display:flex; justify-content:space-between; gap:5px; border-bottom:1px solid light-dark(#c4c8ce,#3d434b); }
+    #ifm-broker-order-fills-mockup .ifm-economic strong { font-weight:500; }
+    #ifm-broker-order-fills-mockup .ifm-divider { border-top:3px double light-dark(#9ea3aa,#777f89); text-align:center; background:light-dark(#eceef1,#292d32); }
+    #ifm-broker-order-fills-mockup .ifm-split { display:grid; grid-template-columns:minmax(275px,39%) minmax(0,61%); border-top:1px solid light-dark(#b9bdc4,#555b64); }
+    #ifm-broker-order-fills-mockup .ifm-tree { border-right:1px solid light-dark(#b9bdc4,#555b64); padding:8px; }
+    #ifm-broker-order-fills-mockup .ifm-detail { padding:8px 11px; }
+    #ifm-broker-order-fills-mockup .ifm-tree-line { display:flex; gap:5px; align-items:center; padding:4px 5px; white-space:nowrap; }
+    #ifm-broker-order-fills-mockup .ifm-tree-line.selected { background:light-dark(#dce8fa,#214365); }
+    #ifm-broker-order-fills-mockup .ifm-child { padding-left:21px; }
+    #ifm-broker-order-fills-mockup .ifm-dot { display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; }
+    #ifm-broker-order-fills-mockup .ifm-dot.yellow { background:#f5d84d; }
+    #ifm-broker-order-fills-mockup .ifm-dot.green { background:#42c777; }
+    #ifm-broker-order-fills-mockup .ifm-dot.red { background:#ed6868; }
+    #ifm-broker-order-fills-mockup .ifm-detail-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px 10px; margin:7px 0; }
+    #ifm-broker-order-fills-mockup .ifm-detail-grid div { border-bottom:1px solid light-dark(#d4d7dc,#3b4047); padding-bottom:4px; }
+    #ifm-broker-order-fills-mockup .ifm-footer { padding:7px 12px; border-top:1px solid light-dark(#b9bdc4,#555b64); }
+    @media (max-width:750px) { #ifm-broker-order-fills-mockup .ifm-split { grid-template-columns:1fr; } #ifm-broker-order-fills-mockup .ifm-tree { border-right:0; border-bottom:1px solid light-dark(#b9bdc4,#555b64); } #ifm-broker-order-fills-mockup .ifm-economics { grid-template-columns:repeat(2,minmax(0,1fr)); } #ifm-broker-order-fills-mockup .ifm-detail-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  </style>
+  <div class="ifm-window">
+    <div class="ifm-top"><div class="ifm-tabs"><span class="ifm-tab">Market Selection</span><span class="ifm-tab active">Broker Order/Fills</span></div><span class="ifm-meta">Portfolio P-01 · Fund F-04 · Iron Condor · ESZ26</span></div>
+    <section class="ifm-section" aria-label="Broker order proposal">
+      <div class="ifm-heading"><strong>BROKER ORDER · 4 / 4 staged legs</strong><span class="ifm-subtle">Expiry 16 Oct 26 · Underlying 5,420.50 · IV 16.4%</span></div>
+      <div class="table-responsive"><table class="ifm-legs" aria-label="Four staged iron condor legs"><thead><tr><th>Action</th><th>Contract</th><th>Type</th><th>Strike</th><th>Role</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Age</th><th>Qty</th></tr></thead><tbody>
+        <tr class="long"><td>BUY</td><td>ESZ26 P5250</td><td>Put</td><td>5250</td><td>+LP</td><td>14.25</td><td>14.75</td><td>14.50</td><td>120 ms</td><td>1</td></tr>
+        <tr class="short"><td>SELL</td><td>ESZ26 P5300</td><td>Put</td><td>5300</td><td>−SP</td><td>22.00</td><td>22.50</td><td>22.25</td><td>115 ms</td><td>1</td></tr>
+        <tr class="short"><td>SELL</td><td>ESZ26 C5550</td><td>Call</td><td>5550</td><td>−SC</td><td>19.50</td><td>20.00</td><td>19.75</td><td>130 ms</td><td>1</td></tr>
+        <tr class="long"><td>BUY</td><td>ESZ26 C5600</td><td>Call</td><td>5600</td><td>+LC</td><td>11.00</td><td>11.50</td><td>11.25</td><td>125 ms</td><td>1</td></tr>
+      </tbody></table></div>
+      <div class="ifm-row"><label>Combo units <input class="form-control" type="number" value="1" min="1"></label><label>Order type <select class="form-select"><option>Limit</option><option>Market</option></select></label><label>TIF <select class="form-select"><option>Day</option><option>GTC</option></select></label><label>Intent <select class="form-select"><option>Open</option><option>Close</option></select></label><span>Route: qualified venue · Atomic combo · No SMART</span></div>
+      <div class="ifm-row"><span>Net bid 16.00</span><button type="button" class="btn">Bid</button><span>Mid 16.25</span><button type="button" class="btn">Mid</button><span>Net ask 16.50</span><button type="button" class="btn">Ask</button><label>Net limit <button type="button" class="btn">−</button><input class="form-control" value="16.50" aria-label="Proposed net limit"><button type="button" class="btn">+</button></label><span>Tick 0.05</span></div>
+      <div class="ifm-row"><label>Algorithm <select class="form-select"><option>None</option><option>IFM Atomic Combo Microexecution</option></select></label><label>Pace <select class="form-select" disabled><option>—</option></select></label><span>Approved worst net limit 15.75 · Profile — · Deadline —</span></div>
+      <div class="ifm-economics" aria-label="Fund economics and limits"><div class="ifm-economic"><span>Available fund</span><strong>$125,000</strong></div><div class="ifm-economic"><span>Reserved capital</span><strong>$1,675</strong></div><div class="ifm-economic"><span>Risk margin</span><strong>$1,675</strong></div><div class="ifm-economic"><span>Max profit</span><strong>$825</strong></div><div class="ifm-economic"><span>Max loss</span><strong>$1,675</strong></div><div class="ifm-economic"><span>Max return</span><strong>49.3%</strong></div><div class="ifm-economic"><span>Min profit target</span><strong>$412</strong></div><div class="ifm-economic"><span>Fund risk limit</span><strong>$2,000</strong></div></div>
+      <div class="ifm-row"><span>Put width 50 · Call width 50 · Net Δ −0.02 · Vega −32.4 · Theta +45.1</span><span class="ifm-subtle">Structure ✓ Quotes ✓ Broker ✓ Risk approved · revision 47</span></div>
+      <div class="ifm-row"><button type="button" class="btn">Clear staged legs</button><button type="button" class="btn">Recalculate / validate</button><button type="button" class="btn btn-primary">Submit opening order</button></div>
+    </section>
+    <div class="ifm-divider" aria-label="Resizable divider">⋮</div>
+    <section class="ifm-section" aria-label="Orders and fills">
+      <div class="ifm-heading"><strong>ORDERS AND FILLS</strong><div class="ifm-row"><label>Value date <input class="form-control" type="date" value="2026-10-16"></label><label class="form-check"><input class="form-check-input" type="checkbox"> Working only</label><label class="form-check"><input class="form-check-input" type="checkbox"> Today only</label><button type="button" class="btn">Refresh / resync</button></div></div>
+      <div class="ifm-split">
+        <div class="ifm-tree" role="tree" aria-label="All broker orders for selected value date">
+          <div class="ifm-tree-line selected" role="treeitem" aria-selected="true" aria-expanded="true">▾ ORD-042 · Iron Condor · 2/5 <span class="ifm-dot yellow" aria-hidden="true"></span> Working</div>
+          <div class="ifm-tree-line ifm-child" role="treeitem">├ Fill 1 · 1 combo · 10:16:03</div>
+          <div class="ifm-tree-line ifm-child" role="treeitem">└ Fill 2 · 1 combo · 10:18:21</div>
+          <div class="ifm-tree-line" role="treeitem" aria-expanded="true">▾ ORD-041 · Vertical · 2/2 <span class="ifm-dot green" aria-hidden="true"></span> Filled</div>
+          <div class="ifm-tree-line ifm-child" role="treeitem">└ Fill 1 · 2 combos · 09:45:10</div>
+          <div class="ifm-tree-line" role="treeitem" aria-expanded="false">▸ ORD-040 · Iron Condor · 0/1 <span class="ifm-dot red" aria-hidden="true"></span> Cancelled</div>
+        </div>
+        <div class="ifm-detail">
+          <div class="ifm-heading"><strong>ORD-042 · Partially filled</strong><span>Broker BRK-88214 · Revision 47</span></div>
+          <div class="ifm-detail-grid"><div>Portfolio P-01 · Fund F-04</div><div>Fund Order 16001 · Trade T-02</div><div>Account IFM-EMULATOR-PAPER</div><div>Requested 5 combos</div><div>Filled 2 · Remaining 3</div><div>Limit 16.50 · Mid 16.25</div><div>Average fill 16.40</div><div>Fees $12.50</div><div>Posting pending</div></div>
+          <div class="ifm-row"><span>Proposed net limit</span><button type="button" class="btn">−</button><input class="form-control" value="16.25" aria-label="Proposed update net limit"><button type="button" class="btn">+</button><span>Tick 0.05 · Approved floor 15.75</span></div>
+          <div class="ifm-row"><button type="button" class="btn">Update Limit</button><button type="button" class="btn">Cancel Unfilled</button></div>
+          <div class="ifm-row ifm-subtle">Selected order: two reconciled whole-combo fills · no pending amendment</div>
+        </div>
+      </div>
+    </section>
+    <div class="ifm-footer"><button type="button" class="btn">End-of-day processing</button> <span class="ifm-subtle">Trade / position transition: pending execution completion</span></div>
+  </div>
+</div>

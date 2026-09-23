@@ -106,16 +106,29 @@ public sealed class LivePipelineProbeIntegrationTests
         await f.Epoch.Received(1).StartAsync(Arg.Any<CancellationToken>());
     }
     [Fact]
-    public async Task Healthy_feed_does_not_hide_missing_timer_stale_bars_or_missing_analytics()
+    public async Task Off_trading_quiet_bar_does_not_hide_missing_timer_or_analytics()
     {
         await using var fixture = await Fixture.Create();
         var result = await fixture.Probe.CheckAsync(default);
         Assert.Contains(result.Checks, x => x.Component == "Deployment identity" && x.Status == "Healthy");
         Assert.Contains(result.Checks, x => x.Component == "Databento feed" && x.Status == "Healthy");
         Assert.Contains(result.Checks, x => x.Component == "Bar timer" && x.Status == "Degraded");
-        Assert.Contains(result.Checks, x => x.Component == "Chart storage/query" && x.Status == "Degraded");
+        Assert.Contains(result.Checks, x => x.Component == "Chart storage/query" && x.Status == "Healthy");
         Assert.Contains(result.Checks, x => x.Component == "Analytics attachments" && x.Status == "Degraded");
         Assert.False(result.AllowsNewDecisions);
+    }
+
+    [Fact]
+    public async Task Live_trading_still_requires_a_fresh_chart_bar()
+    {
+        await using var fixture = await Fixture.Create();
+        fixture.Sessions.Current.Returns(fixture.Sessions.Current with
+        {
+            State = FuturesMarketState.LiveTrading
+        });
+        var result = await fixture.Probe.CheckAsync(default);
+        Assert.Contains(result.Checks, x =>
+            x.Component == "Chart storage/query" && x.Status == "Degraded");
     }
 
     [Fact]
