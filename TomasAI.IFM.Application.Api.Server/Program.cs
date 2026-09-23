@@ -21,6 +21,12 @@ try
     var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
     var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
+    if (args.Contains("--publish-oct1-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        await Oct1OptionPricingReferenceMaintenance.RunAsync(builder.Configuration, deadline.Token);
+        return;
+    }
     if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
@@ -159,7 +165,8 @@ try
 catch (Exception ex)
 {
     Environment.ExitCode = 1;
-    if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase))
+    if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase)
+        || args.Contains("--publish-oct1-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase))
     {
         var detail = ex.Message;
         var key = Environment.GetEnvironmentVariable("DATABENTO_API_KEY");

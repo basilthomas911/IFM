@@ -284,7 +284,7 @@ public sealed class NatsJSDurableReplayQueueTests
     }
 
     [Fact]
-    public async Task Unreadable_replay_envelope_is_retried_then_acknowledged_without_stopping_worker()
+    public async Task Unreadable_replay_envelope_remains_unacknowledged_after_retry_limit()
     {
         var transport = new FakeNatsJSDurableQueueTransport();
         await using var queue = CreateQueue(transport);
@@ -298,10 +298,33 @@ public sealed class NatsJSDurableReplayQueueTests
 
         await state.Replay.Writer.WriteAsync(poisonMessage);
 
-        await EventuallyAsync(() => poisonMessage.AckCount == 1);
-        poisonMessage.DeliveryCount.Should().Be(2);
-        poisonMessage.NakCount.Should().Be(1);
+        await EventuallyAsync(() => poisonMessage.NakCount >= 2);
+        poisonMessage.AckCount.Should().Be(0);
         state.ReplayConsumerStarts.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Failed_terminal_action_retries_until_terminal_handling_succeeds()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        queue.SetMaxReplayAttemps("projector", 1);
+        var terminalCalls = 0;
+        queue.SetMaxAttemptsReachedAction("projector", _ =>
+        {
+            if (Interlocked.Increment(ref terminalCalls) == 1)
+                throw new InvalidOperationException("terminal handling failed");
+            return CompletedDelivery;
+        });
+        await queue.DequeueAsync("projector", _ => throw new InvalidOperationException("projection failed"));
+        await queue.StartAsync("projector", TimeSpan.FromMilliseconds(1));
+
+        await queue.EnqueueAsync("projector", SampleData.Event());
+
+        var state = transport.Queues["projector"];
+        await EventuallyAsync(() => terminalCalls >= 2
+            && state.LastReplayMessage?.AckCount == 1);
+        state.LastReplayMessage!.NakCount.Should().BeGreaterThanOrEqualTo(1);
     }
 
     [Fact]

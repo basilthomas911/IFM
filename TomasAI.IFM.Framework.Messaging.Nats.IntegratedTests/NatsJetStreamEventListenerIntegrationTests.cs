@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -44,6 +45,8 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
                 var consumer = await GetConsumerAsync(jetStream, listener, resources);
                 return consumer.Info.NumAckPending == 0 && consumer.Info.AckFloor.ConsumerSeq >= 2;
             });
+            var stream = await jetStream.GetStreamAsync(listener.StreamName);
+            stream.Info.Config.Retention.Should().Be(StreamConfigRetention.Interest);
 
             calls.Should().Equal("Started");
             listener.MessageCount.Should().Be(2);

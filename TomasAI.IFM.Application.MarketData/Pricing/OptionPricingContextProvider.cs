@@ -14,7 +14,9 @@ public interface IOptionPricingContextProvider
         string pricerVersion, DateTimeOffset at, CancellationToken cancellationToken);
 }
 
-public sealed class OptionPricingContextProvider(TreasuryPricingProvider treasury) : IOptionPricingContextProvider
+public sealed record PricingSourceClockPolicy(int MaximumLeadMilliseconds);
+
+public sealed class OptionPricingContextProvider(TreasuryPricingProvider treasury, PricingSourceClockPolicy? clockPolicy = null) : IOptionPricingContextProvider
 {
     public async Task<OptionPricingContextResult> PrepareAsync(OptionPricingConvention contract, OptionPricingCalendar calendar,
         TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, Guid generation,
@@ -35,6 +37,9 @@ public sealed class OptionPricingContextProvider(TreasuryPricingProvider treasur
         if (!rate.Succeeded) return new(null, new(rate.Error!, "Treasury", contract.ContractId, "A qualified daily Treasury rate is required.", true));
         var validUntil = new[] { rate.ValidUntilUtc, contract.LastTradingUtc, contract.ExpirationUtc, contract.EffectiveUntilUtc }.Min();
         if (validUntil <= at) return new(null, new("ExpiredContract", "Validity", contract.ContractId, "Pricing reference context has expired."));
-        return new(new(contract, calendar, rate.Rate!, validUntil, generation, pricerVersion, 5000, 2000, publication.Version), null);
+        return new(new OptionPricingContext(contract, calendar, rate.Rate!, validUntil, generation, pricerVersion, 5000, 2000, publication.Version)
+        {
+            MaximumSourceClockLeadMilliseconds = clockPolicy?.MaximumLeadMilliseconds ?? 0
+        }, null);
     }
 }

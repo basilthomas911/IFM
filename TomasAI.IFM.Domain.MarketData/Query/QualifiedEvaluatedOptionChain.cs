@@ -17,9 +17,12 @@ static class QualifiedEvaluatedOptionChain
 {
     static readonly ConcurrentDictionary<string, WorkerOptionChainRequest> Leases = new();
     static readonly ConcurrentDictionary<string, CachedWindowInputs> WindowInputs = new();
+    static readonly ConcurrentDictionary<string, AtTheMoneyIv> ImpliedVolatility = new();
     sealed record CachedWindowInputs(Guid GenerationId, DateTimeOffset ExpiresAtUtc,
-        string[] ProviderRoots, FuturesOptionContractReadModel[] Definitions, decimal? Deviation);
+        string[] ProviderRoots, FuturesOptionContractReadModel[] Definitions, decimal? Price, decimal? Deviation);
+    sealed record AtTheMoneyIv(Guid GenerationId, DateTimeOffset ObservedAtUtc, double Value);
 
+    /// <summary>Returns a qualified, expiry-specific live chain, using ATM IV when available and a labelled Bollinger fallback otherwise.</summary>
     public static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteAsync(
         GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context, CancellationToken token)
     {
@@ -39,6 +42,7 @@ static class QualifiedEvaluatedOptionChain
         GetEvaluatedOptionChainQuery query,QualifiedCompositionDiscovery discovery,CancellationToken token)
     {
         WindowInputs.TryRemove(key,out _);
+        ImpliedVolatility.TryRemove(key,out _);
         if(Leases.TryRemove(key,out var lease))await discovery.ReleaseAsync(lease,token);
         return new ServiceOk<EvaluatedOptionChainReadModel>(new(query.UnderlyingContractId,
             query.ExpiryDate,null,null,null,"Released",DateTimeOffset.UtcNow,[]));
@@ -62,17 +66,26 @@ static class QualifiedEvaluatedOptionChain
             var inputs=await OptionChainWindowInputs.GetAsync(
                 context,query.UnderlyingSymbol,query.UnderlyingContractId,token);
             livePrice=inputs.Price;
-            cached=new(admission.GenerationId,now.AddSeconds(30),roots,definitions,inputs.Deviation);
+            cached=new(admission.GenerationId,now.AddSeconds(30),roots,definitions,inputs.Price,inputs.Deviation);
             WindowInputs[key]=cached;
         }
-        else livePrice=await api.GetFuturesPriceAsync(query.UnderlyingContractId).ConfigureAwait(false);
-        var window=OptionChainStrikeWindow.Select(cached.Definitions,livePrice,
-            cached.Deviation,
-            query.StandardDeviationMultiplier,query.MaximumStrikeCount,query.RequiredContractIds);
-        if(window.Contracts.Length==0)return Failed("No contracts are available in the selected strike window.");
+        else livePrice=await api.GetFuturesPriceAsync(query.UnderlyingContractId).ConfigureAwait(false) ?? cached.Price;
+        var windowPrice = cached.Price ?? livePrice;
+        var expiry = cached.Definitions.Where(x => x.ExpirationUtc is not null)
+            .Select(x => x.ExpirationUtc!.Value).DefaultIfEmpty().Min();
+        var window = windowPrice is > 0 && expiry > now
+            && ImpliedVolatility.TryGetValue(key, out var iv)
+            && iv.GenerationId == admission.GenerationId && now - iv.ObservedAtUtc < TimeSpan.FromMinutes(5)
+            ? OptionChainStrikeWindow.SelectImpliedVolatility(cached.Definitions,windowPrice.Value,
+                iv.Value,expiry,now,requiredContractIds:query.RequiredContractIds)
+            : OptionChainStrikeWindow.Select(cached.Definitions,windowPrice,cached.Deviation,
+                query.StandardDeviationMultiplier,query.RequiredContractIds);
+        if(window.Contracts.Length==0)return Failed(window.Method == "WindowInputsUnavailable"
+            ? "Neither a qualified expiry IV nor current Bollinger window inputs are available."
+            : "No contracts are available in the selected strike window.");
         var lease=await EnsureLeaseAsync(key,query,context,discovery,admission,window.Contracts,token);
-        if(lease is null)return Failed("The qualified option-chain lease could not be acquired.");
-        return await CaptureAsync(query,market,lease,window,livePrice,token);
+        if(lease.Lease is null)return Failed($"The qualified option-chain lease could not be acquired: {lease.FailureCode}.");
+        return await CaptureAsync(key,query,market,lease.Lease,window,livePrice ?? windowPrice,token);
     }
     static async Task<FuturesOptionContractReadModel[]> LoadDefinitionsAsync(
         GetEvaluatedOptionChainQuery query,IMarketDataQueryContext context,CancellationToken token)
@@ -81,32 +94,32 @@ static class QualifiedEvaluatedOptionChain
             query.UnderlyingSymbol,query.UnderlyingContractId,query.ExpiryDate,query.ProviderRoots,token);
         return cached.Select(row=>row.Definition).DistinctBy(x=>x.ContractId).ToArray();
     }
-    static async Task<WorkerOptionChainRequest?> EnsureLeaseAsync(string key,
+    static async Task<(WorkerOptionChainRequest? Lease, string? FailureCode)> EnsureLeaseAsync(string key,
         GetEvaluatedOptionChainQuery query,IMarketDataQueryContext context,
         QualifiedCompositionDiscovery discovery,DatasetWorkerAdmission admission,
         FuturesOptionContractReadModel[] contracts,CancellationToken token)
     {
         var now=DateTimeOffset.UtcNow;
         if(Leases.TryGetValue(key,out var current)&&current.GenerationId==admission.GenerationId
-            && current.LeaseExpiresAtUtc>now.AddSeconds(10)&&SameContracts(current,contracts))return current;
+            && current.LeaseExpiresAtUtc>now.AddSeconds(10)&&SameContracts(current,contracts))return (current,null);
         if(current is not null&&current.GenerationId==admission.GenerationId
             &&current.LeaseExpiresAtUtc>now&&SameContracts(current,contracts))
         {
             var renewed=await discovery.RenewAsync(current,now.AddSeconds(60),token);
-            if(renewed is not null){Leases[key]=renewed;return renewed;}
-            return current;
+            if(renewed is not null){Leases[key]=renewed;return (renewed,null);}
+            return (current,null);
         }
         var replacingSameContracts=current is not null&&current.GenerationId==admission.GenerationId
             &&current.LeaseExpiresAtUtc>now&&SameContracts(current,contracts);
         if(current is not null&&!replacingSameContracts)
         {Leases.TryRemove(key,out _);await discovery.ReleaseAsync(current,token);}
         var request=await DiscoveryRequestAsync(query,context,admission,contracts,now,token);
-        if(request is null)return null;
+        if(request is null)return (null,"DiscoveryRequestUnavailable");
         var result=await discovery.AcquireAsync(request,token);
-        if(result.Failure is not null||result.Lease is null)return null;
+        if(result.Failure is not null||result.Lease is null)return (null,result.Failure?.Code??"NoQualifiedDefinitions");
         Leases[key]=result.Lease;
         if(replacingSameContracts)await discovery.ReleaseAsync(current!,token);
-        return result.Lease;
+        return (result.Lease,null);
     }
     static bool SameContracts(WorkerOptionChainRequest lease,FuturesOptionContractReadModel[] contracts)
         => lease.Options.Select(x=>x.Pricing.Contract.ContractId).Order()
@@ -148,7 +161,7 @@ static class QualifiedEvaluatedOptionChain
     static ulong ToNanoseconds(DateTimeOffset value)=>checked((ulong)
         (value.UtcTicks-DateTimeOffset.UnixEpoch.UtcTicks)*100UL);
     static async Task<ServiceResult<EvaluatedOptionChainReadModel>> CaptureAsync(
-        GetEvaluatedOptionChainQuery query,ICompositionMarketDataApi market,WorkerOptionChainRequest lease,
+        string key,GetEvaluatedOptionChainQuery query,ICompositionMarketDataApi market,WorkerOptionChainRequest lease,
         OptionChainStrikeWindowResult window,decimal? price,CancellationToken token)
     {
         var deadline=DateTimeOffset.UtcNow.AddSeconds(5);
@@ -158,12 +171,34 @@ static class QualifiedEvaluatedOptionChain
             var request=new CompositionSnapshotRequest(Guid.NewGuid(),lease.ScopeId,"Daily",
                 lease.GenerationId,now,deadline,true) { AllowMissingOptionQuotes = true };
             var captured=await market.CaptureAsync("GLBX.MDP3",request,token);
-            if(captured.Snapshot is not null)return Success(query,captured.Snapshot,window,price);
+            if(captured.Snapshot is not null)
+            {
+                ObserveAtTheMoneyIv(key,captured.Snapshot,price);
+                return Success(query,captured.Snapshot,window,price);
+            }
             if(captured.Failure?.Code is not ("QuoteUnavailable" or "UnderlyingQuoteUnavailable"))
                 return Failed(captured.Failure?.Code??"Qualified snapshot is unavailable.");
             await Task.Delay(50,token);
         }
         return Failed("Qualified snapshot timed out.");
+    }
+    static void ObserveAtTheMoneyIv(string key,MarketCompositionSnapshot snapshot,decimal? price)
+    {
+        if(price is not > 0)return;
+        // A live option quote may update every second; hold the window's ATM IV for a
+        // bounded interval so small IV ticks do not replace the physical subscription.
+        if(ImpliedVolatility.TryGetValue(key,out var prior)
+            && prior.GenerationId==snapshot.GenerationId
+            && snapshot.EvaluatedAtUtc-prior.ObservedAtUtc<TimeSpan.FromSeconds(30))return;
+        var nearest = snapshot.Instruments.Where(x => x.Instrument.Strike is > 0
+                && x.Instrument.Quote is not null && x.Valuation is not null
+                && Math.Abs(x.Instrument.Strike!.Value-price.Value)<=price.Value*0.005m
+                && double.IsFinite(x.Valuation.ImpliedVolatility) && x.Valuation.ImpliedVolatility > 0)
+            .OrderBy(x => Math.Abs(x.Instrument.Strike!.Value-price.Value))
+            .Take(2).ToArray();
+        if(nearest.Length==0)return;
+        ImpliedVolatility[key]=new(snapshot.GenerationId,snapshot.EvaluatedAtUtc,
+            nearest.Average(x => x.Valuation!.ImpliedVolatility));
     }
     static ServiceResult<EvaluatedOptionChainReadModel> Success(GetEvaluatedOptionChainQuery query,
         MarketCompositionSnapshot snapshot,OptionChainStrikeWindowResult window,decimal? price)

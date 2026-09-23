@@ -33,7 +33,7 @@ using var stopping = new CancellationTokenSource();
 
 await WriteAsync(DatasetWorkerMessageKind.WorkerHello, healthy: false,
     "Dataset worker control host started.", Guid.NewGuid());
-var supervisor = await DatasetWorkerFrameCodec.ReadAsync(input, 1024 * 1024, stopping.Token);
+var supervisor = await DatasetWorkerFrameCodec.ReadAsync(input, 4 * 1024 * 1024, stopping.Token);
 if (supervisor.Kind != DatasetWorkerMessageKind.SupervisorHello
     || supervisor.WorkerInstanceId != worker.WorkerInstanceId
     || supervisor.Dataset != worker.Dataset
@@ -97,8 +97,11 @@ try
                 }
                 catch (Exception exception) when (!stopping.IsCancellationRequested)
                 {
+                    var detail = exception.GetType().Name + ": " + exception.Message;
+                    var apiKey = Environment.GetEnvironmentVariable("DATABENTO_API_KEY");
+                    if (!string.IsNullOrEmpty(apiKey)) detail = detail.Replace(apiKey, "[redacted]", StringComparison.Ordinal);
                     var failure = new TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure(
-                        "WorkerOperationFailed", "Chain", "", exception.GetType().Name);
+                        "WorkerOperationFailed", "Chain", "", detail[..Math.Min(detail.Length, 512)]);
                     await WriteAsync(command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot
                         ? DatasetWorkerMessageKind.CompositionSnapshotResult : DatasetWorkerMessageKind.OptionChainResult,
                         datasetRuntime?.IsHealthy == true, "Option operation failed.", command.CorrelationId,
@@ -181,7 +184,7 @@ async Task ReadCommandsAsync()
     {
         while (!stopping.IsCancellationRequested)
         {
-            var command = await DatasetWorkerFrameCodec.ReadAsync(input, 1024 * 1024, stopping.Token);
+            var command = await DatasetWorkerFrameCodec.ReadAsync(input, 4 * 1024 * 1024, stopping.Token);
             await commands.Writer.WriteAsync(command, stopping.Token);
         }
     }
@@ -287,7 +290,7 @@ async ValueTask WriteAsync(
         OptionChainResult = chainResult,
         CompositionResult = compositionResult,
         BootstrapToken = bootstrapToken
-    }, 1024 * 1024, stopping.Token);
+    }, 4 * 1024 * 1024, stopping.Token);
 }
 
 bool ValidSupervisorFrame(DatasetWorkerControlFrame frame)

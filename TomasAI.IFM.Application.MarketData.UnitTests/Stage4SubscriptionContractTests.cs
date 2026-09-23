@@ -35,11 +35,18 @@ public sealed class Stage4SubscriptionContractTests
     {
         var option = Ticker("call", true);
         Action duplicates = () => Chain([option, option]);
-        Action oversized = () => Chain(Enumerable.Range(0, 513).Select(i => Ticker(i.ToString(), true)));
+        Action oversized = () => Chain(Enumerable.Range(0, 2049).Select(i => Ticker(i.ToString(), true)));
         Action foreign = () => Chain([new("databento", "OTHER", "call", "mbp-1", SubscriptionAssetKind.FuturesOption)]);
         duplicates.Should().Throw<ArgumentException>();
         oversized.Should().Throw<ArgumentException>();
         foreign.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Chain_accepts_a_complete_window_above_the_old_512_contract_limit()
+    {
+        var chain = Chain(Enumerable.Range(0, 600).Select(i => Ticker(i.ToString(), true)));
+        chain.Options.Count.Should().Be(600);
     }
 
     [Theory]

@@ -60,7 +60,7 @@ public sealed record SubscriptionTickerKey
 /// <summary>Immutable exact discovery universe. Provider mapping/expiry validation is a separate admission step.</summary>
 public sealed class SubscriptionChainKey : IEquatable<SubscriptionChainKey>
 {
-    public const int MaximumContracts = 512;
+    public const int MaximumContracts = 2048;
     public SubscriptionTickerKey Underlying { get; }
     public DateOnly MaturityDate { get; }
     public DateOnly ValueDate { get; }

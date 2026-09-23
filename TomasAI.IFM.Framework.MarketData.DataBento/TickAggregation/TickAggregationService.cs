@@ -1027,7 +1027,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             quote.AskCount,
             quote.Header.Sequence,
             FromUnixNanoseconds(quote.Header.EventTimestampNanoseconds),
-            FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
+            FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds))
+        {
+            LocalReceivedAtUtc = DateTimeOffset.UtcNow
+        };
 
         if (_lastPrices is not null && !_lastPrices.TryUpdateQuote(quoteSnapshot))
         {

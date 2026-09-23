@@ -71,13 +71,13 @@ public sealed class FuturesEodDataUIViewModelTests
     }
 
     [Fact]
-    public void Invalid_vwap_is_presented_as_unavailable()
+    public void Invalid_vwap_is_presented_as_provisional()
     {
         var viewModel = new FuturesEodDataUIViewModel(Snapshot(5426m, isValid: false));
 
-        viewModel.Vwap.Should().Be("N/A");
-        viewModel.VwapForeColor.Should().Be(PresentationColorRole.LightText);
-        viewModel.VwapBackColor.Should().Be(PresentationColorRole.Default);
+        viewModel.Vwap.Should().Be("~5426.00");
+        viewModel.VwapForeColor.Should().Be(PresentationColorRole.DarkText);
+        viewModel.VwapBackColor.Should().Be(PresentationColorRole.Caution);
     }
 
     [Fact]

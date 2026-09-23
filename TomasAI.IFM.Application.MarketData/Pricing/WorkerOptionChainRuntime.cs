@@ -67,7 +67,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             if (string.IsNullOrWhiteSpace(request.ScopeId) || request.ScopeId.Length > 128 || request.LeaseId == Guid.Empty
                 || request.LeaseExpiresAtUtc.Offset != TimeSpan.Zero || request.LeaseExpiresAtUtc <= at
                 || request.LeaseExpiresAtUtc > at.AddSeconds(120) || request.Options.IsDefaultOrEmpty
-                || request.Options.Length > 512 || MessagePackBinarySerializer.MeasureContent(request) > 524288)
+                || request.Options.Length > 2048 || MessagePackBinarySerializer.MeasureContent(request) > 4 * 1024 * 1024)
                 return Failure("InvalidChainRequest");
             if (endedLeases.Contains(request.LeaseId)) return Failure("LeaseEnded");
             if (endedLeases.Count + scopes.Values.Sum(s => s.Leases.Count) >= 4096
@@ -123,8 +123,11 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             if (scopes.Values.Any(s => s.Key == key)) return Failure("ConflictingChainScope");
             if (scopes.Count >= 8 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > 2048) return Failure("ChainCapacity");
             var quote = ReadUnderlying(underlying!);
-            if (quote is null || quote.Bid <= 0 || quote.Ask < quote.Bid || quote.EventAtUtc > at
-                || quote.ReceivedAtUtc > at || ordered.Any(o => (at - quote.EventAtUtc).TotalMilliseconds > o.Pricing.MaximumQuoteAgeMilliseconds))
+            if (quote is null || quote.Bid <= 0 || quote.Ask < quote.Bid
+                || quote.ReceivedAtUtc > at || ordered.Any(o =>
+                    quote.EventAtUtc > at.AddMilliseconds(o.Pricing.MaximumSourceClockLeadMilliseconds)
+                    || (at - quote.EventAtUtc).TotalMilliseconds > o.Pricing.MaximumQuoteAgeMilliseconds
+                    || (at - quote.ReceivedAtUtc).TotalMilliseconds > o.Pricing.MaximumQuoteAgeMilliseconds))
                 return Failure("UnderlyingQuoteUnavailable");
             var routes = ordered.Select(o => new DatabentoOptionChainRoute
             {
@@ -142,7 +145,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     {
                         Underlying = underlying!, MaturityDate = request.MaturityDate,
                         Strikes = ordered.Select(x => x.Strike).Distinct().Order().ToArray(),
-                        ResolvedContracts = routes.Select(x => x.Definition).ToArray()
+                        ResolvedContracts = routes.Select(x => x.Definition).ToArray(),
+                        DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
                     }
                 }, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -216,8 +220,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 || !scopes.TryGetValue(request.ScopeId, out var scope)) throw new CompositionMarketSourceException("ChainUnavailable");
             var current = state.GetSession(scope.Key).ToDictionary(x => x.Route.FuturesOptionContractId, StringComparer.Ordinal);
             if (current.Count != scope.Options.Length) throw new CompositionMarketSourceException("IncompleteChain");
-            var underlying = ReadUnderlying(scope.Key.FuturesContractId)
-                ?? throw new CompositionMarketSourceException("UnderlyingQuoteUnavailable");
+            var underlying = ReadUnderlying(scope.Key.FuturesContractId);
+            if (underlying is null && !request.AllowMissingOptionQuotes)
+                throw new CompositionMarketSourceException("UnderlyingQuoteUnavailable");
             var values = ImmutableArray.CreateBuilder<CompositionMarketInstrument>(scope.Options.Length);
             foreach (var option in scope.Options)
             {
@@ -258,7 +263,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
 
     OptionPricingQuote Convert(LastQuoteTickSnapshot quote) => new(quote.ContractId,
         quote.BidPrice ?? 0, quote.AskPrice ?? 0, quote.BidSize, quote.AskSize,
-        quote.EventTimestamp, quote.ReceiveTimestamp, quote.SourceSequence, generation);
+        quote.EventTimestamp, quote.LocalReceivedAtUtc == default ? quote.ReceiveTimestamp : quote.LocalReceivedAtUtc,
+        quote.SourceSequence, generation);
 
     static OptionContractDefinition Definition(WorkerOptionDefinition option, DateOnly maturity)
     {

@@ -173,10 +173,10 @@ internal sealed class NatsJSDurableQueueTransport(
 
             var js = _jetStream!;
             await js.CreateOrUpdateStreamAsync(
-                new StreamConfig(settings.Names.ProcessStream, [settings.Names.ProcessSubject]),
+                JetStreamTransportRetention.CreateQueue(settings.Names.ProcessStream, settings.Names.ProcessSubject),
                 cancellationToken).ConfigureAwait(false);
             await js.CreateOrUpdateStreamAsync(
-                new StreamConfig(settings.Names.ReplayStream, [settings.Names.ReplaySubject]),
+                JetStreamTransportRetention.CreateQueue(settings.Names.ReplayStream, settings.Names.ReplaySubject),
                 cancellationToken).ConfigureAwait(false);
 
             var processConsumer = await js.CreateOrUpdateConsumerAsync(

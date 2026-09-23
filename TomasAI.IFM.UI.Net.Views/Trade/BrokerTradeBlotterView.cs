@@ -19,10 +19,13 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsyncFormControl
 {
     public const int VisibleChainRowCapacity = 14;
+    private const double DefaultOuterDelta = 0.16;
+    private const decimal DefaultWingWidth = 50m;
     private static readonly Color ShortColor = Color.FromArgb(110, 24, 30);
     private static readonly Color LongColor = Color.FromArgb(20, 54, 105);
     private readonly BrokerExecutionEvidenceControl _evidence;
     private readonly DataGridView _marketGrid;
+    private readonly DataGridView _selectedLegGrid;
     private readonly DataGridView _legGrid;
     private readonly ComboBox _strategySelector;
     private readonly Label _directionValue;
@@ -52,11 +55,15 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private readonly ITradeOrderControl? _workflow;
     private readonly BrokerCapabilities _capabilities;
     private readonly bool _readOnly;
+    private readonly TradeType _tradeType;
     private readonly VolatilityContextHistoryControl _volatilityContext;
     private readonly TradeBlotterStrategy _strategy;
     private readonly IAppRoot _appRoot;
     private readonly List<OptionChainDisplayRow> _optionChainRows = [];
+    private readonly List<OptionChainDisplayRow> _selectedLegRows = [];
+    private decimal? _nearestUnderlyingStrike;
     private readonly HashSet<string> _selectedMarketContracts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _selectedMarketRoles = new(StringComparer.Ordinal);
     private readonly Dictionary<DateOnly, string[]> _providerRootsByExpiry = new();
     private string[] _selectedMarketContractIds = [];
     private FuturesOptionContractReadModel[] _availableOptionContracts = [];
@@ -73,6 +80,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private CancellationTokenSource? _chainRequestCancellation;
     private decimal? _standardDeviationAmount;
     private DateOnly? _activeEvaluatedExpiry;
+    private DateOnly? _displayedEvaluatedExpiry;
+    private DateOnly? _defaultSelectionExpiry;
+    private bool _marketSelectionEditedManually;
     private readonly System.Windows.Forms.Timer _chainRefreshTimer = new() { Interval = 1000 };
 
     public event EventHandler? SubmitOpeningRequested;
@@ -93,6 +103,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         _appRoot = appRoot;
+        _tradeType = trade.TradeType;
         Name = "esTradeBlotter";
         AccessibleName = "ES three tab trade blotter";
         Dock = DockStyle.Fill;
@@ -171,8 +182,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                  {
                      ("CallSelected", "Selected"), ("CallDelta", "Delta"), ("CallOi", "OI"), ("CallVolume", "Vol"),
                      ("CallBid", "Bid"), ("CallAsk", "Ask"), ("Strike", "Strike"),
-                     ("PutDelta", "Delta"), ("PutOi", "OI"), ("PutVolume", "Vol"),
-                     ("PutBid", "Bid"), ("PutAsk", "Ask"), ("PutSelected", "Selected")
+                     ("PutBid", "Bid"), ("PutAsk", "Ask"), ("PutVolume", "Vol"),
+                     ("PutOi", "OI"), ("PutDelta", "Delta"), ("PutSelected", "Selected")
                  })
             _marketGrid.Columns.Add(name, text);
         _marketGrid.Columns["Strike"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -183,6 +194,17 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _marketGrid.CellClick += MarketGridCellClick;
         _marketGrid.CellFormatting += MarketGridCellFormatting;
         _marketGrid.RowPostPaint += MarketGridRowPostPaint;
+        _selectedLegGrid = Grid("selectedStrategyLegsGrid");
+        _selectedLegGrid.VirtualMode = true;
+        _selectedLegGrid.ColumnHeadersVisible = false;
+        _selectedLegGrid.ScrollBars = ScrollBars.None;
+        _selectedLegGrid.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        foreach (DataGridViewColumn column in _marketGrid.Columns)
+            _selectedLegGrid.Columns.Add(column.Name, column.HeaderText);
+        _selectedLegGrid.Columns["Strike"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        _selectedLegGrid.Columns["Strike"]!.DefaultCellStyle.Font = new Font(_selectedLegGrid.Font, FontStyle.Bold);
+        _selectedLegGrid.CellValueNeeded += SelectedLegCellValueNeeded;
+        _selectedLegGrid.CellFormatting += SelectedLegCellFormatting;
         _marketContextLabel = MarketValueLabel("-");
         _lastPriceValue = MarketValueLabel("5,420.50");
         _changeValue = MarketValueLabel("-");
@@ -286,6 +308,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     {
         _staging = staging;
         _selectedMarketContracts.Clear();
+        _selectedMarketRoles.Clear();
+        _marketSelectionEditedManually = staging is not null;
         if (staging is not null)
             foreach (var leg in staging.Legs)
                 _selectedMarketContracts.Add(leg.ContractId);
@@ -310,13 +334,14 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     {
         var layout = new TableLayoutPanel
         {
-            Name = "marketSelectionLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
+            Name = "marketSelectionLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5,
             BackColor = Color.Black, Padding = new Padding(0)
         };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
 
         var information = new TableLayoutPanel
         {
@@ -354,6 +379,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _marketSelectionLabel.Dock = DockStyle.Fill;
         _marketSelectionLabel.Padding = new Padding(8, 0, 0, 0);
         layout.Controls.Add(_marketSelectionLabel, 0, 3);
+        layout.Controls.Add(_selectedLegGrid, 0, 4);
         return layout;
     }
 
@@ -461,6 +487,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 "-0.01", "1.7K", "610", "0.75", "1.25", "")
         ]);
         _marketGrid.RowCount = _optionChainRows.Count;
+        _nearestUnderlyingStrike = 5400m;
+        RefreshSelectedLegRows();
     }
 
     private void BindOptionChain(MarketCompositionSnapshot snapshot)
@@ -479,6 +507,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _marketGrid.RowCount = _optionChainRows.Count;
         var underlying = snapshot.Instruments.Select(value => value.Instrument.Underlying)
             .FirstOrDefault(value => value is not null);
+        if (underlying is not null)
+            _nearestUnderlyingStrike = NearestStrike(_optionChainRows, (underlying.Bid + underlying.Ask) / 2m);
+        RefreshSelectedLegRows();
         var midpoint = underlying is null ? "N/A" : ((underlying.Bid + underlying.Ask) / 2m).ToString("0.00");
         _marketContextLabel.Text = snapshot.ScopeId;
         _lastPriceValue.Text = midpoint;
@@ -628,6 +659,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _availableOptionContracts = [];
         _providerRootsByExpiry.Clear();
         _availableExpiryRows = [];
+        _displayedEvaluatedExpiry = null;
+        _defaultSelectionExpiry = null;
+        _selectedMarketRoles.Clear();
+        _selectedMarketContracts.Clear();
+        _marketSelectionEditedManually = false;
         _optionChainRows.Clear();
         _marketGrid.RowCount = 0;
     }
@@ -650,6 +686,16 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         if (_expirationSelector.SelectedItem is not ExpiryChoice selected
             || string.IsNullOrWhiteSpace(_underlyingSymbol))
             return;
+        if (_displayedEvaluatedExpiry is { } displayed && displayed != selected.Value)
+        {
+            _displayedEvaluatedExpiry = null;
+            _defaultSelectionExpiry = null;
+            _selectedMarketRoles.Clear();
+            _selectedMarketContracts.Clear();
+            _marketSelectionEditedManually = false;
+            _optionChainRows.Clear();
+            _marketGrid.RowCount = 0;
+        }
         ResetChainRequestCancellation();
         var requestToken = _chainRequestCancellation!.Token;
         if (_activeEvaluatedExpiry is { } active && active != selected.Value)
@@ -710,6 +756,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 put?.ContractId));
         }
         _selectedMarketContracts.Clear();
+        _selectedMarketRoles.Clear();
+        _defaultSelectionExpiry = null;
+        _marketSelectionEditedManually = false;
         _marketGrid.RowCount = _optionChainRows.Count;
         UpdateMarketSelectionStatus();
     }
@@ -728,14 +777,14 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 CreateChainQuery(selectedExpiry), requestToken);
             if (IsDisposed || _expirationSelector.SelectedItem is not ExpiryChoice current
                 || current.Value != selectedExpiry) return;
-            if (!result.Success || result.Value is null) { _liquiditySelector.Text = "Unavailable"; return; }
+            if (!result.Success || result.Value is null) { SetSelectionText(_liquiditySelector, "Unavailable"); return; }
             _activeEvaluatedExpiry = selectedExpiry;
             BindEvaluatedChain(result.Value);
         }
         catch (OperationCanceledException) when (requestToken.IsCancellationRequested) { return; }
         catch (Exception)
         {
-            if (!IsDisposed) _liquiditySelector.Text = "Unavailable";
+            if (!IsDisposed) SetSelectionText(_liquiditySelector, "Unavailable");
         }
         finally { _chainRefreshInProgress = false; }
     }
@@ -752,7 +801,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         UnderlyingContractId = _underlyingContractId, UnderlyingSymbol = _underlyingSymbol,
         ProviderRoots = ProviderRootsFor(expiry),
         ExpiryDate = expiry, StandardDeviationAmount = _standardDeviationAmount,
-        StandardDeviationMultiplier = 2.5, MaximumStrikeCount = 80,
+        StandardDeviationMultiplier = 2.5,
         RequiredContractIds = _selectedMarketContractIds
     };
 
@@ -780,17 +829,30 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private void BindEvaluatedChain(EvaluatedOptionChainReadModel chain)
     {
+        if (_displayedEvaluatedExpiry != chain.ExpiryDate)
+        {
+            _displayedEvaluatedExpiry = chain.ExpiryDate;
+            _defaultSelectionExpiry = null;
+            _selectedMarketContracts.Clear();
+            _selectedMarketRoles.Clear();
+            _marketSelectionEditedManually = false;
+            _optionChainRows.Clear();
+            _nearestUnderlyingStrike = null;
+        }
         var byStrike = new Dictionary<decimal, (EvaluatedOptionContractReadModel? Call, EvaluatedOptionContractReadModel? Put)>();
-        DateTimeOffset? latestQuote = null;
+        foreach (var row in _optionChainRows)
+        {
+            if (row.Strike is not { } strike) continue;
+            byStrike[strike] = (row.CallEvaluated, row.PutEvaluated);
+        }
         foreach (var contract in chain.Contracts)
         {
             byStrike.TryGetValue(contract.Strike, out var pair);
-            if (contract.IsCall) pair.Call = contract;
-            else pair.Put = contract;
+            if (contract.IsCall) pair.Call = MergeEvaluatedContract(pair.Call, contract);
+            else pair.Put = MergeEvaluatedContract(pair.Put, contract);
             byStrike[contract.Strike] = pair;
-            if (contract.QuoteAtUtc is { } quotedAt && (latestQuote is null || quotedAt > latestQuote))
-                latestQuote = quotedAt;
         }
+        TryApplyDefaultCondorSelection(chain);
         var strikes = byStrike.Keys.ToArray();
         Array.Sort(strikes);
         var nextRows = new List<OptionChainDisplayRow>(strikes.Length);
@@ -834,16 +896,131 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             if (changedCount > changedRows.Length) _marketGrid.Invalidate();
             else for (var index = 0; index < changedCount; index++) _marketGrid.InvalidateRow(changedRows[index]);
         }
-        SetTextIfChanged(_lastPriceValue, chain.UnderlyingPrice?.ToString("0.00")??"-");
+        if (chain.UnderlyingPrice is { } currentPrice)
+        {
+            var nearest = NearestStrike(_optionChainRows, currentPrice);
+            if (_nearestUnderlyingStrike != nearest)
+            {
+                _nearestUnderlyingStrike = nearest;
+                _marketGrid.Invalidate();
+            }
+        }
+        RefreshSelectedLegRows();
+        if (chain.UnderlyingPrice is { } underlyingPrice)
+            SetTextIfChanged(_lastPriceValue, underlyingPrice.ToString("0.00"));
         var representativeIv = RepresentativeImpliedVolatility(chain);
-        SetTextIfChanged(_ivValue, representativeIv is null
-            ? "-"
-            : representativeIv.Value.ToString("P1", System.Globalization.CultureInfo.InvariantCulture));
-        SetTextIfChanged(_quoteAgeValue, $"{Math.Max(0, (chain.AsOfUtc - (latestQuote ?? chain.AsOfUtc)).TotalMilliseconds):0} ms");
+        if (representativeIv is not null)
+            SetTextIfChanged(_ivValue, representativeIv.Value.ToString("P1", System.Globalization.CultureInfo.InvariantCulture));
+        DateTimeOffset? latestQuote = null;
+        foreach (var pair in byStrike.Values)
+        {
+            if (pair.Call?.QuoteAtUtc is { } callQuote && (latestQuote is null || callQuote > latestQuote))
+                latestQuote = callQuote;
+            if (pair.Put?.QuoteAtUtc is { } putQuote && (latestQuote is null || putQuote > latestQuote))
+                latestQuote = putQuote;
+        }
+        if (latestQuote is not null)
+            SetTextIfChanged(_quoteAgeValue, $"{Math.Max(0, (chain.AsOfUtc - latestQuote.Value).TotalMilliseconds):0} ms");
         _expectedMoveValue.Text = _standardDeviationAmount is { } expectedMove
             ? $"±{expectedMove:0.00}"
             : "-";
-        SetTextIfChanged(_liquiditySelector, chain.WindowMethod);
+        SetSelectionText(_liquiditySelector, chain.WindowMethod);
+    }
+
+    private void TryApplyDefaultCondorSelection(EvaluatedOptionChainReadModel chain)
+    {
+        if (_tradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor)
+            || _defaultSelectionExpiry == chain.ExpiryDate
+            || _marketSelectionEditedManually || _selectedMarketContracts.Count != 0)
+            return;
+        var call = chain.Contracts
+            .Where(value => value.IsCall && value.Delta is > 0 and < 0.5)
+            .OrderBy(value => Math.Abs(value.Delta!.Value - DefaultOuterDelta))
+            .ThenBy(value => chain.UnderlyingPrice is { } price
+                ? Math.Abs(value.Strike - price) : 0m)
+            .FirstOrDefault();
+        var put = chain.Contracts
+            .Where(value => !value.IsCall && value.Delta is < 0 and > -0.5)
+            .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - DefaultOuterDelta))
+            .ThenBy(value => chain.UnderlyingPrice is { } price
+                ? Math.Abs(value.Strike - price) : 0m)
+            .FirstOrDefault();
+        if (call is null || put is null) return;
+        var callWing = FindWingContract(chain, call.Strike + DefaultWingWidth, true);
+        var putWing = FindWingContract(chain, put.Strike - DefaultWingWidth, false);
+        if (callWing is null || putWing is null) return;
+
+        var shortCondor = _tradeType == TradeType.ShortIronCondor;
+        Add(call.ContractId, shortCondor ? "-SC" : "+LC");
+        Add(callWing, shortCondor ? "+LC" : "-SC");
+        Add(put.ContractId, shortCondor ? "-SP" : "+LP");
+        Add(putWing, shortCondor ? "+LP" : "-SP");
+        _defaultSelectionExpiry = chain.ExpiryDate;
+        UpdateMarketSelectionStatus();
+
+        void Add(string contractId, string label)
+        {
+            _selectedMarketContracts.Add(contractId);
+            _selectedMarketRoles[contractId] = label;
+        }
+    }
+
+    private string? FindWingContract(EvaluatedOptionChainReadModel chain, decimal strike, bool isCall)
+    {
+        var live = chain.Contracts.FirstOrDefault(value => value.IsCall == isCall && value.Strike == strike);
+        if (live is not null) return live.ContractId;
+        return _availableOptionContracts
+            .Where(value => GetOptionExpiry(value) == chain.ExpiryDate
+                && (decimal)value.StrikePrice == strike
+                && value.OptionType.StartsWith(isCall ? "C" : "P", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(value => value.ContractId, StringComparer.Ordinal)
+            .Select(value => value.ContractId)
+            .FirstOrDefault();
+    }
+
+    private string SelectedLabel(OptionChainDisplayRow row, bool callSide)
+    {
+        var contract = ContractKey(row, callSide);
+        if (contract is not null && _selectedMarketRoles.TryGetValue(contract, out var role)
+            && _selectedMarketContracts.Contains(contract))
+            return role;
+        if (contract is not null && _selectedMarketContracts.Contains(contract))
+            return "SELECTED";
+        return callSide ? row.CallSelected : row.PutSelected;
+    }
+
+    private static EvaluatedOptionContractReadModel MergeEvaluatedContract(
+        EvaluatedOptionContractReadModel? previous, EvaluatedOptionContractReadModel incoming)
+    {
+        if (previous is null || previous.ContractId != incoming.ContractId) return incoming;
+        return incoming with
+        {
+            Bid = incoming.Bid ?? previous.Bid,
+            Ask = incoming.Ask ?? previous.Ask,
+            BidSize = incoming.BidSize ?? previous.BidSize,
+            AskSize = incoming.AskSize ?? previous.AskSize,
+            Last = incoming.Last ?? previous.Last,
+            LastSize = incoming.LastSize ?? previous.LastSize,
+            ImpliedVolatility = incoming.ImpliedVolatility ?? previous.ImpliedVolatility,
+            TheoreticalPrice = incoming.TheoreticalPrice ?? previous.TheoreticalPrice,
+            Delta = incoming.Delta ?? previous.Delta,
+            Gamma = incoming.Gamma ?? previous.Gamma,
+            Vega = incoming.Vega ?? previous.Vega,
+            Theta = incoming.Theta ?? previous.Theta,
+            Rho = incoming.Rho ?? previous.Rho,
+            Volume = incoming.Volume ?? previous.Volume,
+            OpenInterest = incoming.OpenInterest ?? previous.OpenInterest,
+            GreeksValid = incoming.GreeksValid || previous.GreeksValid,
+            QuoteAtUtc = incoming.QuoteAtUtc ?? previous.QuoteAtUtc,
+            TradeAtUtc = incoming.TradeAtUtc ?? previous.TradeAtUtc,
+            EvaluatedAtUtc = incoming.EvaluatedAtUtc ?? previous.EvaluatedAtUtc
+        };
+    }
+
+    private static void SetSelectionText(ComboBox selector, string value)
+    {
+        if (!selector.Items.Contains(value)) selector.Items.Add(value);
+        if (!Equals(selector.SelectedItem, value)) selector.SelectedItem = value;
     }
 
     private static void SetTextIfChanged(Control control, string value)
@@ -890,31 +1067,44 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private void MarketCellValueNeeded(object? sender, DataGridViewCellValueEventArgs e)
     {
         if (e.RowIndex < 0 || e.RowIndex >= _optionChainRows.Count) return;
-        var row = _optionChainRows[e.RowIndex];
+        e.Value = ChainCellValue(_optionChainRows[e.RowIndex], e.ColumnIndex);
+    }
+
+    private void SelectedLegCellValueNeeded(object? sender, DataGridViewCellValueEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.RowIndex >= _selectedLegRows.Count) return;
+        e.Value = ChainCellValue(_selectedLegRows[e.RowIndex], e.ColumnIndex);
+    }
+
+    private object? ChainCellValue(OptionChainDisplayRow row, int columnIndex)
+    {
         if (row.MarkerText is not null)
-        {
-            e.Value = null;
-            return;
-        }
+            return null;
+        if (columnIndex < 6 && row.Call is null && row.CallEvaluated is null
+            && row.CallContractId is null && row.CallSelected.Length == 0)
+            return null;
+        if (columnIndex > 6 && row.Put is null && row.PutEvaluated is null
+            && row.PutContractId is null && row.PutSelected.Length == 0)
+            return null;
         var call = row.Call?.Instrument;
         var put = row.Put?.Instrument;
         var callEvaluated = row.CallEvaluated;
         var putEvaluated = row.PutEvaluated;
-        e.Value = e.ColumnIndex switch
+        return columnIndex switch
         {
-            0 => row.CallSelected,
+            0 => SelectedLabel(row, true),
             1 => row.CallDelta.Length == 0 ? FormatDelta(callEvaluated?.Delta ?? call?.Selection?.Delta) : row.CallDelta,
             2 => row.CallOi.Length == 0 ? FormatCount(callEvaluated?.OpenInterest ?? call?.OpenInterest) : row.CallOi,
             3 => row.CallVolume.Length == 0 ? FormatCount(callEvaluated?.Volume ?? call?.SessionVolume) : row.CallVolume,
             4 => PreviewOr(row.CallBid, callEvaluated?.Bid ?? call?.Quote?.Bid),
             5 => PreviewOr(row.CallAsk, callEvaluated?.Ask ?? call?.Quote?.Ask),
             6 => row.Strike,
-            7 => row.PutDelta.Length == 0 ? FormatDelta(putEvaluated?.Delta ?? put?.Selection?.Delta) : row.PutDelta,
-            8 => row.PutOi.Length == 0 ? FormatCount(putEvaluated?.OpenInterest ?? put?.OpenInterest) : row.PutOi,
+            7 => PreviewOr(row.PutBid, putEvaluated?.Bid ?? put?.Quote?.Bid),
+            8 => PreviewOr(row.PutAsk, putEvaluated?.Ask ?? put?.Quote?.Ask),
             9 => row.PutVolume.Length == 0 ? FormatCount(putEvaluated?.Volume ?? put?.SessionVolume) : row.PutVolume,
-            10 => PreviewOr(row.PutBid, putEvaluated?.Bid ?? put?.Quote?.Bid),
-            11 => PreviewOr(row.PutAsk, putEvaluated?.Ask ?? put?.Quote?.Ask),
-            12 => row.PutSelected,
+            10 => row.PutOi.Length == 0 ? FormatCount(putEvaluated?.OpenInterest ?? put?.OpenInterest) : row.PutOi,
+            11 => row.PutDelta.Length == 0 ? FormatDelta(putEvaluated?.Delta ?? put?.Selection?.Delta) : row.PutDelta,
+            12 => SelectedLabel(row, false),
             _ => null
         };
     }
@@ -944,6 +1134,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var contract = ContractKey(row, callSide);
         if (string.IsNullOrWhiteSpace(contract))
             return;
+        _marketSelectionEditedManually = true;
         if (!_selectedMarketContracts.Remove(contract))
         {
             if (_selectedMarketContracts.Count >= MaximumSelectedLegs)
@@ -954,6 +1145,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             }
             _selectedMarketContracts.Add(contract);
         }
+        else _selectedMarketRoles.Remove(contract);
         UpdateMarketSelectionStatus();
     }
 
@@ -961,20 +1153,43 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     {
         if (e.RowIndex < 0 || e.RowIndex >= _optionChainRows.Count)
             return;
-        var row = _optionChainRows[e.RowIndex];
+        FormatChainCell(_optionChainRows[e.RowIndex], e, _marketGrid, true);
+    }
+
+    private void SelectedLegCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.RowIndex >= _selectedLegRows.Count)
+            return;
+        FormatChainCell(_selectedLegRows[e.RowIndex], e, _selectedLegGrid, false);
+    }
+
+    private void FormatChainCell(OptionChainDisplayRow row, DataGridViewCellFormattingEventArgs e,
+        DataGridView grid, bool highlightNearest)
+    {
         if (row.MarkerText is not null)
         {
             e.CellStyle.BackColor = Color.FromArgb(45, 45, 45);
             e.CellStyle.ForeColor = Color.Gainsboro;
             return;
         }
+        if (highlightNearest && row.Strike == _nearestUnderlyingStrike)
+        {
+            e.CellStyle.BackColor = Color.Yellow;
+            e.CellStyle.ForeColor = Color.Black;
+            if (e.ColumnIndex == 6)
+            {
+                e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                e.CellStyle.Font = grid.Columns["Strike"]!.DefaultCellStyle.Font;
+            }
+            return;
+        }
         var contract = e.ColumnIndex < 6 ? ContractKey(row, true)
             : e.ColumnIndex > 6 ? ContractKey(row, false) : null;
-        var role = e.ColumnIndex < 6 ? row.CallSelected
-            : e.ColumnIndex > 6 ? row.PutSelected : "";
+        var role = e.ColumnIndex < 6 ? SelectedLabel(row, true)
+            : e.ColumnIndex > 6 ? SelectedLabel(row, false) : "";
         if (!string.IsNullOrEmpty(role))
         {
-            e.CellStyle.BackColor = role.Contains("S", StringComparison.Ordinal) ? ShortColor : LongColor;
+            e.CellStyle.BackColor = role.StartsWith("-", StringComparison.Ordinal) ? ShortColor : LongColor;
             e.CellStyle.ForeColor = Color.White;
         }
         else if (contract is not null && _selectedMarketContracts.Contains(contract))
@@ -987,7 +1202,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             e.CellStyle.BackColor = Color.FromArgb(45, 45, 45);
             e.CellStyle.ForeColor = Color.White;
             e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            e.CellStyle.Font = _marketGrid.Columns["Strike"]!.DefaultCellStyle.Font;
+            e.CellStyle.Font = grid.Columns["Strike"]!.DefaultCellStyle.Font;
         }
     }
 
@@ -1019,8 +1234,52 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _stagingTab.Text = $"Leg Staging ({_selectedMarketContracts.Count})";
         _marketSelectionLabel.Text =
             $"Selected legs: {_selectedMarketContracts.Count} / {MaximumSelectedLegs} - Select a Call or Put quote to stage a leg";
+        RefreshSelectedLegRows();
         _marketGrid.Invalidate();
     }
+
+    private void RefreshSelectedLegRows()
+    {
+        _selectedLegRows.Clear();
+        foreach (var row in _optionChainRows)
+        {
+            if (row.Strike is null) continue;
+            if (_selectedMarketContracts.Contains(ContractKey(row, true) ?? ""))
+                _selectedLegRows.Add(row with
+                {
+                    Put = null, PutEvaluated = null, PutContractId = null,
+                    PutSelected = "", PutDelta = "", PutOi = "", PutVolume = "",
+                    PutBid = "", PutAsk = ""
+                });
+            if (_selectedMarketContracts.Contains(ContractKey(row, false) ?? ""))
+                _selectedLegRows.Add(row with
+                {
+                    Call = null, CallEvaluated = null, CallContractId = null,
+                    CallSelected = "", CallDelta = "", CallOi = "", CallVolume = "",
+                    CallBid = "", CallAsk = ""
+                });
+        }
+        _selectedLegGrid.RowCount = _selectedLegRows.Count;
+        // The default row height grows with DPI; a fixed 96px slot can hide the fourth leg.
+        // Reserve space for the strategy's maximum rows using the grid's actual row height.
+        if (_selectedLegGrid.Parent is TableLayoutPanel layout)
+        {
+            var rowHeight = _selectedLegGrid.RowCount > 0
+                ? _selectedLegGrid.Rows.Cast<DataGridViewRow>().Max(row => row.Height)
+                : _selectedLegGrid.RowTemplate.Height;
+            var visibleHeight = _selectedLegGrid.Rows.Cast<DataGridViewRow>().Sum(row => row.Height);
+            layout.RowStyles[4].Height = Math.Max(112,
+                Math.Max(visibleHeight, MaximumSelectedLegs * rowHeight) + 16);
+        }
+        _selectedLegGrid.Invalidate();
+    }
+
+    private static decimal? NearestStrike(IEnumerable<OptionChainDisplayRow> rows, decimal underlyingPrice) =>
+        rows.Where(row => row.Strike is not null)
+            .OrderBy(row => Math.Abs(row.Strike!.Value - underlyingPrice))
+            .ThenBy(row => row.Strike)
+            .Select(row => row.Strike)
+            .FirstOrDefault();
 
     private static DataGridView Grid(string name) => new()
     {
@@ -1106,7 +1365,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     }
     public async Task SetLiveFeedAsync(bool enabled)
     {
-        await RequiredWorkflow().SetLiveFeedAsync(enabled);
+        if (enabled && _readOnly)
+            throw new InvalidOperationException("Live market selection is unavailable for a read-only trade blotter.");
+        // Market Selection owns its expiry-wide evaluated chain. The hosted trade workflow
+        // may use a separate feed for chosen legs, but it must not gate this feed.
         _liveFeedEnabled = enabled;
         if (enabled)
         {
@@ -1173,8 +1435,13 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         {
             _chainRefreshTimer.Stop();
             _chainRefreshTimer.Dispose();
-            _chainRequestCancellation?.Cancel();
-            _chainRequestCancellation?.Dispose();
+            var cancellation = _chainRequestCancellation;
+            _chainRequestCancellation = null;
+            if (cancellation is not null)
+            {
+                cancellation.Cancel();
+                cancellation.Dispose();
+            }
         }
         base.Dispose(disposing);
     }

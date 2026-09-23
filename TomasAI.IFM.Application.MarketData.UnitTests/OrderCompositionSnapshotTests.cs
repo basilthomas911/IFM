@@ -31,6 +31,18 @@ public sealed class OrderCompositionSnapshotTests
         Assert.Equal(first.Snapshot.Digest, shuffled.Snapshot!.Digest);
     }
 
+    [Fact]
+    public async Task Complete_window_above_512_contracts_is_not_truncated()
+    {
+        var instruments = Enumerable.Range(0, 600).Select(i => Instrument($"option-{i}")).ToImmutableArray();
+        var page = new CompositionMarketPage("scope/v1", Generation, instruments.Length, instruments, null);
+
+        var result = await Provider(page).CaptureAsync(Request(), default);
+
+        Assert.Null(result.Failure);
+        Assert.Equal(600, result.Snapshot!.Instruments.Length);
+    }
+
     [Theory]
     [InlineData("incomplete", "IncompleteChain")]
     [InlineData("generation", "Recovering")]
@@ -45,7 +57,7 @@ public sealed class OrderCompositionSnapshotTests
         if (change == "generation") b = b with { GenerationId = Guid.NewGuid() };
         if (change == "scope") b = b with { ScopeToken = "scope/v2" };
         if (change == "duplicate") b = b with { Instruments = [Instrument("a")] };
-        if (change == "overflow") a = a with { TotalContracts = 513 };
+        if (change == "overflow") a = a with { TotalContracts = 2049 };
         var result = await Provider(a, b).CaptureAsync(Request(), default);
         Assert.Null(result.Snapshot); Assert.Equal(code, result.Failure!.Code);
     }
@@ -74,6 +86,19 @@ public sealed class OrderCompositionSnapshotTests
         Assert.NotNull(partial.Snapshot.Instruments.Single(x => x.Instrument.ContractId == "fresh").Instrument.Quote);
         Assert.Null(partial.Snapshot.Instruments.Single(x => x.Instrument.ContractId == "missing").Instrument.Quote);
         Assert.Null(partial.Snapshot.Instruments.Single(x => x.Instrument.ContractId == "stale").Instrument.Quote);
+    }
+
+    [Fact]
+    public async Task Market_selection_keeps_a_quoted_option_when_underlying_quote_is_temporarily_missing()
+    {
+        var option = Instrument() with { Underlying = null };
+        var result = await Provider(new CompositionMarketPage("scope/v1", Generation, 1, [option], null))
+            .CaptureAsync(Request() with { AllowMissingOptionQuotes = true }, default);
+
+        Assert.Null(result.Failure);
+        var row = Assert.Single(result.Snapshot!.Instruments);
+        Assert.NotNull(row.Instrument.Quote);
+        Assert.Null(row.Valuation);
     }
 
     [Theory]

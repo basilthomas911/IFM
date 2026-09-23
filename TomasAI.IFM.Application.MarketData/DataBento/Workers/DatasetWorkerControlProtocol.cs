@@ -123,7 +123,7 @@ public static class DatasetWorkerFrameCodec
                 throw new InvalidDataException("Worker manifest identity does not match its control frame.");
         }
         if (frame.OptionChain is { } chain && (chain.GenerationId != frame.GenerationId || chain.ValueDate != frame.ValueDate
-            || chain.Options.IsDefaultOrEmpty || chain.Options.Length > 512
+            || chain.Options.IsDefaultOrEmpty || chain.Options.Length > 2048
             || chain.Options.Any(x => x?.Pricing?.Contract?.Dataset != frame.Dataset)))
             throw new InvalidDataException("Option chain scope does not match the worker identity.");
         if (frame.CompositionRequest is { } capture && capture.GenerationId != frame.GenerationId

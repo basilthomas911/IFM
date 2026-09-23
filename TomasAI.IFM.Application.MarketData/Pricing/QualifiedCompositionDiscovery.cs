@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.MarketData.Contracts;
@@ -43,15 +44,20 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             || request.DeadlineUtc.Offset != TimeSpan.Zero || request.DeadlineUtc <= now || request.Definitions is null)
             return Failed("InvalidDiscoveryRequest");
         var wait = request.DeadlineUtc - now;
-        if (wait > TimeSpan.FromSeconds(10)) wait = TimeSpan.FromSeconds(10);
+        var maximumDiscoveryWait = request.Definitions.Count > 80
+            ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10);
+        if (wait > maximumDiscoveryWait) wait = maximumDiscoveryWait;
         using var timeout = new CancellationTokenSource(wait, clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         try
         {
+            var discoveryTimer = Stopwatch.StartNew();
             // Copy before awaiting any external operation, so a caller cannot change enumeration mid-discovery.
-            if (request.Definitions.Count > 512) return Failed("SnapshotLimit");
+            if (request.Definitions.Count > 2048) return Failed("SnapshotLimit");
             var definitions = request.Definitions.ToArray();
             var qualified = await universe.QualifyAsync(definitions, request.ScopeComplete, now, linked.Token).ConfigureAwait(false);
+            logger?.LogInformation("Composition discovery reference qualification: contracts={Count}, elapsedMs={ElapsedMs}",
+                definitions.Length, discoveryTimer.ElapsedMilliseconds);
             if (qualified.Failure is not null) return new(null, qualified.Exclusions, false, qualified.Failure);
             if (qualified.Definitions.IsEmpty) return new(null, qualified.Exclusions, true, null);
             var options = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(qualified.Definitions.Length);
@@ -67,6 +73,8 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 options.Add(new(context.Context!, option.Strike, option.IsCall));
             }
             var resolved = options.MoveToImmutable();
+            logger?.LogInformation("Composition discovery context preparation: contracts={Count}, elapsedMs={ElapsedMs}",
+                resolved.Length, discoveryTimer.ElapsedMilliseconds);
             var scopeId = PricingSemanticHash.Compute(new { request.ValueDate, request.MaturityDate,
                 Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved) });
             if (routePlans is not null)
@@ -84,12 +92,19 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             var lease = new WorkerOptionChainRequest(scopeId, request.LeaseId, request.GenerationId, request.ValueDate,
                 request.MaturityDate, expiry, resolved);
             var acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
+            logger?.LogInformation("Composition discovery first worker acquire: contracts={Count}, elapsedMs={ElapsedMs}, failure={Failure}",
+                resolved.Length, discoveryTimer.ElapsedMilliseconds, acquired.Failure?.Code);
             while (acquired.Failure?.Code == "UnderlyingQuoteUnavailable")
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(25), clock, linked.Token).ConfigureAwait(false);
                 acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             }
-            if (acquired.Failure is not null) return new(null, qualified.Exclusions, false, acquired.Failure);
+            if (acquired.Failure is not null)
+            {
+                logger?.LogWarning("Composition discovery worker acquire rejected: code={Code}, detail={Detail}, elapsedMs={ElapsedMs}",
+                    acquired.Failure.Code, acquired.Failure.Detail, discoveryTimer.ElapsedMilliseconds);
+                return new(null, qualified.Exclusions, false, acquired.Failure);
+            }
             if (!acquired.Active) return Failed("ChainUnavailable");
             if (refreshAutomatically)
             {
@@ -127,7 +142,8 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         OptionPricingCalendar calendar, TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion,
         CancellationToken cancellationToken)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10), clock);
+        using var timeout = new CancellationTokenSource(
+            lease.Options.Length > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10), clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         var values = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(lease.Options.Length);
         foreach (var option in lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal))

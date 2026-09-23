@@ -26,6 +26,13 @@ public static class FuturesVwapAccumulator
             && checkpoint.StreamEpochId == trade.StreamEpochId
             && trade.TradeOrdinal <= checkpoint.LastTradeOrdinal)
             return new(checkpoint, BuildSignal(entityId, checkpoint, configuration), false);
+        // A replay handoff may overtake an already-published trade from the preceding
+        // stream epoch. The recovered checkpoint already includes that trade, so it
+        // must not invalidate the new live epoch when delivered late.
+        if (checkpoint.StreamEpochId != Guid.Empty
+            && checkpoint.StreamEpochId != trade.StreamEpochId
+            && trade.EventTimestampUtc <= checkpoint.AsOfUtc)
+            return new(checkpoint, BuildSignal(entityId, checkpoint, configuration), false);
         if (!IsEligible(trade, allowReplay: false))
             return Invalidate(entityId, checkpoint, trade,
                 trade.Action is FuturesVwapTradeAction.Change or FuturesVwapTradeAction.Cancel
@@ -147,7 +154,9 @@ public static class FuturesVwapAccumulator
             LastPrice = trade.Price > 0 ? trade.Price : next.LastPrice,
             LastTradeSourceSequence = Math.Max(next.LastTradeSourceSequence, trade.SourceSequence),
             StreamEpochId = trade.StreamEpochId,
-            LastTradeOrdinal = Math.Max(next.LastTradeOrdinal, trade.TradeOrdinal),
+            LastTradeOrdinal = reason == FuturesVwapInvalidReason.StreamEpochChanged
+                ? trade.TradeOrdinal
+                : Math.Max(next.LastTradeOrdinal, trade.TradeOrdinal),
             RejectedTradeCount = checked(next.RejectedTradeCount + 1),
             IsValid = false,
             InvalidReason = reason,

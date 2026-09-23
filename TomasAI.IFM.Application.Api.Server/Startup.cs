@@ -808,9 +808,15 @@ public static class Startup
                 .Get<TomasAI.IFM.Application.MarketData.Subscriptions.Stage4SubscriptionOptions>()
                 ?? new TomasAI.IFM.Application.MarketData.Subscriptions.Stage4SubscriptionOptions())
                 .ValidateForApplicationStartup());
-            if (stage3Options.Enabled && feedOptions.DataSource != FeedDataSourceMode.Synthetic)
+            if (stage3Options.Enabled && feedOptions.DataSource != FeedDataSourceMode.Synthetic
+                && !(deploymentProfile == FeedDeploymentProfile.Development
+                    && config.GetValue<bool>("MarketDataRecovery:Stage3:AllowDevelopmentLiveQualification")))
                 throw new InvalidOperationException(
-                    "Stage 3 supervised workers are qualified for Synthetic Development only; live-provider enablement is not permitted.");
+                    "Stage 3 live-provider workers require an explicit Development live-qualification opt-in.");
+            services.AddSingleton(new TomasAI.IFM.Application.MarketData.Pricing.PricingSourceClockPolicy(
+                deploymentProfile == FeedDeploymentProfile.Development && stage3Options.Enabled
+                    && feedOptions.DataSource == FeedDataSourceMode.DatabentoLive
+                    && config.GetValue<bool>("MarketDataRecovery:Stage3:AllowDevelopmentLiveQualification") ? 2000 : 0));
             services.AddSingleton(stage3Options);
             services.AddSingleton<DatasetDesiredSubscriptionRegistry>();
             if (stage3Options.Enabled)
@@ -824,7 +830,11 @@ public static class Startup
             {
                 DotNetHostPath = stage3Options.Enabled
                     ? ResolveDotNetHostPath() : Environment.ProcessPath!,
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+                WorkerAssemblyPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+                    deploymentProfile == FeedDeploymentProfile.Development
+                        ? config.GetValue<string>("MarketDataRecovery:Stage3:DevelopmentWorkerAssemblyPath")
+                            ?? typeof(DatasetWorkerAssemblyMarker).Assembly.Location
+                        : typeof(DatasetWorkerAssemblyMarker).Assembly.Location)),
                 DeploymentProfile = deploymentProfile,
                 DataSource = feedOptions.DataSource,
                 OptionPricingRefresh = runtimeOptions.OptionPricingRefresh,
@@ -1253,8 +1263,12 @@ public static class Startup
         if (process is not null && string.Equals(Path.GetFileNameWithoutExtension(process),
                 "dotnet", StringComparison.OrdinalIgnoreCase))
             return process;
+        var runtimeDirectory = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
+        var installedHost = Path.GetFullPath(Path.Combine(runtimeDirectory, "..", "..", "..",
+            OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"));
+        if (File.Exists(installedHost)) return installedHost;
         throw new InvalidOperationException(
-            "Stage 3 requires DOTNET_HOST_PATH when the API is launched through an apphost/debugger.");
+            "Stage 3 could not locate the dotnet host; set DOTNET_HOST_PATH explicitly.");
     }
 
     static ImportDuplicatePolicy ParseImportPolicy(IConfiguration config, string configurationKey)

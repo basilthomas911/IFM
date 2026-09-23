@@ -170,7 +170,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         unchanged.FuturesMacdSignal!.Histogram.Should().Be(0d);
     }
     [Fact]
-    public async Task Vwap_component_accepts_only_a_warm_valid_exact_matching_signal()
+    public async Task Vwap_component_retains_warm_provisional_updates_without_marking_them_exact()
     {
         await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
         var context = Context(runtime.Channel);
@@ -196,21 +196,24 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var accepted).Should().BeTrue();
         accepted.FuturesVwapSignal.Should().Be(vwap);
 
+        var provisional = vwap with
+        {
+            Vwap = 5_101m,
+            IsValid = false,
+            IsTickExact = false,
+            LastTradeSourceSequence = 11,
+            LastTradeOrdinal = 11
+        };
         var action = () => actor.Receive(context, Component(id, 2) with
         {
-            FuturesVwapSignal = vwap with
-            {
-                Vwap = 5_101m,
-                IsTickExact = false,
-                LastTradeSourceSequence = 11,
-                LastTradeOrdinal = 11
-            }
+            FuturesVwapSignal = provisional
         }).AsTask();
 
         await action.Should().NotThrowAsync();
         await runtime.DrainAsync();
-        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var unchanged).Should().BeTrue();
-        unchanged.FuturesVwapSignal.Should().Be(vwap);
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var updated).Should().BeTrue();
+        updated.FuturesVwapSignal.Should().Be(provisional);
+        updated.VwapAvailability.Should().Be(MarketOutlookInputAvailability.Invalid);
     }
     [Fact]
     public async Task InvalidItiSibling_DoesNotSuppressValidVx()

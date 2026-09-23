@@ -6,6 +6,74 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 /// <summary>Opt-in actual-provider observations. Passing this does not publish option-pricing mappings or enable trading.</summary>
 public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
 {
+    [DatabentoCompositionLiveFact]
+    [Trait("Category", "Live")]
+    public void Native_ticker_feed_observes_future_quotes_with_worker_data_kinds()
+    {
+        var symbol = Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_FUTURE")!;
+        var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
+            with { DataSource = FeedDataSourceMode.DatabentoLive };
+        using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
+        feed.Subscribe([new TickerSubscription(symbol, DatabentoInputSymbology.RawSymbol,
+            MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume)],
+            TimeSpan.FromSeconds(20));
+        ISynchronousBatchReader<MarketDataBatch64>? reader = null;
+        feed.Start(TimeSpan.FromSeconds(20), _ => reader = feed.GetReader(feed.GetInstruments().Single().Instrument));
+        var quotes = 0;
+        var trades = 0;
+        try
+        {
+            var until = DateTimeOffset.UtcNow.AddSeconds(10);
+            while (DateTimeOffset.UtcNow < until)
+            {
+                if (!reader!.TryRead(TimeSpan.FromMilliseconds(100), out var batch)) continue;
+                using (batch)
+                    for (var index = 0; index < batch!.Count; index++)
+                    {
+                        if (batch.Records[index].Header.RecordKind == MarketRecordKind.Quote) quotes++;
+                        if (batch.Records[index].Header.RecordKind == MarketRecordKind.Trade) trades++;
+                    }
+            }
+        }
+        finally { feed.Stop(TimeSpan.FromSeconds(5)); }
+        output.WriteLine("Worker-kind ticker feed {0}: quotes={1}, trades={2}.", symbol, quotes, trades);
+        Assert.True(quotes > 0, "No ES futures quote arrived under the worker's combined ticker subscription.");
+    }
+
+    [DatabentoCompositionLiveFact]
+    [Trait("Category", "Live")]
+    public void Native_option_feed_accepts_selected_eighty_strikes()
+    {
+        var root = Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_OPTION_ROOT")!;
+        var expiry = DateOnly.ParseExact(Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_EXPIRY")!, "yyyy-MM-dd");
+        var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
+            with { DataSource = FeedDataSourceMode.DatabentoLive };
+        var factory = new DatabentoFeedFactory();
+        var definitions = factory.CreateMarketDataQueries(options).GetChainDefinitions(new()
+        {
+            Dataset = "GLBX.MDP3", Underlying = root, MaturityDate = expiry,
+            UniversePolicy = OptionUniversePolicy.ExplicitOptionRoots,
+            ExplicitOptionRoots = [root], Rights = OptionRightSelection.Both
+        }, TimeSpan.FromSeconds(30));
+        var centre = decimal.Parse(Environment.GetEnvironmentVariable("IFM_DATABENTO_WINDOW_CENTER") ?? "7820", CultureInfo.InvariantCulture);
+        var strikeLimit = int.TryParse(Environment.GetEnvironmentVariable("IFM_DATABENTO_STRIKE_LIMIT"), out var requested)
+            && requested is > 0 and <= 80 ? requested : 80;
+        var strikes = definitions.Contracts.Select(x => x.StrikePrice).Distinct()
+            .OrderBy(x => Math.Abs(x - centre)).Take(strikeLimit).Order().ToArray();
+        var selected = definitions.Contracts.Where(x => strikes.Contains(x.StrikePrice)).ToArray();
+        output.WriteLine("Selected {0} contracts at {1} strikes.", selected.Length, strikes.Length);
+        using var feed = factory.CreateOptionChainFeed(options);
+        feed.Subscribe(new()
+        {
+            Underlying = selected[0].Underlying, MaturityDate = expiry, Strikes = strikes,
+            Rights = OptionRightSelection.Both, ResolvedContracts = selected,
+            DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
+        }, TimeSpan.FromSeconds(20));
+        feed.Start(TimeSpan.FromSeconds(20), _ => { });
+        try { Assert.NotNull(feed.Reader); }
+        finally { feed.Stop(TimeSpan.FromSeconds(5)); }
+    }
+
     [DatabentoWindowLiveFact]
     [Trait("Category", "Live")]
     public void Native_provider_observes_all_option_strikes_in_bollinger_window()

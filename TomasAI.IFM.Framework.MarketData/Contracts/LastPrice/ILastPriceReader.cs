@@ -30,6 +30,9 @@ public readonly record struct LastQuoteTickSnapshot(
     DateTimeOffset EventTimestamp,
     DateTimeOffset ReceiveTimestamp)
 {
+    /// <summary>Local ingestion time, distinct from Databento's provider receive timestamp.</summary>
+    public DateTimeOffset LocalReceivedAtUtc { get; init; }
+
     /// <summary>
     /// Returns a midpoint only for a positive, non-crossed two-sided quote.
     /// </summary>

@@ -70,9 +70,11 @@ public static partial class Black76PricingModel
         {
             if (quote.Bid <= 0 || quote.Ask < quote.Bid || quote.BidSize < 0 || quote.AskSize < 0 || quote.Sequence < 0
                 || quote.EventAtUtc.Offset != TimeSpan.Zero || quote.ReceivedAtUtc.Offset != TimeSpan.Zero
-                || quote.EventAtUtc > at || quote.ReceivedAtUtc > at)
+                || quote.EventAtUtc > at.AddMilliseconds(context.MaximumSourceClockLeadMilliseconds)
+                || quote.ReceivedAtUtc > at)
                 return Fail("InvalidQuote", quote.ContractId);
-            if ((at - quote.EventAtUtc).TotalMilliseconds > context.MaximumQuoteAgeMilliseconds)
+            if ((at - quote.EventAtUtc).TotalMilliseconds > context.MaximumQuoteAgeMilliseconds
+                || (at - quote.ReceivedAtUtc).TotalMilliseconds > context.MaximumQuoteAgeMilliseconds)
                 return Fail("StaleData", quote.ContractId);
         }
         if (Math.Abs((underlying.EventAtUtc - option.EventAtUtc).TotalMilliseconds) > context.MaximumQuoteSkewMilliseconds)
@@ -116,7 +118,8 @@ public static partial class Black76PricingModel
             return Fail("RateConventionUnsupported", "Rate");
         if (context.GenerationId == Guid.Empty)
             return Fail("Recovering", "Generation");
-        if (context.MaximumQuoteAgeMilliseconds is < 1 or > 5000 || context.MaximumQuoteSkewMilliseconds is < 0 or > 2000)
+        if (context.MaximumQuoteAgeMilliseconds is < 1 or > 5000 || context.MaximumQuoteSkewMilliseconds is < 0 or > 2000
+            || context.MaximumSourceClockLeadMilliseconds is < 0 or > 2000)
             return Fail("InvalidQuotePolicy", "QuoteLimits");
         int days;
         try { days = OptionPricingQualification.CountTradingDays(context.Calendar, contract, at); }

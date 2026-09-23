@@ -47,7 +47,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
         }
         if (plan.SchemaVersion != 1 || plan.Dataset != "GLBX.MDP3" || plan.Root != "ES" || !plan.ScopeComplete
             || horizon is not ("Daily" or "Weekly" or "Monthly") || deadline <= clock.GetUtcNow()
-            || plan.Options.IsDefault || plan.Futures.IsDefault || plan.Options.Length > 512 || plan.Futures.Length > 16)
+            || plan.Options.IsDefault || plan.Futures.IsDefault || plan.Options.Length > 2048 || plan.Futures.Length > 16)
             return Failed("CompositionUniverseUnqualified");
         if (!admissions.TryGet(plan.Dataset, out var admitted) || admitted.ValueDate != plan.ValueDate)
             return Failed("Recovering");

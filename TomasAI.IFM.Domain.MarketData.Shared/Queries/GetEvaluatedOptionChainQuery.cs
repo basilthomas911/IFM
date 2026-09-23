@@ -20,7 +20,9 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
     [Key(5)] public DateOnly ExpiryDate { get; set; }
     [Key(6)] public decimal? StandardDeviationAmount { get; set; }
     [Key(7)] public double StandardDeviationMultiplier { get; set; } = 2.5;
-    [Key(8)] public int MaximumStrikeCount { get; set; } = 80;
+    /// <summary>Retained solely for MessagePack compatibility; strike selection no longer applies a count cap.</summary>
+    [Obsolete("Strike count limits are ignored; the entire calculated window is selected.")]
+    [Key(8)] public int MaximumStrikeCount { get; set; }
     [Key(9)] public string[] RequiredContractIds { get; set; } = [];
     [Key(10)] public bool ReleaseOnly { get; set; }
     [IgnoreMember] public int ErrorCode => ErrorId;

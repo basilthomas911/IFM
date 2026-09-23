@@ -101,7 +101,10 @@ public sealed record OptionPricingContext(
     [property: Key(5)] string PricerVersion,
     [property: Key(6)] int MaximumQuoteAgeMilliseconds,
     [property: Key(7)] int MaximumQuoteSkewMilliseconds,
-    [property: Key(8)] string PublicationPolicyVersion);
+    [property: Key(8)] string PublicationPolicyVersion)
+{
+    [Key(9)] public int MaximumSourceClockLeadMilliseconds { get; init; }
+}
 
 /// <summary>A read must return the exact immutable reviewed mapping version; there is no latest fallback.</summary>
 public interface IOptionPricingConventionStore

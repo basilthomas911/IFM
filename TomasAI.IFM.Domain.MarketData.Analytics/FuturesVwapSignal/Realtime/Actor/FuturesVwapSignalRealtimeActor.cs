@@ -1,7 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -34,7 +32,6 @@ public sealed class FuturesVwapSignalRealtimeActor(
         };
     IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
-    readonly FuturesVwapStreamOwnership streamOwnership = new();
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
         FuturesContractV3ReadModel, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
@@ -49,35 +46,21 @@ public sealed class FuturesVwapSignalRealtimeActor(
     };
 
     /// <inheritdoc />
-    protected override async ValueTask OnStartup(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
+    protected override ValueTask OnStartup(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
     {
         context.AddRealtimeRouter(PriceRoute, Id);
         context.AddRealtimeRouter(ReplayRoute, Id);
-        var configuration = FuturesVwapConfiguration.Standard;
-        if (TypedContext.MarketDataApi.TryGetOnTheRunFuturesContract(
-            configuration.RootSymbol, out _))
-        {
-            try
-            {
-                _ = await streamOwnership.EnsureAsync(
-                    TypedContext.MarketDataApi, configuration.RootSymbol).ConfigureAwait(false);
-            }
-            catch (MarketDataApiNotRunningException)
-            {
-                // Actor registration precedes feed startup. Keep the price router attached;
-                // ReceiveAsync acquires the lease on the first update after the epoch starts.
-                TypedContext.Logger.LogInformation(
-                    "VWAP stream acquisition deferred until the market-data epoch starts.");
-            }
-        }
+        // Stage 4 owns the futures stream. This actor consumes its routed trade
+        // events; the legacy transient ticker lease API is deliberately unsupported.
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    protected override async ValueTask OnShutdown(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(ReplayRoute, Id);
         context.RemoveRealtimeRouter(PriceRoute, Id);
-        await streamOwnership.ReleaseAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -91,13 +74,9 @@ public sealed class FuturesVwapSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        FuturesContractV3ReadModel contract;
-        try
-        {
-            contract = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi,
-                FuturesVwapConfiguration.Standard.RootSymbol).ConfigureAwait(false);
-        }
-        catch (MarketDataApiNotRunningException) { return; }
+        if (!TypedContext.MarketDataApi.TryGetOnTheRunFuturesContract(
+                FuturesVwapConfiguration.Standard.RootSymbol, out var contract))
+            return;
         _ = await handler(@event, TypedContext, contract, TypedContext.Logger).ConfigureAwait(false);
     }
 

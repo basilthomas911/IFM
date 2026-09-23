@@ -17,7 +17,7 @@ public sealed record CompositionRoutePlan(int SchemaVersion, string PlanId, stri
     {
         if (SchemaVersion != 1 || Dataset != "GLBX.MDP3" || PlanId != Seal().PlanId
             || Options.IsDefault || Futures.IsDefault || NativeFutures.IsDefaultOrEmpty
-            || Options.Length > 512 || Futures.Length > 16 || NativeFutures.Length > 16
+            || Options.Length > 2048 || Futures.Length > 16 || NativeFutures.Length > 16
             || Options.IsEmpty == Futures.IsEmpty
             || NativeFutures.Select(x => x.DomainContractId).Distinct(StringComparer.Ordinal).Count() != NativeFutures.Length
             || NativeFutures.Any(x => x.Dataset != Dataset || x.OnTheRun || x.Rollover)

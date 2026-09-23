@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 [MessagePackObject]
 public sealed record CompositionSnapshotRequest([property: Key(0)] Guid SnapshotId, [property: Key(1)] string ScopeId, [property: Key(2)] string Horizon,
     [property: Key(3)] Guid GenerationId, [property: Key(4)] DateTimeOffset EvaluatedAtUtc, [property: Key(5)] DateTimeOffset DeadlineUtc,
-    [property: Key(6)] bool IncludeOptions, [property: Key(7)] int MaximumContracts = 512, [property: Key(8)] int MaximumQuoteAgeMilliseconds = 1000,
+    [property: Key(6)] bool IncludeOptions, [property: Key(7)] int MaximumContracts = 2048, [property: Key(8)] int MaximumQuoteAgeMilliseconds = 1000,
     [property: Key(9)] int MaximumQuoteSkewMilliseconds = 250,
     ImmutableArray<CompositionFutureDefinition> Futures = default)
 {
@@ -90,7 +90,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
         CompositionSnapshotResult Fail(string code, string input = "Snapshot") => new(null, new(code, input, "", "Complete coherent composition evidence is unavailable."));
         if (request.SnapshotId == Guid.Empty || string.IsNullOrWhiteSpace(request.ScopeId) || request.ScopeId.Length > 128
             || request.GenerationId == Guid.Empty || request.Horizon is not ("Daily" or "Weekly" or "Monthly")
-            || request.MaximumContracts is < 1 or > 512 || request.MaximumQuoteAgeMilliseconds is < 1 or > 5000
+            || request.MaximumContracts is < 1 or > 2048 || request.MaximumQuoteAgeMilliseconds is < 1 or > 5000
             || request.MaximumQuoteSkewMilliseconds is < 0 or > 2000
             || request.EvaluatedAtUtc.Offset != TimeSpan.Zero || request.DeadlineUtc.Offset != TimeSpan.Zero
             || request.EvaluatedAtUtc > clock.GetUtcNow() || request.DeadlineUtc <= clock.GetUtcNow()) return Fail("InvalidSnapshotRequest");
@@ -231,7 +231,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                 request.GenerationId, request.EvaluatedAtUtc, validUntil, values.OrderBy(x => x.Instrument.ContractId, StringComparer.Ordinal).ToImmutableArray(), "");
             // Canonical order is independent of page/enumeration order. Only semantic inputs enter this hash.
             snapshot = snapshot with { Digest = PricingSemanticHash.Compute(snapshot) };
-            if (MessagePackBinarySerializer.MeasureContent(snapshot) > 524288) return Fail("SnapshotLimit");
+            if (MessagePackBinarySerializer.MeasureContent(snapshot) > 4 * 1024 * 1024) return Fail("SnapshotLimit");
             linked.Token.ThrowIfCancellationRequested();
             if (clock.GetUtcNow() >= validUntil) return Fail("StaleData");
             return new(snapshot, null);

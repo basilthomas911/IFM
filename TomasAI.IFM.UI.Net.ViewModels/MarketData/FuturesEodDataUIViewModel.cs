@@ -127,11 +127,13 @@ public class FuturesEodDataUIViewModel
             MDIBackColor = PresentationColorRole.Default;
         }
 
-        if (snapshot.FuturesVwapSignal is { IsWarm: true, IsValid: true, Vwap: > 0m } vwap)
+        if (snapshot.FuturesVwapSignal is { IsWarm: true, Vwap: > 0m } vwap)
         {
-            Vwap = $"{vwap.Vwap.Value:F2}";
+            var exact = vwap.IsValid && vwap.IsTickExact;
+            Vwap = exact ? $"{vwap.Vwap.Value:F2}" : $"~{vwap.Vwap.Value:F2}";
             VwapForeColor = PresentationColorRole.DarkText;
-            VwapBackColor = vwap.Vwap.Value.CompareTo(snapshot.FuturesEodData.ClosePrice) switch
+            VwapBackColor = !exact ? PresentationColorRole.Caution
+                : vwap.Vwap.Value.CompareTo(snapshot.FuturesEodData.ClosePrice) switch
             {
                 > 0 => PresentationColorRole.Negative,
                 < 0 => PresentationColorRole.Positive,

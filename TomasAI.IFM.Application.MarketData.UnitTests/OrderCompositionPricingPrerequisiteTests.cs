@@ -37,6 +37,18 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     static OptionPricingPassResult Price(OptionPricingContext? context = null, OptionPricingQuote? option = null, OptionPricingQuote? underlying = null, DateTimeOffset? at = null) =>
         Black76PricingModel.Calculate(context ?? Context(), underlying ?? Quote("ES-future", 5000), option ?? Quote("ES-option-call", 100), 5000, true, at ?? At);
 
+    [Fact]
+    public void Source_clock_lead_is_development_policy_only_and_local_receipt_stays_bounded()
+    {
+        var futureSource = Quote("ES-future", 5000) with { EventAtUtc = At.AddMilliseconds(750) };
+        var optionSource = Quote("ES-option-call", 100) with { EventAtUtc = At.AddMilliseconds(750) };
+        Assert.Equal("InvalidQuote", Price(underlying: futureSource, option: optionSource).Failure?.Code);
+        var development = Context() with { MaximumSourceClockLeadMilliseconds = 2000 };
+        Assert.Null(Price(development, optionSource, futureSource).Failure);
+        Assert.Equal("InvalidQuote", Price(development, optionSource with { EventAtUtc = At.AddMilliseconds(2001) }, futureSource).Failure?.Code);
+        Assert.Equal("StaleData", Price(development, optionSource with { ReceivedAtUtc = At.AddMilliseconds(-1001) }, futureSource).Failure?.Code);
+    }
+
     [Theory]
     [InlineData(-1, 0)] [InlineData(0, 1)] [InlineData(29, 1)] [InlineData(30, 2)]
     [InlineData(59, 2)] [InlineData(60, 3)] [InlineData(89, 3)] [InlineData(90, 0)]

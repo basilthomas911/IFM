@@ -30,9 +30,9 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// process message is then acknowledged. A failed replay publication or process acknowledgement requests
 /// process redelivery without stopping the worker. Stable JetStream message identifiers suppress duplicate
 /// process and replay publications within the stream duplicate window. A replay message is negatively
-/// acknowledged with the configured delay until it succeeds or reaches the configured delivery limit. At
-/// the delivery limit, the optional terminal action is invoked and the replay message is acknowledged even
-/// if that action fails.
+/// acknowledged with the configured delay until it succeeds. At the configured delivery limit, an
+/// optional terminal action may complete the failed delivery; without successful terminal handling,
+/// the replay message remains unacknowledged and continues to be retried.
 /// </para>
 /// <para>
 /// Calling <see cref="DequeueAsync"/> registers the handler used by both workers without starting them.
@@ -311,8 +311,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// </param>
     /// <remarks>
     /// A completed result acknowledges the replay message. A deferred result requests redelivery without
-    /// consuming another projector failure attempt. If the action fails unexpectedly, the message is acknowledged
-    /// and the worker reports the failure.
+    /// consuming another projector failure attempt. If the action fails unexpectedly, the message remains
+    /// available for retry.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="maxAttemptsReachedFunc"/> is <see langword="null"/>.</exception>
@@ -594,16 +594,9 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 }
                 catch
                 {
-                    if (message.DeliveryCount >= (ulong)Volatile.Read(ref state.MaxReplayAttempts))
-                    {
-                        await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await message.NakAsync(
-                            GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
-                            idleCancellation.Token).ConfigureAwait(false);
-                    }
+                    await message.NakAsync(
+                        GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                        idleCancellation.Token).ConfigureAwait(false);
                     ResetIdleTimeout(idleCancellation);
                     continue;
                 }
@@ -632,11 +625,16 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                     if (message.DeliveryCount >= (ulong)Volatile.Read(ref state.MaxReplayAttempts))
                     {
                         var maxAttemptsReached = state.MaxAttemptsReached;
+                        if (maxAttemptsReached is null)
+                        {
+                            await message.NakAsync(
+                                GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                                idleCancellation.Token).ConfigureAwait(false);
+                            continue;
+                        }
                         try
                         {
-                            var result = maxAttemptsReached is null
-                                ? EventProjectorDeliveryResult.Completed
-                                : await maxAttemptsReached(domainEvent).ConfigureAwait(false);
+                            var result = await maxAttemptsReached(domainEvent).ConfigureAwait(false);
                             if (result.IsDeferred)
                             {
                                 await message.NakAsync(
@@ -650,8 +648,9 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                         }
                         catch
                         {
-                            await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
-                            throw;
+                            await message.NakAsync(
+                                GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                                idleCancellation.Token).ConfigureAwait(false);
                         }
                     }
                     else

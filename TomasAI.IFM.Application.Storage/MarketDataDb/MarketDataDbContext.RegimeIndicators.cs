@@ -91,6 +91,19 @@ public partial class MarketDataDbContext
             MapToFuturesBollingerBandSignal,
             cancellationToken);
 
+    public Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalForTimeFrameAsync(
+        MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame,
+        CancellationToken cancellationToken = default)
+    {
+        if (timeFrame is not TimeFrameType.FiveMinutes)
+            throw new ArgumentOutOfRangeException(nameof(timeFrame));
+        return ReadMonthAsync(seriesIdentity, valueDate,
+            valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc),
+            BollingerBandConfigurationId, MarketDataDbCql.GetLatestFuturesBollingerBandSignal,
+            nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal), MapToFuturesBollingerBandSignal,
+            cancellationToken, timeFrame);
+    }
+
     async Task<T?> ReadLatestAsync<T>(
         MarketSeriesIdentity seriesIdentity,
         DateOnly valueDate,
@@ -122,11 +135,12 @@ public partial class MarketDataDbContext
         string cql,
         string operation,
         Func<IObjectDataRecord, T> map,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeFrameType timeFrame = TimeFrameType.Daily)
         where T : class => _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{operation}", cql)
             .SetParameters(new GetLatestFuturesRegimeSignal(
-                seriesIdentity.Format(), TimeFrameType.Daily.ToString(), configurationId,
+                seriesIdentity.Format(), timeFrame.ToString(), configurationId,
                 Bucket(partitionMonth), marketDataAsOf))
             .ExecuteSingleAsync(map, cancellationToken);
 

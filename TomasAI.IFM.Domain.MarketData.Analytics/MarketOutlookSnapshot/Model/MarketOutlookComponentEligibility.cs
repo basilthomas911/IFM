@@ -63,8 +63,6 @@ internal static class MarketOutlookComponentEligibility
         => signal.ContractId == entityId.ContractId
             && signal.ValueDate == entityId.ValueDate
             && signal.IsWarm
-            && signal.IsValid
-            && signal.IsTickExact
             && signal.Vwap is > 0m;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesAdxSignalReadModel signal)

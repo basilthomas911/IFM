@@ -134,6 +134,25 @@ public sealed class FuturesVwapAccumulatorTests
     }
 
     [Fact]
+    public void Delayed_old_epoch_trade_after_replay_handoff_does_not_invalidate_vwap()
+    {
+        var liveEpoch = Guid.NewGuid();
+        var recovered = FuturesVwapAccumulator.ApplyRecovery(
+            EntityId, null, Guid.NewGuid(), 0, true, true,
+            [Trade(1, 100m, 2), Trade(2, 102m, 3)], Configuration, liveEpoch, 0);
+
+        var delayed = FuturesVwapAccumulator.ApplyLive(EntityId, recovered.Checkpoint,
+            Trade(2, 102m, 3) with { StreamEpochId = Epoch }, Configuration);
+        var current = FuturesVwapAccumulator.ApplyLive(EntityId, delayed.Checkpoint,
+            Trade(1, 104m, 1) with { StreamEpochId = liveEpoch }, Configuration);
+
+        Assert.False(delayed.Changed);
+        Assert.Equal(recovered.Checkpoint, delayed.Checkpoint);
+        Assert.True(current.Signal.IsTickExact);
+        Assert.Equal(6, current.Checkpoint.CumulativeVolume);
+    }
+
+    [Fact]
     public void PartialRecoveryRemainsExplicitlyInvalid()
     {
         var recovery = FuturesVwapAccumulator.ApplyRecovery(

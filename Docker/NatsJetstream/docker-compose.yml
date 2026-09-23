@@ -4,12 +4,13 @@ services:
   nats:
     image: nats:2.12.0-alpine
     container_name: ifm-nats-server
-    command: [ "-js", "-sd", "/data", "-p", "4222", "-m", "8222" ]
+    command: [ "-c", "/etc/nats/nats.conf" ]
     ports:
       - "4222:4222"
       - "127.0.0.1:8222:8222"
     volumes:
       - nats-data:/data
+      - ./nats.conf:/etc/nats/nats.conf:ro
     restart: always
     healthcheck:
       test: [ "CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8222/healthz" ]

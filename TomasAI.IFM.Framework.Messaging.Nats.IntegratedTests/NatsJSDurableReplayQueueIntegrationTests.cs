@@ -45,6 +45,10 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
             resources.ProcessConsumer);
         consumer.Info.Config.MaxDeliver.Should().Be(-1);
         consumer.Info.Config.AckPolicy.Should().Be(ConsumerConfigAckPolicy.Explicit);
+        var processStream = await _jetStream.GetStreamAsync(resources.ProcessStream);
+        processStream.Info.Config.Retention.Should().Be(StreamConfigRetention.Workqueue);
+        var replayStream = await _jetStream.GetStreamAsync(resources.ReplayStream);
+        replayStream.Info.Config.Retention.Should().Be(StreamConfigRetention.Workqueue);
     }
 
     [Fact]
@@ -97,8 +101,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         await processed.Task.WaitAsync(TestTimeout);
         await Task.Delay(250);
         calls.Should().Be(1);
-        var stream = await _jetStream.GetStreamAsync(resources.ProcessStream);
-        stream.Info.State.Messages.Should().Be(1);
+        await WaitForStreamMessagesAsync(resources.ProcessStream, 0);
     }
 
     [Fact]
@@ -121,8 +124,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
 
         await completed.Task.WaitAsync(TestTimeout);
         calls.Should().Be(2);
-        var replayStream = await _jetStream.GetStreamAsync(resources.ReplayStream);
-        replayStream.Info.State.Messages.Should().Be(0);
+        await WaitForStreamMessagesAsync(resources.ReplayStream, 0);
         var processConsumer = await _jetStream.GetConsumerAsync(
             resources.ProcessStream,
             resources.ProcessConsumer);
@@ -156,8 +158,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
             resources.ProcessStream,
             resources.ProcessConsumer);
         processConsumer.Info.Delivered.ConsumerSeq.Should().BeGreaterThanOrEqualTo(2);
-        var replayStream = await _jetStream.GetStreamAsync(resources.ReplayStream);
-        replayStream.Info.State.Messages.Should().Be(1);
+        await WaitForStreamMessagesAsync(resources.ReplayStream, 0);
     }
 
     [Fact]
@@ -194,6 +195,17 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     NatsJSDurableReplayQueue CreateQueue() => new(CreateOptions());
+
+    async Task WaitForStreamMessagesAsync(string streamName, long expected)
+    {
+        using var timeout = new CancellationTokenSource(TestTimeout);
+        while (true)
+        {
+            var stream = await _jetStream.GetStreamAsync(streamName);
+            if (stream.Info.State.Messages == expected) return;
+            await Task.Delay(25, timeout.Token);
+        }
+    }
 
     NatsJetStreamConsumerOptions CreateOptions() => new()
     {

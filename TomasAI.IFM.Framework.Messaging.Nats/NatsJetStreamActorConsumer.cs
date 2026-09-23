@@ -291,7 +291,10 @@ public class NatsJetStreamActorConsumer(
             streamSubject,
             cancellationToken).ConfigureAwait(false))
         {
-            return stream;
+            var configuration = stream.Info.Config;
+            return JetStreamTransportRetention.EnsureFanOut(configuration)
+                ? await jetStream.UpdateStreamAsync(configuration, cancellationToken).ConfigureAwait(false)
+                : stream;
         }
 
         INatsJSStream? configuredStream = null;
@@ -308,18 +311,21 @@ public class NatsJetStreamActorConsumer(
         if (configuredStream is null)
         {
             return await jetStream.CreateStreamAsync(
-                new StreamConfig(configuredStreamName, [streamSubject]),
+                JetStreamTransportRetention.CreateFanOut(configuredStreamName, streamSubject),
                 cancellationToken).ConfigureAwait(false);
         }
 
         var config = configuredStream.Info.Config;
         var subjects = config.Subjects ?? [];
+        var changed = JetStreamTransportRetention.EnsureFanOut(config);
         if (!subjects.Contains(streamSubject, StringComparer.Ordinal))
         {
             config.Subjects = [.. subjects, streamSubject];
+            changed = true;
+        }
+        if (changed)
             configuredStream = await jetStream.UpdateStreamAsync(config, cancellationToken)
                 .ConfigureAwait(false);
-        }
 
         return configuredStream;
     }

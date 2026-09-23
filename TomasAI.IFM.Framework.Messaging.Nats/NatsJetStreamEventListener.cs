@@ -330,7 +330,10 @@ public sealed class NatsJetStreamEventListener(
             filterSubject,
             cancellationToken).ConfigureAwait(false))
         {
-            return stream;
+            var configuration = stream.Info.Config;
+            return JetStreamTransportRetention.EnsureFanOut(configuration)
+                ? await jetStream.UpdateStreamAsync(configuration, cancellationToken).ConfigureAwait(false)
+                : stream;
         }
 
         INatsJSStream? configuredStream = null;
@@ -347,17 +350,20 @@ public sealed class NatsJetStreamEventListener(
         if (configuredStream is null)
         {
             return await jetStream.CreateStreamAsync(
-                new StreamConfig(_options.StreamName, [filterSubject]),
+                JetStreamTransportRetention.CreateFanOut(_options.StreamName, filterSubject),
                 cancellationToken).ConfigureAwait(false);
         }
 
         var config = configuredStream.Info.Config;
         var subjects = config.Subjects ?? [];
+        var changed = JetStreamTransportRetention.EnsureFanOut(config);
         if (!subjects.Contains(filterSubject, StringComparer.Ordinal))
         {
             config.Subjects = [.. subjects, filterSubject];
-            configuredStream = await jetStream.UpdateStreamAsync(config, cancellationToken).ConfigureAwait(false);
+            changed = true;
         }
+        if (changed)
+            configuredStream = await jetStream.UpdateStreamAsync(config, cancellationToken).ConfigureAwait(false);
 
         return configuredStream;
     }

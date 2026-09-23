@@ -76,7 +76,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             if (entry.Latest is { } prior && (tick.EventTimestamp < prior.EventTimestamp
                 || tick.EventTimestamp == prior.EventTimestamp && tick.SourceSequence <= prior.SourceSequence))
                 return Pending(route, "SupersededQuote");
-            entry.Latest = tick;
+            entry.Latest = tick with { LocalReceivedAtUtc = clock.GetUtcNow() };
         }
         inputs.ObserveQuote(route.FuturesOptionContractId, input, tick);
         Interlocked.Increment(ref observations);
@@ -220,7 +220,9 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
                 continue;
             }
             var quote = new OptionPricingQuote(observed.ContractId, observed.BidPrice!.Value, observed.AskPrice!.Value,
-                observed.BidSize, observed.AskSize, observed.EventTimestamp, observed.ReceiveTimestamp, observed.SourceSequence, generation);
+                observed.BidSize, observed.AskSize, observed.EventTimestamp,
+                observed.LocalReceivedAtUtc == default ? observed.ReceiveTimestamp : observed.LocalReceivedAtUtc,
+                observed.SourceSequence, generation);
             var at = clock.GetUtcNow();
             var strike = entry.Route.Definition.StrikePrice;
             var call = entry.Route.Definition.Right == OptionRightSelection.Call;

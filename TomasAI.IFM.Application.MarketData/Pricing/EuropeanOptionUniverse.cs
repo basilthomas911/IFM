@@ -28,17 +28,29 @@ public sealed class EuropeanOptionUniverse(IOptionPricingConventionStore convent
         ArgumentNullException.ThrowIfNull(scope);
         EuropeanOptionUniverseResult Fail(string code, string id) => new([], [], new(code, "Definitions", id, "Complete qualified option scope is unavailable."));
         if (!complete) return Fail("IncompleteChain", "");
-        if (scope.Count > 512) return Fail("SnapshotLimit", "");
+        if (scope.Count > 2048) return Fail("SnapshotLimit", "");
         if (scope.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != scope.Count
             || scope.Select(x => x.Definition.Instrument).Distinct().Count() != scope.Count)
             return Fail("ConflictingDefinition", "");
+        var ordered = scope.OrderBy(x => x.ContractId, StringComparer.Ordinal).ToArray();
+        var mappings = new OptionPricingConvention?[ordered.Length];
+        await Parallel.ForEachAsync(Enumerable.Range(0, ordered.Length), new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 8,
+            CancellationToken = cancellationToken
+        }, async (index, token) =>
+        {
+            var candidate = ordered[index];
+            mappings[index] = await conventions.GetAsync(candidate.ContractId, candidate.MappingVersion, token).ConfigureAwait(false);
+        }).ConfigureAwait(false);
         var accepted = ImmutableArray.CreateBuilder<QualifiedOptionDefinition>();
         var excluded = ImmutableArray.CreateBuilder<OptionPricingFailure>();
-        foreach (var candidate in scope.OrderBy(x => x.ContractId, StringComparer.Ordinal))
+        for (var index = 0; index < ordered.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var candidate = ordered[index];
             var definition = candidate.Definition;
-            var mapping = await conventions.GetAsync(candidate.ContractId, candidate.MappingVersion, cancellationToken).ConfigureAwait(false);
+            var mapping = mappings[index];
             if (mapping is null || mapping.ContractId != candidate.ContractId || mapping.MappingVersion != candidate.MappingVersion
                 || mapping.DefinitionDigest != candidate.DefinitionDigest || mapping.Dataset != definition.Dataset
                 || mapping.InstrumentId != definition.Instrument.InstrumentId

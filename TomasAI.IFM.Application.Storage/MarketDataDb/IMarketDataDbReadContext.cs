@@ -27,6 +27,9 @@ public interface IMarketDataDbReadContext
         MarketSeriesIdentity seriesIdentity,
         DateOnly valueDate,
         CancellationToken cancellationToken = default);
+    Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalForTimeFrameAsync(
+        MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame,
+        CancellationToken cancellationToken = default);
     /// <summary>Gets the latest projected exact VWAP for one futures session.</summary>
     Task<FuturesVwapSignalReadModel?> GetLatestFuturesVwapSignalAsync(
         string contractId, DateOnly valueDate, string configurationId,
