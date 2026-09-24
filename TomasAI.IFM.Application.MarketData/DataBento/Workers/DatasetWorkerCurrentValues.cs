@@ -41,6 +41,16 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     public DateOnly? ActiveValueDate => GetStatus().ActiveValueDate;
     public bool IsRunning => GetStatus().IsRunning;
     public bool IsFeedUp => GetStatus().IsFeedUp;
+
+    /// <summary>Whether an admitted dataset worker owns the contract's current tick route.</summary>
+    public bool IsTickDataStreamActive(string contractId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        lock (gate)
+            return lastPrices is not null && datasets.Values.Any(state =>
+                state.Admission.HasValue && state.Contracts.ContainsKey(contractId));
+    }
+
     public FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)
     {
         lock(gate)

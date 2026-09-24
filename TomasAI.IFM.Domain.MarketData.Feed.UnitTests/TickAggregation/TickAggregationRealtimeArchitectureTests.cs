@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Projector;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Projector;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -155,5 +156,37 @@ public sealed class TickAggregationRealtimeArchitectureTests
             .Select(parameter => parameter.ParameterType);
         parameterTypes.Should().NotContain(typeof(IEventSourceActorDbContext));
         parameterTypes.Should().NotContain(typeof(IDurableReplayQueue));
+    }
+
+    [Fact]
+    public async Task Rolling_eod_realtime_projector_persists_ES_trade_and_statistics_rows()
+    {
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(marketDataDb);
+        var projector = new FuturesEodDataRealtimeProjector(
+            dbFactory,
+            Substitute.For<ILogger<FuturesEodDataRealtimeProjector>>());
+        var tradeRow = new FuturesEodDataV2ReadModel
+        {
+            ContractId = "ES20261218",
+            ValueDate = new DateOnly(2026, 9, 24),
+            Symbol = "ES",
+            OpenPrice = 7774.75m,
+            HighPrice = 7779.25m,
+            LowPrice = 7759.5m,
+            ClosePrice = 7770m
+        };
+        var correctedRow = tradeRow with { HighPrice = 7780m };
+
+        await projector.ProjectionDescriptors.Single(descriptor =>
+                descriptor.SourceEventType == typeof(FuturesEodDataInsertedEvent))
+            .ApplyAsync(new FuturesEodDataInsertedEvent { FuturesEodData = tradeRow }, CancellationToken.None);
+        await projector.ProjectionDescriptors.Single(descriptor =>
+                descriptor.SourceEventType == typeof(FuturesEodSessionStatisticsUpdatedEvent))
+            .ApplyAsync(new FuturesEodSessionStatisticsUpdatedEvent { FuturesEodData = correctedRow }, CancellationToken.None);
+
+        await marketDataDb.Received(1).InsertFuturesEodDataAsync(tradeRow);
+        await marketDataDb.Received(1).InsertFuturesEodDataAsync(correctedRow);
     }
 }

@@ -15,7 +15,7 @@ using AppBrokerOrderType = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerO
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-/// <summary>Reusable Stage 3 three-tab blotter. It displays evidence and raises commands; application workflows own mutation.</summary>
+/// <summary>Trade blotter with Market Selection and a preview-only iron-condor Broker Order/Fills tab.</summary>
 public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsyncFormControl
 {
     public const int VisibleChainRowCapacity = 14;
@@ -105,7 +105,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _appRoot = appRoot;
         _tradeType = trade.TradeType;
         Name = "esTradeBlotter";
-        AccessibleName = "ES three tab trade blotter";
+        AccessibleName = "ES trade blotter";
         Dock = DockStyle.Fill;
         MinimumSize = new Size(900, 410);
         BackColor = Color.Black;
@@ -173,7 +173,17 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var market = new TabPage("Market Selection") { Name = "marketSelectionTab", BackColor = Color.Black, ForeColor = Color.White };
         _stagingTab = new TabPage("Leg Staging") { Name = "legStagingTab", BackColor = Color.Black, ForeColor = Color.White };
         var orders = new TabPage("Orders and Fills") { Name = "ordersAndFillsTab", BackColor = Color.Black, ForeColor = Color.White };
-        tabs.TabPages.AddRange([market, _stagingTab, orders]);
+        if (_strategy == TradeBlotterStrategy.IronCondor)
+        {
+            var brokerPreview = new TabPage("Broker Order/Fills")
+            {
+                Name = "brokerOrderFillsTab", BackColor = Color.Black, ForeColor = Color.White
+            };
+            brokerPreview.Controls.Add(new BrokerOrderFillsPreviewControl(portfolioId, fund, order, trade));
+            tabs.TabPages.AddRange([market, brokerPreview]);
+        }
+        else
+            tabs.TabPages.AddRange([market, _stagingTab, orders]);
         _volatilityContext = new VolatilityContextHistoryControl();
 
         _marketGrid = Grid("marketSelectionGrid");

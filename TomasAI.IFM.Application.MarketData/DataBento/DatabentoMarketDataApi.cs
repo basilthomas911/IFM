@@ -185,7 +185,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     public bool IsTickDataStreamActive(string contractId)
     {
         ValidateContractId(contractId, nameof(contractId));
-        if (_currentValues is not null) return false; // Stage 3 has no transient workflow leases.
+        if (_currentValues is not null) return _currentValues.IsTickDataStreamActive(contractId);
         return Volatile.Read(ref _epoch)?.IsTickDataStreamActive(contractId) == true;
     }
 

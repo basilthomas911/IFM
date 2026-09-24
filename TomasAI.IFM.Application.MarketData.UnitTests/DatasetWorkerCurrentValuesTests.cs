@@ -227,6 +227,7 @@ public sealed class DatasetWorkerCurrentValuesTests
         Assert.Equal(6500m, await api.GetFuturesPriceAsync(Es));
         Assert.True(api.TryGetLastTickPrice(Es, out _));
         Assert.True(api.TryGetFuturesSessionStatistics(Es, out _));
+        Assert.True(api.IsTickDataStreamActive(Es));
         Assert.Same(api.GetFuturesLastPriceReader(Es), api.GetFuturesLastPriceReader(Es));
         Assert.True(api.GetRuntimeStatus().IsRunning);
         Assert.Equal(ValueDate, api.ActiveValueDate);
@@ -235,6 +236,7 @@ public sealed class DatasetWorkerCurrentValuesTests
         Assert.True(api.IsDatabentoFeedUp());
         values.ClearDataset(es.Dataset);
         Assert.False(api.IsDatabentoFeedUp());
+        Assert.False(api.IsTickDataStreamActive(Es));
         Assert.Null(await api.GetFuturesPriceAsync(Es));
         Assert.Equal(0, factory.CreateCount);
     }
@@ -258,7 +260,7 @@ public sealed class DatasetWorkerCurrentValuesTests
         Assert.Throws<NotSupportedException>(() => { _ = api.StartStreamingFuturesOptionChainDataAsync(
             MarketDataApiTestContext.FutureId, MarketDataApiTestContext.OptionMaturity, [MarketDataApiTestContext.CallId]); });
         Assert.Throws<NotSupportedException>(() => api.TryGetLastOptionTickPrice(MarketDataApiTestContext.CallId, out _));
-        Assert.False(api.IsTickDataStreamActive(MarketDataApiTestContext.FutureId));
+        Assert.True(api.IsTickDataStreamActive(MarketDataApiTestContext.FutureId));
         Assert.Equal(0, context.EpochFactory.CreateCount);
     }
 

@@ -276,8 +276,10 @@ public sealed class TradeBlotterLiveChainTests
         Assert.Equal("+LP", SelectedValue("PutSelected", 3));
         Assert.Equal(10m, SelectedValue("PutBid", 2));
         Assert.Null(SelectedValue("CallBid", 2));
-        Assert.Equal("Leg Staging", ((TabControl)blotter.Controls.Find("tradeBlotterTabs", true).Single())
-            .TabPages[1].Text);
+        var blotterTabs = (TabControl)blotter.Controls.Find("tradeBlotterTabs", true).Single();
+        Assert.Equal(2, blotterTabs.TabPages.Count);
+        Assert.Equal("Market Selection", blotterTabs.TabPages[0].Text);
+        Assert.Equal("Broker Order/Fills", blotterTabs.TabPages[1].Text);
 
         var format = typeof(EsTradeBlotterControl).GetMethod("MarketGridCellFormatting",
             BindingFlags.Instance | BindingFlags.NonPublic)!;

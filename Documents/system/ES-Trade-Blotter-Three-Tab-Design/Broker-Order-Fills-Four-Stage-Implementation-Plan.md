@@ -1,6 +1,6 @@
 # Broker Order/Fills — Four-Stage Implementation Plan
 
-Status: proposed. This implements [Tab 2a](Tab-2a-Broker-Order-and-Order-Fills.md); it does not describe the current running UI.
+Status: Stage 1 preview implemented for iron-condor trades; Stages 2–4 remain planned. This implements [Tab 2a](Tab-2a-Broker-Order-and-Order-Fills.md) as a visual mockup, not a live broker workflow.
 
 ## Design rules
 
@@ -13,6 +13,8 @@ Implement the WinForms tab with an explicit preview-only provider. Selecting Por
 Use a resizable divider and independently scrolling panes. Populate a sample date-wide tree with working/partial, filled and cancelled orders, selectable fill children and right-side order/fill details. Green/yellow/red circles always have status text. Preserve selection/expansion on refresh. Mock buttons cannot dispatch.
 
 **Exit gate:** screenshot/UI tests at normal/minimum size and supported DPI; four visible legs; selector/tree/detail behavior; all fields populated; zero broker dispatch.
+
+Stage 1 verification: the iron-condor Trade Blotter now has Market Selection and Broker Order/Fills tabs. The second tab displays selected Portfolio/Fund/Trade identity, four colored sample legs, order selectors and price stepper, estimated economics, disabled order actions, and a sample value-date order/fill tree with selectable details. Focused WinForms tests cover normal and reduced window sizes, selectors, leg count, tree/detail selection, and disabled dispatch; a screenshot was reviewed at the current desktop DPI. Other strategies retain their existing tabs. Multi-DPI visual validation remains outstanding.
 
 ## Stage 2 — Emulator and API foundation
 

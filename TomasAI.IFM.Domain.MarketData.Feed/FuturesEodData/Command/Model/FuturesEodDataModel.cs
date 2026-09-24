@@ -17,11 +17,7 @@ internal static class FuturesEodDataModel
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
         FuturesContractV3ReadModel contract,
-        FuturesEodDataV2ReadModel eodDataToday,
-        ICollection<FuturesEodDataV2ReadModel> eodDataRange,
-        NormalCurveTableReadModel normCurveData,
-        int windowSize,
-        ICollection<VixFuturesEodDataReadModel> vixEodData)
+        FuturesEodDataV2ReadModel eodDataToday)
     {
         ArgumentNullException.ThrowIfNull(futuresTickData);
         ArgumentNullException.ThrowIfNull(contract);
@@ -43,6 +39,17 @@ internal static class FuturesEodDataModel
                 eodDataToday.OpenPrice)
         };
     }
+
+    public static FuturesEodDataV2ReadModel CreateFuturesEodData(
+        DateOnly valueDate,
+        FuturesTickDataV2ReadModel futuresTickData,
+        FuturesContractV3ReadModel contract,
+        FuturesEodDataV2ReadModel eodDataToday,
+        ICollection<FuturesEodDataV2ReadModel> eodDataRange,
+        NormalCurveTableReadModel normCurveData,
+        int windowSize,
+        ICollection<VixFuturesEodDataReadModel> vixEodData)
+        => CreateFuturesEodData(valueDate, futuresTickData, contract, eodDataToday);
 
    
    

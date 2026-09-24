@@ -158,48 +158,13 @@ public static class FuturesTickTradeDataInserted
             && (!statistics.HasVolume || persistedVolume == statistics.Volume))
             return null;
 
-        var vixContractId = blackboardService.MarketDataFeed.VixFuturesContractId.Get(valueDate);
-        if (string.IsNullOrWhiteSpace(vixContractId))
-            return null;
-
-        var vixData = blackboardService.MarketDataFeed.VixFuturesEodData.Get(
-            vixContractId,
-            valueDate);
-        if (vixData.Count == 0)
-        {
-            vixData = await context.GetVixFuturesEodDataAsync(
-                vixContractId,
-                valueDate).ConfigureAwait(false);
-            if (vixData.Count == 0)
-                return null;
-            blackboardService.MarketDataFeed.VixFuturesEodData.Set(
-                vixContractId,
-                valueDate,
-                vixData);
-        }
-
-        var eodDataRange = await blackboardService.MarketDataFeed.FuturesEodDataRange.GetAsync(
-                contract.ContractId,
-                valueDate,
-                (contractId, startDate, endDate) =>
-                    context.GetFuturesEodDataByDateRangeAsync(contractId, startDate, endDate))
-            .ConfigureAwait(false);
-        var normalCurve = await blackboardService.MarketDataFeed.NormalCurveTable.GetAsync(
-                valueDate,
-                () => context.GetNormalCurveTableAsync()!)
-            .ConfigureAwait(false);
-        if (normalCurve is null)
-            return null;
-
+        // Rolling OHLC uses only the ES trade and official session statistics.
+        // VX, historical ranges and normal-curve availability must not gate it.
         var eodData = FuturesEodDataModel.CreateFuturesEodData(
             valueDate,
             tickData,
             contract,
-            eodDataToday,
-            eodDataRange,
-            normalCurve,
-            20,
-            vixData);
+            eodDataToday);
         var entityId = new FuturesEodDataId(contract.ContractId, valueDate);
         return new FuturesEodDataInsertedEvent
         {

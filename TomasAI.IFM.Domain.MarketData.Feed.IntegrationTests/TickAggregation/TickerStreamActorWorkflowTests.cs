@@ -151,7 +151,6 @@ public sealed class TickerStreamActorWorkflowTests
     public async Task First_es_trade_initializes_new_session_eod_from_databento_statistics_hot_cache()
     {
         const string contractId = "ES20260918";
-        const string vxContractId = "VX20260916";
         var instrument = new InstrumentKey(7, 42);
         using var feed = new FiniteFeed(
             instrument,
@@ -194,23 +193,9 @@ public sealed class TickerStreamActorWorkflowTests
         context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
                 Arg.Any<GetLastFuturesEodDataQuery>())
             .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(previous));
-        context.RequestAsync<FuturesEodDataV2ReadModel[], GetFuturesEodDataByDateRangeQuery>(
-                Arg.Any<GetFuturesEodDataByDateRangeQuery>())
-            .Returns(new ServiceOk<FuturesEodDataV2ReadModel[]>([previous]));
-        context.RequestAsync<NormalCurveTableReadModel, GetNormalCurveTableQuery>(
-                Arg.Any<GetNormalCurveTableQuery>())
-            .Returns(new ServiceOk<NormalCurveTableReadModel>(
-                new NormalCurveTableReadModel([
-                    new NormalCurveDataReadModel(0, 50d)])));
         var blackboard = new BlackboardService(
             new MemoryRedisCache(),
             new SystemTextJsonSerializer());
-        blackboard.MarketDataFeed.VixFuturesContractId.Set(ValueDate, vxContractId);
-        blackboard.MarketDataFeed.VixFuturesEodData.Set(
-            vxContractId,
-            ValueDate,
-            [new VixFuturesEodDataReadModel(
-                vxContractId, ValueDate, 20m, 21m, 19m, 20.25m, 100)]);
         var projector = CreateEodProjector();
 
         var handled = await FuturesTradeHandler.ExecuteAsync(
@@ -425,7 +410,7 @@ public sealed class TickerStreamActorWorkflowTests
     }
 
     [Fact]
-    public async Task Es_trade_defers_until_vix_eod_is_available_then_projects_realtime_eod()
+    public async Task Es_trade_projects_realtime_eod_without_vix_eod()
     {
         const string esContractId = "ES20260918";
         const string vixContractId = "VX20260916";
@@ -476,7 +461,8 @@ public sealed class TickerStreamActorWorkflowTests
             status,
             projector,
             logger);
-        projector.ReceivedCalls().Should().BeEmpty();
+        projector.ReceivedCalls().Select(call => call.GetArguments()[0])
+            .OfType<FuturesEodDataInsertedEvent>().Should().HaveCount(1);
 
         blackboard.MarketDataFeed.VixFuturesContractId.Set(ValueDate, vixContractId);
         await FuturesTradeHandler.ExecuteAsync(
@@ -487,7 +473,8 @@ public sealed class TickerStreamActorWorkflowTests
             status,
             projector,
             logger);
-        projector.ReceivedCalls().Should().BeEmpty();
+        projector.ReceivedCalls().Select(call => call.GetArguments()[0])
+            .OfType<FuturesEodDataInsertedEvent>().Should().HaveCount(2);
 
         await FuturesTradeHandler.ExecuteAsync(
             CreateInsertedTrade(vixContractId, 20.15m, 17),
@@ -516,8 +503,8 @@ public sealed class TickerStreamActorWorkflowTests
 
         var projectedEod = projector.ReceivedCalls()
             .Select(call => call.GetArguments()[0])
-            .Should().ContainSingle(argument => argument is FuturesEodDataInsertedEvent)
-            .Which.Should().BeOfType<FuturesEodDataInsertedEvent>().Which;
+            .OfType<FuturesEodDataInsertedEvent>()
+            .Last();
         projectedEod.FuturesEodData.OpenPrice.Should().Be(5400m);
         projectedEod.FuturesEodData.ClosePrice.Should().Be(5451m);
         projectedEod.FuturesEodData.DailyPercentChange.Should().Be(0.0094);
