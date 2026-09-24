@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 /// <summary>Submits one exact consumed order to the durable internal emulator. Never routes to a live broker.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record SubmitEmulatorOrderCommand : ICommand<LedgerPortfolioId>, IFinancialRequest<SubmitEmulatorOrderRequest>
 {
     public const string Actor = "EmulatorExecutionCommand";

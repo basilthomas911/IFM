@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Domain.Application.Actor.Event.Actor;
+using TomasAI.IFM.Domain.Application.Event.Actor;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -8,14 +8,17 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Event;
+namespace TomasAI.IFM.Domain.Application.Event;
 
 /// <summary>Application-startup event-family behavior.</summary>
 public static class ApplicationStartup
 {
+    /// <summary>Gets the shared log source for this lifecycle family.</summary>
+    public static string ServiceId { get; } = nameof(TomasAI.IFM.Shared.StatusConsole.LogSourceType.ApplicationStartup);
     static readonly Guid ProcessBootId = Guid.NewGuid();
     static readonly TimeSpan StatusConsoleWriteTimeout = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>Processes startup activity and publishes the corresponding lifecycle result.</summary>
     public static async ValueTask ExecuteAsync(
         this ApplicationStartupEvent @event,
         IApplicationEventContext context,
@@ -119,6 +122,7 @@ public static class ApplicationStartup
         await SendTerminalAsync(@event, context, state, summary).ConfigureAwait(false);
     }
 
+    /// <summary>Runs one startup activity after dependencies pass and records a classified result.</summary>
     static async ValueTask<ApplicationStartupActivityResult> ExecuteActivityAsync(
         ApplicationStartupActivity activity,
         bool required,
@@ -188,6 +192,7 @@ public static class ApplicationStartup
         }
     }
 
+    /// <summary>Constructs a bounded startup activity result without publishing it.</summary>
     static ApplicationStartupActivityResult Result(
         ApplicationStartupActivity activity,
         ApplicationStartupActivityOutcome outcome,
@@ -206,6 +211,7 @@ public static class ApplicationStartup
             Reason = Bound(reason)
         };
 
+    /// <summary>Resolves the implementation for one declared startup activity.</summary>
     static Func<ApplicationStartupContext, CancellationToken, ValueTask<ApplicationStartupActivityOutcome>>
         ResolveActivity(IApplicationStartupActivities activities, ApplicationStartupActivity activity) => activity switch
         {
@@ -221,6 +227,7 @@ public static class ApplicationStartup
             _ => throw new ArgumentOutOfRangeException(nameof(activity), activity, "Unknown startup activity.")
         };
 
+    /// <summary>Summarizes aggregate activity outcomes for the terminal lifecycle result.</summary>
     static string CreateSummary(
         ApplicationLifecycleState state,
         IReadOnlyCollection<ApplicationStartupActivityResult> results) =>
@@ -229,6 +236,7 @@ public static class ApplicationStartup
         + $"Failed={results.Count(result => result.Outcome == ApplicationStartupActivityOutcome.Failed)}; "
         + $"Skipped={results.Count(result => result.Outcome == ApplicationStartupActivityOutcome.SkippedDependency)}.";
 
+    /// <summary>Logs an activity result and writes best-effort status-console detail.</summary>
     static async ValueTask ReportResultAsync(
         IApplicationEventContext context,
         ApplicationStartupContext workflow,
@@ -250,6 +258,7 @@ public static class ApplicationStartup
             .ConfigureAwait(false);
     }
 
+    /// <summary>Writes a bounded best-effort informational status-console message.</summary>
     static async ValueTask ReportAsync(
         IStatusConsoleWriter writer,
         ILogger logger,
@@ -270,10 +279,11 @@ public static class ApplicationStartup
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Unable to publish Application lifecycle status to the System Console.");
+            logger.LogError(exception, "Unable to publish Application lifecycle status to the System Console.");
         }
     }
 
+    /// <summary>Writes bounded best-effort failure detail to the status console.</summary>
     static async ValueTask ReportErrorAsync(
         IStatusConsoleWriter writer,
         ILogger logger,
@@ -299,10 +309,11 @@ public static class ApplicationStartup
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Unable to publish Application lifecycle failure to the System Console.");
+            logger.LogError(exception, "Unable to publish Application lifecycle failure to the System Console.");
         }
     }
 
+    /// <summary>Observes and logs a status-console write that outlived its wait timeout.</summary>
     static async Task ObserveLateConsoleWriteAsync(Task write, ILogger logger)
     {
         try
@@ -311,10 +322,11 @@ public static class ApplicationStartup
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "A timed-out Application lifecycle System Console write later failed.");
+            logger.LogError(exception, "A timed-out Application lifecycle System Console write later failed.");
         }
     }
 
+    /// <summary>Publishes exactly one completed, degraded, or failed startup lifecycle event.</summary>
     static async ValueTask SendTerminalAsync(
         ApplicationStartupEvent @event,
         IApplicationEventContext context,
@@ -378,6 +390,7 @@ public static class ApplicationStartup
             .ConfigureAwait(false);
     }
 
+    /// <summary>Limits untrusted status text to the configured maximum length.</summary>
     static string Bound(string? value)
     {
         const int maximumLength = 512;

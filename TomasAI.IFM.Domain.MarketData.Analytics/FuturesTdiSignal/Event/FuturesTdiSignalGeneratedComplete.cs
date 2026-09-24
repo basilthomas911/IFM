@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
 
+/// <summary>Handles the FuturesTdiSignalGeneratedCompleteEvent message in the FuturesTdiSignalEventActor lifecycle.</summary>
 public static class FuturesTdiSignalGeneratedComplete
 {
     static FuturesTdiSignalGeneratedComplete()
@@ -39,8 +40,8 @@ public static class FuturesTdiSignalGeneratedComplete
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
             await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTdiSignalEvent, FuturesTdiSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
         }
         return false;
     }

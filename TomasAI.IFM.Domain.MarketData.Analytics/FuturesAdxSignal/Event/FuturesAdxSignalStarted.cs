@@ -28,15 +28,15 @@ public static class FuturesAdxSignalStarted
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(
+                nameof(LogSourceType.FuturesAdxSignalEvent),
+                ex,
+                "ADX observation attachment failed for {ContractId}",
+                e.EntityId.ContractId);
             await context.StatusConsoleWriter.WriteConsoleAsync(
                 LogSourceType.FuturesAdxSignalEvent,
                 FuturesAdxSignalStartedEvent.ErrorCode,
                 ex.GetErrorMessage()).ConfigureAwait(false);
-            logger.LogErrorEvent(
-                nameof(LogSourceType.FuturesAdxSignalEvent),
-                ex.GetErrorMessage(),
-                "ADX observation attachment failed for {ContractId}",
-                e.EntityId.ContractId);
             return false;
         }
     }

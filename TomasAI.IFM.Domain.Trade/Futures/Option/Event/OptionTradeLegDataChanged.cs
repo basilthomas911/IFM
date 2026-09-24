@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Event;
 
+/// <summary>Handles the OptionTradeLegDataChangedEvent message in the FuturesOptionTradeEventActor lifecycle.</summary>
 public static class OptionTradeLegDataChanged
 {
     static readonly string ServiceId = $"{LogSourceType.OptionTradeEvent}";

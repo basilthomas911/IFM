@@ -1,10 +1,10 @@
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Queries;
-using TomasAI.IFM.Domain.Application.Actor.Query.Actor;
+using TomasAI.IFM.Domain.Application.Query.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Query;
+namespace TomasAI.IFM.Domain.Application.Query;
 
 /// <summary>Handles <see cref="GetApplicationStartupStatusQuery"/>.</summary>
 public static class GetApplicationStartupStatus

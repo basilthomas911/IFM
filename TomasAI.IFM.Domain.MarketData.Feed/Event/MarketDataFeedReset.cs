@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
+/// <summary>Handles the MarketDataFeedResetEvent message in the MarketDataFeedEventActor lifecycle.</summary>
 public static class MarketDataFeedReset
 {
     static MarketDataFeedReset()
@@ -43,9 +44,9 @@ public static class MarketDataFeedReset
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed reset failed", source);
             await eventApi.MarketDataFeedResetFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedResetEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed reset failed", source);
         }
         return false;
     }

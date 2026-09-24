@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Application.Actor.Command;
-using TomasAI.IFM.Domain.Application.Actor.Command.State;
+using TomasAI.IFM.Domain.Application.Command;
+using TomasAI.IFM.Domain.Application.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Shared.Domain;
@@ -14,9 +14,9 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
-using TomasAI.IFM.Domain.Application.Actor.Command.Extensions;
+using TomasAI.IFM.Domain.Application.Command.Extensions;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.Actor;
+namespace TomasAI.IFM.Domain.Application.Command.Actor;
 
 /// <summary>
 /// Represents an actor responsible for managing application commands and state within an event-sourced system.

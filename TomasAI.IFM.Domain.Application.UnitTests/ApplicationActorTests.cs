@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Application.Actor;
-using TomasAI.IFM.Domain.Application.Actor.Command.State;
-using TomasAI.IFM.Domain.Application.Actor.Event.Actor;
+using TomasAI.IFM.Domain.Application.Command.State;
+using TomasAI.IFM.Domain.Application.Event.Actor;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;

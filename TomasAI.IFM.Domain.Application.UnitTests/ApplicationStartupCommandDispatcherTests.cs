@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Application.Actor.Event;
+using TomasAI.IFM.Domain.Application.Event;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;

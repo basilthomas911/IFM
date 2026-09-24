@@ -32,11 +32,13 @@ public record ShutdownApplicationCommand : ICommand<ApplicationEntityId>
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
+    /// <summary>Creates a shutdown command for the current value date.</summary>
     public ShutdownApplicationCommand() : this(DateOnly.FromDateTime(DateTime.UtcNow)) { }
 
     /// <summary>
-    /// Parameterless constructor required by serializers and for normal usage.
+    /// Creates a shutdown command for the specified value date.
     /// </summary>
+    /// <param name="valueDate">The application value date.</param>
     public ShutdownApplicationCommand(DateOnly valueDate)
     {
         EntityId = new(valueDate);
@@ -54,6 +56,12 @@ public record ShutdownApplicationCommand : ICommand<ApplicationEntityId>
     /// <summary>
     /// MessagePack serialization constructor. Keys 0..5 correspond to metadata.
     /// </summary>
+    /// <param name="commandId">The permanent command identifier.</param>
+    /// <param name="subject">The routed actor subject.</param>
+    /// <param name="postEvents">Whether generated events are posted.</param>
+    /// <param name="entityId">The application value-date identity.</param>
+    /// <param name="errorCode">The command error code.</param>
+    /// <param name="routeTo">The destination bounded context.</param>
     [SerializationConstructor]
     public ShutdownApplicationCommand(
         Guid commandId,               // Key(0)

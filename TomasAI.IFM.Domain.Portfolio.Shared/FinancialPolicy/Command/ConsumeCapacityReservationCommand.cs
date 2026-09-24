@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 /// <summary>Consume through the CapacityConsumptionFunction actor; retries preserve operation identity and semantic input hash.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record ConsumeCapacityReservationCommand : ICommand<FinancialExecutionId>, IFinancialRequest<CapacityLifecycleRequest>
 {
     public const string Actor = "CapacityConsumptionFunction";

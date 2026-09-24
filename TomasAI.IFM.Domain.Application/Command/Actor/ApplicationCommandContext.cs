@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Application.Actor.Command;
-using TomasAI.IFM.Domain.Application.Actor.Command.State;
+using TomasAI.IFM.Domain.Application.Command;
+using TomasAI.IFM.Domain.Application.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -15,7 +15,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.Actor;
+namespace TomasAI.IFM.Domain.Application.Command.Actor;
 
 /// <summary>Defines the readonly runtime services required by <see cref="ApplicationCommandActor"/>.</summary>
 public interface IApplicationCommandContext : ICommandActorContext<ApplicationCommandActor>

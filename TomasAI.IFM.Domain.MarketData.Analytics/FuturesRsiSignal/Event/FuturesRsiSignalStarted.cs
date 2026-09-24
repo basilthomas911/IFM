@@ -58,8 +58,8 @@ public static class FuturesRsiSignalStarted
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(_serviceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(_serviceId, ex.GetErrorMessage(), "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
         }
         return false;
 

@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
 
+/// <summary>Handles the FuturesTradeSignalUpdatedCompleteEvent message in the FuturesTradeSignalEventActor lifecycle.</summary>
 public static class FuturesTradeSignalUpdatedComplete
 {
     static FuturesTradeSignalUpdatedComplete()

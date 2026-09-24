@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record PortfolioCloseOrderCompositionFailedEvent : IErrorEvent<FinancialExecutionId>
 {
     [Key(0)] public Guid Id { get; init; }

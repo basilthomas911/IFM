@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TomasAI.IFM.Application.Api.Server;
-using TomasAI.IFM.Domain.Application.Actor.Event;
+using TomasAI.IFM.Domain.Application.Event;
 using TomasAI.IFM.Domain.Application.Shared;
 
 namespace TomasAI.IFM.Domain.Application.Actor.UnitTests;

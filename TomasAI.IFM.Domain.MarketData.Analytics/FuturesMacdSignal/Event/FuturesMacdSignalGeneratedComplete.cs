@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
 
+/// <summary>Handles the FuturesMacdSignalGeneratedCompleteEvent message in the FuturesMacdSignalEventActor lifecycle.</summary>
 public static class FuturesMacdSignalGeneratedComplete
 {
     static FuturesMacdSignalGeneratedComplete()
@@ -17,6 +18,7 @@ public static class FuturesMacdSignalGeneratedComplete
     }
     static string ServiceId { get; } = default!;
 
+    /// <summary>Publishes the completed MACD observation to market outlook.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalGeneratedCompleteEvent e, IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
     {
         var source = $"FuturesMacdSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
@@ -31,8 +33,8 @@ public static class FuturesMacdSignalGeneratedComplete
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent, FuturesMacdSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
         }
         return false;
     }

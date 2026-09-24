@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime.Actor;
 
 /// <summary>
 /// Realtime/NATS adapter for Market Outlook. It validates routed source events and submits strongly

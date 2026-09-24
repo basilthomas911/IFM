@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 
+/// <summary>Handles stopping the periodic futures-bar insertion callback.</summary>
 public static class FuturesBarDataStreamingStopped
 {
     static FuturesBarDataStreamingStopped()
@@ -19,14 +20,8 @@ public static class FuturesBarDataStreamingStopped
     }
     static string ServiceId { get; } = default!;
 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="context"></param>
-    /// <param name="p"></param>
-    /// <returns></returns>
-public static async ValueTask<bool> ExecuteAsync(
+    /// <summary>Stops the bar timer and publishes a correlated completion or failure event.</summary>
+    public static async ValueTask<bool> ExecuteAsync(
     this FuturesBarDataStreamingStoppedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
@@ -44,9 +39,9 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming stop failed", source);
             await eventApi.FuturesBarDataStreamingStoppedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStoppedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming stop failed", source);
         }
         return stopped;
     }

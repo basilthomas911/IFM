@@ -72,6 +72,27 @@ foreach ($actorFile in $actorFiles) {
         }
 
         $handlerSource = [IO.File]::ReadAllText($handlerPath)
+        $classDeclaration = [regex]::Match(
+            $handlerSource,
+            '(?m)^\s*public\s+static\s+class\s+' + [regex]::Escape($handlerName) + '\b')
+        if (-not $classDeclaration.Success) {
+            $violations.Add("$relativePath handler $handlerName has no matching static class.")
+        }
+        else {
+            $precedingLines = @($handlerSource.Substring(0, $classDeclaration.Index) -split '\r?\n')
+            $lineIndex = $precedingLines.Count - 1
+            while ($lineIndex -ge 0 -and [string]::IsNullOrWhiteSpace($precedingLines[$lineIndex])) {
+                $lineIndex--
+            }
+            $documentation = [System.Collections.Generic.List[string]]::new()
+            while ($lineIndex -ge 0 -and $precedingLines[$lineIndex].TrimStart().StartsWith('///')) {
+                $documentation.Add($precedingLines[$lineIndex])
+                $lineIndex--
+            }
+            if (($documentation -join ' ') -notmatch '<summary>') {
+                $violations.Add("$relativePath handler $handlerName lacks class XML summary documentation.")
+            }
+        }
         $signature = [regex]::Match(
             $handlerSource,
             "public\s+static\s+(?:async\s+)?[\w<>?,\s]+?\s+ExecuteAsync\s*\((?<parameters>[^)]*\bthis\s+$([regex]::Escape($eventType))\b[^)]*)\)")
@@ -82,6 +103,30 @@ foreach ($actorFile in $actorFiles) {
         $loggerType = [regex]::Escape($actorFile.BaseName)
         if ($signature.Groups['parameters'].Value -notmatch "ILogger\s*<\s*$loggerType\s*>") {
             $violations.Add("$relativePath handler $handlerName does not receive ILogger<$($actorFile.BaseName)> directly.")
+        }
+
+        $methodMatches = [regex]::Matches(
+            $handlerSource,
+            '(?m)^\s*(?:public|private|internal)?\s*static\s+(?:async\s+)?[\w<>?,\[\]\s]+?\s+(\w+)\s*\(')
+        foreach ($method in $methodMatches) {
+            $methodName = $method.Groups[1].Value
+            if ($methodName -eq $handlerName) {
+                continue
+            }
+
+            $precedingLines = @($handlerSource.Substring(0, $method.Index) -split '\r?\n')
+            $lineIndex = $precedingLines.Count - 1
+            while ($lineIndex -ge 0 -and [string]::IsNullOrWhiteSpace($precedingLines[$lineIndex])) {
+                $lineIndex--
+            }
+            $documentation = [System.Collections.Generic.List[string]]::new()
+            while ($lineIndex -ge 0 -and $precedingLines[$lineIndex].TrimStart().StartsWith('///')) {
+                $documentation.Add($precedingLines[$lineIndex])
+                $lineIndex--
+            }
+            if (($documentation -join ' ') -notmatch '<summary>') {
+                $violations.Add("$relativePath handler $handlerName.$methodName lacks adjacent XML summary documentation.")
+            }
         }
     }
 }

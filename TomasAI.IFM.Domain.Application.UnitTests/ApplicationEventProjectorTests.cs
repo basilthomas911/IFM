@@ -3,7 +3,7 @@ using System.Reflection;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Application.Actor.Command.EventProjector;
+using TomasAI.IFM.Domain.Application.Command.EventProjector;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 

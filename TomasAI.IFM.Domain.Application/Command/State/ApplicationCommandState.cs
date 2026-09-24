@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.State;
+namespace TomasAI.IFM.Domain.Application.Command.State;
 
 /// <summary>
 /// Represents the event-sourced state of Application commands within the actor system.

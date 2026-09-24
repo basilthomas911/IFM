@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function;
 
-public static class ExecuteUpdateFuturesTradePlan
+public static class UpdateFuturesTradePlan
 {
     public static ValueTask<FunctionResult<FuturesTradePlanUpdatedEvent,
         TradePlanFailedEvent<FuturesTradePlanId>>> ExecuteAsync(

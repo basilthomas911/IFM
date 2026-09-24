@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 
+/// <summary>Handles the FuturesAdxDailySignalGeneratedCompleteEvent message in the FuturesAdxSignalEventActor lifecycle.</summary>
 public static class FuturesAdxDailySignalGeneratedComplete
 {
     static FuturesAdxDailySignalGeneratedComplete()
@@ -33,8 +34,8 @@ public static class FuturesAdxDailySignalGeneratedComplete
         }
         catch (Exception ex)
         {
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAdxSignalEvent, FuturesAdxDailySignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
             logger.LogError(ex, "{Source}:  event handler failed", source);
+            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAdxSignalEvent, FuturesAdxDailySignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
         }
         return false;
     }

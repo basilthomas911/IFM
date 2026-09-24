@@ -13,6 +13,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
+/// <summary>Handles the MarketDataFeedResetCompleteEvent message in the MarketDataFeedEventActor lifecycle.</summary>
 public static class MarketDataFeedResetComplete
 {
     static MarketDataFeedResetComplete()
@@ -56,8 +57,8 @@ public static class MarketDataFeedResetComplete
         }
         catch (Exception ex)
         {
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
             logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset complete failed");
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
         }
         return false;
     }

@@ -3,6 +3,8 @@ using System.Reflection;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Command.Actor;
+using TomasAI.IFM.Domain.Portfolio.Fund.Command.Actor;
+using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Shared.Validation;

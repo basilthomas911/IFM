@@ -13,8 +13,10 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 
+/// <summary>Handles the start of an option tick-data stream.</summary>
 public static class FuturesOptionTickDataStreamingStarted
 {
+    /// <summary>Initializes the event service identity used for failure logging.</summary>
     static FuturesOptionTickDataStreamingStarted()
     {
         ServiceId = $"{LogSourceType.FuturesOptionTickDataEvent}";
@@ -22,7 +24,8 @@ public static class FuturesOptionTickDataStreamingStarted
 
     static string ServiceId { get; }
 
-public static async ValueTask<bool> ExecuteAsync(
+    /// <summary>Attaches the option stream and publishes its completion or failure event.</summary>
+    public static async ValueTask<bool> ExecuteAsync(
     this FuturesOptionTickDataStreamingStartedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
@@ -52,13 +55,14 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
             await eventApi.SendFuturesOptionTickDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, FuturesOptionTickDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
         }
         return false;
     }
 
+    /// <summary>Creates the owner identity used to track this actor's option stream.</summary>
     internal static TickerStreamOwner CreateOwner(
         FuturesOptionTickEntityId entityId,
         string contractId) => new(

@@ -18,9 +18,9 @@ public static class FuturesMacdSignalStopped
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Detach(@event.EntityId); return true; }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Unable to detach MACD observation identity {EntityId}", @event.EntityId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent,
                 FuturesMacdSignalStoppedEvent.ErrorCode, exception.GetErrorMessage());
-            logger.LogError(exception, "Unable to detach MACD observation identity {EntityId}", @event.EntityId);
             return false;
         }
     }

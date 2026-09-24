@@ -7,9 +7,9 @@ using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Domain.Application.Actor.Command.Actor;
+using TomasAI.IFM.Domain.Application.Command.Actor;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.State;
+namespace TomasAI.IFM.Domain.Application.Command.State;
 
 /// <summary>
 /// Provides functionality to manage the state of the application, including loading state from snapshots and saving

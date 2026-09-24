@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record PortfolioCloseOrderCompositionCompletedEvent :
     ICompleteEvent<FinancialExecutionId>, IFinancialCompletedEvent
 {

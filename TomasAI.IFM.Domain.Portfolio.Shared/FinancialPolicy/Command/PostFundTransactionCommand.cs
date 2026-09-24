@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 /// <summary>Post through the GeneralLedgerCommand actor; retries preserve operation identity and semantic input hash.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record PostFundTransactionCommand : ICommand<LedgerPortfolioId>, IFinancialRequest<LedgerPostingRequest>
 {
     public const string Actor = "GeneralLedgerCommand";

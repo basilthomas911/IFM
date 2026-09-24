@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventProjector;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 /// <summary>Classified CapacityLifecycle refusal/uncertain outcome; never evidence of a successful financial mutation.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record CapacityLifecycleFailedEvent : IErrorEvent<CapacityReservationEntityId>
 {
     [Key(0)] public int SchemaVersion { get; init; } = 1;

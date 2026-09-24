@@ -7,9 +7,9 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.Application.Actor.Event.Actor;
+using TomasAI.IFM.Domain.Application.Event.Actor;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Event.Extensions;
+namespace TomasAI.IFM.Domain.Application.Event.Extensions;
 
 /// <summary>Exposes readonly ApplicationEvent Event context properties.</summary>
 public static class ApplicationEventContextExtensions

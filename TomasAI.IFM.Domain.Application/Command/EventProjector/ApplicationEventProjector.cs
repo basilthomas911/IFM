@@ -4,12 +4,12 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Application.Actor.Command.Actor;
+using TomasAI.IFM.Domain.Application.Command.Actor;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.EventProjector;
+namespace TomasAI.IFM.Domain.Application.Command.EventProjector;
 
 /// <summary>Publishes application lifecycle events through the durable projector lane.</summary>
 public sealed class ApplicationEventProjector(

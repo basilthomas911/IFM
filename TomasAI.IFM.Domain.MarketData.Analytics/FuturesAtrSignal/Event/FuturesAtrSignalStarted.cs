@@ -18,9 +18,9 @@ public static class FuturesAtrSignalStarted
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Attach(@event.EntityId); return true; }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Unable to attach ATR observation identity {EntityId}", @event.EntityId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent,
                 FuturesAtrSignalStartedEvent.ErrorCode, exception.GetErrorMessage());
-            logger.LogError(exception, "Unable to attach ATR observation identity {EntityId}", @event.EntityId);
             return false;
         }
     }

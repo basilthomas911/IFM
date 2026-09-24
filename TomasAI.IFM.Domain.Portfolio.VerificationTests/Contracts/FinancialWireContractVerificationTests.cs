@@ -11,6 +11,35 @@ namespace TomasAI.IFM.Domain.Portfolio.VerificationTests.Contracts;
 [Trait("Category","PortfolioFinancial"),Trait("Gate","PF-FIN-01")]
 public sealed class FinancialWireContractVerificationTests
 {
+    public static TheoryData<Type> MigratedContracts => new()
+    {
+        typeof(ConsumeCapacityReservationCommand),
+        typeof(ChangeCapacityReservationCommand),
+        typeof(PostFundTransactionsCommand),
+        typeof(PostFundTransactionCommand),
+        typeof(ReservePortfolioTradeRiskCommand),
+        typeof(ConfigureLedgerCommand),
+        typeof(SubmitEmulatorOrderCommand),
+        typeof(CapacityConsumptionFailedEvent),
+        typeof(CapacityLifecycleCompletedEvent),
+        typeof(CapacityReservationFailedEvent),
+        typeof(CapacityConsumptionCompletedEvent),
+        typeof(CapacityLifecycleFailedEvent),
+        typeof(LedgerPostingBatchFailedEvent),
+        typeof(LedgerPostingCompletedEvent),
+        typeof(CapacityReservationCompletedEvent),
+        typeof(LedgerPostingFailedEvent),
+        typeof(LedgerPostingBatchCompletedEvent),
+    };
+
+    [Theory, MemberData(nameof(MigratedContracts))]
+    public void Migrated_financial_messages_allow_private_messagepack_members(Type contract)
+    {
+        var attribute = contract.GetCustomAttribute<MessagePackObjectAttribute>();
+        attribute.Should().NotBeNull();
+        attribute!.AllowPrivate.Should().BeTrue();
+    }
+
     public static TheoryData<Type,int> Contracts=>new()
     {
         {typeof(PostFundTransactionCommand),17},{typeof(PostFundTransactionsCommand),17},

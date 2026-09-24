@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 
+/// <summary>Handles the FuturesAtrSignalGeneratedCompleteEvent message in the FuturesAtrSignalEventActor lifecycle.</summary>
 public static class FuturesAtrSignalGeneratedComplete
 {
     static FuturesAtrSignalGeneratedComplete()
@@ -44,8 +45,8 @@ public static class FuturesAtrSignalGeneratedComplete
         }
         catch (Exception ex)
         {
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
             logger.LogError(ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
+            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
         }
         return false;
     }

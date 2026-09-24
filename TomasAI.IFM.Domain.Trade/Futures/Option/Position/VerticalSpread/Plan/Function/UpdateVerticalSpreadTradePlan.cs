@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function;
 
-public static class ExecuteUpdateVerticalSpreadTradePlan
+public static class UpdateVerticalSpreadTradePlan
 {
     public static ValueTask<FunctionResult<VerticalSpreadTradePlanUpdatedEvent,
         TradePlanFailedEvent<VerticalSpreadTradePlanId>>> ExecuteAsync(

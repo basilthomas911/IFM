@@ -92,11 +92,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     {
         [typeof(GetInstrumentDefinitionsQuery)] = async (ctx, q, cancellationToken) =>
         {
-            var query = (GetInstrumentDefinitionsQuery)q;
-            var result = await ctx.DbFactory.ReferenceDb.InstrumentDefinitions.GetSelectionPageAsync(
-                query.Request, DateTimeOffset.UtcNow, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb, new ServiceResult<InstrumentDefinitionPage>(result));
+            await ((GetInstrumentDefinitionsQuery)q).ExecuteAsync(ctx, cancellationToken);
         },
         [typeof(GetOnTheRunFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {

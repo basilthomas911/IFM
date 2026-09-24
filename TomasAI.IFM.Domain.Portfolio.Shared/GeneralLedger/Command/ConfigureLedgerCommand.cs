@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record ConfigureLedgerCommand : ICommand<LedgerPortfolioId>, IFinancialRequest<LedgerConfigurationRequest>
 {
     public const string Actor = "LedgerConfigurationCommand";

@@ -1,11 +1,11 @@
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Queries;
-using TomasAI.IFM.Domain.Application.Actor.Query;
+using TomasAI.IFM.Domain.Application.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Query.Actor;
+namespace TomasAI.IFM.Domain.Application.Query.Actor;
 
 /// <summary>NATS query boundary for the latest Application lifecycle status.</summary>
 public sealed class ApplicationQueryActor(IQueryActorContext<ApplicationQueryActor> actorContext)

@@ -67,7 +67,9 @@ public enum LogSourceType
     YieldCurveRatesImported,
     EconomicCalendarsImported,
     FuturesTickQuoteDataInserted,
-    FuturesMarketPriceUpdated
+    FuturesMarketPriceUpdated,
+    ApplicationStartup,
+    ApplicationShutdown
 }
 
 public static class LogSourceTypeExtensions
@@ -117,6 +119,8 @@ public static class LogSourceTypeExtensions
         LogSourceType.EconomicCalendarsImported => nameof(LogSourceType.EconomicCalendarsImported),
         LogSourceType.FuturesTickQuoteDataInserted => nameof(LogSourceType.FuturesTickQuoteDataInserted),
         LogSourceType.FuturesMarketPriceUpdated => nameof(LogSourceType.FuturesMarketPriceUpdated),
+        LogSourceType.ApplicationStartup => nameof(LogSourceType.ApplicationStartup),
+        LogSourceType.ApplicationShutdown => nameof(LogSourceType.ApplicationShutdown),
         _ => value.ToString()
     };
 }

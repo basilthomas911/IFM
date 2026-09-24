@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record PortfolioOrderCompositionCompletedEvent : ICompleteEvent<FinancialExecutionId>, IFinancialCompletedEvent
 {
     [Key(0)] public int SchemaVersion { get; init; } = 1;

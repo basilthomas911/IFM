@@ -6,6 +6,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Command.Actor;
+using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;

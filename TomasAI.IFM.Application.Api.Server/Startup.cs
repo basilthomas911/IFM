@@ -57,7 +57,7 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.Application.Shared;
-using TomasAI.IFM.Domain.Application.Actor.Event;
+using TomasAI.IFM.Domain.Application.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.Portfolio;
@@ -1099,7 +1099,7 @@ public static class Startup
                 TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State.PortfolioOrderCompositionFunctionStateRepository>(Lifestyle.Singleton);
         _siContainer.Register(typeof(IFunctionProjector<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
-        _siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.EmulatorExecutionCommandServices>(Lifestyle.Singleton);
+        _siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.Command.EmulatorExecutionCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
         _siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialBookPreparation>(Lifestyle.Singleton);

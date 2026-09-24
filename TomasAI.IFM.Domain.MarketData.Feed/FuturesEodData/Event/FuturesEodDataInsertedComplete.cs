@@ -18,6 +18,7 @@ public static class FuturesEodDataInsertedComplete
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
 
+    /// <summary>Sends the best-effort external notification for a completed futures EOD insert.</summary>
     public static ValueTask<bool> ExecuteAsync(
         this FuturesEodDataInsertedCompleteEvent @event,
         IEventActorContext context,

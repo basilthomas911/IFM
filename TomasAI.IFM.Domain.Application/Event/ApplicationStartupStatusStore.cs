@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Application.Shared;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Event;
+namespace TomasAI.IFM.Domain.Application.Event;
 
 /// <summary>Thread-safe process-local lifecycle status used by health and late observers.</summary>
 public sealed class ApplicationStartupStatusStore : IApplicationStartupStatusStore

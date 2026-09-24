@@ -153,6 +153,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         }
     }
 
+    /// <summary>Maps the durable acquisition request to the provider-neutral application request.</summary>
     static MarketDataHistoricalRequest ToApplicationRequest(
         FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested) => new()
     {
@@ -179,9 +180,11 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         AnalyticsTargetContractId = requested.Parameters.AnalyticsTargetContractId
     };
 
+    /// <summary>Parses a source record ordinal, returning minus one when it is unavailable.</summary>
     static long ParseRecordOrdinal(string? sourcePosition) =>
         long.TryParse(sourcePosition, out var value) ? value : -1;
 
+    /// <summary>Uses the final load state or constructs the completed automatic-warmup state.</summary>
     static HistoricalDataLoaderState ToState(
         FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested,
         HistoricalAnalyticsWarmupResult result)

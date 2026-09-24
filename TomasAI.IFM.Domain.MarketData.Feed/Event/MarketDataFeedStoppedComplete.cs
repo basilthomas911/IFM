@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
+/// <summary>Handles the MarketDataFeedStoppedCompleteEvent message in the MarketDataFeedEventActor lifecycle.</summary>
 public static class MarketDataFeedStoppedComplete
 {
     static MarketDataFeedStoppedComplete()
@@ -36,8 +37,8 @@ public static class MarketDataFeedStoppedComplete
         }
         catch (Exception ex)
         {
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
             logger.LogErrorEvent(ServiceId, ex, "{Source}: stopping futures bar data feed failed", source);
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
         }
         return false;
     }

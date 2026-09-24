@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
 
+/// <summary>Handles the FuturesItiSignalHoldTradeChangedEvent message in the FuturesTradeSignalEventActor lifecycle.</summary>
 public static class FuturesItiSignalHoldTradeChanged
 {
     static FuturesItiSignalHoldTradeChanged()
@@ -34,8 +35,8 @@ public static class FuturesItiSignalHoldTradeChanged
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: complete handler failed", source);
             await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTradeSignalEvent, 19014, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}: complete handler failed", source);
         }
         return false;
     }

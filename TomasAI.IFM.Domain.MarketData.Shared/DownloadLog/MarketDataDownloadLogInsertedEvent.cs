@@ -4,7 +4,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 
-[MessagePackObject]
+/// <summary>Reports that a market-data download outcome was recorded.</summary>
+[MessagePackObject(AllowPrivate = true)]
 public sealed record MarketDataDownloadLogInsertedEvent : IEvent<DownloadLogId>, IRequireDurableProjection
 {
     [IgnoreMember, Newtonsoft.Json.JsonIgnore]
@@ -25,6 +26,10 @@ public sealed record MarketDataDownloadLogInsertedEvent : IEvent<DownloadLogId>,
     [IgnoreMember] public string UserName => "MarketDataImport";
     [IgnoreMember] public string EventName => nameof(MarketDataDownloadLogInsertedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
+    /// <summary>Creates the completed lifecycle notification from this committed event.</summary>
+    /// <typeparam name="TTerminal">The requested completed-event contract.</typeparam>
+    /// <typeparam name="TId">The entity identity contract.</typeparam>
+    /// <returns>The corresponding completed event.</returns>
     public ICompleteEvent<TId> ToCompleteEvent<TTerminal, TId>() where TTerminal : ICompleteEvent<TId> where TId : IActorEntityId
         => (ICompleteEvent<TId>)(object)new MarketDataDownloadLogInsertedCompleteEvent
         {
@@ -39,6 +44,11 @@ public sealed record MarketDataDownloadLogInsertedEvent : IEvent<DownloadLogId>,
             Outcome = this.Outcome,
             PayloadSha256 = this.PayloadSha256,
         };
+    /// <summary>Creates the failure lifecycle notification from this committed event.</summary>
+    /// <typeparam name="TTerminal">The requested failure-event contract.</typeparam>
+    /// <typeparam name="TId">The entity identity contract.</typeparam>
+    /// <param name="ex">The processing failure to report.</param>
+    /// <returns>The corresponding failure event.</returns>
     public IErrorEvent<TId> ToFailEvent<TTerminal, TId>(Exception ex) where TTerminal : IErrorEvent<TId> where TId : IActorEntityId
         => (IErrorEvent<TId>)(object)new MarketDataDownloadLogInsertedFailEvent
         {
@@ -56,7 +66,8 @@ public sealed record MarketDataDownloadLogInsertedEvent : IEvent<DownloadLogId>,
         };
 }
 
-[MessagePackObject]
+/// <summary>Reports completion of download-log event processing.</summary>
+[MessagePackObject(AllowPrivate = true)]
 public sealed record MarketDataDownloadLogInsertedCompleteEvent : ICompleteEvent<DownloadLogId>
 {
     public const string Actor = "DownloadLogEvent";
@@ -76,7 +87,8 @@ public sealed record MarketDataDownloadLogInsertedCompleteEvent : ICompleteEvent
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
 }
 
-[MessagePackObject]
+/// <summary>Reports failure of download-log event processing.</summary>
+[MessagePackObject(AllowPrivate = true)]
 public sealed record MarketDataDownloadLogInsertedFailEvent : IErrorEvent<DownloadLogId>
 {
     public const string Actor = "DownloadLogEvent";

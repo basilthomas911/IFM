@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event;
 
+/// <summary>Handles the FuturesEodDataInsertedEvent message in the FuturesEodDataEventActor lifecycle.</summary>
 public static class FuturesEodDataInserted
 {
     static FuturesEodDataInserted()
@@ -19,6 +20,7 @@ public static class FuturesEodDataInserted
     }
     static string ServiceId { get; } = default!;
 
+    /// <summary>Projects the futures EOD event and returns whether the projection succeeded.</summary>
 public static async ValueTask<bool> ExecuteAsync(
     this FuturesEodDataInsertedEvent e,
     IEventActorContext context,
@@ -36,8 +38,8 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures eod data {ContractId} insert failed", source, e.FuturesEodData.ContractId);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, FuturesEodDataInsertedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}: futures eod data {ContractId} insert failed", source, e.FuturesEodData.ContractId);
         }
         return false;
 

@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 
+/// <summary>Handles the FuturesRsiSignalStoppedEvent message in the FuturesRsiSignalEventActor lifecycle.</summary>
 public static class FuturesRsiSignalStopped
 {
     static FuturesRsiSignalStopped()
@@ -39,8 +40,8 @@ public static class FuturesRsiSignalStopped
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
         }
         return false;
     }

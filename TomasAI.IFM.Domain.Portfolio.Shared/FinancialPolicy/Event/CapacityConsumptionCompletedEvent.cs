@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventProjector;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 /// <summary>Immutable committed CapacityConsumption receipt; retries return its original identity and financial revision.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record CapacityConsumptionCompletedEvent : ICompleteEvent<FinancialExecutionId>, IFinancialCompletedEvent
 {
     [Key(0)] public int SchemaVersion { get; init; } = 1;

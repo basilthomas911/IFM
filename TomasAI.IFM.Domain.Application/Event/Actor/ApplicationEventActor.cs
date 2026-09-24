@@ -6,10 +6,10 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
-using TomasAI.IFM.Domain.Application.Actor.Event.Extensions;
-using TomasAI.IFM.Domain.Application.Actor.Event;
+using TomasAI.IFM.Domain.Application.Event.Extensions;
+using TomasAI.IFM.Domain.Application.Event;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Event.Actor;
+namespace TomasAI.IFM.Domain.Application.Event.Actor;
 
 /// <summary>
 /// Represents an event actor responsible for receiving application lifecycle events within the actor system.

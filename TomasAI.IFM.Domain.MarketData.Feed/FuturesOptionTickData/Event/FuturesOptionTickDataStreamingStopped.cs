@@ -11,8 +11,10 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 
+/// <summary>Handles the stop of an option tick-data stream.</summary>
 public static class FuturesOptionTickDataStreamingStopped
 {
+    /// <summary>Initializes the event service identity used for failure logging.</summary>
     static FuturesOptionTickDataStreamingStopped()
     {
         ServiceId = $"{LogSourceType.FuturesOptionTickDataEvent}";
@@ -20,7 +22,8 @@ public static class FuturesOptionTickDataStreamingStopped
 
     static string ServiceId { get; }
 
-public static async ValueTask<bool> ExecuteAsync(
+    /// <summary>Detaches the option stream and publishes its completion or failure event.</summary>
+    public static async ValueTask<bool> ExecuteAsync(
     this FuturesOptionTickDataStreamingStoppedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
@@ -44,9 +47,9 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming stop failed", source, e.ContractId);
             await eventApi.SendFuturesOptionTickDataStreamingStoppedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, 6008, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming stop failed", source, e.ContractId);
         }
         return false;
     }

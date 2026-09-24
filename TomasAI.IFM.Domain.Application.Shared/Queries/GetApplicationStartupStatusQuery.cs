@@ -16,8 +16,12 @@ public sealed record GetApplicationStartupStatusQuery : IQuery<ApplicationStartu
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     [IgnoreMember] public string QueryParams { get; init; } = string.Empty;
 
+    /// <summary>Creates a request for the current application startup status.</summary>
     public GetApplicationStartupStatusQuery() { }
 
+    /// <summary>Rehydrates the startup status request from its wire fields.</summary>
+    /// <param name="subject">The routed query subject.</param>
+    /// <param name="entityId">The requested application identity.</param>
     [SerializationConstructor]
     public GetApplicationStartupStatusQuery(ActorSubject subject, IActorEntityId entityId)
     {

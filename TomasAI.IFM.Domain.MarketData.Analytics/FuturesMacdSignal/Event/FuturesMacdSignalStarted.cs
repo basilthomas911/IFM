@@ -18,9 +18,9 @@ public static class FuturesMacdSignalStarted
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(@event.EntityId); return true; }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Unable to attach MACD observation identity {EntityId}", @event.EntityId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent,
                 FuturesMacdSignalStartedEvent.ErrorCode, exception.GetErrorMessage());
-            logger.LogError(exception, "Unable to attach MACD observation identity {EntityId}", @event.EntityId);
             return false;
         }
     }

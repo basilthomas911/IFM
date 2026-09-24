@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event;
 
+/// <summary>Handles the VixFuturesEodDataInsertedCompleteEvent message in the FuturesEodDataEventActor lifecycle.</summary>
 public static class VixFuturesEodDataInsertedComplete
 {
     static VixFuturesEodDataInsertedComplete()
@@ -16,6 +17,7 @@ public static class VixFuturesEodDataInsertedComplete
     }
     static string ServiceId { get; } = default!;
 
+    /// <summary>Caches a completed VIX futures EOD observation and reports the outcome.</summary>
     public static ValueTask<bool> ExecuteAsync(this VixFuturesEodDataInsertedCompleteEvent e,
         IEventActorContext context, FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
         => ExecuteCoreAsync(e, context, p, logger);
@@ -38,8 +40,8 @@ public static class VixFuturesEodDataInsertedComplete
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: vix futures eod data {ContractId} caching failed", source, e.VixFuturesTickData.ContractId);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, 6009, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}: vix futures eod data {ContractId} caching failed", source, e.VixFuturesTickData.ContractId);
         }
         return false;
     }

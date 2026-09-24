@@ -28,15 +28,15 @@ public static class FuturesAdxSignalStopped
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(
+                nameof(LogSourceType.FuturesAdxSignalEvent),
+                ex,
+                "ADX observation detachment failed for {ContractId}",
+                e.EntityId.ContractId);
             await context.StatusConsoleWriter.WriteConsoleAsync(
                 LogSourceType.FuturesAdxSignalEvent,
                 FuturesAdxSignalStoppedEvent.ErrorCode,
                 ex.GetErrorMessage()).ConfigureAwait(false);
-            logger.LogErrorEvent(
-                nameof(LogSourceType.FuturesAdxSignalEvent),
-                ex.GetErrorMessage(),
-                "ADX observation detachment failed for {ContractId}",
-                e.EntityId.ContractId);
             return false;
         }
     }

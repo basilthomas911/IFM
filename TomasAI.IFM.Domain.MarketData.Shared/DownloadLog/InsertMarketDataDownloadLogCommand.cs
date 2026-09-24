@@ -4,7 +4,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 
-[MessagePackObject]
+/// <summary>Requests durable recording of one market-data download outcome.</summary>
+[MessagePackObject(AllowPrivate = true)]
 public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId>
 {
     public const string Actor = "DownloadLogCommand";
@@ -24,7 +25,10 @@ public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId
     [IgnoreMember] public DateTime OriginatedOn => Outcome.RequestedAtUtc;
     [IgnoreMember] public string OriginatedBy => "MarketDataImport";
 
+    /// <summary>Creates an empty command for deserialization.</summary>
     public InsertMarketDataDownloadLogCommand() { }
+    /// <summary>Creates a deterministic logging command for a completed import.</summary>
+    /// <param name="outcome">The completed import outcome to record.</param>
     public InsertMarketDataDownloadLogCommand(MarketDataDownloadOutcome outcome)
     {
         Outcome = outcome;
@@ -34,6 +38,7 @@ public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId
         Subject = new(ActorType.Command, Actor, Verb, EntityId.Format());
     }
 
+    /// <summary>Rejects an outcome whose identity, route, or payload hash differs from this command.</summary>
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(Outcome);

@@ -3,7 +3,8 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
-[MessagePackObject]
+/// <summary>Requests the latest download status for one partition.</summary>
+[MessagePackObject(AllowPrivate = true)]
 public sealed class GetMarketDataDownloadStatusQuery : IQuery<MarketDataDownloadStatusResult>
 {
     public const string Actor = "DownloadLogQuery";
@@ -16,7 +17,10 @@ public sealed class GetMarketDataDownloadStatusQuery : IQuery<MarketDataDownload
     [IgnoreMember] public string? QueryParams => null;
     [Key(3)] public Guid? RequiredImportCommandId { get; init; } = null;
     [Key(4)] public MarketDataDownloadCursor? Cursor { get; init; } = null;
+    /// <summary>Creates an empty query for deserialization.</summary>
     public GetMarketDataDownloadStatusQuery() { }
+    /// <summary>Creates a status query for the requested partition.</summary>
+    /// <param name="request">The download partition to inspect.</param>
     public GetMarketDataDownloadStatusQuery(MarketDataDownloadPartition request)
     { Request = request; EntityId = request; Subject = new(ActorType.Query, Actor, Verb, request.Format()); }
 }

@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 
+/// <summary>Handles registration of the periodic futures-bar insertion callback.</summary>
 public static class FuturesBarDataStreamingStarted
 {
     static FuturesBarDataStreamingStarted()
@@ -22,14 +23,8 @@ public static class FuturesBarDataStreamingStarted
     }
     static string ServiceId { get; } = default!;
 
-   /// <summary>
-   /// 
-   /// </summary>
-   /// <param name="e"></param>
-   /// <param name="context"></param>
-   /// <param name="p"></param>
-   /// <returns></returns>
-public static async ValueTask<bool> ExecuteAsync(
+    /// <summary>Starts the bar timer and publishes a correlated completion or failure event.</summary>
+    public static async ValueTask<bool> ExecuteAsync(
     this FuturesBarDataStreamingStartedEvent e,
     IEventActorContext context,
     IEventActorContext commandApi,
@@ -48,12 +43,13 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming start failed", source);
             await eventApi.FuturesBarDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming start failed", source);
         }
         return started;
 
+        /// <summary>Samples current futures ticks and submits supported bar insertions.</summary>
         async ValueTask InsertFuturesBarDataFromTickDataAsync()
         {
             try
@@ -101,8 +97,8 @@ public static async ValueTask<bool> ExecuteAsync(
             }
             catch (Exception ex)
             {
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
                 logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data insert failed", source);
+                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
             }
         }
     }

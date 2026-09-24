@@ -70,8 +70,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (services, context, query, cancellationToken) =>
             ((GetIntrinsicTimeStrategyWorkflowByIdQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetIntrinsicTimeStrategyWorkflowsByIdsQuery)] = static (services, context, query, cancellationToken) =>
-            IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(
-                services, context, (GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query, cancellationToken),
+            ((GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static (services, context, query, cancellationToken) =>
             ((GetActiveIntrinsicTimeStrategyWorkflowQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static (services, context, query, cancellationToken) =>
@@ -89,8 +88,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (services, context, query, cancellationToken) =>
             ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) =>
-            IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(
-                services, context, (GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query, cancellationToken)
+            ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken)
     };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

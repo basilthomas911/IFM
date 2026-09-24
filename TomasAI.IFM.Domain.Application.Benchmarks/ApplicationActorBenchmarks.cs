@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using TomasAI.IFM.Domain.Application.Actor.Command.State;
+using TomasAI.IFM.Domain.Application.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.Domain;

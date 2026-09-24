@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
+/// <summary>Handles the MarketDataFeedStartedEvent message in the MarketDataFeedEventActor lifecycle.</summary>
 public static class MarketDataFeedStarted
 {
     static MarketDataFeedStarted()
@@ -48,9 +49,9 @@ public static class MarketDataFeedStarted
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
             await eventApi.SendMarketDataFeedStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStartedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
         }
         return false;
     }

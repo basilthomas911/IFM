@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Event.Actor;
+namespace TomasAI.IFM.Domain.Application.Event.Actor;
 
 /// <summary>Defines the readonly runtime services required by <see cref="ApplicationEventActor"/>.</summary>
 public interface IApplicationEventContext : IEventActorContext<ApplicationEventActor>

@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Shared.Validation;
 
-namespace TomasAI.IFM.Domain.Portfolio.Command;
+namespace TomasAI.IFM.Domain.Portfolio.Fund.Command;
 
 /// <summary>Mapped Fund authorization handling; the shared financial fence verifies the committed reservation before append.</summary>
 public static class AuthorizeFundOrderRisk

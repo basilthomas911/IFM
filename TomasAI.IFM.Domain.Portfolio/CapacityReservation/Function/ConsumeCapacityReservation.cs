@@ -8,8 +8,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function;
 
 /// <summary>Authorizes execution and maps a candidate; only the transactional repository can produce the committed receipt.</summary>
-public static class ExecuteCapacityConsumption
+public static class ConsumeCapacityReservation
 {
+    /// <summary>Validates the consumption request and dispatches its candidate completion for transactional commitment.</summary>
     public static ValueTask<FunctionResult<CapacityConsumptionCompletedEvent,CapacityConsumptionFailedEvent>> ExecuteAsync(this ConsumeCapacityReservationCommand request,ICapacityConsumptionFunctionContext context,
         Func<FunctionEventContext<ConsumeCapacityReservationCommand>,FunctionResult<CapacityConsumptionCompletedEvent,CapacityConsumptionFailedEvent>> dispatch,CancellationToken token)
     {
@@ -18,4 +19,3 @@ public static class ExecuteCapacityConsumption
         return ValueTask.FromResult(dispatch(new(typeof(CapacityConsumptionCompletedEvent),request,new CapacityLifecycleReceipt())));
     }
 }
-

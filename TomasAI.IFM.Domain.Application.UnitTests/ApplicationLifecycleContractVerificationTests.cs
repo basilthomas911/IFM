@@ -1,10 +1,37 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Application.Actor.UnitTests;
 
 public sealed class ApplicationLifecycleContractVerificationTests
 {
+    [Fact]
+    [Trait("Category", "Verification")]
+    public void Startup_command_retains_its_six_wire_fields()
+    {
+        var valueDate = new DateOnly(2026, 9, 24);
+        var source = new StartApplicationCommand(valueDate)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, StartApplicationCommand.Actor,
+                StartApplicationCommand.Verb, new ApplicationEntityId(valueDate).Format()),
+            PostEvents = true
+        };
+
+        var copy = MessagePackSerializer.Deserialize<StartApplicationCommand>(
+            MessagePackSerializer.Serialize(source));
+
+        Assert.Equal(source.CommandId, copy.CommandId);
+        Assert.Equal(source.Subject, copy.Subject);
+        Assert.Equal(source.PostEvents, copy.PostEvents);
+        Assert.Equal(source.EntityId, copy.EntityId);
+        Assert.Equal(source.ErrorCode, copy.ErrorCode);
+        Assert.Equal(source.RouteTo, copy.RouteTo);
+    }
+
     [Fact]
     [Trait("Category", "Verification")]
     public void Startup_status_round_trips_with_every_activity_result()

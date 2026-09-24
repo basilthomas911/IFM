@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 /// <summary>Reserve through the CapacityReservationFunction actor; retries preserve operation identity and semantic input hash.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record ReservePortfolioTradeRiskCommand : ICommand<FinancialExecutionId>, IFinancialRequest<CapacityReservationRequest>
 {
     public const string Actor = "CapacityReservationFunction";

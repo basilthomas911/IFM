@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event;
 
+/// <summary>Handles the SpreadDistributionJobStatusUpdatedEvent message in the SpreadDistributionJobEventActor lifecycle.</summary>
 public static class SpreadDistributionJobStatusUpdated
 {
     static SpreadDistributionJobStatusUpdated()
@@ -17,6 +18,7 @@ public static class SpreadDistributionJobStatusUpdated
     }
     static string ServiceId { get; } = default!;
 
+    /// <summary>Applies a spread-distribution job status update and reports the outcome.</summary>
     public static async ValueTask<bool> ExecuteAsync(
         this SpreadDistributionJobStatusUpdatedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger<SpreadDistributionJobEventActor> logger)
     {

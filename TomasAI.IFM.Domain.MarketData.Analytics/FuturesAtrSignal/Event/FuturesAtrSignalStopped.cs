@@ -18,9 +18,9 @@ public static class FuturesAtrSignalStopped
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Detach(@event.EntityId); return true; }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Unable to detach ATR observation identity {EntityId}", @event.EntityId);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent,
                 FuturesAtrSignalStoppedEvent.ErrorCode, exception.GetErrorMessage());
-            logger.LogError(exception, "Unable to detach ATR observation identity {EntityId}", @event.EntityId);
             return false;
         }
     }

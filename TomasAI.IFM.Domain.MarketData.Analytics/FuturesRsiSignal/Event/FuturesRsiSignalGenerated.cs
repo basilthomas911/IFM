@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 
+/// <summary>Handles the FuturesRsiSignalGeneratedEvent message in the FuturesRsiSignalEventActor lifecycle.</summary>
 public static class FuturesRsiSignalGenerated
 {
     static FuturesRsiSignalGenerated()
@@ -42,8 +43,8 @@ public static class FuturesRsiSignalGenerated
         }
         catch (Exception ex)
         {
+            logger.LogErrorEvent(ServiceId, ex, "{Source}:  event handler failed", source);
             await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalsGeneratedEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}:  event handler failed", source);
         }
         return false;
     }

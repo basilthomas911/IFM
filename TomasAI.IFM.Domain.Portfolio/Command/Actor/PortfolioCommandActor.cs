@@ -141,39 +141,21 @@ public sealed class PortfolioCommandActor(
             DateTime, string, CancellationToken, ValueTask<IPortfolioDomainEvent>>>
         {
             [typeof(CreatePortfolioCommand)] = static (_, command, state, now, principal, _) =>
-            {
-                var typed = (CreatePortfolioCommand)command;
-                return ValueTask.FromResult<IPortfolioDomainEvent>(
-                    ((PortfolioCreatedEvent)state.Aggregate.Create(typed.CommandId, typed.Portfolio, now, principal)) with
-                    { IdempotencyKey = typed.IdempotencyKey });
-            },
+                ValueTask.FromResult<IPortfolioDomainEvent>(((CreatePortfolioCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(AddPortfolioVersionCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(state.Aggregate.AddVersion(
-                    command.CommandId, ((AddPortfolioVersionCommand)command).ExpectedVersion,
-                    ((AddPortfolioVersionCommand)command).Portfolio, now, principal)),
+                ValueTask.FromResult(((AddPortfolioVersionCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(ChangePortfolioOperatingStateCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(state.Aggregate.ChangeState(
-                    command.CommandId, ((ChangePortfolioOperatingStateCommand)command).ExpectedVersion,
-                    ((ChangePortfolioOperatingStateCommand)command).State,
-                    ((ChangePortfolioOperatingStateCommand)command).Reason, now, principal)),
+                ValueTask.FromResult(((ChangePortfolioOperatingStateCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(AddFundToPortfolioCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(state.Aggregate.AddFund(
-                    command.CommandId, ((AddFundToPortfolioCommand)command).ExpectedPortfolioVersion,
-                    ((AddFundToPortfolioCommand)command).FundId, now, principal)),
+                ValueTask.FromResult(((AddFundToPortfolioCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(DelegateFundAllocationCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(state.Aggregate.DelegateAllocation(
-                    command.CommandId, ((DelegateFundAllocationCommand)command).ExpectedPortfolioVersion,
-                    ((DelegateFundAllocationCommand)command).Allocation, now, principal)),
+                ValueTask.FromResult(((DelegateFundAllocationCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(DelegateFundRiskEnvelopeCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(state.Aggregate.DelegateRiskEnvelope(
-                    command.CommandId, ((DelegateFundRiskEnvelopeCommand)command).ExpectedPortfolioVersion,
-                    ((DelegateFundRiskEnvelopeCommand)command).Envelope, now, principal)),
+                ValueTask.FromResult(((DelegateFundRiskEnvelopeCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(RetirePortfolioCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(state.Aggregate.Retire(
-                    command.CommandId, ((RetirePortfolioCommand)command).ExpectedVersion,
-                    ((RetirePortfolioCommand)command).Reason, now, principal)),
+                ValueTask.FromResult(((RetirePortfolioCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(DeleteDraftPortfolioCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
-                actor.DeleteDraftAsync(state, (DeleteDraftPortfolioCommand)command, now, principal, cancellationToken),
+                ((DeleteDraftPortfolioCommand)command).ExecuteAsync(state.Aggregate, state.PortfolioId, actor._events, now, principal, cancellationToken),
         };
 
     protected override ICommand ParseMessage(ICommandActorContext<PortfolioCommandActor> context, IActorMessage message) =>
@@ -229,22 +211,6 @@ public sealed class PortfolioCommandActor(
             new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
             new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
         return new ServiceOk<GuidResult>(new(command.CommandId));
-    }
-
-    async ValueTask<IPortfolioDomainEvent> DeleteDraftAsync(
-        PortfolioActorState state,
-        DeleteDraftPortfolioCommand command,
-        DateTime now,
-        string principal,
-        CancellationToken cancellationToken)
-    {
-        foreach (var fundId in state.Aggregate.FundIds)
-        {
-            var fund = await _events.LoadFundAsync(new PortfolioFundId(state.PortfolioId.Id, fundId), cancellationToken).ConfigureAwait(false);
-            if (fund.Orders.Count != 0)
-                throw new InvalidOperationException("A Draft Portfolio with composition history cannot be deleted.");
-        }
-        return state.Aggregate.DeleteDraft(command.CommandId, command.ExpectedVersion, command.Reason, now, principal);
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>

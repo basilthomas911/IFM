@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Event;
 
+/// <summary>Handles the OptionTradeEndOfDayProcessedEvent message in the FuturesOptionTradeEventActor lifecycle.</summary>
 public static class OptionTradeEndOfDayProcessed
 {
     /// <summary>Continues completed option end-of-day processing at the Portfolio ledger boundary.</summary>

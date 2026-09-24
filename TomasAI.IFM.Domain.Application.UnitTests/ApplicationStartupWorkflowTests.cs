@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Domain.Application.Actor.Event;
-using TomasAI.IFM.Domain.Application.Actor.Event.Actor;
+using TomasAI.IFM.Domain.Application.Event;
+using TomasAI.IFM.Domain.Application.Event.Actor;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;

@@ -1,10 +1,10 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
+using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -18,7 +18,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Validation;
 
-namespace TomasAI.IFM.Domain.Portfolio.Command.Actor;
+namespace TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Actor;
 
 public sealed class PortfolioFinancialPolicyCommandActor(
     ICommandActorContext<PortfolioFinancialPolicyCommandActor> context,
@@ -31,7 +31,9 @@ public sealed class PortfolioFinancialPolicyCommandActor(
     : BaseEventSourceCommandActor<PortfolioFinancialPolicyCommandActor>(context, logger)
 {
     public const string ActorName = CreatePortfolioFinancialPolicyCommand.Actor;
-    static readonly ConcurrentDictionary<int, SemaphoreSlim> PortfolioAssignmentLocks = new();
+    IPortfolioEventStore GetEventStore() => events;
+    IPortfolioDbWriteContext GetProjections() => projections;
+    IEventProjector<PortfolioFinancialPolicyCommandActor> GetProjector() => projector;
 
     protected override ValueTask OnStartup(ICommandActorContext<PortfolioFinancialPolicyCommandActor> actorContext, CancellationToken cancellationToken) =>
         projector.StartAsync(actorContext, cancellationToken);
@@ -109,15 +111,20 @@ public sealed class PortfolioFinancialPolicyCommandActor(
             PolicyActorState, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {
             [typeof(CreatePortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
-                actor.CreateAsync(state, (CreatePortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+                ((CreatePortfolioFinancialPolicyCommand)command).ExecuteAsync(state.Aggregate, principal,
+                    (createEvent, conflict) => actor.CommitPolicyMutationAsync(state, (CreatePortfolioFinancialPolicyCommand)command, principal, createEvent, conflict, cancellationToken)),
             [typeof(AddPortfolioFinancialPolicyVersionCommand)] = static (actor, command, state, principal, cancellationToken) =>
-                actor.AddVersionAsync(state, (AddPortfolioFinancialPolicyVersionCommand)command, principal, cancellationToken),
+                ((AddPortfolioFinancialPolicyVersionCommand)command).ExecuteAsync(state.Aggregate, principal,
+                    (createEvent, conflict) => actor.CommitPolicyMutationAsync(state, (AddPortfolioFinancialPolicyVersionCommand)command, principal, createEvent, conflict, cancellationToken)),
             [typeof(ActivateAndAssignPortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
-                actor.ActivateWithLockAsync(state, (ActivateAndAssignPortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+                ((ActivateAndAssignPortfolioFinancialPolicyCommand)command).ExecuteAsync(state.Aggregate, state.PolicyId,
+                    actor.GetEventStore(), actor.GetProjections(), actor.GetProjector(), principal, cancellationToken),
             [typeof(RetirePortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
-                actor.RetireAsync(state, (RetirePortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+                ((RetirePortfolioFinancialPolicyCommand)command).ExecuteAsync(state.Aggregate, principal,
+                    (createEvent, conflict) => actor.CommitPolicyMutationAsync(state, (RetirePortfolioFinancialPolicyCommand)command, principal, createEvent, conflict, cancellationToken)),
             [typeof(DeleteDraftPortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
-                actor.DeleteDraftAsync(state, (DeleteDraftPortfolioFinancialPolicyCommand)command, principal, cancellationToken),
+                ((DeleteDraftPortfolioFinancialPolicyCommand)command).ExecuteAsync(state.Aggregate, principal,
+                    (createEvent, conflict) => actor.CommitPolicyMutationAsync(state, (DeleteDraftPortfolioFinancialPolicyCommand)command, principal, createEvent, conflict, cancellationToken)),
         };
 
     protected override ICommand ParseMessage(ICommandActorContext<PortfolioFinancialPolicyCommandActor> context, IActorMessage message) =>
@@ -193,130 +200,6 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
-    ValueTask<ServiceResult<GuidResult>> CreateAsync(
-        PolicyActorState state,
-        CreatePortfolioFinancialPolicyCommand command,
-        string principal,
-        CancellationToken cancellationToken) =>
-        CommitPolicyMutationAsync(
-            state,
-            command,
-            principal,
-            (_, now) => state.Aggregate.Create(command.CommandId, command.IdempotencyKey, command.Policy, now, principal),
-            committed => committed is PortfolioFinancialPolicyCreatedEvent prior &&
-                !string.Equals(command.Policy.CanonicalSha256(), prior.Policy.CanonicalSha256(), StringComparison.Ordinal),
-            cancellationToken);
-
-    ValueTask<ServiceResult<GuidResult>> AddVersionAsync(
-        PolicyActorState state,
-        AddPortfolioFinancialPolicyVersionCommand command,
-        string principal,
-        CancellationToken cancellationToken) =>
-        CommitPolicyMutationAsync(
-            state,
-            command,
-            principal,
-            (_, now) => state.Aggregate.AddVersion(command.CommandId, command.ExpectedVersion, command.Policy, now, principal),
-            null,
-            cancellationToken);
-
-    ValueTask<ServiceResult<GuidResult>> RetireAsync(
-        PolicyActorState state,
-        RetirePortfolioFinancialPolicyCommand command,
-        string principal,
-        CancellationToken cancellationToken) =>
-        CommitPolicyMutationAsync(
-            state,
-            command,
-            principal,
-            (referenced, now) => state.Aggregate.Retire(command.CommandId, command.ExpectedRevision,
-                command.PolicyVersion, command.Reason, referenced, now, principal),
-            null,
-            cancellationToken);
-
-    ValueTask<ServiceResult<GuidResult>> DeleteDraftAsync(
-        PolicyActorState state,
-        DeleteDraftPortfolioFinancialPolicyCommand command,
-        string principal,
-        CancellationToken cancellationToken) =>
-        CommitPolicyMutationAsync(
-            state,
-            command,
-            principal,
-            (referenced, now) => state.Aggregate.DeleteDraft(command.CommandId, command.ExpectedRevision,
-                command.Reason, referenced, now, principal),
-            null,
-            cancellationToken);
-
-    async ValueTask<ServiceResult<GuidResult>> ActivateWithLockAsync(
-        PolicyActorState state,
-        ActivateAndAssignPortfolioFinancialPolicyCommand command,
-        string principal,
-        CancellationToken cancellationToken)
-    {
-        var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(state.PolicyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
-        await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            return await ActivateAndAssignAsync(state, command, principal, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            assignmentLock.Release();
-        }
-    }
-
-    async ValueTask<ServiceResult<GuidResult>> ActivateAndAssignAsync(
-        PolicyActorState state,
-        ActivateAndAssignPortfolioFinancialPolicyCommand command,
-        string principal,
-        CancellationToken cancellationToken)
-    {
-        var committed = await events.FindCommittedPolicyCommandAsync(state.PolicyId, command.CommandId, cancellationToken).ConfigureAwait(false);
-        var portfolioId = new PortfolioId(state.PolicyId.PortfolioId);
-        var portfolio = await events.LoadPortfolioAsync(portfolioId, cancellationToken).ConfigureAwait(false);
-        if (committed is PortfolioFinancialPolicyActivatedEvent activated)
-        {
-            if (portfolio.Current?.ActivePolicyId != state.PolicyId.PolicyId || portfolio.Current.ActivePolicyVersion != activated.PolicyVersion)
-            {
-                var replayCandidate = state.Aggregate.Versions.Single(x => x.PolicyVersion == activated.PolicyVersion);
-                var assignment = portfolio.AssignFinancialPolicy(command.CommandId, command.ExpectedPortfolioRevision, replayCandidate, DateTime.UtcNow, principal);
-                await events.AppendPortfolioAsync(portfolioId, assignment, assignment.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-                await projections.UpsertPortfolioAsync(
-                    PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, assignment.EventId == 0 ? assignment.Revision : assignment.EventId), assignment.OccurredOnUtc),
-                    TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
-            }
-            // A prior attempt may have committed the policy event and failed before
-            // projection/assignment. Both operations are idempotent, so replay heals
-            // every derived surface as well as the authoritative Portfolio reference.
-            await projector.DomainEventsProjectionAsync(new DomainEventCollection([activated])).ConfigureAwait(false);
-            await ProjectAllAsync(state.Aggregate, activated, cancellationToken).ConfigureAwait(false);
-            return new ServiceOk<GuidResult>(new(command.CommandId));
-        }
-        if (committed is not null)
-            return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the command was committed for a different policy operation.");
-
-        var now = DateTime.UtcNow;
-        // Validate the Portfolio assignment before committing either stream. The
-        // per-Portfolio coordinator prevents distinct policy actors in this host from
-        // both passing this expected-revision check.
-        if (portfolio.Revision != command.ExpectedPortfolioRevision)
-            throw new InvalidOperationException($"Expected Portfolio revision {command.ExpectedPortfolioRevision}, actual {portfolio.Revision}.");
-        var policyEvent = state.Aggregate.Activate(command.CommandId, command.ExpectedPolicyRevision, command.PolicyVersion, now, principal);
-        var candidate = state.Aggregate.Current!;
-        var portfolioEvent = portfolio.AssignFinancialPolicy(command.CommandId, command.ExpectedPortfolioRevision, candidate, now, principal);
-        await events.AppendPolicyAsync(state.PolicyId, policyEvent, policyEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-        await events.AppendPortfolioAsync(portfolioId, portfolioEvent, portfolioEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-        await projector.DomainEventsProjectionAsync(new DomainEventCollection([policyEvent])).ConfigureAwait(false);
-        await ProjectAllAsync(state.Aggregate, policyEvent, cancellationToken).ConfigureAwait(false);
-        await projections.UpsertPortfolioAsync(
-            PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, portfolioEvent.EventId == 0 ? portfolioEvent.Revision : portfolioEvent.EventId), portfolioEvent.OccurredOnUtc),
-            TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
-        PortfolioTelemetry.CommandOutcomes.Add(1,
-            new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
-            new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
-        return new ServiceOk<GuidResult>(new(command.CommandId));
-    }
 
     async Task ProjectAllAsync(PortfolioFinancialPolicyAggregate aggregate, IPortfolioFinancialPolicyDomainEvent domainEvent, CancellationToken cancellationToken)
     {

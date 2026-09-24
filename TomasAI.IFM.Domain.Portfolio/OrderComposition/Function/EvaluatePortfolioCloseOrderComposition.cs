@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function;
 
-public static class ExecutePortfolioCloseOrderComposition
+public static class EvaluatePortfolioCloseOrderComposition
 {
     public static ValueTask<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
         PortfolioCloseOrderCompositionFailedEvent>> ExecuteAsync(

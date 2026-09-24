@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Query.Actor;
+namespace TomasAI.IFM.Domain.Application.Query.Actor;
 
 public interface IApplicationQueryContext : IQueryActorContext<ApplicationQueryActor>
 {

@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Application.Shared.Commands;
 /// <remarks>This command is used to signal the application bounded context to begin the startup process for the
 /// application. The <see cref="EntityId"/> is automatically initialized based on the command type, and the <see
 /// cref="RouteTo"/>  property is set to the application bounded context.</remarks>
-[MessagePackObject()]
+[MessagePackObject(AllowPrivate = true)]
 public record StartApplicationCommand 
     : ICommand<ApplicationEntityId>
 {
@@ -34,8 +34,11 @@ public record StartApplicationCommand
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
+    /// <summary>Creates a startup command for the current value date.</summary>
     public StartApplicationCommand() : this(DateOnly.FromDateTime(DateTime.UtcNow)) { }
 
+    /// <summary>Creates a startup command for the specified value date.</summary>
+    /// <param name="valueDate">The application value date.</param>
     public StartApplicationCommand(DateOnly valueDate)
     {
         EntityId = new(valueDate);
@@ -46,6 +49,12 @@ public record StartApplicationCommand
     /// <summary>
     /// MessagePack serialization constructor (indices must match Key attributes).
     /// </summary>
+    /// <param name="commandId">The permanent command identifier.</param>
+    /// <param name="subject">The routed actor subject.</param>
+    /// <param name="postEvents">Whether generated events are posted.</param>
+    /// <param name="entityId">The application value-date identity.</param>
+    /// <param name="errorCode">The command error code.</param>
+    /// <param name="routeTo">The destination bounded context.</param>
     [SerializationConstructor]
     public StartApplicationCommand(
         Guid commandId,               // Key(0)
