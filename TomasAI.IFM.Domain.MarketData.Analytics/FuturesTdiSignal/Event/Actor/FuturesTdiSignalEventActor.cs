@@ -32,7 +32,7 @@ public class FuturesTdiSignalEventActor(
         FuturesRsiSignalsGeneratedEvent.Actor,
         FuturesRsiSignalsGeneratedEvent.Verb);
 
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IStatusConsoleWriter, ILogger<FuturesTdiSignalEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IStatusConsoleWriter, ILogger<FuturesTdiSignalEventActor>, ValueTask<bool>>>()
     {
         [typeof(FuturesTdiSignalGeneratedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {

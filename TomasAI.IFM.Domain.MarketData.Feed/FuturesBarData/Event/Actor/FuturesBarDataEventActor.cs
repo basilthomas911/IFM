@@ -35,23 +35,23 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
     readonly ILogger<FuturesBarDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesBarDataEventParameters _eventParameters = new(
         ((IFuturesBarDataEventContext)actorContext).FuturesBarDataTimer, ((IFuturesBarDataEventContext)actorContext).MarketDataApi, ((IFuturesBarDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ILogger<FuturesBarDataEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ILogger<FuturesBarDataEventActor>, ValueTask<bool>>>()
     {
-        [typeof(FuturesBarDataStreamingStartedEvent)] = async (evt, context, commandApi, eventApi, eventParams) =>
+        [typeof(FuturesBarDataStreamingStartedEvent)] = async (evt, context, commandApi, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesBarDataStreamingStartedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, eventApi, eventParams);
+            return await e.ExecuteAsync(context, commandApi, eventApi, eventParams, logger);
         },
        
-        [typeof(FuturesBarDataStreamingStoppedEvent)] = async (evt, context, _, eventApi, eventParams) =>
+        [typeof(FuturesBarDataStreamingStoppedEvent)] = async (evt, context, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesBarDataStreamingStoppedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         },
-        [typeof(FuturesBarDataInsertedEvent)] = static (value, context, commandApi, eventApi, parameters) =>
-            ((FuturesBarDataInsertedEvent)value).ExecuteAsync(context, commandApi, eventApi, parameters),
-        [typeof(FuturesBarDataDeletedEvent)] = static (value, context, commandApi, eventApi, parameters) =>
-            ((FuturesBarDataDeletedEvent)value).ExecuteAsync(context, commandApi, eventApi, parameters)
+        [typeof(FuturesBarDataInsertedEvent)] = static (value, context, commandApi, eventApi, parameters, logger) =>
+            ((FuturesBarDataInsertedEvent)value).ExecuteAsync(context, commandApi, eventApi, parameters, logger),
+        [typeof(FuturesBarDataDeletedEvent)] = static (value, context, commandApi, eventApi, parameters, logger) =>
+            ((FuturesBarDataDeletedEvent)value).ExecuteAsync(context, commandApi, eventApi, parameters, logger)
     };
 
     protected override ValueTask OnStartup(IEventActorContext<FuturesBarDataEventActor> context)
@@ -102,7 +102,7 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters, _logger);
     }
 
     /// <summary>

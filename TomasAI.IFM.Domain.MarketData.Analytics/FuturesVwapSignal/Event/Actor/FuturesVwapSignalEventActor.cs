@@ -26,8 +26,8 @@ public sealed class FuturesVwapSignalEventActor(
             [FuturesVwapSignalUpdatedFailEvent.Verb] = static message =>
                 message.AsEvent<FuturesVwapSignalUpdatedFailEvent>()!
         };
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger, ValueTask<bool>>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger<FuturesVwapSignalEventActor>, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger<FuturesVwapSignalEventActor>, ValueTask<bool>>>()
         {
             [typeof(FuturesVwapSignalUpdatedCompleteEvent)] = async (@event, context, logger) =>
                 await ((FuturesVwapSignalUpdatedCompleteEvent)@event)

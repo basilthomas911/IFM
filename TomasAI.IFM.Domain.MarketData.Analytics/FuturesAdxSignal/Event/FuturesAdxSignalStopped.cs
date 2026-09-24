@@ -19,7 +19,7 @@ public static class FuturesAdxSignalStopped
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesAdxSignalStoppedEvent e,
         IFuturesAdxSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesAdxSignalEventActor> logger)
     {
         try
         {

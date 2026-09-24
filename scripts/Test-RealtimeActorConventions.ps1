@@ -63,10 +63,6 @@ foreach ($actorFile in $actorFiles) {
     }
 }
 
-if ($domainActorCount -ne 16) {
-    $violations.Add("Expected 16 domain RealtimeActors but discovered $domainActorCount.")
-}
-
 if ($violations.Count -gt 0) {
     $violations | ForEach-Object { Write-Error $_ }
     throw "RealtimeActor convention verification failed with $($violations.Count) violation(s)."

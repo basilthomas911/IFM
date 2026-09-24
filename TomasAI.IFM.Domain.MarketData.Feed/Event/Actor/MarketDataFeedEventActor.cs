@@ -29,37 +29,37 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
         ((IMarketDataFeedEventContext)actorContext).OptionTradeLiveFeedMap,
         ((IMarketDataFeedEventContext)actorContext).BlackboardService,
         ((IMarketDataFeedEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ILogger<MarketDataFeedEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ILogger<MarketDataFeedEventActor>, ValueTask<bool>>>()
     {
-        [typeof(MarketDataFeedStartedEvent)] = async (evt, ctx, _, eventApi, eventParams) =>
+        [typeof(MarketDataFeedStartedEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStartedEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
         },
-        [typeof(MarketDataFeedStartedCompleteEvent)] = async (evt, ctx, commandApi, _, eventParams) =>
+        [typeof(MarketDataFeedStartedCompleteEvent)] = async (evt, ctx, commandApi, _, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStartedCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, commandApi, eventParams);
+            return await e.ExecuteAsync(ctx, commandApi, eventParams, logger);
         },
-        [typeof(MarketDataFeedStoppedEvent)] = async (evt, ctx, _, eventApi, eventParams) =>
+        [typeof(MarketDataFeedStoppedEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStoppedEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
         },
-        [typeof(MarketDataFeedStoppedCompleteEvent)] = async (evt, ctx, _, _, eventParams) =>
+        [typeof(MarketDataFeedStoppedCompleteEvent)] = async (evt, ctx, _, _, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStoppedCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams);
+            return await e.ExecuteAsync(ctx, eventParams, logger);
         },
-        [typeof(MarketDataFeedResetEvent)] = async (evt, ctx, _, eventApi, eventParams) =>
+        [typeof(MarketDataFeedResetEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedResetEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
         },
-        [typeof(MarketDataFeedResetCompleteEvent)] = async (evt, ctx, commandApi, eventApi, eventParams) =>
+        [typeof(MarketDataFeedResetCompleteEvent)] = async (evt, ctx, commandApi, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedResetCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, commandApi, eventApi, eventParams);
+            return await e.ExecuteAsync(ctx, commandApi, eventApi, eventParams, logger);
         }
     };
 
@@ -110,7 +110,7 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters, _logger);
     }
 
     /// <summary>

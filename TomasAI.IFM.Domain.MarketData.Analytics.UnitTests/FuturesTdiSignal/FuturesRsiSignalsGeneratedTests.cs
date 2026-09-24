@@ -22,7 +22,7 @@ public sealed class FuturesRsiSignalsGeneratedTests
         context.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(
                 Arg.Any<GenerateFuturesTdiSignalCommand>())
             .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
-        var logger = Substitute.For<ILogger>();
+        var logger = Substitute.For<ILogger<FuturesTdiSignalEventActor>>();
         var eventId = Guid.NewGuid();
         var @event = new FuturesRsiSignalsGeneratedEvent
         {
@@ -68,7 +68,7 @@ public sealed class FuturesRsiSignalsGeneratedTests
                 .ToArray()
         };
 
-        var handled = await @event.ExecuteAsync(context, Substitute.For<ILogger>());
+        var handled = await @event.ExecuteAsync(context, Substitute.For<ILogger<FuturesTdiSignalEventActor>>());
 
         handled.Should().BeTrue();
         await context.DidNotReceiveWithAnyArgs()

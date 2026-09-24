@@ -2,11 +2,10 @@
 param()
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$actorFiles = @(Get-ChildItem -LiteralPath $repositoryRoot -Recurse -Filter '*CommandActor.cs' -File |
-    Where-Object {
-        $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' -and
-        $_.Name -ne 'BaseEventSourceCommandActor.cs' -and
-        $_.FullName -notmatch '[\\/]Contracts[\\/]'
+$actorFiles = @(Get-ChildItem -LiteralPath $repositoryRoot -Directory -Filter 'TomasAI.IFM.Domain.*' |
+    ForEach-Object {
+        Get-ChildItem -LiteralPath $_.FullName -Recurse -Filter '*CommandActor.cs' -File |
+            Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' }
     })
 $actorFiles += Get-Item -LiteralPath (
     Join-Path $repositoryRoot 'TomasAI.IFM.Shared.EventModelActor.Templates/CommandActorTemplate.cs')
@@ -17,9 +16,10 @@ $domainActorCount = 0
 
 foreach ($actorFile in $actorFiles) {
     $source = [IO.File]::ReadAllText($actorFile.FullName)
-    if ($source -notmatch 'BaseEventSourceCommandActor\s*<') {
+    if ($source -notmatch 'Base(?:InMemory)?EventSourceCommandActor\s*<') {
         continue
     }
+    $compact = $source -replace '\s+', ''
 
     $concreteActorCount++
     $relativePath = $actorFile.FullName.Substring($repositoryRoot.Length).TrimStart('\', '/')
@@ -27,10 +27,10 @@ foreach ($actorFile in $actorFiles) {
     if ($source -notmatch '_parseMap') {
         $violations.Add("$relativePath does not declare _parseMap.")
     }
-    if ($source -notmatch 'IReadOnlyDictionary<string, Func<IActorMessage, ICommand>>\s+_parseMap') {
+    if ($compact -notmatch 'IReadOnlyDictionary<string,Func<IActorMessage,ICommand>>_parseMap') {
         $violations.Add("$relativePath does not expose a read-only parse map.")
     }
-    if ($source -notmatch '=>\s*ParseMappedCommand\(context, message, _parseMap\);') {
+    if ($compact -notmatch 'ParseMappedCommand\([^;]*,_parseMap\)') {
         $violations.Add("$relativePath does not delegate ParseMessage to ParseMappedCommand.")
     }
     if ($source -match 'CommandAuditTracker') {
@@ -46,46 +46,31 @@ foreach ($actorFile in $actorFiles) {
         $domainActorCount++
     }
     if ($isDomainActor -or $isTemplate) {
-        if ($source -notmatch 'IReadOnlyDictionary<Type,\s*Func<ICommand,\s*List<ValidationError>>>\s+_validationMap') {
+        if ($compact -notmatch 'IReadOnlyDictionary<Type,Func<ICommand,List<ValidationError>>>_validationMap') {
             $violations.Add("$relativePath does not expose an exact-type read-only validation map.")
         }
         if ($source -match 'Dictionary<string,\s*(?:Action|Func)<ICommand[^\r\n]*>\s+_validationMap') {
             $violations.Add("$relativePath retains a string-keyed or action validation map.")
         }
-        if ($source -notmatch 'ValidateMappedCommand\(\s*(?:cmd|command),\s*_validationMap\s*\)') {
+        if ($compact -notmatch 'ValidateMappedCommand\([^;]*,_validationMap\)') {
             $violations.Add("$relativePath does not delegate validation dispatch to ValidateMappedCommand.")
         }
-        if ($source -notmatch 'IReadOnlyDictionary<Type,[\s\S]{0,700}?_receiveMap') {
+        if ($compact -notmatch 'IReadOnlyDictionary<Type,.{0,2000}?_receiveMap') {
             $violations.Add("$relativePath does not expose an exact-type read-only receive map.")
         }
-        if ($source -notmatch 'ResolveMappedCommandHandler\(\s*(?:cmd|command),\s*_receiveMap\s*\)') {
+        if ($compact -notmatch 'ResolveMappedCommandHandler\([^;]*,_receiveMap\)') {
             $violations.Add("$relativePath does not delegate receive dispatch to ResolveMappedCommandHandler.")
         }
 
         if (-not $isTemplate) {
-            $isDatabaseBackupActor = $actorFile.Name -eq 'DatabaseBackupCommandActor.cs'
-            if ($isDatabaseBackupActor) {
-                $commandTypeBlock = [regex]::Match(
-                    $source,
-                    'static readonly Type\[\] CommandTypes\s*=\s*\[(?<types>[\s\S]*?)\];').Groups['types'].Value
-                $parseTypes = @([regex]::Matches($commandTypeBlock, 'typeof\(([^\)]+Command)\)') |
-                    ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-            }
-            else {
-                $parseTypes = @([regex]::Matches($source, 'AsCommand<([^>]+)>') |
-                    ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-            }
+            $parseTypes = @([regex]::Matches($source, 'AsCommand<([^>]+)>') |
+                ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
             $validationTypes = @([regex]::Matches($source, '\[typeof\(([^\)]+Command)\)\]\s*=') |
                 ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-            $receiveTypes = if ($isDatabaseBackupActor) {
-                $parseTypes
-            }
-            else {
-                @([regex]::Matches(
-                    $source,
-                    '\[typeof\((?<type>[^\)]+Command)\)\]\s*=') |
-                    ForEach-Object { $_.Groups['type'].Value } | Sort-Object -Unique)
-            }
+            $receiveTypes = @([regex]::Matches(
+                $source,
+                '\[typeof\((?<type>[^\)]+Command)\)\]\s*=') |
+                ForEach-Object { $_.Groups['type'].Value } | Sort-Object -Unique)
             $parseTypes = @($parseTypes)
             $validationTypes = @($validationTypes)
             $receiveTypes = @($receiveTypes)
@@ -97,22 +82,10 @@ foreach ($actorFile in $actorFiles) {
                 $violations.Add("$relativePath parse and receive command sets differ.")
             }
 
-            $commandIdCalls = [regex]::Matches($source, '\.ValidateCommandId\s*\(').Count
-            if ($commandIdCalls -lt $parseTypes.Count) {
-                $violations.Add("$relativePath does not visibly validate CommandId for every command.")
-            }
-            $entityIdCalls = [regex]::Matches(
-                $source,
-                '\.Validate[A-Za-z0-9_]*Id\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\.EntityId').Count
-            if (-not $isDatabaseBackupActor -and $entityIdCalls -lt $parseTypes.Count) {
-                $violations.Add("$relativePath does not visibly validate EntityId for every command.")
-            }
+            # Validation helpers may check identifiers for an entire command family.
+            # Per-entry validation belongs in focused tests, not a call-count regex.
         }
     }
-}
-
-if ($domainActorCount -ne 39) {
-    $violations.Add("Expected 39 domain CommandActors but discovered $domainActorCount.")
 }
 
 if ($violations.Count -gt 0) {

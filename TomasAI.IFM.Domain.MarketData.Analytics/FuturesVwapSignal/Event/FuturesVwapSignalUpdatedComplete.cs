@@ -12,7 +12,7 @@ public static class FuturesVwapSignalUpdatedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesVwapSignalUpdatedCompleteEvent @event,
         IFuturesVwapSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesVwapSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

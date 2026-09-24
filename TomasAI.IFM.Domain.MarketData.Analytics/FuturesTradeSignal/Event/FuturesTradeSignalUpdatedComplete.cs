@@ -22,7 +22,7 @@ public static class FuturesTradeSignalUpdatedComplete
     /// <summary>
     /// Handles the completion of a trade signal updated event.
     /// </summary>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSignalUpdatedCompleteEvent e, IEventActorContext<FuturesTradeSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSignalUpdatedCompleteEvent e, IEventActorContext<FuturesTradeSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(e);
         ArgumentNullException.ThrowIfNull(context);

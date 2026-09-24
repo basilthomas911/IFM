@@ -13,7 +13,7 @@ public static class FuturesTradeSessionBarPublishedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesTradeSessionBarPublishedCompleteEvent @event,
         IFuturesTradeSessionBarSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesTradeSessionBarSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

@@ -29,7 +29,7 @@ public static class FuturesRsiSignalStopped
     /// <param name="logger">The logger for recording error messages.</param>
     /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
     /// succeeded; otherwise, <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStoppedEvent e, IFuturesRsiSignalEventContext context, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStoppedEvent e, IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
     {
         var source = $"FuturesRsiSignalStoppedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try

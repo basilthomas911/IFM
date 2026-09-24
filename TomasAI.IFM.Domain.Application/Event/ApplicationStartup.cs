@@ -19,7 +19,7 @@ public static class ApplicationStartup
     public static async ValueTask ExecuteAsync(
         this ApplicationStartupEvent @event,
         IApplicationEventContext context,
-        CancellationToken cancellationToken)
+        ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
@@ -32,7 +32,7 @@ public static class ApplicationStartup
         {
             await ReportAsync(
                 context.StatusConsoleWriter,
-                context.Logger,
+                logger,
                 $"Application startup already reconciled for {@event.EntityId.ValueDate:yyyy-MM-dd}; no duplicate side effects were executed.")
                 .ConfigureAwait(false);
             await SendTerminalAsync(@event, context, existing.State, existing.Summary)
@@ -60,7 +60,7 @@ public static class ApplicationStartup
         });
         await ReportAsync(
             context.StatusConsoleWriter,
-            context.Logger,
+            logger,
             $"Application startup began. ValueDate={workflow.ValueDate:yyyy-MM-dd}; CommandId={workflow.CommandId}; CorrelationId={workflow.CorrelationId}.")
             .ConfigureAwait(false);
 
@@ -115,7 +115,7 @@ public static class ApplicationStartup
             Activities = [.. results],
             Summary = summary
         });
-        await ReportAsync(context.StatusConsoleWriter, context.Logger, summary).ConfigureAwait(false);
+        await ReportAsync(context.StatusConsoleWriter, logger, summary).ConfigureAwait(false);
         await SendTerminalAsync(@event, context, state, summary).ConfigureAwait(false);
     }
 

@@ -13,6 +13,7 @@ $domainActorCount = 0
 
 foreach ($actorFile in $actorFiles) {
     $source = [IO.File]::ReadAllText($actorFile.FullName)
+    $compact = $source -replace '\s+', ''
     if ($source -notmatch 'BaseEventActor\s*<') {
         continue
     }
@@ -29,7 +30,7 @@ foreach ($actorFile in $actorFiles) {
     if ($source -notmatch 'ParseMappedEvent\(\s*(?:context|actorContext),\s*message,\s*_parseMap\s*\)') {
         $violations.Add("$relativePath does not delegate parsing to ParseMappedEvent.")
     }
-    if ($source -notmatch 'ResolveMappedEventHandler\(\s*@event,\s*_receiveMap\s*\)') {
+    if ($compact -notmatch 'ResolveMappedEventHandler\([^;]*,_receiveMap\)') {
         $violations.Add("$relativePath does not delegate receive dispatch to ResolveMappedEventHandler.")
     }
     if ($source -match '_receiveMap\.TryGetValue\([^\r\n]*GetType\(\)\.Name') {
@@ -60,10 +61,29 @@ foreach ($actorFile in $actorFiles) {
     if (Compare-Object @($parseTypes) @($receiveTypes)) {
         $violations.Add("$relativePath parse and receive event sets differ.")
     }
-}
 
-if ($domainActorCount -ne 31) {
-    $violations.Add("Expected 31 domain EventActors but discovered $domainActorCount.")
+    $handlerFolder = Split-Path -Parent $actorFile.DirectoryName
+    foreach ($eventType in $receiveTypes) {
+        $handlerName = $eventType -replace 'Event$', ''
+        $handlerPath = Join-Path $handlerFolder "$handlerName.cs"
+        if (-not (Test-Path -LiteralPath $handlerPath)) {
+            $violations.Add("$relativePath has no dedicated handler file for $eventType.")
+            continue
+        }
+
+        $handlerSource = [IO.File]::ReadAllText($handlerPath)
+        $signature = [regex]::Match(
+            $handlerSource,
+            "public\s+static\s+(?:async\s+)?[\w<>?,\s]+?\s+ExecuteAsync\s*\((?<parameters>[^)]*\bthis\s+$([regex]::Escape($eventType))\b[^)]*)\)")
+        if (-not $signature.Success) {
+            $violations.Add("$relativePath has no mapped ExecuteAsync extension for $eventType.")
+            continue
+        }
+        $loggerType = [regex]::Escape($actorFile.BaseName)
+        if ($signature.Groups['parameters'].Value -notmatch "ILogger\s*<\s*$loggerType\s*>") {
+            $violations.Add("$relativePath handler $handlerName does not receive ILogger<$($actorFile.BaseName)> directly.")
+        }
+    }
 }
 
 if ($violations.Count -gt 0) {

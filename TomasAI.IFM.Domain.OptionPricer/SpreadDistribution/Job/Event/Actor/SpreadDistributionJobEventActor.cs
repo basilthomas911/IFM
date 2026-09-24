@@ -30,7 +30,7 @@ public class SpreadDistributionJobEventActor(
         IsArgumentNull.Set(Context as ISpreadDistributionJobEventContext, nameof(Context))!;
 
     public const string Actor = "SpreadDistributionJobEvent";
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger<SpreadDistributionJobEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger<SpreadDistributionJobEventActor>, ValueTask<bool>>>()
     {
         [typeof(SpreadDistributionJobSubmittedEvent)] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
         {

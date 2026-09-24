@@ -13,7 +13,7 @@ public static class FuturesAtrSignalStopped
 {
     /// <summary>Detaches the ATR identity from shared closed observations.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalStoppedEvent @event,
-        IFuturesAtrSignalEventContext context, ILogger logger)
+        IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
     {
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Detach(@event.EntityId); return true; }
         catch (Exception exception)

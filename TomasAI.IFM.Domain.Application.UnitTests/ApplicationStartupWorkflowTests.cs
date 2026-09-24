@@ -22,7 +22,7 @@ public sealed class ApplicationStartupWorkflowTests
         var activities = new RecordingActivities();
         var context = new TestContext(activities);
 
-        await Event().ExecuteAsync(context, CancellationToken.None);
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
 
         Assert.Equal(ApplicationStartupPlan.Activities.Count, activities.Executed.Count);
         Assert.All(ApplicationStartupPlan.Activities,
@@ -41,7 +41,7 @@ public sealed class ApplicationStartupWorkflowTests
         };
         var context = new TestContext(activities);
 
-        await Event().ExecuteAsync(context, CancellationToken.None);
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
 
         Assert.Equal(
             [
@@ -71,7 +71,7 @@ public sealed class ApplicationStartupWorkflowTests
         };
         var context = new TestContext(activities);
 
-        await Event().ExecuteAsync(context, CancellationToken.None);
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
 
         Assert.Equal(
             ApplicationStartupPlan.Activities.Select(value => value.Activity),
@@ -88,7 +88,7 @@ public sealed class ApplicationStartupWorkflowTests
             Block = ApplicationStartupActivity.WarmHistoricalAnalytics
         };
         var context = new TestContext(activities);
-        var startup = Event().ExecuteAsync(context, CancellationToken.None).AsTask();
+        var startup = Event().ExecuteAsync(context, context.Logger, CancellationToken.None).AsTask();
 
         await activities.BlockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await activities.WaitUntilExecutedAsync(
@@ -110,7 +110,7 @@ public sealed class ApplicationStartupWorkflowTests
         };
         var context = new TestContext(activities);
 
-        await Event().ExecuteAsync(context, CancellationToken.None);
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
 
         Assert.DoesNotContain(ApplicationStartupActivity.StartMarketData, activities.Executed);
         Assert.DoesNotContain(ApplicationStartupActivity.QualifyOperationalState, activities.Executed);
@@ -128,7 +128,7 @@ public sealed class ApplicationStartupWorkflowTests
     public async Task Parameter_failure_is_visible_but_does_not_stop_the_feed(ApplicationStartupActivity failure)
     {
         var activities=new RecordingActivities{Failure=failure};var context=new TestContext(activities);
-        await Event().ExecuteAsync(context,CancellationToken.None);
+        await Event().ExecuteAsync(context,context.Logger,CancellationToken.None);
         Assert.Contains(ApplicationStartupActivity.StartMarketData,activities.Executed);
         Assert.Equal(ApplicationLifecycleState.Degraded,context.StartupStatusStore.Current.State);
         Assert.Single(activities.Executed,x=>x==failure);
@@ -139,8 +139,8 @@ public sealed class ApplicationStartupWorkflowTests
         var activities = new RecordingActivities();
         var context = new TestContext(activities);
 
-        await Event().ExecuteAsync(context, CancellationToken.None);
-        await Event().ExecuteAsync(context, CancellationToken.None);
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
 
         Assert.Equal(ApplicationStartupPlan.Activities.Count, activities.Executed.Count);
         Assert.Equal(2, context.SentEvents.Count(value => value is ApplicationStartupCompleteEvent));
@@ -152,7 +152,7 @@ public sealed class ApplicationStartupWorkflowTests
         var activities = new RecordingActivities();
         var context = new TestContext(activities, new NonResponsiveConsole());
 
-        await Event().ExecuteAsync(context, CancellationToken.None)
+        await Event().ExecuteAsync(context, context.Logger, CancellationToken.None)
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(5));
 

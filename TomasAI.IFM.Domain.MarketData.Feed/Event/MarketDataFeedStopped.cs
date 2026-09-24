@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -27,7 +29,7 @@ public static class MarketDataFeedStopped
         this MarketDataFeedStoppedEvent e,
         IEventActorContext context,
         IEventActorContext eventApi,
-        MarketDataFeedEventParameters p)
+        MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
         var source = $"MarketDataFeedStoppedEvent for EntityId: {e.EntityId}";
         try
@@ -36,14 +38,14 @@ public static class MarketDataFeedStopped
 
             await eventApi.SendMarketDataFeedStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed stopped");
-            p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed stopped", source);
+            logger.LogInformationEvent(ServiceId, "{Source}: market data feed stopped", source);
             return true;
         }
         catch (Exception ex)
         {
             await eventApi.SendMarketDataFeedStoppedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed stop failed", source);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed stop failed", source);
         }
         return false;
     }

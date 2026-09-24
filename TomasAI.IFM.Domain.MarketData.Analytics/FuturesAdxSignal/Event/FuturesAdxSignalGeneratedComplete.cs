@@ -26,7 +26,7 @@ public static class FuturesAdxSignalGeneratedComplete
     /// <returns><see langword="true"/> if the handler completed successfully; otherwise <see langword="false"/>.</returns>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAdxSignalGeneratedCompleteEvent e,
         IFuturesAdxSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesAdxSignalEventActor> logger)
     {
         var source = $"FuturesAdxSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try

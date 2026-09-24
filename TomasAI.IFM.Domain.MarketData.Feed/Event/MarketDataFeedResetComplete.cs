@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
@@ -31,7 +33,7 @@ public static class MarketDataFeedResetComplete
         IEventActorContext context,
         IEventActorContext commandApi,
         IEventActorContext eventApi,
-        MarketDataFeedEventParameters p)
+        MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
         var source = $"MarketDataFeedResetCompleteEvent for EntityId: {e.EntityId}";
         try
@@ -39,12 +41,12 @@ public static class MarketDataFeedResetComplete
             foreach (var futuresContract in e.FuturesContracts)
             {
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Reset streaming of Futures {futuresContract.ContractId}...");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId}...", source, futuresContract.ContractId);
+                logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId}...", source, futuresContract.ContractId);
                 await Task.Delay(TimeSpan.FromSeconds(2));
                 var entityId = new FuturesDataId(futuresContract.ContractId, e.ValueDate);
                 await commandApi.StartFuturesTickDataStreamingAsync(e, futuresContract, entityId);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Reset streaming of Futures {futuresContract.ContractId} started");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId} started", source, futuresContract.ContractId);
+                logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId} started", source, futuresContract.ContractId);
             }
             var streamingEntityId = new FuturesBarDataStreamingId(e.ValueDate);
             await commandApi.StartFuturesBarDataStreamingAsync(e, streamingEntityId);
@@ -55,7 +57,7 @@ public static class MarketDataFeedResetComplete
         catch (Exception ex)
         {
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset complete failed");
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset complete failed");
         }
         return false;
     }

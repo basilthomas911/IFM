@@ -13,7 +13,7 @@ public static class FuturesRsiSignalGeneratedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalGeneratedCompleteEvent completed,
         IFuturesRsiSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesRsiSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
         if (completed.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }

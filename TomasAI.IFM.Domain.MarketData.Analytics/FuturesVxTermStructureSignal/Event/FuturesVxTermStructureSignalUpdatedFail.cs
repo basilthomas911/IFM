@@ -11,7 +11,7 @@ public static class FuturesVxTermStructureSignalUpdatedFail
     public static ValueTask<bool> ExecuteAsync(
         this FuturesVxTermStructureSignalUpdatedFailEvent @event,
         IFuturesVxTermStructureSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesVxTermStructureSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

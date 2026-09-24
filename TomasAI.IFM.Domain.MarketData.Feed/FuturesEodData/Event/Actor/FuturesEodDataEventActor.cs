@@ -24,22 +24,22 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
     readonly ILogger<FuturesEodDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesEodDataEventParameters _eventParameters = new(
         ((IFuturesEodDataEventContext)actorContext).BlackboardService, ((IFuturesEodDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ILogger<FuturesEodDataEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ILogger<FuturesEodDataEventActor>, ValueTask<bool>>>()
     {
-        [typeof(FuturesEodDataInsertedEvent)] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesEodDataInsertedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesEodDataInsertedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         },
-        [typeof(FuturesEodDataInsertedCompleteEvent)] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesEodDataInsertedCompleteEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         },
-        [typeof(VixFuturesEodDataInsertedCompleteEvent)] = async (evt, context, _, eventParams) =>
+        [typeof(VixFuturesEodDataInsertedCompleteEvent)] = async (evt, context, _, eventParams, logger) =>
         {
             var e = (evt as VixFuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventParams, logger);
         }
     };
 
@@ -85,7 +85,7 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters, _logger);
     }
 
     /// <summary>

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -32,7 +34,7 @@ public static async ValueTask<bool> ExecuteAsync(
     IEventActorContext context,
     IEventActorContext commandApi,
     IEventActorContext eventApi,
-    FuturesBarDataEventParameters p)
+    FuturesBarDataEventParameters p, ILogger<FuturesBarDataEventActor> logger)
     {
         var source = $"FuturesBarDataStreamingStartedEvent for EntityId: {e.EntityId}";
         var started = false;
@@ -41,14 +43,14 @@ public static async ValueTask<bool> ExecuteAsync(
             p.FuturesBarDataTimer.Start(e.EntityId, InsertFuturesBarDataFromTickDataAsync);
             await eventApi.FuturesBarDataStreamingStartedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
-            p.Logger.LogInformationEvent(ServiceId, "{Source}", source);
+            logger.LogInformationEvent(ServiceId, "{Source}", source);
             started = true;
         }
         catch (Exception ex)
         {
             await eventApi.FuturesBarDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming start failed", source);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming start failed", source);
         }
         return started;
 
@@ -69,7 +71,7 @@ public static async ValueTask<bool> ExecuteAsync(
                         || !StringComparer.Ordinal.Equals(snapshot.ContractId, o.ContractId)
                         || snapshot.ValueDate != e.ValueDate)
                     {
-                        p.Logger.LogInformationEvent(
+                        logger.LogInformationEvent(
                             ServiceId,
                             "{Source}: ignored mismatched hot-cache snapshot for {ContractId}",
                             source,
@@ -92,7 +94,7 @@ public static async ValueTask<bool> ExecuteAsync(
                                 downTrendTrigger: 0
                             ));
                             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Inserted Futures Bar Data {o.ContractId}");
-                            p.Logger.LogInformationEvent(ServiceId, "{Source}", $"inserted futures bar data {o.ContractId}");
+                            logger.LogInformationEvent(ServiceId, "{Source}", $"inserted futures bar data {o.ContractId}");
                             break;
                     }
                 }
@@ -100,7 +102,7 @@ public static async ValueTask<bool> ExecuteAsync(
             catch (Exception ex)
             {
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
-                p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data insert failed", source);
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data insert failed", source);
             }
         }
     }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -25,7 +26,7 @@ public static async ValueTask<bool> ExecuteAsync(
     this FuturesOptionTickDataStreamingStartedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
-    FuturesOptionTickDataEventParameters p)
+    FuturesOptionTickDataEventParameters p, ILogger<FuturesOptionTickDataEventActor> logger)
     {
         var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
@@ -46,14 +47,14 @@ public static async ValueTask<bool> ExecuteAsync(
             await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
 
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started");
-            p.Logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
+            logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
             return true;
         }
         catch (Exception ex)
         {
             await eventApi.SendFuturesOptionTickDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, FuturesOptionTickDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
         }
         return false;
     }

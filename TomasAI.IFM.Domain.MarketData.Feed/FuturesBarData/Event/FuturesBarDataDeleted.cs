@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -8,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 public static class FuturesBarDataDeleted
 {
     /// <summary>Acknowledges the event without producing another side effect.</summary>
-    public static ValueTask<bool> ExecuteAsync(this FuturesBarDataDeletedEvent eventValue, IFuturesBarDataEventContext context, IEventActorContext commandApi, IEventActorContext eventApi, FuturesBarDataEventParameters parameters)
+    public static ValueTask<bool> ExecuteAsync(this FuturesBarDataDeletedEvent eventValue, IFuturesBarDataEventContext context, IEventActorContext commandApi, IEventActorContext eventApi, FuturesBarDataEventParameters parameters, ILogger<FuturesBarDataEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(eventValue); ArgumentNullException.ThrowIfNull(context);
         return ValueTask.FromResult(true);

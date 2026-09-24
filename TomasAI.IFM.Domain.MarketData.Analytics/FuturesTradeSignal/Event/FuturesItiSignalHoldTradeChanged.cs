@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -24,7 +25,7 @@ public static class FuturesItiSignalHoldTradeChanged
     /// <param name="logger"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this FuturesItiSignalHoldTradeChangedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+        this FuturesItiSignalHoldTradeChangedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)
     {
         var source = $"FuturesItiSignalHoldTradeChangedEvent for {e.FuturesItiSignalId}";
         try

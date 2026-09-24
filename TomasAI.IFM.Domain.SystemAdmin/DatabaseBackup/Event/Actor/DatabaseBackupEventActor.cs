@@ -19,6 +19,7 @@ public class DatabaseBackupEventActor(
     IEventActorContext<DatabaseBackupEventActor> actorContext)
     : BaseEventActor<DatabaseBackupEventActor>(actorContext, actorContext.Logger)
 {
+    internal const string HandlerErrorLoggedKey = "IFM.DatabaseBackup.EventHandlerErrorLogged";
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupEventContext ActorContext =>
         IsArgumentNull.Set(Context as IDatabaseBackupEventContext, nameof(Context))!;
@@ -65,39 +66,39 @@ public class DatabaseBackupEventActor(
         ["ServiceCapabilityChanged"] = static message => message.AsEvent<DatabaseBackupServiceCapabilityChangedEvent>()!
     };
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<DatabaseBackupEventActor>, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IEvent, IEventActorContext<DatabaseBackupEventActor>, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<DatabaseBackupEventActor>, ILogger<DatabaseBackupEventActor>, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IEventActorContext<DatabaseBackupEventActor>, ILogger<DatabaseBackupEventActor>, ValueTask>>
     {
-        [typeof(DatabaseBackupServiceAcceptedEvent)] = static (eventValue, context) => ((DatabaseBackupServiceAcceptedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceRejectedEvent)] = static (eventValue, context) => ((DatabaseBackupServiceRejectedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceStartedEvent)] = static (eventValue, context) => ((DatabaseBackupServiceStartedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceProgressEvent)] = static (eventValue, context) => ((DatabaseBackupServiceProgressEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupBoundaryEstablishedEvent)] = static (eventValue, context) => ((DatabaseBackupBoundaryEstablishedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupArtifactReplicaUpdatedEvent)] = static (eventValue, context) => ((DatabaseBackupArtifactReplicaUpdatedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupVerificationCompletedEvent)] = static (eventValue, context) => ((DatabaseBackupVerificationCompletedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceErrorEvent)] = static (eventValue, context) => ((DatabaseBackupServiceErrorEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceCompletedEvent)] = static (eventValue, context) => ((DatabaseBackupServiceCompletedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceFailedEvent)] = static (eventValue, context) => ((DatabaseBackupServiceFailedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceCancelledEvent)] = static (eventValue, context) => ((DatabaseBackupServiceCancelledEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceAcceptedEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceAcceptedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceRejectedEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceRejectedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceStartedEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceStartedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceProgressEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceProgressEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreValidationCompletedEvent)] = static (eventValue, context) => ((DatabaseRestoreValidationCompletedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreReadyForCutoverEvent)] = static (eventValue, context) => ((DatabaseRestoreReadyForCutoverEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreDrillCompletedEvent)] = static (eventValue, context) => ((DatabaseRestoreDrillCompletedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceErrorEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceErrorEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceCompletedEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceCompletedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceFailedEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceFailedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRestoreServiceCancelledEvent)] = static (eventValue, context) => ((DatabaseRestoreServiceCancelledEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRecoveryRunStatisticsCapturedEvent)] = static (eventValue, context) => ((DatabaseRecoveryRunStatisticsCapturedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupPolicyAppliedEvent)] = static (eventValue, context) => ((DatabaseBackupPolicyAppliedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupPolicyRejectedEvent)] = static (eventValue, context) => ((DatabaseBackupPolicyRejectedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRetentionPlanCreatedEvent)] = static (eventValue, context) => ((DatabaseRetentionPlanCreatedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRetentionExecutionCompletedEvent)] = static (eventValue, context) => ((DatabaseRetentionExecutionCompletedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseRetentionExecutionFailedEvent)] = static (eventValue, context) => ((DatabaseRetentionExecutionFailedEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceReconciliationEvent)] = static (eventValue, context) => ((DatabaseBackupServiceReconciliationEvent)eventValue).ExecuteAsync(context),
-        [typeof(DatabaseBackupServiceCapabilityChangedEvent)] = static (eventValue, context) => ((DatabaseBackupServiceCapabilityChangedEvent)eventValue).ExecuteAsync(context)
+        [typeof(DatabaseBackupServiceAcceptedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceAcceptedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceRejectedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceRejectedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceStartedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceStartedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceProgressEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceProgressEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupBoundaryEstablishedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupBoundaryEstablishedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupArtifactReplicaUpdatedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupArtifactReplicaUpdatedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupVerificationCompletedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupVerificationCompletedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceErrorEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceErrorEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceCompletedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceCompletedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceFailedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceFailedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceCancelledEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceCancelledEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceAcceptedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceAcceptedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceRejectedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceRejectedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceStartedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceStartedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceProgressEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceProgressEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreValidationCompletedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreValidationCompletedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreReadyForCutoverEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreReadyForCutoverEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreDrillCompletedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreDrillCompletedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceErrorEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceErrorEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceCompletedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceCompletedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceFailedEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceFailedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRestoreServiceCancelledEvent)] = static (eventValue, context, logger) => ((DatabaseRestoreServiceCancelledEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRecoveryRunStatisticsCapturedEvent)] = static (eventValue, context, logger) => ((DatabaseRecoveryRunStatisticsCapturedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupPolicyAppliedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupPolicyAppliedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupPolicyRejectedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupPolicyRejectedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRetentionPlanCreatedEvent)] = static (eventValue, context, logger) => ((DatabaseRetentionPlanCreatedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRetentionExecutionCompletedEvent)] = static (eventValue, context, logger) => ((DatabaseRetentionExecutionCompletedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseRetentionExecutionFailedEvent)] = static (eventValue, context, logger) => ((DatabaseRetentionExecutionFailedEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceReconciliationEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceReconciliationEvent)eventValue).ExecuteAsync(context, logger),
+        [typeof(DatabaseBackupServiceCapabilityChangedEvent)] = static (eventValue, context, logger) => ((DatabaseBackupServiceCapabilityChangedEvent)eventValue).ExecuteAsync(context, logger)
     };
 
     protected override IEvent ParseMessage(IEventActorContext<DatabaseBackupEventActor> context, IActorMessage message)
@@ -109,12 +110,13 @@ public class DatabaseBackupEventActor(
     protected override ValueTask ReceiveAsync(IEventActorContext<DatabaseBackupEventActor> context, IEvent @event)
     {
         var receive = ResolveMappedEventHandler(@event, _receiveMap);
-        return receive(@event, context);
+        return receive(@event, context, context.Logger);
     }
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<DatabaseBackupEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
     {
-        Context.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
+        if (!exception.Data.Contains(HandlerErrorLoggedKey))
+            Context.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
         return ValueTask.CompletedTask;
     }
 }

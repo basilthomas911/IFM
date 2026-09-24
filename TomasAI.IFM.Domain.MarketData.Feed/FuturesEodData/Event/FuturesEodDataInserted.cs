@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -21,21 +23,21 @@ public static async ValueTask<bool> ExecuteAsync(
     this FuturesEodDataInsertedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
-    FuturesEodDataEventParameters p)
+    FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
     {
         var source = $"FuturesEodDataInsertedEvent for EntityId: {e.EntityId}";
         try
         {
             p.BlackboardService.MarketDataFeed.FuturesEodData.Set(e.FuturesEodData.ContractId, e.FuturesEodData.ValueDate, e.FuturesEodData);
             await eventApi.SendFuturesEodDataUpdatedEventAsync(e);
-            p.Logger.LogInformationEvent(ServiceId, "{Source}: futures eod data {ContractId} {ClosePrice}",
+            logger.LogInformationEvent(ServiceId, "{Source}: futures eod data {ContractId} {ClosePrice}",
                 source, e.FuturesEodData.ContractId, Convert.ToDecimal(e.FuturesEodData.ClosePrice));
             return true;
         }
         catch (Exception ex)
         {
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, FuturesEodDataInsertedEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}: futures eod data {ContractId} insert failed", source, e.FuturesEodData.ContractId);
+            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}: futures eod data {ContractId} insert failed", source, e.FuturesEodData.ContractId);
         }
         return false;
 

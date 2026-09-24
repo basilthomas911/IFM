@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -16,11 +18,20 @@ public static class FuturesEodDataInsertedComplete
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
 
-    public static async ValueTask<bool> ExecuteAsync(
+    public static ValueTask<bool> ExecuteAsync(
         this FuturesEodDataInsertedCompleteEvent @event,
         IEventActorContext context,
         IEventActorContext eventApi,
-        FuturesEodDataEventParameters parameters)
+        FuturesEodDataEventParameters parameters, ILogger<FuturesEodDataEventActor> logger)
+        => ExecuteCoreAsync(@event, context, eventApi, parameters, logger);
+
+    /// <summary>Runs the shared notification behavior for Event and Realtime ownership.</summary>
+    internal static async ValueTask<bool> ExecuteCoreAsync(
+        FuturesEodDataInsertedCompleteEvent @event,
+        IEventActorContext context,
+        IEventActorContext eventApi,
+        FuturesEodDataEventParameters parameters,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
@@ -58,7 +69,7 @@ public static class FuturesEodDataInsertedComplete
         {
             // Notify is an external, best-effort observation boundary. A Core NATS publication failure
             // must not convert the already-completed durable insert into a failed domain operation.
-            parameters.Logger.LogErrorEvent(
+            logger.LogErrorEvent(
                 ServiceId,
                 exception,
                 "Unable to publish futures EOD notification for {EntityId}",

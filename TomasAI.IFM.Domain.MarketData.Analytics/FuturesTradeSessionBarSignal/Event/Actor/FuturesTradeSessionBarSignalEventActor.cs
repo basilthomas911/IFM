@@ -31,8 +31,8 @@ public sealed class FuturesTradeSessionBarSignalEventActor(
             message => message.AsEvent<FuturesTradeSessionBarPublishedFailEvent>()!
     };
 
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalEventContext, ILogger, ValueTask<bool>>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalEventContext, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalEventContext, ILogger<FuturesTradeSessionBarSignalEventActor>, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalEventContext, ILogger<FuturesTradeSessionBarSignalEventActor>, ValueTask<bool>>>()
         {
             [typeof(FuturesTradeSessionBarPublishedEvent)] = static (@event, context, logger) =>
                 ((FuturesTradeSessionBarPublishedEvent)@event).ExecuteAsync(context, logger),

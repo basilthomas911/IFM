@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
@@ -11,12 +12,24 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Model;
 internal static class DatabaseBackupServiceEventHandler
 {
     /// <summary>Translates, requests, and verifies the internal Database Backup command.</summary>
-    internal static async ValueTask ExecuteAsync(DatabaseBackupServiceEventContract eventValue, IEventActorContext<DatabaseBackupEventActor> context)
+    internal static async ValueTask ExecuteAsync(DatabaseBackupServiceEventContract eventValue,
+        IEventActorContext<DatabaseBackupEventActor> context, ILogger<DatabaseBackupEventActor> logger)
     {
-        var command = DatabaseBackupEventTranslator.Translate(eventValue);
-        var result = await RequestAsync(context, command).ConfigureAwait(false);
-        if (!result.Success)
-            throw new InvalidOperationException($"DatabaseBackup command rejected: {result.ErrorMessage}");
+        try
+        {
+            var command = DatabaseBackupEventTranslator.Translate(eventValue);
+            var result = await RequestAsync(context, command).ConfigureAwait(false);
+            if (!result.Success)
+                throw new InvalidOperationException($"DatabaseBackup command rejected: {result.ErrorMessage}");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception,
+                "Database backup service event handoff failed for {EventType}, {EventId}, {CommandId}, {EntityId}.",
+                eventValue.GetType().Name, eventValue.Id, eventValue.CommandId, eventValue.EntityId);
+            exception.Data[DatabaseBackupEventActor.HandlerErrorLoggedKey] = true;
+            throw;
+        }
     }
 
     /// <summary>Sends the concrete translated internal command through the actor request API.</summary>

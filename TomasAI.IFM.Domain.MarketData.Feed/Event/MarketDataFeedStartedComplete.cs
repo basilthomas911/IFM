@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -29,7 +31,7 @@ public static class MarketDataFeedStartedComplete
         this MarketDataFeedStartedCompleteEvent e,
         IEventActorContext context,
         IEventActorContext commandApi,
-        MarketDataFeedEventParameters p)
+        MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
         var source = $"MarketDataFeedStartedCompleteEvent for EntityId: {e.EntityId}";
         try
@@ -39,7 +41,7 @@ public static class MarketDataFeedStartedComplete
                 await p.StatusConsoleWriter.WriteConsoleAsync(
                     LogSourceType.MarketDataFeedEvent,
                     $"Starting to stream Futures {futuresContract.ContractId}...");
-                p.Logger.LogInformationEvent(
+                logger.LogInformationEvent(
                     ServiceId,
                     "{Source}: starting to stream Futures {ContractId}...",
                     source,
@@ -49,7 +51,7 @@ public static class MarketDataFeedStartedComplete
                 await p.StatusConsoleWriter.WriteConsoleAsync(
                     LogSourceType.MarketDataFeedEvent,
                     $"Streaming Futures {futuresContract.ContractId} started");
-                p.Logger.LogInformationEvent(
+                logger.LogInformationEvent(
                     ServiceId,
                     "{Source}: streaming Futures {ContractId} started",
                     source,
@@ -64,7 +66,7 @@ public static class MarketDataFeedStartedComplete
         catch (Exception ex)
         {
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
         }
         return false;
     }

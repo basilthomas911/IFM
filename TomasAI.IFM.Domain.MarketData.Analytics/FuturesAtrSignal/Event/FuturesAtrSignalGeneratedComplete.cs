@@ -30,7 +30,7 @@ public static class FuturesAtrSignalGeneratedComplete
     /// <param name="logger">The logger.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalGeneratedCompleteEvent e,
-        IFuturesAtrSignalEventContext context, ILogger logger)
+        IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
     {
         var source = $"FuturesAtrSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try

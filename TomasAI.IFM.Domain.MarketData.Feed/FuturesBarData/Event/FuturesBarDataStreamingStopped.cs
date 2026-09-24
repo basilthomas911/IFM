@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -28,7 +30,7 @@ public static async ValueTask<bool> ExecuteAsync(
     this FuturesBarDataStreamingStoppedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
-    FuturesBarDataEventParameters p)
+    FuturesBarDataEventParameters p, ILogger<FuturesBarDataEventActor> logger)
     {
         var source = $"FuturesBarDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         var stopped = false;
@@ -37,14 +39,14 @@ public static async ValueTask<bool> ExecuteAsync(
             await p.FuturesBarDataTimer.StopAsync(e.EntityId);
             await eventApi.FuturesBarDataStreamingStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
-            p.Logger.LogInformationEvent(ServiceId, "{Source}", source);
+            logger.LogInformationEvent(ServiceId, "{Source}", source);
             stopped = true;
         }
         catch (Exception ex)
         {
             await eventApi.FuturesBarDataStreamingStoppedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStoppedEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming stop failed", source);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming stop failed", source);
         }
         return stopped;
     }

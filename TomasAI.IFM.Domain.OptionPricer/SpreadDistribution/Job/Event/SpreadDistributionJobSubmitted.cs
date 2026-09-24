@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
@@ -38,7 +39,7 @@ public static class SpreadDistributionJobSubmitted
         IEventActorContext optionPricerCommandApi,
         IEventActorContext tradeCommandApi,
         IStatusConsoleWriter statusConsoleWriter,
-        ILogger logger)
+        ILogger<SpreadDistributionJobEventActor> logger)
     {
         var jobService = e.GetSpreadDistributionJobService(context, tradeCommandApi);
         var serviceResult = await jobService.ExecuteAsync().ConfigureAwait(false);

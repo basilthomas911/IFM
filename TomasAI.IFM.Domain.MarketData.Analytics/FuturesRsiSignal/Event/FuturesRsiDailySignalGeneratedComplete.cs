@@ -9,7 +9,7 @@ public static class FuturesRsiDailySignalGeneratedComplete
 {
     /// <summary>Accepts the completed daily RSI notification.</summary>
     public static ValueTask<bool> ExecuteAsync(this FuturesRsiDailySignalGeneratedCompleteEvent @event,
-        IFuturesRsiSignalEventContext context, ILogger logger)
+        IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

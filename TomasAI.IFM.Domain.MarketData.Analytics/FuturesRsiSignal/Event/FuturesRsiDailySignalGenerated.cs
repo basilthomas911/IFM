@@ -24,7 +24,7 @@ public static class FuturesRsiDailySignalGenerated
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiDailySignalGeneratedEvent e,
         IFuturesRsiSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesRsiSignalEventActor> logger)
     {
         var source = $"FuturesRsiDailySignalGeneratedEvent for ContractId: {e.FuturesRsiSignal.ContractId}, ValueDate: {e.FuturesRsiSignal.ValueDate}";
         try

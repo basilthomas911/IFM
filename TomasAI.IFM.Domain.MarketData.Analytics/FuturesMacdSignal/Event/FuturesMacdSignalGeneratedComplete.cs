@@ -17,7 +17,7 @@ public static class FuturesMacdSignalGeneratedComplete
     }
     static string ServiceId { get; } = default!;
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalGeneratedCompleteEvent e, IFuturesMacdSignalEventContext context, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalGeneratedCompleteEvent e, IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
     {
         var source = $"FuturesMacdSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try

@@ -140,5 +140,5 @@ public sealed class PeriodSignalHotCacheTests
     static IFuturesAtrSignalEventContext AtrContext() => Substitute.For<IFuturesAtrSignalEventContext>();
     static IFuturesMacdSignalEventContext MacdContext() => Substitute.For<IFuturesMacdSignalEventContext>();
     static IStatusConsoleWriter Status() => Substitute.For<IStatusConsoleWriter>();
-    static ILogger Logger() => Substitute.For<ILogger>();
+    static ILogger<FuturesAdxSignalEventActor> Logger() => Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
 }

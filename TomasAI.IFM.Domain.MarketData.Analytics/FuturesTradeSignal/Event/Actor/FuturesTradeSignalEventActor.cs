@@ -23,7 +23,7 @@ public class FuturesTradeSignalEventActor(
 
     public const string Actor = "FuturesTradeSignalEvent";
 
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger<FuturesTradeSignalEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger<FuturesTradeSignalEventActor>, ValueTask<bool>>>()
     {
         [typeof(FuturesTradeSignalUpdatedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
             await ((FuturesTradeSignalUpdatedCompleteEvent)evt)

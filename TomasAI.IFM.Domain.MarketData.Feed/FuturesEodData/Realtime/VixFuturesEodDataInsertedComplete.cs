@@ -11,7 +11,7 @@ public static class VixFuturesEodDataInsertedComplete
     public static async ValueTask ExecuteAsync(this VixFuturesEodDataInsertedCompleteEvent domainEvent,
         IFuturesEodDataRealtimeContext context, FuturesEodDataEventParameters parameters)
     {
-        _ = await Event.VixFuturesEodDataInsertedComplete.ExecuteAsync(
-            domainEvent, context, parameters).ConfigureAwait(false);
+        _ = await Event.VixFuturesEodDataInsertedComplete.ExecuteCoreAsync(
+            domainEvent, context, parameters, context.Logger).ConfigureAwait(false);
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -17,7 +18,7 @@ public static class SpreadDistributionJobStatusUpdated
     static string ServiceId { get; } = default!;
 
     public static async ValueTask<bool> ExecuteAsync(
-        this SpreadDistributionJobStatusUpdatedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+        this SpreadDistributionJobStatusUpdatedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger<SpreadDistributionJobEventActor> logger)
     {
         await statusConsoleWriter.WriteConsoleAsync(
             LogSourceType.SpreadDistributionJobEvent,

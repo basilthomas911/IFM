@@ -13,7 +13,7 @@ public static class FuturesMacdSignalStopped
 {
     /// <summary>Detaches the MACD identity from shared closed observations.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalStoppedEvent @event,
-        IFuturesMacdSignalEventContext context, ILogger logger)
+        IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
     {
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Detach(@event.EntityId); return true; }
         catch (Exception exception)

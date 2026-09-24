@@ -29,7 +29,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         var result = await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(
             source,
             context,
-            Substitute.For<ILogger>());
+            Substitute.For<ILogger<FuturesItiSignalEventActor>>());
 
         result.Should().BeTrue();
         await context.Received(1).RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(
@@ -55,7 +55,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         var context = CreateSuccessfulContext();
 
         var result = await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(
-            CreateCompletion(period), context, Substitute.For<ILogger>());
+            CreateCompletion(period), context, Substitute.For<ILogger<FuturesItiSignalEventActor>>());
 
         result.Should().BeTrue();
         await context.DidNotReceiveWithAnyArgs()
@@ -73,7 +73,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
                 : new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
 
         var result = await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(
-            CreateCompletion(TimeFrameType.Daily), context, Substitute.For<ILogger>());
+            CreateCompletion(TimeFrameType.Daily), context, Substitute.For<ILogger<FuturesItiSignalEventActor>>());
 
         result.Should().BeFalse();
         await context.Received(2).RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(
@@ -88,9 +88,9 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         var second = CreateSuccessfulContext();
 
         await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(
-            source, first, Substitute.For<ILogger>());
+            source, first, Substitute.For<ILogger<FuturesItiSignalEventActor>>());
         await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(
-            source, second, Substitute.For<ILogger>());
+            source, second, Substitute.For<ILogger<FuturesItiSignalEventActor>>());
 
         var firstCommands = GetCommands(first);
         var secondCommands = GetCommands(second);
@@ -131,7 +131,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         var context = CreateSuccessfulContext();
         var status = Substitute.For<IStatusConsoleWriter>();
 
-        var result = await source.ExecuteAsync(context, status, Substitute.For<ILogger>());
+        var result = await source.ExecuteAsync(context, status, Substitute.For<ILogger<FuturesItiSignalEventActor>>());
 
         result.Should().BeFalse();
         await context.DidNotReceiveWithAnyArgs()

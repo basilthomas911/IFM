@@ -16,7 +16,8 @@ public static class OptionTradeLegDataChanged
     /// <summary>Submits the compatibility spread-distribution job for an updated option leg.</summary>
     public static async ValueTask ExecuteAsync(
         this OptionTradeLegDataChangedEvent source,
-        IFuturesOptionTradeEventContext context)
+        IFuturesOptionTradeEventContext context,
+        ILogger<FuturesOptionTradeEventActor> logger)
     {
         var operation = $"OptionTradeLegDataChangedEvent for EntityId: {source.EntityId}";
         try
@@ -39,15 +40,15 @@ public static class OptionTradeLegDataChanged
         }
         catch (Exception exception)
         {
-            await context.StatusConsoleWriter.WriteConsoleAsync(
-                LogSourceType.OptionTradeEvent,
-                OptionTradeLegDataChangedEvent.ErrorCode,
-                exception.GetErrorMessage()).ConfigureAwait(false);
-            context.Logger.LogErrorEvent(
+            logger.LogErrorEvent(
                 ServiceId,
                 exception,
                 "{Operation}: option trade leg data change failed",
                 operation);
+            await context.StatusConsoleWriter.WriteConsoleAsync(
+                LogSourceType.OptionTradeEvent,
+                OptionTradeLegDataChangedEvent.ErrorCode,
+                exception.GetErrorMessage()).ConfigureAwait(false);
         }
     }
 }

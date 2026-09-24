@@ -224,7 +224,7 @@ public sealed class FuturesTradeSessionBarSignalContractTests
                 Arg.Do<FuturesTradeSessionBarClosedRealtimeEvent>(value => forwarded = value))
             .Returns(ValueTask.CompletedTask);
 
-        var result = await complete.ExecuteAsync(context, Substitute.For<ILogger>());
+        var result = await complete.ExecuteAsync(context, Substitute.For<ILogger<FuturesTradeSessionBarSignalEventActor>>());
 
         Assert.True(result);
         Assert.NotNull(forwarded);
@@ -251,7 +251,7 @@ public sealed class FuturesTradeSessionBarSignalContractTests
         };
         var context = Substitute.For<IFuturesTradeSessionBarSignalEventContext>();
 
-        Assert.False(await failed.ExecuteAsync(context, Substitute.For<ILogger>()));
+        Assert.False(await failed.ExecuteAsync(context, Substitute.For<ILogger<FuturesTradeSessionBarSignalEventActor>>()));
         await context.DidNotReceiveWithAnyArgs()
             .SendAsync<FuturesTradeSessionBarClosedRealtimeEvent, FuturesTradeSessionBarEntityId>(default!);
     }

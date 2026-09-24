@@ -39,23 +39,23 @@ public sealed class ApplicationEventActor(
             [ApplicationShutdownFailEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownFailEvent>(message)
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, CancellationToken, ValueTask>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ILogger<ApplicationEventActor>, CancellationToken, ValueTask>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ILogger<ApplicationEventActor>, CancellationToken, ValueTask>>
         {
-            [typeof(ApplicationStartupEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationStartupEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
-            [typeof(ApplicationStartupCompleteEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationStartupCompleteEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
-            [typeof(ApplicationStartupDegradedEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationStartupDegradedEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
-            [typeof(ApplicationStartupFailEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationStartupFailEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
-            [typeof(ApplicationShutdownEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationShutdownEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
-            [typeof(ApplicationShutdownCompleteEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationShutdownCompleteEvent)value).ExecuteAsync(context.DomainContext, cancellationToken),
-            [typeof(ApplicationShutdownFailEvent)] = static (value, context, cancellationToken) =>
-                ((ApplicationShutdownFailEvent)value).ExecuteAsync(context.DomainContext, cancellationToken)
+            [typeof(ApplicationStartupEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationStartupEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken),
+            [typeof(ApplicationStartupCompleteEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationStartupCompleteEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken),
+            [typeof(ApplicationStartupDegradedEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationStartupDegradedEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken),
+            [typeof(ApplicationStartupFailEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationStartupFailEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken),
+            [typeof(ApplicationShutdownEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationShutdownEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken),
+            [typeof(ApplicationShutdownCompleteEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationShutdownCompleteEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken),
+            [typeof(ApplicationShutdownFailEvent)] = static (value, context, logger, cancellationToken) =>
+                ((ApplicationShutdownFailEvent)value).ExecuteAsync(context.DomainContext, logger, cancellationToken)
         };
 
     /// <summary>
@@ -92,7 +92,7 @@ public sealed class ApplicationEventActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        return ResolveMappedEventHandler(@event, _receiveMap)(@event, context, cancellationToken);
+        return ResolveMappedEventHandler(@event, _receiveMap)(@event, context, context.Logger, cancellationToken);
     }
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing

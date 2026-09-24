@@ -41,7 +41,7 @@ public static class FuturesRsiSignalStarted
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalStartedEvent e,
         IFuturesRsiSignalEventContext context,
-        ILogger logger)
+        ILogger<FuturesRsiSignalEventActor> logger)
     {
         var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try

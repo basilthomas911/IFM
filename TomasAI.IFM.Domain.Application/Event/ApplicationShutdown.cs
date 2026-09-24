@@ -11,10 +11,10 @@ public static class ApplicationShutdown
     public static async ValueTask ExecuteAsync(
         this ApplicationShutdownEvent @event,
         IApplicationEventContext context,
-        CancellationToken cancellationToken)
+        ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        context.Logger.LogInformation(
+        logger.LogInformation(
             "Application shutdown command {CommandId} was observed; production shutdown orchestration remains deferred.",
             @event.CommandId);
         try
@@ -26,7 +26,7 @@ public static class ApplicationShutdown
         }
         catch (Exception exception)
         {
-            context.Logger.LogWarning(exception, "Unable to publish deferred shutdown status to the System Console.");
+            logger.LogWarning(exception, "Unable to publish deferred shutdown status to the System Console.");
         }
     }
 }

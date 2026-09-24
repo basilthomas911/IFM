@@ -270,6 +270,7 @@ __pycache__/
 *.pyc
 /Docker/vLLM
 /BenchmarkDotNet.Artifacts/
+/.build/
 /.test-results/
 /.codex-*/
 **/TestResults/

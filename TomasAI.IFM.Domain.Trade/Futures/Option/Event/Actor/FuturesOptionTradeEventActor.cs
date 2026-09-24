@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
-using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -29,13 +28,13 @@ public class FuturesOptionTradeEventActor(
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly IReadOnlyDictionary<Type,
-        Func<IFuturesOptionTradeEventContext, IEvent, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IFuturesOptionTradeEventContext, IEvent, ValueTask>>
+        Func<IFuturesOptionTradeEventContext, IEvent, ILogger<FuturesOptionTradeEventActor>, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IFuturesOptionTradeEventContext, IEvent, ILogger<FuturesOptionTradeEventActor>, ValueTask>>
         {
-            [typeof(OptionTradeEndOfDayProcessedEvent)] = static (eventContext, domainEvent) =>
-                ((OptionTradeEndOfDayProcessedEvent)domainEvent).ExecuteAsync(eventContext),
-            [typeof(OptionTradeLegDataChangedEvent)] = static (eventContext, domainEvent) =>
-                ((OptionTradeLegDataChangedEvent)domainEvent).ExecuteAsync(eventContext)
+            [typeof(OptionTradeEndOfDayProcessedEvent)] = static (eventContext, domainEvent, logger) =>
+                ((OptionTradeEndOfDayProcessedEvent)domainEvent).ExecuteAsync(eventContext, logger),
+            [typeof(OptionTradeLegDataChangedEvent)] = static (eventContext, domainEvent, logger) =>
+                ((OptionTradeLegDataChangedEvent)domainEvent).ExecuteAsync(eventContext, logger)
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(
@@ -46,7 +45,7 @@ public class FuturesOptionTradeEventActor(
     protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesOptionTradeEventActor> context,
         IEvent domainEvent) =>
-        ResolveMappedEventHandler(domainEvent, _receiveMap)(Typed(context), domainEvent);
+        ResolveMappedEventHandler(domainEvent, _receiveMap)(Typed(context), domainEvent, Typed(context).Logger);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesOptionTradeEventActor> context,

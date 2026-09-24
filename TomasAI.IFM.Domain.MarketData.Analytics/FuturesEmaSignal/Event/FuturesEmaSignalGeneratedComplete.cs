@@ -12,7 +12,7 @@ public static class FuturesEmaSignalGeneratedComplete
 {
     /// <summary>Sends the exact source bar and EMA result to the Bollinger command actor.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesEmaSignalGeneratedCompleteEvent @event,
-        IFuturesEmaSignalEventContext context, ILogger logger)
+        IFuturesEmaSignalEventContext context, ILogger<FuturesEmaSignalEventActor> logger)
     {
         await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
         var result = await context.GenerateFuturesBbSignalAsync(@event.Observation, @event.Signal);

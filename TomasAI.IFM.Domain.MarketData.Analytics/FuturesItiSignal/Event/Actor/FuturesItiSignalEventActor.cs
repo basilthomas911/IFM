@@ -29,7 +29,7 @@ public class FuturesItiSignalEventActor(
         IsArgumentNull.Set(Context as IFuturesItiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesItiSignalEvent";
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, FuturesItiSignalRuntimeTelemetry, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, FuturesItiSignalRuntimeTelemetry, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger<FuturesItiSignalEventActor>, FuturesItiSignalRuntimeTelemetry, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger<FuturesItiSignalEventActor>, FuturesItiSignalRuntimeTelemetry, ValueTask<bool>>>()
     {
         [typeof(FuturesItiSignalGeneratedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger, telemetry) =>
         {

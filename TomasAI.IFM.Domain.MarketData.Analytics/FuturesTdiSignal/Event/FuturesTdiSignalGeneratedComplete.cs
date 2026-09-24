@@ -29,7 +29,7 @@ public static class FuturesTdiSignalGeneratedComplete
         this FuturesTdiSignalGeneratedCompleteEvent e,
         IEventActorContext<FuturesTdiSignalEventActor> context,
         IStatusConsoleWriter statusConsoleWriter,
-        ILogger logger)
+        ILogger<FuturesTdiSignalEventActor> logger)
     {
         var source = $"FuturesTdiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try

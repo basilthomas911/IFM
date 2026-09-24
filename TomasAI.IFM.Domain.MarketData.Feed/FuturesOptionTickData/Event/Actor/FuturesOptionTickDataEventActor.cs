@@ -25,17 +25,17 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     readonly ILogger<FuturesOptionTickDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesOptionTickDataEventParameters _eventParameters = new(
         ((IFuturesOptionTickDataEventContext)actorContext).MarketDataApi, ((IFuturesOptionTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ILogger<FuturesOptionTickDataEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ILogger<FuturesOptionTickDataEventActor>, ValueTask<bool>>>()
     {
-        [typeof(FuturesOptionTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesOptionTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStartedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         },
-        [typeof(FuturesOptionTickDataStreamingStoppedEvent)] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesOptionTickDataStreamingStoppedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStoppedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         }
     };
 
@@ -102,7 +102,7 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
             @event,
             EventContext,
             EventContext,
-            _eventParameters);
+            _eventParameters, _logger);
     }
 
     /// <summary>

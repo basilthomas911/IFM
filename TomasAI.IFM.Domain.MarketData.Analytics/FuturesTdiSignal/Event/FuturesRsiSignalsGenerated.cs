@@ -17,7 +17,7 @@ public static class FuturesRsiSignalsGenerated
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalsGeneratedEvent e,
         IEventActorContext<FuturesTdiSignalEventActor> context,
-        ILogger logger)
+        ILogger<FuturesTdiSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(e);
         ArgumentNullException.ThrowIfNull(context);

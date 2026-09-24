@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Shared.Extensions;
@@ -28,7 +30,7 @@ public static class MarketDataFeedReset
         this MarketDataFeedResetEvent e,
         IEventActorContext context,
         IEventActorContext eventApi,
-        MarketDataFeedEventParameters p)
+        MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
         var source = $"MarketDataFeedResetEvent for EntityId: {e.EntityId}";
         try
@@ -36,14 +38,14 @@ public static class MarketDataFeedReset
             await p.MarketDataLifecycle.ResetAsync(e.ValueDate, e.CommandId);
             await eventApi.MarketDataFeedResetCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset");
-            p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);
+            logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);
             return true;
         }
         catch (Exception ex)
         {
             await eventApi.MarketDataFeedResetFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedResetEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed reset failed", source);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed reset failed", source);
         }
         return false;
     }

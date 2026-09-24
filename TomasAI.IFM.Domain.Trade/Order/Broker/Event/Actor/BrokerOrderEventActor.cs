@@ -21,11 +21,11 @@ public sealed class BrokerOrderEventActor(IEventActorContext<BrokerOrderEventAct
                 message.AsEvent<BrokerOrderObservationReceivedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly IReadOnlyDictionary<Type, Func<IBrokerOrderEventContext, IEvent, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IBrokerOrderEventContext, IEvent, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<IBrokerOrderEventContext, IEvent, ILogger<BrokerOrderEventActor>, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IBrokerOrderEventContext, IEvent, ILogger<BrokerOrderEventActor>, ValueTask>>
         {
-            [typeof(BrokerOrderObservationReceivedEvent)] = static (eventContext, domainEvent) =>
-                ((BrokerOrderObservationReceivedEvent)domainEvent).ExecuteAsync(eventContext)
+            [typeof(BrokerOrderObservationReceivedEvent)] = static (eventContext, domainEvent, logger) =>
+                ((BrokerOrderObservationReceivedEvent)domainEvent).ExecuteAsync(eventContext, logger)
         }.ToFrozenDictionary();
 
     /// <inheritdoc />
@@ -34,7 +34,7 @@ public sealed class BrokerOrderEventActor(IEventActorContext<BrokerOrderEventAct
 
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(IEventActorContext<BrokerOrderEventActor> context,
-        IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(Typed(context), @event);
+        IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(Typed(context), @event, Typed(context).Logger);
 
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<BrokerOrderEventActor> context,

@@ -38,7 +38,7 @@ public static class FuturesItiSignalGeneratedComplete
         this FuturesItiSignalGeneratedCompleteEvent e,
         IEventActorContext<FuturesItiSignalEventActor> context,
         IStatusConsoleWriter statusConsoleWriter,
-        ILogger logger,
+        ILogger<FuturesItiSignalEventActor> logger,
         FuturesItiSignalRuntimeTelemetry? telemetry = null)
     {
         var started = Stopwatch.GetTimestamp();
@@ -114,7 +114,7 @@ public static class FuturesItiSignalGeneratedComplete
     internal static async ValueTask<bool> GenerateDerivedPeriodsAsync(
         FuturesItiSignalGeneratedCompleteEvent completed,
         IEventActorContext context,
-        ILogger logger)
+        ILogger<FuturesItiSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(completed);
         ArgumentNullException.ThrowIfNull(context);

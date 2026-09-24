@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -21,7 +23,7 @@ public static async ValueTask<bool> ExecuteAsync(
     this FuturesTickDataStreamingStoppedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
-    FuturesTickDataEventParameters p)
+    FuturesTickDataEventParameters p, ILogger<FuturesTickDataEventActor> logger)
     {
         var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
@@ -33,14 +35,14 @@ public static async ValueTask<bool> ExecuteAsync(
             p.Streams.Untrack(e.ContractId, owner);
             await eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick data {e.ContractId} streaming stopped");
-            p.Logger.LogInformationEvent(ServiceId, "{Source}: futures tick data {e.ContractId} streaming stopped", source, e.ContractId);
+            logger.LogInformationEvent(ServiceId, "{Source}: futures tick data {e.ContractId} streaming stopped", source, e.ContractId);
             return true;
         }
         catch (Exception ex)
         {
             await eventApi.FuturesTickDataStreamingStoppedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6005, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures tick data {e.ContractId} streaming stop failed", source, e.ContractId);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures tick data {e.ContractId} streaming stop failed", source, e.ContractId);
         }
         return false;
     }

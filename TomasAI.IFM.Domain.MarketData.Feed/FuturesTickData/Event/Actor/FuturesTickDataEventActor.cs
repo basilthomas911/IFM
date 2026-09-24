@@ -34,17 +34,17 @@ public class FuturesTickDataEventActor(IEventActorContext<FuturesTickDataEventAc
     readonly ILogger<FuturesTickDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesTickDataEventParameters _eventParameters = new(
         ((IFuturesTickDataEventContext)actorContext).MarketDataApi, ((IFuturesTickDataEventContext)actorContext).BlackboardService, ((IFuturesTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTickDataEventContext, IEventActorContext, FuturesTickDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesTickDataEventContext, IEventActorContext, FuturesTickDataEventParameters, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTickDataEventContext, IEventActorContext, FuturesTickDataEventParameters, ILogger<FuturesTickDataEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesTickDataEventContext, IEventActorContext, FuturesTickDataEventParameters, ILogger<FuturesTickDataEventActor>, ValueTask<bool>>>()
     {
-        [typeof(FuturesTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesTickDataStreamingStartedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         },
-        [typeof(FuturesTickDataStreamingStoppedEvent)] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesTickDataStreamingStoppedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesTickDataStreamingStoppedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
         }
     };
 
@@ -107,7 +107,7 @@ public class FuturesTickDataEventActor(IEventActorContext<FuturesTickDataEventAc
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters, _logger);
     }
 
     /// <summary>

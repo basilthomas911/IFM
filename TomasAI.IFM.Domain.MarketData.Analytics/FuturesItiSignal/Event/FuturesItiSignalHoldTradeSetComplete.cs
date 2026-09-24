@@ -12,7 +12,7 @@ public static class FuturesItiSignalHoldTradeSetComplete
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesItiSignalHoldTradeSetCompleteEvent @event,
         IEventActorContext<FuturesItiSignalEventActor> context,
-        ILogger logger)
+        ILogger<FuturesItiSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

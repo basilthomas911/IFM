@@ -27,8 +27,8 @@ public sealed class FuturesVxTermStructureSignalEventActor(
             [FuturesVxTermStructureSignalUpdatedFailEvent.Verb] = static message =>
                 message.AsEvent<FuturesVxTermStructureSignalUpdatedFailEvent>()!
         };
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger, ValueTask<bool>>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger<FuturesVxTermStructureSignalEventActor>, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger<FuturesVxTermStructureSignalEventActor>, ValueTask<bool>>>()
         {
             [typeof(FuturesVxTermStructureSignalUpdatedCompleteEvent)] = async (@event, context, eventLogger) =>
                 await ((FuturesVxTermStructureSignalUpdatedCompleteEvent)@event)

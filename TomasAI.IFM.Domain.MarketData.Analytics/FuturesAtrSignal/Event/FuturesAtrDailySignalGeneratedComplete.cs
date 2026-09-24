@@ -9,7 +9,7 @@ public static class FuturesAtrDailySignalGeneratedComplete
 {
     /// <summary>Accepts the completed daily ATR notification.</summary>
     public static ValueTask<bool> ExecuteAsync(this FuturesAtrDailySignalGeneratedCompleteEvent @event,
-        IFuturesAtrSignalEventContext context, ILogger logger)
+        IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

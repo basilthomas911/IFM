@@ -13,7 +13,7 @@ public static class FuturesMacdSignalStarted
 {
     /// <summary>Attaches the MACD identity to shared closed observations.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalStartedEvent @event,
-        IFuturesMacdSignalEventContext context, ILogger logger)
+        IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
     {
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(@event.EntityId); return true; }
         catch (Exception exception)

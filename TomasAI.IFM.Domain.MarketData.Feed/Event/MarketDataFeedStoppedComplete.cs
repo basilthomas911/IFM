@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -22,20 +24,20 @@ public static class MarketDataFeedStoppedComplete
     /// <param name="logger"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedStoppedCompleteEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this MarketDataFeedStoppedCompleteEvent e, IEventActorContext context, MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
         var source = $"MarketDataFeedStoppedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
             //await state.StopFuturesBarDataStreamingAsync(context, e.ValueDate);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Futures bar data streaming stopped");
-            p.Logger.LogInformationEvent(ServiceId, "{Source}: futures bar data streaming stopped", source);
+            logger.LogInformationEvent(ServiceId, "{Source}: futures bar data streaming stopped", source);
             return true;
         }
         catch (Exception ex)
         {
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
-            p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: stopping futures bar data feed failed", source);
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: stopping futures bar data feed failed", source);
         }
         return false;
     }

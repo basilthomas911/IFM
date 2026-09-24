@@ -22,7 +22,7 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
     protected IFuturesRsiSignalEventContext FuturesRsiSignalEventContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesRsiSignalEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesRsiSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger, ValueTask<bool>>>()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger<FuturesRsiSignalEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger<FuturesRsiSignalEventActor>, ValueTask<bool>>>()
     {
         [typeof(FuturesRsiSignalStartedEvent)] = async (@event, context, logger) =>
             await ((FuturesRsiSignalStartedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
