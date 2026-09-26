@@ -14,8 +14,8 @@ public sealed class StartupRepositoryDiscoveryTests
     [Fact]
     public void Discovery_excludes_the_actual_stage4_private_repository_and_keeps_public_contexts()
     {
-        var assembly = typeof(PostgresDurableSubscriptionIntentStore).Assembly;
-        var owned = typeof(PostgresDurableSubscriptionIntentStore).GetNestedType("Repository", BindingFlags.NonPublic)!;
+        var assembly = typeof(MarketDataServiceDurableSubscriptionStore).Assembly;
+        var owned = typeof(MarketDataServiceDurableSubscriptionStore).GetNestedType("Repository", BindingFlags.NonPublic)!;
         owned.IsNestedPrivate.Should().BeTrue();
         // Characterize the exact old scan that caused the production startup exception.
         assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces().Any(i =>

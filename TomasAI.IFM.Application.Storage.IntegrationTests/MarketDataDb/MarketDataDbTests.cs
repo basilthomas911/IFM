@@ -31,7 +31,6 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using Xunit;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Framework.Storage.Extensions;
-using TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
@@ -386,9 +385,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             .Add("MarketDataDbConnection",
                 "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db",
                 "System.Data.ScyllaDb");
-        var store = new ScyllaHistoricalObservationStore(
-            settings,
-            Substitute.For<ILogger<DbProvider>>());
+        var store = TestFixture.DevDatabase;
         var series = MarketSeriesIdentity.ForFuturesSeries(new FuturesSeriesId(
             $"T{Guid.NewGuid():N}"[..8],
             "calendar-front",
@@ -1394,7 +1391,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var backfillReconciled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseBackfill = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task? tickWrite = null;
-        Task<MarketDataProjectionBackfillResult>? backfill = null;
+        Task<MarketDataProjectionBackfillReadModel>? backfill = null;
 
         await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
         await db.BackfillQueryProjectionsV2Async(batchSize: 64);
@@ -1539,7 +1536,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var backfillReconciled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseBackfill = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task? write = null;
-        Task<MarketDataProjectionBackfillResult>? backfill = null;
+        Task<MarketDataProjectionBackfillReadModel>? backfill = null;
 
         await db.DeleteVixFuturesEodDataAsync(row.ContractId, row.ValueDate);
         await db.BackfillQueryProjectionsV2Async(batchSize: 64);

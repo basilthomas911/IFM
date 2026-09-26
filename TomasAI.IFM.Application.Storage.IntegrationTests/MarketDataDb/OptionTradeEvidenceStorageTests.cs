@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
@@ -29,15 +30,19 @@ public sealed class OptionTradeEvidenceStorageTests
         try
         {
             var db = new Db(settings["test"], logger);
-            await db.Use("TradeEvidence.Schema", OptionTradeEvidenceStore.CreateTable).ExecuteCommandAsync(token);
-            await db.Use("TradeEvidence.Schema", OptionTradeEvidenceStore.CreateTable).ExecuteCommandAsync(token);
-            var store = new OptionTradeEvidenceStore(db);
+            var contextSettings = new DbConnectionSettings().Add(
+                MarketDataDbContext.MarketDataDbConnection,
+                settings["test"].ConnectionString,
+                settings["test"].ProviderName);
+            await new MarketDataSchemaDb(contextSettings, logger)
+                .CreateAsync(["option_trade_evidence"], token);
+            var store = MarketDataDbContextTestFactory.Create(settings["test"]);
             var source = new OptionTradeSource("GLBX.MDP3", 1, 42, "ES20261218C6500.5", new(2026, 9, 19),
                 12.5m, 2, 99, 1789812345678900123, 1789812345678910456, Guid.NewGuid(), "fixture");
             var original = new OptionTradeEvidence(source, null, null, DateTimeOffset.UtcNow, null,
                 new("PricingContextUnavailable", "Context", source.ContractId, "Synthetic missing-rate fixture."));
             await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => store.WriteAsync(original, token).AsTask()));
-            var restarted = new OptionTradeEvidenceStore(new Db(settings["test"], logger));
+            var restarted = MarketDataDbContextTestFactory.Create(settings["test"]);
             var retained = await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token);
             Assert.Equal(original, retained);
             var retry = original with { Source = source with { GenerationId = Guid.NewGuid(), ReceiveNanoseconds = source.ReceiveNanoseconds + 100 },

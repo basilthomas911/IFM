@@ -88,9 +88,9 @@ public class TickQuoteScyllaWriteBenchmarks
             _statement.Bind(bound.Values)).ConfigureAwait(false);
     }
 
-    private (object?[] Values, TickQuoteEncodedStorageCollection Owner) BuildValues(long sequenceId)
+    private (object?[] Values, TickQuoteScyllaBindValue Owner) BuildValues(long sequenceId)
     {
-        var owner = new TickQuoteEncodedStorageCollection(_segment);
+        var owner = new TickQuoteScyllaBindValue(_segment);
         var quoteValue = owner.Resolve(_session, _statement);
         object?[] values =
         [

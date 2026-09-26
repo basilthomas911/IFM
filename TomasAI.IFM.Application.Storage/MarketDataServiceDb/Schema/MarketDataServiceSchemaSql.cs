@@ -1,7 +1,12 @@
-namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 
 public static class MarketDataServiceSchemaSql
 {
+    public const string CreateCompositionRoutePlan = """
+        CREATE TABLE IF NOT EXISTS market_data_service.composition_route_plan (
+          plan_id text PRIMARY KEY CHECK(length(plan_id)=64),
+          payload jsonb NOT NULL CHECK(octet_length(payload::text)<=1048576));
+        """;
     public const string CreateSchema = "CREATE SCHEMA IF NOT EXISTS market_data_service;";
     public const string CreateAssignments = """
         CREATE TABLE IF NOT EXISTS market_data_service.futures_rollover_contract_assignment (

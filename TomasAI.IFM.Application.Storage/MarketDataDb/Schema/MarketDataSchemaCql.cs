@@ -2,6 +2,24 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateOptionTradeEvidenceTable = """
+CREATE TABLE IF NOT EXISTS option_trade_evidence(
+    contract_id text,
+    value_date date,
+    source_id text,
+    source_digest text,
+    payload blob,
+    PRIMARY KEY ((contract_id, value_date), source_id));
+""";
+
+    public const string CreateCompositionPreparationTable = """
+CREATE TABLE IF NOT EXISTS composition_preparation (
+    workflow_id uuid,
+    input_revision bigint,
+    payload blob,
+    PRIMARY KEY ((workflow_id), input_revision));
+""";
+
     public const string CreateMarketDataDownloadLogTable = """
 CREATE TABLE IF NOT EXISTS market_data_download_log (
     dataset text,

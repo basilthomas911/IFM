@@ -36,7 +36,7 @@ public sealed class MarketDataProjectionBatchValidationTests
     {
         var row = SampleData.FuturesTickData;
 
-        MarketDataDbContext.EnsureDistinctFuturesTickWrites(new[]
+        MarketDataDbContextExtensions.EnsureDistinctFuturesTickWrites(new[]
         {
             row,
             row with { TickId = row.TickId + 1 },
@@ -64,7 +64,7 @@ public sealed class MarketDataProjectionBatchValidationTests
     {
         var row = SampleData.FuturesEodData;
 
-        MarketDataDbContext.EnsureDistinctFuturesEodWrites(new[]
+        MarketDataDbContextExtensions.EnsureDistinctFuturesEodWrites(new[]
         {
             row,
             row with { Symbol = row.Symbol + "-other" },

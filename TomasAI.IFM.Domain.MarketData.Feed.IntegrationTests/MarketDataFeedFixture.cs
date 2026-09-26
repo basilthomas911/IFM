@@ -71,7 +71,7 @@ public class MarketDataFeedFixture : IDisposable
         DateOnly valueDate)
         => await MarketDataDb
             .Use(
-                "HistoricalObservationCql.DeleteRawEodForIntegrationTest",
+                "MarketDataDbCql.DeleteRawEodForIntegrationTest",
                 "DELETE FROM futures_eod_observation WHERE seriesKey = ? AND yearMonth = ? AND valueDate = ? AND contractId = ?")
             .SetParameters(new RawEodKey(
                 seriesKey,

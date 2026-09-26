@@ -6,6 +6,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

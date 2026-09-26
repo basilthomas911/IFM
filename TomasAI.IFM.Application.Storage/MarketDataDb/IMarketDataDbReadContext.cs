@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -6,20 +8,57 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbReadContext
 {
+    Task<MarketDataProjectionReadinessReadModel> GetQueryProjectionReadinessAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<CompositionPreparation?> ReadAsync(
+        CompositionPreparationKey key,
+        CancellationToken cancellationToken);
+    Task<OptionTradeEvidence?> ReadAsync(
+        string contract,
+        DateOnly date,
+        string sourceId,
+        CancellationToken cancellationToken = default);
+    ValueTask<FuturesEodObservationReadModel?> GetRawEodAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly valueDate,
+        CancellationToken cancellationToken);
+    ValueTask<IReadOnlyList<FuturesEodObservationReadModel>> GetRawEodRangeAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken);
+    Task<OptionIvMetricRevision?> GetSnapshotAsync(
+        string environment,
+        string snapshotId,
+        CancellationToken cancellationToken = default);
+    Task<LatestVolatilityResult> GetLatestAsync(
+        LatestVolatilityRequest request,
+        CancellationToken cancellationToken = default);
+    Task<VolatilityPage<OptionIvObservation>> GetObservationHistoryAsync(
+        VolatilityHistoryPageRequest request,
+        CancellationToken cancellationToken = default);
+    Task<VolatilityPage<OptionIvMetricRevision>> GetMetricHistoryAsync(
+        VolatilityHistoryPageRequest request,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> RebuildLatestCacheAsync(
+        IEnumerable<VolatilityStorageScope> scopes,
+        CancellationToken cancellationToken = default);
+
     Task<MarketDataDownloadLogResult> GetMarketDataDownloadLogAsync(
         MarketDataDownloadPartition partition,
         MarketDataDownloadCursor attempt,
@@ -123,8 +162,8 @@ public interface IMarketDataDbReadContext
     Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendExtremeChangeAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken);
     Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendReversalChangeAsync(string contractId, DateOnly valueDate);
     Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendReversalChangeAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken);
-	Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataAsync(string contractId, DateOnly valueDate);
-    Task<FuturesTickDataV2ReadModel?> GetFuturesTickAtOrBeforeAsync(string contractId,DateOnly valueDate,TimeOnly tickTime,CancellationToken token=default);
+    Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataAsync(string contractId, DateOnly valueDate);
+    Task<FuturesTickDataV2ReadModel?> GetFuturesTickAtOrBeforeAsync(string contractId, DateOnly valueDate, TimeOnly tickTime, CancellationToken token = default);
     Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataByTickDateAsync(string contractId, DateTime tickDate);
     Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickDataAsync(string contractId, DateOnly valueDate);
     Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickPriceDataAsync(string contractId, DateOnly valueDate);
@@ -174,8 +213,8 @@ public interface IMarketDataDbReadContext
     Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol, CancellationToken cancellationToken);
     Task<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
     Task<VixFuturesEodDataReadModel?> GetVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
-	Task<ICollection<VixFuturesEodDataReadModel>> GetVixFuturesEodDataByValueDateAsync(DateOnly valueDate);
-	Task<FuturesTickHLVDataReadModel?> GetVixFuturesTickHLVDataAsync(VixFuturesEodDataEntityId e);
+    Task<ICollection<VixFuturesEodDataReadModel>> GetVixFuturesEodDataByValueDateAsync(DateOnly valueDate);
+    Task<FuturesTickHLVDataReadModel?> GetVixFuturesTickHLVDataAsync(VixFuturesEodDataEntityId e);
 
     Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync();
     Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(CancellationToken cancellationToken);

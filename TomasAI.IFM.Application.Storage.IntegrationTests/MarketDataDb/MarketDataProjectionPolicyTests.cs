@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
 using Xunit;
 
@@ -167,9 +169,9 @@ public sealed class MarketDataProjectionPolicyTests
         var guardCount = (int)typeof(MarketDataDbContext)
             .GetField("ProjectionGuardScopeCount", flags)!
             .GetRawConstantValue()!;
-        var addGuards = typeof(MarketDataDbContext)
+        var addGuards = typeof(MarketDataDbContextExtensions)
             .GetMethod("AddProjectionGuardScopes", flags)!;
-        var getGuard = typeof(MarketDataDbContext)
+        var getGuard = typeof(MarketDataDbContextExtensions)
             .GetMethod("GetProjectionGuardScopeKey", flags)!;
         var guardedScopes = (string[])addGuards.Invoke(
             null,
@@ -226,10 +228,10 @@ public sealed class MarketDataProjectionPolicyTests
     public void MonthScopeHelpers_HandleDateOnlyMaximumWithoutOverflow()
     {
         var flags = BindingFlags.NonPublic | BindingFlags.Static;
-        var monthEnd = (DateOnly)typeof(MarketDataDbContext)
+        var monthEnd = (DateOnly)typeof(MarketDataDbContextExtensions)
             .GetMethod("GetMonthEnd", flags)!
             .Invoke(null, new object[] { 999912 })!;
-        var months = (IEnumerable<int>)typeof(MarketDataDbContext)
+        var months = (IEnumerable<int>)typeof(MarketDataDbContextExtensions)
             .GetMethod("GetYearMonths", flags)!
             .Invoke(null, new object[] { new DateOnly(9999, 12, 1), DateOnly.MaxValue })!;
 
@@ -240,7 +242,7 @@ public sealed class MarketDataProjectionPolicyTests
     [Fact]
     public void ScopedProjectionReadiness_FailsClosedWhileAnyOperationIsActive()
     {
-        var ready = new MarketDataProjectionScopeStateData(
+        var ready = new MarketDataProjectionScopeStateReadModel(
             "projection", "scope", Guid.NewGuid(), IsReady: true, Blocked: false,
             ActiveOperationsEmpty: true);
         var active = ready with { ActiveOperationsEmpty = false };
@@ -252,20 +254,20 @@ public sealed class MarketDataProjectionPolicyTests
     [Fact]
     public void TickGuardRecovery_DoesNotAutoReclaimAnAmbiguousDataBatch()
     {
-        Assert.False(MarketDataDbContext.IsTickGuardFailureAutomaticallyRecoverable(
+        Assert.False(MarketDataDbContextExtensions.IsTickGuardFailureAutomaticallyRecoverable(
             TickProjectionGuardFailureStage.RegistrationResponseUnknown));
-        Assert.True(MarketDataDbContext.IsTickGuardFailureAutomaticallyRecoverable(
+        Assert.True(MarketDataDbContextExtensions.IsTickGuardFailureAutomaticallyRecoverable(
             TickProjectionGuardFailureStage.RegisteredBeforeDataSubmission));
-        Assert.False(MarketDataDbContext.IsTickGuardFailureAutomaticallyRecoverable(
+        Assert.False(MarketDataDbContextExtensions.IsTickGuardFailureAutomaticallyRecoverable(
             TickProjectionGuardFailureStage.DataBatchResponseUnknown));
-        Assert.True(MarketDataDbContext.IsTickGuardFailureAutomaticallyRecoverable(
+        Assert.True(MarketDataDbContextExtensions.IsTickGuardFailureAutomaticallyRecoverable(
             TickProjectionGuardFailureStage.AfterDataAcknowledged));
     }
 
     [Fact]
     public void Reconciliation_RejectsEqualCountsWithDifferentRowIdentities()
     {
-        var result = new MarketDataProjectionBackfillResult(
+        var result = new MarketDataProjectionBackfillReadModel(
             FuturesTicksSource: 1,
             FuturesTicksProjected: 1,
             FuturesTicksSourceFingerprint: "tick-source",

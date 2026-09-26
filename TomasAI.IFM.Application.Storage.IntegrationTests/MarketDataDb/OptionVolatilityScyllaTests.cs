@@ -25,7 +25,7 @@ public sealed class OptionVolatilityScyllaTests(ScyllaStorageProviderFixture fix
         var correctionSource = Observation("observation-2", scope.Series, 2, firstSource.ObservationId, At(2));
         var first = Publication(environment, "snapshot-1", 1, firstSource, 1, null);
         var correction = Publication(environment, "snapshot-2", 2, correctionSource, 2, "snapshot-1");
-        var repository = new ScyllaOptionVolatilityRepository(fixture.Repository);
+        var repository = MarketDataDbContextTestFactory.Create(fixture.ConnectionSetting);
 
         try
         {

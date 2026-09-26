@@ -34,13 +34,13 @@ public class TickQuoteConversionBenchmarks
     [Benchmark]
     /// <summary>Encodes the native nested UDT list into one byte array.</summary>
     public byte[] OneBufferCqlEncoding()
-        => TickQuoteCqlEncoder.Encode(_segment);
+        => TickQuoteBufferEncoder.Encode(_segment);
 
     [Benchmark]
     /// <summary>Encodes into a privately retained exact-length buffer.</summary>
     public int PooledCqlEncoding()
     {
-        using var owner = TickQuoteCqlEncoder.EncodePooled(_segment);
+        using var owner = TickQuoteBufferEncoder.EncodePooled(_segment);
         return owner.Buffer.Length;
     }
 }

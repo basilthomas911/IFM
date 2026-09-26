@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
+using TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -26,17 +28,21 @@ public sealed class CompositionPreparationScyllaTests
         await admin.Use("OcpPreparation.Create", $"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};").ExecuteCommandAsync(token);
         try
         {
-            var db = new Repository(settings["test"], logger);
-            await db.Use("OcpPreparation.Schema", CompositionPreparationStore.CreateTable).ExecuteCommandAsync(token);
-            var store = new CompositionPreparationStore(db);
-            var other = new CompositionPreparationStore(new Repository(settings["test"], logger));
+            var contextSettings = new DbConnectionSettings().Add(
+                MarketDataDbContext.MarketDataDbConnection,
+                settings["test"].ConnectionString,
+                settings["test"].ProviderName);
+            await new MarketDataSchemaDb(contextSettings, logger)
+                .CreateAsync(["composition_preparation"], token);
+            var store = MarketDataDbContextTestFactory.Create(settings["test"]);
+            var other = MarketDataDbContextTestFactory.Create(settings["test"]);
             var key = new CompositionPreparationKey(Guid.NewGuid(), 5, new string('a', 64));
             Assert.Null(await store.ReadAsync(key, token));
             var a = Prepared(key); var b = Prepared(key);
             var winners = await Task.WhenAll(store.CommitAsync(a, token), other.CommitAsync(b, token));
             Assert.Equal(winners[0].Digest, winners[1].Digest);
             Assert.Contains(winners[0].Digest, new[] { a.Digest, b.Digest });
-            var restarted = new CompositionPreparationStore(new Repository(settings["test"], logger));
+            var restarted = MarketDataDbContextTestFactory.Create(settings["test"]);
             Assert.Equal(winners[0].Digest, (await restarted.ReadAsync(key, token))!.Digest);
             await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.ReadAsync(key with { InputSha256 = new('b', 64) }, token));
             // A different market capture cannot overwrite the first snapshot even after restart.

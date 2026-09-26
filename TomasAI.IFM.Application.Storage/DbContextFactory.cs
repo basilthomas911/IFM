@@ -21,9 +21,9 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Application.Storage.TradePlanDb;
 using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
-using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -51,8 +51,8 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
     public PortfolioDbContext PortfolioDb => (_dbContextResolver.Resolve<PortfolioDbContext>() as PortfolioDbContext)!;
-    public IMarketDataServiceStore MarketDataServiceDb =>
-        (_dbContextResolver.Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!;
+    public IMarketDataServiceDbContext MarketDataServiceDb =>
+        (_dbContextResolver.Resolve<MarketDataServiceDbContext>() as IMarketDataServiceDbContext)!;
 
     public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;
     public SequenceIdSchemaDb SequenceIdSchema => (_dbContextResolver.Resolve<SequenceIdSchemaDb>() as SequenceIdSchemaDb)!;

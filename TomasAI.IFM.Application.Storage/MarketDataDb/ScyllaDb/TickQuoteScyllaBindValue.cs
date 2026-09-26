@@ -6,17 +6,17 @@ using TomasAI.IFM.Framework.Storage.ScyllaDb;
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 /// <summary>
-/// Binds the existing frozen UDT-list column as native CQL bytes after checking prepared marker metadata.
+/// Validates and binds the encoded tick-quote value to its Scylla prepared marker.
 /// </summary>
-internal sealed class TickQuoteEncodedStorageCollection(FuturesTickQuoteDataSegment segment)
+internal sealed class TickQuoteScyllaBindValue(FuturesTickQuoteDataSegment segment)
     : IScyllaPreparedBindValue, IDisposable
 {
-    private PooledTickQuoteCqlBuffer? _owner;
-    private int _resolved;
-    private static readonly object Gate = new();
-    private static readonly object ValidatedMarker = new();
-    private static readonly ConditionalWeakTable<PreparedStatement, object> ValidatedStatements = new();
-    private static readonly (string Name, ColumnTypeCode Type)[] ExpectedFields =
+    PooledTickQuoteBuffer? _owner;
+    int _resolved;
+    static readonly object Gate = new();
+    static readonly object ValidatedMarker = new();
+    static readonly ConditionalWeakTable<PreparedStatement, object> ValidatedStatements = new();
+    static readonly (string Name, ColumnTypeCode Type)[] ExpectedFields =
     [
         ("source_sequence", ColumnTypeCode.Bigint),
         ("source_event_timestamp_ns", ColumnTypeCode.Bigint),
@@ -32,7 +32,9 @@ internal sealed class TickQuoteEncodedStorageCollection(FuturesTickQuoteDataSegm
         ("ask_count", ColumnTypeCode.Bigint)
     ];
 
-    /// <summary>Checks this prepared statement once, then creates one owned encoded buffer.</summary>
+    /// <summary>
+    /// Checks the prepared marker once and returns one owned encoded value.
+    /// </summary>
     public object Resolve(ISession session, PreparedStatement statement)
     {
         if (session.BinaryProtocolVersion < 3)
@@ -50,15 +52,17 @@ internal sealed class TickQuoteEncodedStorageCollection(FuturesTickQuoteDataSegm
         }
         if (Interlocked.Exchange(ref _resolved, 1) != 0)
             throw new InvalidOperationException("The quote CQL value has already been resolved.");
-        var owner = TickQuoteCqlEncoder.EncodePooled(segment);
+        var owner = TickQuoteBufferEncoder.EncodePooled(segment);
         Volatile.Write(ref _owner, owner);
         return owner.Buffer;
     }
 
-    /// <summary>Returns the encoded bytes after the actual Scylla request ends.</summary>
+    /// <summary>
+    /// Returns the encoded bytes after the Scylla request ends.
+    /// </summary>
     public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Dispose();
 
-    private static void Validate(ISession session, PreparedStatement statement)
+    static void Validate(ISession session, PreparedStatement statement)
     {
         var columns = statement.Variables.Columns;
         if (columns.Length != 21 || columns[20].Name != "quote_data"

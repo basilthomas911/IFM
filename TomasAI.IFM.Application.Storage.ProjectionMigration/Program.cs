@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -258,7 +259,7 @@ internal static class Program
             options.StaleOperationCutoffUtc).ConfigureAwait(false);
         var readiness = await context.GetQueryProjectionReadinessAsync(cancellationToken)
             .ConfigureAwait(false);
-        FuturesTradeSignalRepairResult? tradeSignalRepair = null;
+        FuturesTradeSignalRepairReadModel? tradeSignalRepair = null;
         if (options.RepairFuturesTradeSignals)
         {
             tradeSignalRepair = await context.RepairFuturesTradeSignalLookupAsync(

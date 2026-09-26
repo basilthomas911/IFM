@@ -9,6 +9,23 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class TickQuoteCqlBufferPoolTests
 {
     [Fact]
+    public void Pooled_buffer_is_owned_by_market_data_feed_shared()
+    {
+        Assert.Equal(
+            "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation",
+            typeof(PooledTickQuoteBuffer).Namespace);
+        Assert.Same(typeof(FuturesTickQuoteDataSegment).Assembly, typeof(PooledTickQuoteBuffer).Assembly);
+        Assert.Same(typeof(FuturesTickQuoteDataSegment).Assembly, typeof(TickQuoteBufferEncoder).Assembly);
+        var storageAssembly = typeof(TickQuoteScyllaBindValue).Assembly;
+        Assert.Null(storageAssembly.GetType(
+            "TomasAI.IFM.Application.Storage.MarketDataDb.PooledTickQuoteCqlBuffer"));
+        Assert.Null(storageAssembly.GetType(
+            "TomasAI.IFM.Application.Storage.MarketDataDb.TickQuoteCqlEncoder"));
+        Assert.Null(storageAssembly.GetType(
+            "TomasAI.IFM.Application.Storage.MarketDataDb.TickQuoteEncodedStorageCollection"));
+    }
+
+    [Fact]
     public void Encoded_value_uses_a_reusable_exact_length_buffer()
     {
         var quote = new FuturesTickQuoteData(
@@ -17,13 +34,13 @@ public sealed class TickQuoteCqlBufferPoolTests
         var segment = new FuturesTickQuoteDataSegment(
             Enumerable.Repeat(quote, 512).ToArray(), 512);
 
-        var first = TickQuoteCqlEncoder.EncodePooled(segment);
+        var first = TickQuoteBufferEncoder.EncodePooled(segment);
         var encoded = first.Buffer;
-        var expected = TickQuoteCqlEncoder.Encode(segment);
+        var expected = TickQuoteBufferEncoder.Encode(segment);
         Assert.Equal(expected, encoded);
         first.Dispose();
 
-        using var second = TickQuoteCqlEncoder.EncodePooled(segment);
+        using var second = TickQuoteBufferEncoder.EncodePooled(segment);
         Assert.Same(encoded, second.Buffer);
         Assert.Equal(expected, second.Buffer);
     }
@@ -37,7 +54,7 @@ public sealed class TickQuoteCqlBufferPoolTests
         var segment = new FuturesTickQuoteDataSegment(
             Enumerable.Repeat(quote, 512).ToArray(), 512);
 
-        using var encoded = TickQuoteCqlEncoder.EncodePooled(segment);
+        using var encoded = TickQuoteBufferEncoder.EncodePooled(segment);
         Assert.True(encoded.Buffer.Length + 24 < 85_000,
             $"512 quotes encoded to {encoded.Buffer.Length + 24} bytes including the array header.");
     }

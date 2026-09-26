@@ -136,7 +136,7 @@ public sealed partial class TradeSelectionRuntimeTests
             services.AddSingleton(market);
             releaseFixtureCalls = () => { projector.ClearReceivedCalls(); market.ClearReceivedCalls(); };
             container.RegisterSingleton<ICompositionPreparationStore>(() => new WorkflowMarketFixture(
-                new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(container.GetInstance<IDbContextFactory>().MarketDataDb),
+                container.GetInstance<IDbContextFactory>().MarketDataDb,
                 async key => (await container.GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>().LoadStateAsync(starts[key.WorkflowId])).CurrentView!));
         }, broker, actualPortfolio: true).WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((context, config) =>
         {

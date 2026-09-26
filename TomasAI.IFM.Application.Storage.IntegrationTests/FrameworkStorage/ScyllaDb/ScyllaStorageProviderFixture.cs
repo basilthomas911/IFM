@@ -26,6 +26,9 @@ public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
     /// <summary>Gets the initialized test repository.</summary>
     public ScyllaTestRepository Repository { get; private set; } = null!;
 
+    /// <summary>Gets the dedicated integration-test connection.</summary>
+    public IDbConnectionSetting ConnectionSetting { get; private set; } = null!;
+
     /// <summary>Initializes the shared ScyllaDB repository.</summary>
     public Task InitializeAsync()
     {
@@ -33,7 +36,8 @@ public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException($"Set {ConnectionVariable} to a credential-free ScyllaDB connection string whose default keyspace is dedicated to integration tests.");
         var settings = new DbConnectionSettings().Add("ScyllaIntegrationDbConnection", connectionString, ProviderName);
-        Repository = new ScyllaTestRepository(settings["ScyllaIntegrationDbConnection"], _logger);
+        ConnectionSetting = settings["ScyllaIntegrationDbConnection"];
+        Repository = new ScyllaTestRepository(ConnectionSetting, _logger);
         return Task.CompletedTask;
     }
 

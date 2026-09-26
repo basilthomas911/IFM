@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
@@ -138,9 +140,17 @@ public sealed class FuturesReferenceMetadataStorageTests
                 context, underlyingQuote, at, new(priced.ImpliedVolatility!.Value, priced.Delta!.Value, priced.Gamma!.Value,
                     priced.Theta!.Value, priced.Vega!.Value, priced.Rho!.Value, priced.TheoreticalPrice!.Value,
                     priced.TimeToExpiryYears!.Value, priced.PricingContextDigest!), null);
-            await raw.Use("ReferenceMetadata.TradeSchema", OptionTradeEvidenceStore.CreateTable).ExecuteCommandAsync(token);
-            await new OptionTradeEvidenceStore(raw).WriteAsync(evidence, token);
-            var tradeCopy = await new OptionTradeEvidenceStore(new Admin(settings[SecuritiesDbContext.SecuritiesDbConnection], logger))
+            var marketDataSettings = new DbConnectionSettings().Add(
+                MarketDataDbContext.MarketDataDbConnection,
+                settings[SecuritiesDbContext.SecuritiesDbConnection].ConnectionString,
+                settings[SecuritiesDbContext.SecuritiesDbConnection].ProviderName);
+            await new MarketDataSchemaDb(marketDataSettings, logger)
+                .CreateAsync(["option_trade_evidence"], token);
+            var evidenceStore = MarketDataDbContextTestFactory.Create(
+                settings[SecuritiesDbContext.SecuritiesDbConnection]);
+            await evidenceStore.WriteAsync(evidence, token);
+            var tradeCopy = await MarketDataDbContextTestFactory.Create(
+                    settings[SecuritiesDbContext.SecuritiesDbConnection])
                 .ReadAsync(option.ContractId, trade.ValueDate, evidence.Source.Identity, token);
             Assert.Equal(evidence.Greeks, tradeCopy!.Greeks);
             Assert.Equal(nanos, tradeCopy.Source.EventNanoseconds);

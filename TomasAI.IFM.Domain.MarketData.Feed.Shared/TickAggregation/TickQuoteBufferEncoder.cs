@@ -1,30 +1,32 @@
 using System.Buffers.Binary;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
-namespace TomasAI.IFM.Application.Storage.MarketDataDb;
+namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 /// <summary>
-/// Encodes one frozen CQL list of frozen tick_quote_item UDT values into a single owned byte array.
-/// The field order follows the tick_quote_item schema and must be verified by Scylla round trips.
+/// Encodes a bounded tick-quote segment into its canonical binary representation.
 /// </summary>
-internal static class TickQuoteCqlEncoder
+public static class TickQuoteBufferEncoder
 {
-    private const int FixedItemSize = 9 * (sizeof(int) + sizeof(long))
+    const int FixedItemSize = 9 * (sizeof(int) + sizeof(long))
         + sizeof(int) + sizeof(short)
         + 2 * sizeof(int);
 
-    /// <summary>Creates the exact CQL binary value for a bounded quote segment.</summary>
-    internal static byte[] Encode(FuturesTickQuoteDataSegment segment)
+    /// <summary>
+    /// Creates the exact binary value for a bounded quote segment.
+    /// </summary>
+    public static byte[] Encode(FuturesTickQuoteDataSegment segment)
     {
         var payload = new byte[EncodedLength(segment)];
         EncodeInto(segment, payload);
         return payload;
     }
 
-    /// <summary>Encodes into an owned, exact-length buffer retained by the storage writer.</summary>
-    internal static PooledTickQuoteCqlBuffer EncodePooled(FuturesTickQuoteDataSegment segment)
+    /// <summary>
+    /// Encodes a bounded quote segment into an owned, exact-length pooled buffer.
+    /// </summary>
+    public static PooledTickQuoteBuffer EncodePooled(FuturesTickQuoteDataSegment segment)
     {
-        var owner = PooledTickQuoteCqlBuffer.Rent(EncodedLength(segment));
+        var owner = PooledTickQuoteBuffer.Rent(EncodedLength(segment));
         try
         {
             EncodeInto(segment, owner.Buffer);
@@ -37,7 +39,7 @@ internal static class TickQuoteCqlEncoder
         }
     }
 
-    private static int EncodedLength(FuturesTickQuoteDataSegment segment)
+    static int EncodedLength(FuturesTickQuoteDataSegment segment)
     {
         if (segment.Buffer is null || segment.Count is 0 or > FuturesTickQuoteDataSegment.MaximumCount
             || segment.Count > segment.Buffer.Length)
@@ -48,7 +50,7 @@ internal static class TickQuoteCqlEncoder
         return length;
     }
 
-    private static void EncodeInto(FuturesTickQuoteDataSegment segment, byte[] payload)
+    static void EncodeInto(FuturesTickQuoteDataSegment segment, byte[] payload)
     {
         var output = payload.AsSpan();
         var offset = 0;
@@ -70,34 +72,35 @@ internal static class TickQuoteCqlEncoder
             WriteLong(output, ref offset, quote.AskCount);
         }
         if (offset != payload.Length)
-            throw new InvalidOperationException("Quote CQL encoding length mismatch.");
+            throw new InvalidOperationException("Quote encoding length mismatch.");
     }
 
-    private static int ItemSize(in FuturesTickQuoteData quote)
+    static int ItemSize(in FuturesTickQuoteData quote)
         => FixedItemSize + DecimalSize(quote.BidPrice) + DecimalSize(quote.AskPrice);
 
-    private static int DecimalSize(decimal? value)
+    static int DecimalSize(decimal? value)
     {
-        if (value is null) return 0;
+        if (value is null)
+            return 0;
         Span<byte> unscaled = stackalloc byte[13];
         return sizeof(int) + WriteUnscaled(value.Value, unscaled);
     }
 
-    private static void WriteLong(Span<byte> output, ref int offset, long value)
+    static void WriteLong(Span<byte> output, ref int offset, long value)
     {
         WriteInt32(output, ref offset, sizeof(long));
         BinaryPrimitives.WriteInt64BigEndian(output.Slice(offset, sizeof(long)), value);
         offset += sizeof(long);
     }
 
-    private static void WriteShort(Span<byte> output, ref int offset, short value)
+    static void WriteShort(Span<byte> output, ref int offset, short value)
     {
         WriteInt32(output, ref offset, sizeof(short));
         BinaryPrimitives.WriteInt16BigEndian(output.Slice(offset, sizeof(short)), value);
         offset += sizeof(short);
     }
 
-    private static void WriteDecimal(Span<byte> output, ref int offset, decimal? value)
+    static void WriteDecimal(Span<byte> output, ref int offset, decimal? value)
     {
         if (value is null)
         {
@@ -115,7 +118,7 @@ internal static class TickQuoteCqlEncoder
         offset += numberLength;
     }
 
-    private static int WriteUnscaled(decimal value, Span<byte> destination)
+    static int WriteUnscaled(decimal value, Span<byte> destination)
     {
         Span<int> bits = stackalloc int[4];
         decimal.GetBits(value, bits);
@@ -131,7 +134,8 @@ internal static class TickQuoteCqlEncoder
                 number[index] = (byte)~number[index];
             for (var index = number.Length - 1; index >= 0; index--)
             {
-                if (++number[index] != 0) break;
+                if (++number[index] != 0)
+                    break;
             }
         }
 
@@ -146,7 +150,7 @@ internal static class TickQuoteCqlEncoder
         return length;
     }
 
-    private static void WriteInt32(Span<byte> output, ref int offset, int value)
+    static void WriteInt32(Span<byte> output, ref int offset, int value)
     {
         BinaryPrimitives.WriteInt32BigEndian(output.Slice(offset, sizeof(int)), value);
         offset += sizeof(int);

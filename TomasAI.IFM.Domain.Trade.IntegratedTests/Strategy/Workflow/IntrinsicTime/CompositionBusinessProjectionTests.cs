@@ -11,6 +11,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
@@ -168,8 +169,8 @@ public sealed partial class CompositionBusinessProjectionTests
         IDbConnectionSettings settings = null!;
         public IDbConnectionSettings Settings => settings;
         public EventSourceActorDbContext Events { get; private set; } = null!;
-        public PostgresDurableSubscriptionIntentStore Store { get; private set; } = null!;
-        public PostgresCompositionRoutePlanStore Plans { get; private set; } = null!;
+        public IDurableSubscriptionIntentStore Store { get; private set; } = null!;
+        public ICompositionRoutePlanStore Plans { get; private set; } = null!;
         public PostgresCommittedBusinessEventJournal Journal { get; private set; } = null!;
         public async Task SavePlan(CompositionRoutePlan plan)
         { await Plans.SaveAsync(plan, default); planIds.Add(plan.PlanId); }
@@ -194,14 +195,21 @@ public sealed partial class CompositionBusinessProjectionTests
             await f.Sql(PostgresCommittedBusinessEventJournal.CreateTable);
             await f.Sql("CREATE SCHEMA IF NOT EXISTS market_data_service;");
             await f.Sql(Stage4SubscriptionSchemaSql.Create);
-            await f.Sql(PostgresCompositionRoutePlanStore.CreateTable);
+            await f.Sql(MarketDataServiceSchemaSql.CreateCompositionRoutePlan);
             f.settings = new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection, c.ConnectionString, "System.Data.Postgres")
                 .Add(MarketDataServiceDbContext.MarketDataServiceDbConnection, c.ConnectionString, "System.Data.Postgres");
             var logger = Substitute.For<ILogger<DbProvider>>();
             var factory = Substitute.For<IDbContextFactory>();
             f.Events = new(f.settings, factory, Substitute.For<IBlackboardService>(), logger);
             factory.ActorEventSourceDb.Returns(f.Events);
-            f.Store = new(f.settings, logger); f.Plans = new(f.settings); f.Journal = new(f.settings);
+            var marketDataService = new MarketDataServiceDbContext(
+                f.settings,
+                factory,
+                Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdDbContext>(),
+                logger);
+            f.Store = marketDataService;
+            f.Plans = marketDataService;
+            f.Journal = new(f.settings);
             return f;
         }
 

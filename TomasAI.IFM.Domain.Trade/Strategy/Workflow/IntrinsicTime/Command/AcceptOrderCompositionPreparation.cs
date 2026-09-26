@@ -26,7 +26,7 @@ public static class AcceptOrderCompositionPreparation
             || current.CompositionDispatch is not null) return new ServiceOk<GuidResult>(new(command.CommandId));
         using var acceptanceTrace = WorkflowTrace.Start("composer.acceptance", current);
         using var timing_composer_accept_preparation_read = WorkflowTrace.Start("composer.accept.preparation_read", current);
-        var prepared = await new CompositionPreparationStore(context.DbFactory.MarketDataDb)
+        var prepared = await context.DbFactory.MarketDataDb.DbReader
             .ReadAsync(CompositionPreparationAcceptance.Key(current), default).ConfigureAwait(false)
             ?? throw new InvalidDataException("Market preparation has not been durably saved.");
         timing_composer_accept_preparation_read?.Stop();

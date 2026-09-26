@@ -1,6 +1,45 @@
-namespace TomasAI.IFM.Application.Storage.MarketDataDb;
+namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
-public readonly record struct MarketDataProjectionBackfillResult(
+public readonly record struct EconomicCalendarCutoverReadModel(
+    long SourceRows,
+    long TargetRows,
+    string SourceFingerprint,
+    string TargetFingerprint,
+    int CountryCodes,
+    bool CutoverCompleted)
+{
+    public bool IsReconciled =>
+        SourceRows == TargetRows &&
+        string.Equals(SourceFingerprint, TargetFingerprint, StringComparison.Ordinal) &&
+        CutoverCompleted;
+}
+
+/// <summary>Reconciliation result for the remaining yield-curve query projections.</summary>
+public readonly record struct FmpQueryProjectionBackfillReadModel(
+    long YieldCurveRowsSource,
+    long YieldCurveRowsProjected,
+    string YieldCurveSourceFingerprint,
+    string YieldCurveProjectedFingerprint,
+    int YieldCurveYearsSource,
+    int YieldCurveYearsProjected,
+    string YieldCurveYearsSourceFingerprint,
+    string YieldCurveYearsProjectedFingerprint)
+{
+    public bool IsReconciled =>
+        YieldCurveRowsSource == YieldCurveRowsProjected &&
+        YieldCurveSourceFingerprint == YieldCurveProjectedFingerprint &&
+        YieldCurveYearsSource == YieldCurveYearsProjected &&
+        YieldCurveYearsSourceFingerprint == YieldCurveYearsProjectedFingerprint;
+}
+
+/// <summary>Summary of the non-destructive Futures Trade Signal repair.</summary>
+public readonly record struct FuturesTradeSignalRepairReadModel(
+    long RowsScanned,
+    long ValidRows,
+    long QuarantinedRows,
+    long LookupRowsWritten);
+
+public readonly record struct MarketDataProjectionBackfillReadModel(
     long FuturesTicksSource,
     long FuturesTicksProjected,
     string FuturesTicksSourceFingerprint,
@@ -39,7 +78,7 @@ public readonly record struct MarketDataProjectionBackfillResult(
         FuturesItiSignalsSourceFingerprint == FuturesItiSignalsByTrendModeFingerprint;
 }
 
-public readonly record struct MarketDataProjectionReadiness(
+public readonly record struct MarketDataProjectionReadinessReadModel(
     bool FuturesTickByTime,
     bool FuturesEodByMonth,
     bool VixFuturesContractIndex,

@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
+namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 
 /// <summary>Additive durable ownership, idempotency, authority watermark and delivery outbox schema.</summary>
 public static class Stage4SubscriptionSchemaSql

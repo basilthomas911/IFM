@@ -2,6 +2,10 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
 internal static class MarketDataServiceDbSql
 {
+    internal const string GetCompositionRoutePlan =
+        "SELECT payload::text FROM market_data_service.composition_route_plan WHERE plan_id=$1;";
+    internal const string InsertCompositionRoutePlan =
+        "INSERT INTO market_data_service.composition_route_plan(plan_id,payload) VALUES($1,$2::jsonb) ON CONFLICT(plan_id) DO NOTHING;";
     internal const string AssignmentColumns = "contract_role,root_symbol,contract_id,description,local_symbol,security_type,currency,exchange,multiplier,last_trade_date,next_rollover_date,source_contract_hash,row_version,created_on_utc,created_by,updated_on_utc,updated_by";
     internal static readonly string GetAssignment = $"SELECT {AssignmentColumns} FROM market_data_service.futures_rollover_contract_assignment WHERE contract_role=$1;";
     internal static readonly string ListAssignments = $"SELECT {AssignmentColumns} FROM market_data_service.futures_rollover_contract_assignment ORDER BY contract_role;";

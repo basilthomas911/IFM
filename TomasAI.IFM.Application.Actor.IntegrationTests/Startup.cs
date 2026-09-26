@@ -34,7 +34,6 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
-using TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
@@ -483,9 +482,10 @@ public static class Startup
             services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
-            services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore,
-                TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresDurableSubscriptionIntentStore>();
+            services.AddSingleton<IHistoricalObservationStore>(provider =>
+                provider.GetRequiredService<IMarketDataDbContext>());
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore>(provider =>
+                provider.GetRequiredService<MarketDataServiceDbContext>());
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessEventJournal,
                 TomasAI.IFM.Application.Storage.EventSourceDb.PostgresCommittedBusinessEventJournal>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessSubscriptionSource,
@@ -493,8 +493,8 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(provider =>
                 provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>());
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore,
-                TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresCompositionRoutePlanStore>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore>(provider =>
+                provider.GetRequiredService<MarketDataServiceDbContext>());
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
             services.AddSingleton<MarketDataSchemaDb>();

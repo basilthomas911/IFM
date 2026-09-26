@@ -47,8 +47,8 @@ public sealed partial class TradeSelectionRuntimeTests
         {
             var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
             container.RegisterInstance(projector);
-            container.RegisterSingleton<ICompositionPreparationStore>(() => new TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore(
-                container.GetInstance<IDbContextFactory>().MarketDataDb));
+            container.RegisterSingleton<ICompositionPreparationStore>(() =>
+                container.GetInstance<IDbContextFactory>().MarketDataDb);
             services.AddSingleton(_ => container.GetInstance<ICompositionPreparationStore>());
         });
         _ = factory.CreateClient();

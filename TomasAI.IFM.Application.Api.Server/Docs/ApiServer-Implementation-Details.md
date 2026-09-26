@@ -86,7 +86,7 @@ The top-level `try/catch` sets exit code 1 on failure, logs fatal startup except
 
 Both the API composition root and actor integration host use `ObjectRepositoryDiscovery.Discover`. Only exported, concrete, closed repository implementations are eligible for automatic registration. Private/internal implementation helpers, abstract/open generic bases and dynamic assemblies are excluded. The explicit singleton registration of SystemAdminDbContext remains separate.
 
-On 2026-09-05 the old `Assembly.GetTypes()` scan incorrectly registered the private `PostgresDurableSubscriptionIntentStore.Repository` even though Stage 4 was disabled. Simple Injector then failed because the helper's per-operation `IDbConnectionSetting` was not globally registered. This was a composition-root discovery regression, not a missing global connection setting or a Databento outage. The helper remains private and is constructed only by its owning store; do not add a global connection setting or suppress container verification to work around it.
+On 2026-09-05 the old `Assembly.GetTypes()` scan incorrectly registered the private durable-intent transaction engine's nested `Repository`. Simple Injector then failed because the helper's per-operation `IDbConnectionSetting` was not globally registered. This was a composition-root discovery regression, not a missing global connection setting or a Databento outage. The helper remains private and is constructed only by `MarketDataServiceDbContext`; do not add a global connection setting or suppress container verification to work around it.
 
 Run a non-operational startup check from the API project directory after building:
 

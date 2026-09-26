@@ -11,8 +11,10 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
 using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
@@ -37,7 +39,7 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
     private string? _previousAspnet;
     private bool _environmentChanged;
     private bool _schemaCreated;
-    public PostgresDurableSubscriptionIntentStore Store { get; private set; } = null!;
+    public MarketDataServiceDbContext Store { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -83,9 +85,18 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
         return scope;
     }
 
-    public PostgresDurableSubscriptionIntentStore NewStore() => new(_settings, _logger);
-    internal PostgresDurableSubscriptionIntentStore FaultingStore(Action<DurableStoreWriteStage> observer) =>
-        new(_settings, _logger, null, observer);
+    public MarketDataServiceDbContext NewStore() => new(
+        _settings,
+        Substitute.For<IDbContextFactory>(),
+        Substitute.For<ISequenceIdDbContext>(),
+        _logger);
+    internal MarketDataServiceDbContext FaultingStore(Action<DurableStoreWriteStage> observer) => new(
+        _settings,
+        Substitute.For<IDbContextFactory>(),
+        Substitute.For<ISequenceIdDbContext>(),
+        _logger,
+        null,
+        observer);
 
     public Task<long> ReadWatermarkVersionAsync(string scope, string sourceId) => _repository!
         .Use("Stage4Fixture.ReadWatermark", """

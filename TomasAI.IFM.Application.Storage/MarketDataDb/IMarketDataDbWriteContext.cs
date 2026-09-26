@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -5,18 +7,39 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    Task<CompositionPreparation> CommitAsync(
+        CompositionPreparation proposed,
+        CancellationToken cancellationToken);
+    ValueTask WriteAsync(
+        OptionTradeEvidence evidence,
+        CancellationToken cancellationToken);
+    ValueTask<bool> TryWriteObservationAsync(
+        FuturesTradeSessionBarReadModel observation,
+        CancellationToken cancellationToken);
+    ValueTask<bool> TryWriteRawEodAsync(
+        FuturesEodObservationReadModel observation,
+        CancellationToken cancellationToken);
+    Task AppendObservationAsync(
+        string environment,
+        OptionIvObservation observation,
+        CancellationToken cancellationToken = default);
+    Task PublishAsync(
+        OptionIvPublication publication,
+        CancellationToken cancellationToken = default);
+
     Task InsertMarketDataDownloadLogAsync(
         MarketDataDownloadOutcome outcome,
         Guid logCommandId,
@@ -36,23 +59,20 @@ public interface IMarketDataDbWriteContext
     Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar);
     Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e);
     Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e);
-    Task<MarketDataProjectionBackfillResult> BackfillQueryProjectionsV2Async(
+    Task<MarketDataProjectionBackfillReadModel> BackfillQueryProjectionsV2Async(
         int batchSize = 256,
         CancellationToken cancellationToken = default,
         DateTime? staleOperationCutoffUtc = null)
         => throw new NotSupportedException();
-    Task<MarketDataProjectionReadiness> GetQueryProjectionReadinessAsync(
-        CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-    Task<FmpQueryProjectionBackfillResult> BackfillFmpQueryProjectionsAsync(
+    Task<FmpQueryProjectionBackfillReadModel> BackfillFmpQueryProjectionsAsync(
         int batchSize = 256,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
-    Task<EconomicCalendarCutoverResult> BackfillEconomicCalendarV2Async(
+    Task<EconomicCalendarCutoverReadModel> BackfillEconomicCalendarV2Async(
         int batchSize = 256,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
-    Task<FuturesTradeSignalRepairResult> RepairFuturesTradeSignalLookupAsync(
+    Task<FuturesTradeSignalRepairReadModel> RepairFuturesTradeSignalLookupAsync(
         int batchSize = 256,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
@@ -63,7 +83,7 @@ public interface IMarketDataDbWriteContext
     Task DeleteVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
     Task DeleteYieldCurveRateAsync(DateOnly valueDate);
     Task DeleteMarketHolidayAsync(MarketHolidayReadModel e);
-    Task DeleteMarketHolidaysAsync(CurrencyType  currencyType);
+    Task DeleteMarketHolidaysAsync(CurrencyType currencyType);
     Task DeleteRateOfReturnAsync(string symbol, DateOnly valueDate);
     Task DeleteFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
     Task DeleteFuturesOptionTickDataAsync(string contractId, DateOnly valueDate);

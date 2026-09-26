@@ -9,6 +9,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;

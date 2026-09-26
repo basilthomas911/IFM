@@ -2,13 +2,17 @@ using System.Text.Json;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Subscriptions;
 using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -19,6 +23,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Framework.SequenceId;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
 
@@ -54,9 +59,13 @@ public sealed partial class CompositionBusinessProjectionTests
         var plan = bundle.CreatePlan(strikes[0], strikes[1]); Assert.Equal(4, plan.Options.Length);
         await using var fixture = await Fixture.Create();
         await fixture.SavePlan(plan);
-        var marketDb = new LiveRepository(settings["market"]);
-        await marketDb.Use("Live.OcpSchema", CompositionPreparationStore.CreateTable).ExecuteCommandAsync(token);
-        var savedCaptures = new CompositionPreparationStore(marketDb);
+        var marketSettings = new DbConnectionSettings().Add(
+            MarketDataDbContext.MarketDataDbConnection,
+            settings["market"].ConnectionString,
+            settings["market"].ProviderName);
+        await new MarketDataSchemaDb(marketSettings, NullLogger<DbProvider>.Instance)
+            .CreateAsync(["composition_preparation"], token);
+        var savedCaptures = CreateMarketDataContext(marketSettings);
         var desired = new DatasetDesiredSubscriptionRegistry(); var admissions = new DatasetWorkerAdmissionRegistry();
         var valueDate = FuturesTradingValueDate.GetOperational(DateTimeOffset.UtcNow);
         var manifest = desired.Set("GLBX.MDP3", valueDate, [bundle.Underlying.ToRegistration() with { OnTheRun = true, Rollover = true }]);
@@ -94,7 +103,7 @@ public sealed partial class CompositionBusinessProjectionTests
                 {
                     Assert.Equal(4, ready.Snapshot.Instruments.Length);
                     Assert.All(ready.Snapshot.Instruments, x => Assert.NotNull(x.Valuation));
-                    var persisted = await new CompositionPreparationStore(new LiveRepository(settings["market"])).ReadAsync(ready.Key, token);
+                    var persisted = await CreateMarketDataContext(marketSettings).ReadAsync(ready.Key, token);
                     Assert.Equal(ready.Digest, persisted!.Digest);
                     Record(new { Stage = "PricedSnapshot", horizon, generation, ready.Digest, ready.Snapshot, At = DateTimeOffset.UtcNow });
                     return ready;
@@ -206,6 +215,15 @@ public sealed partial class CompositionBusinessProjectionTests
 
     sealed class LiveRepository(IDbConnectionSetting setting) : ObjectDataRepository<LiveRepository>(setting, NullLogger<DbProvider>.Instance)
     { public override IObjectRepository Database => this; }
+
+    static MarketDataDbContext CreateMarketDataContext(IDbConnectionSettings settings)
+        => new(
+            settings,
+            Substitute.For<IDbContextFactory>(),
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<ISequenceIdGenerator>(),
+            NullLogger<DbProvider>.Instance);
+
     [CompositionLiveFact]
     public void Inspect_live_reference_definitions()
     {

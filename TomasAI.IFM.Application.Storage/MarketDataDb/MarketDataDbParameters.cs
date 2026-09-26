@@ -1,6 +1,77 @@
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
+
+internal readonly record struct DownloadLogReadParameters(
+    string Dataset,
+    string Provider,
+    string Scope,
+    DateOnly ValueDate,
+    DateTime RequestedAtUtc,
+    Guid ImportCommandId,
+    int RowLimit,
+    bool Exact = false) : IBindValue
+{
+    public object Bind() => Exact
+        ? new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId }
+        : ImportCommandId == Guid.Empty
+            ? new object[] { Dataset, Provider, Scope, ValueDate, RowLimit }
+            : new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId, RowLimit };
+}
+
+internal readonly record struct DownloadLogParameters(
+    string Dataset,
+    string Provider,
+    string Scope,
+    DateOnly ValueDate,
+    DateTime RequestedAtUtc,
+    Guid ImportCommandId,
+    Guid LogCommandId,
+    Guid SourceTerminalEventId,
+    short SchemaVersion,
+    string Status,
+    DateTime StartedAtUtc,
+    DateTime FinishedAtUtc,
+    long ElapsedMilliseconds,
+    long? DownloadedRecordCount,
+    long? PersistedRecordCount,
+    string? ErrorCode,
+    string? ErrorMessage,
+    string PayloadSha256,
+    DateTime ProjectedAtUtc) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        Dataset,
+        Provider,
+        Scope,
+        ValueDate,
+        RequestedAtUtc,
+        ImportCommandId,
+        LogCommandId,
+        SourceTerminalEventId,
+        SchemaVersion,
+        Status,
+        StartedAtUtc,
+        FinishedAtUtc,
+        ElapsedMilliseconds,
+        DownloadedRecordCount,
+        PersistedRecordCount,
+        ErrorCode,
+        ErrorMessage,
+        PayloadSha256,
+        ProjectedAtUtc
+    };
+}
+
+internal readonly record struct CalendarPartition(string CountryCode, int MonthBucket);
+
+internal sealed record CalendarPageToken(
+    string Fingerprint,
+    int PartitionIndex,
+    long? LastEventDateTicks,
+    string? LastEventName);
 
 internal readonly record struct ClaimMarketDataImportOwnership(
     string dataset, string logicalKey, Guid commandId, bool mayWrite, DateTime createdOn) : IBindValue
@@ -718,7 +789,7 @@ internal readonly record struct InsertTickTradeData(object?[] Values) : IBindVal
 
 internal sealed class InsertTickQuoteData(
     object?[] values,
-    TickQuoteEncodedStorageCollection? encoded = null)
+    TickQuoteScyllaBindValue? encoded = null)
     : IBindValue, TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues
 {
     private object?[]? _values = values ?? throw new ArgumentNullException(nameof(values));
@@ -1044,4 +1115,60 @@ internal readonly record struct GetMarketOutlookWorkingState(
     DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
+}
+
+internal readonly record struct CompositionPreparationParameters(object[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
+internal readonly record struct OptionTradeEvidenceParameters(object[] Items) : IBindValue
+{
+    public object Bind() => Items;
+}
+
+internal readonly record struct OptionVolatilityParameters(object?[] Items) : IBindValue
+{
+    public object Bind() => Items;
+}
+
+internal readonly record struct HistoricalObservationParameter(FuturesTradeSessionBarReadModel Value) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        Value.MarketSeriesIdentity.Format(), Value.TimeFrame.ToString(), checked(Value.ValueDate.Year * 100 + Value.ValueDate.Month),
+        Value.IntervalEndUtc.UtcDateTime, Value.ObservationId.Value, Value.ContractId, Value.ValueDate,
+        Value.IntervalStartUtc.UtcDateTime, Value.IntervalEndUtc.UtcDateTime, Value.Open, Value.High,
+        Value.Low, Value.Close, Value.Volume, Value.TradeCount, Value.PriceVolumeSum,
+        Value.FirstSourceSequence, Value.LastSourceSequence, Value.FirstMarketEventUtc.UtcDateTime,
+        Value.LastMarketEventUtc.UtcDateTime, Value.CalculatedAtUtc.UtcDateTime,
+        (int)Value.SchemaVersion, Value.CalculationVersion, Value.IsComplete, Value.IsValid
+    };
+}
+
+internal readonly record struct HistoricalRawEodParameter(FuturesEodObservationReadModel Value) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        Value.MarketSeriesIdentity.Format(), checked(Value.ValueDate.Year * 100 + Value.ValueDate.Month), Value.ValueDate, Value.ContractId,
+        Value.SessionStartUtc.UtcDateTime, Value.SessionEndUtc.UtcDateTime, Value.Open, Value.High,
+        Value.Low, Value.Close, Value.Volume, Value.TradeCount, Value.PriceVolumeSum,
+        Value.ObservationId.Value, Value.FirstSourceSequence, Value.LastSourceSequence,
+        Value.FirstMarketEventUtc.UtcDateTime, Value.LastMarketEventUtc.UtcDateTime,
+        (int)Value.SchemaVersion, Value.IsComplete, Value.IsValid
+    };
+}
+
+internal readonly record struct HistoricalRawEodKey(string SeriesKey, int YearMonth, DateOnly ValueDate) : IBindValue
+{
+    public object Bind() => new object?[] { SeriesKey, YearMonth, ValueDate };
+}
+
+internal readonly record struct HistoricalRawEodRangeKey(
+    string SeriesKey,
+    int YearMonth,
+    DateOnly StartDate,
+    DateOnly EndDate) : IBindValue
+{
+    public object Bind() => new object?[] { SeriesKey, YearMonth, StartDate, EndDate };
 }

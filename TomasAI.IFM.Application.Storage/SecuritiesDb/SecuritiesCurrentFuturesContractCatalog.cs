@@ -1,8 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 public sealed class SecuritiesCurrentFuturesContractCatalog(ISecuritiesDbContext securities)
     : ICurrentFuturesContractCatalog

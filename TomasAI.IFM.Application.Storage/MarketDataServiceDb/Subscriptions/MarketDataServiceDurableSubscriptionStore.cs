@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
 /// calls never share mutable transaction state. No schema creation, registration, authority lookup,
 /// market-data subscription or production enablement is performed here.
 /// </summary>
-public sealed class PostgresDurableSubscriptionIntentStore : IDurableSubscriptionIntentStore
+internal sealed class MarketDataServiceDurableSubscriptionStore : IDurableSubscriptionIntentStore
 {
     private readonly IDbConnectionSetting _connection;
     private readonly ILogger<DbProvider> _logger;
@@ -23,10 +23,10 @@ public sealed class PostgresDurableSubscriptionIntentStore : IDurableSubscriptio
     private readonly Action<DurableStoreWriteStage>? _writeObserver;
     private static readonly JsonSerializerOptions JsonOptions = new() { MaxDepth = 32 };
 
-    public PostgresDurableSubscriptionIntentStore(IDbConnectionSettings settings, ILogger<DbProvider> logger,
+    internal MarketDataServiceDurableSubscriptionStore(IDbConnectionSettings settings, ILogger<DbProvider> logger,
         TimeProvider? timeProvider = null) : this(settings, logger, timeProvider, null) { }
 
-    internal PostgresDurableSubscriptionIntentStore(IDbConnectionSettings settings, ILogger<DbProvider> logger,
+    internal MarketDataServiceDurableSubscriptionStore(IDbConnectionSettings settings, ILogger<DbProvider> logger,
         TimeProvider? timeProvider, Action<DurableStoreWriteStage>? writeObserver)
     {
         ArgumentNullException.ThrowIfNull(settings);
