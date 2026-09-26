@@ -9,17 +9,10 @@ public enum EventLogWriteMode : byte
     BinaryCopy = 1
 }
 
-public enum EventLogTableTarget : byte
-{
-    Legacy = 0,
-    EventLogV2 = 1
-}
-
 public sealed class EventLogPersistenceOptions
 {
     public const string SectionName = "EventLogPersistence";
     public EventLogWriteMode WriteMode { get; set; } = EventLogWriteMode.Sequential;
-    public EventLogTableTarget TableTarget { get; set; } = EventLogTableTarget.Legacy;
     public bool UseLz4Compression { get; set; }
     public int QueueCommandCapacity { get; set; } = 8192;
     public int MaximumEventsPerBatch { get; set; } = 256;
@@ -33,7 +26,6 @@ public sealed class EventLogPersistenceOptions
     public EventLogPersistenceOptions Validate()
     {
         if (!Enum.IsDefined(WriteMode)) throw new ArgumentOutOfRangeException(nameof(WriteMode));
-        if (!Enum.IsDefined(TableTarget)) throw new ArgumentOutOfRangeException(nameof(TableTarget));
         if (QueueCommandCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(QueueCommandCapacity));
         if (MaximumEventsPerBatch <= 0) throw new ArgumentOutOfRangeException(nameof(MaximumEventsPerBatch));
         if (MaximumBatchBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaximumBatchBytes));

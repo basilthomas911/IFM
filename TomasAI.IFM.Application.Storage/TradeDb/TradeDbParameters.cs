@@ -78,10 +78,6 @@ internal readonly record struct GetTradeHistory(int orderId) : IBindValue
 {
     public object Bind() => new object?[] { orderId };
 }
-internal readonly record struct GetTradeOrders(DateOnly startDate, DateOnly endDate) : IBindValue
-{
-    public object Bind() => new object?[] { startDate, endDate };
-}
 internal readonly record struct GetTradeLimit(int tradeId) : IBindValue
 {
     public object Bind() => new object?[] { tradeId };
@@ -141,14 +137,6 @@ internal readonly record struct GetTradePlanForwardLossLimit(int orderId, int tr
 internal readonly record struct GetTradeLiveFeed(int orderId, int tradeId) : IBindValue
 {
     public object Bind() => new object?[] { orderId, tradeId };
-}
-internal readonly record struct GetTradeOrder(DateOnly valueDate, int tradeId) : IBindValue
-{
-    public object Bind() => new object?[] { tradeId, valueDate };
-}
-internal readonly record struct GetTradeOrdersByValueDate(DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { valueDate };
 }
 internal readonly record struct GetTradeFillDataByTradeId(int tradeId) : IBindValue
 {
@@ -240,10 +228,6 @@ internal readonly record struct DeleteTradePlanForwardLossLimit(int orderId, int
 {
     public object Bind() => new object?[] { orderId, tradeId, valueDate, tradeType };
 }
-internal readonly record struct DeleteTradeOrder(int fundId, int orderId, int tradeId) : IBindValue
-{
-    public object Bind() => new object?[] { fundId, orderId, tradeId };
-}
 
 // Insert parameters
 internal readonly record struct InsertOptionLeg(int orderId, int tradeId, string contractId, int quantity, decimal strikePrice, string optionLegType, string optionLegAction, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) : IBindValue
@@ -298,10 +282,6 @@ internal readonly record struct InsertTradePositionState(int orderId, int tradeI
 {
     public object Bind() => new object?[] { orderId, tradeId, tradePositionState, openedOn, openedBy };
 }
-internal readonly record struct InsertTradeOrder(int fundId, int orderId, int tradeId, DateOnly valueDate, string tradeType, string tradeSubType, DateOnly tradeDate, DateOnly maturityDate, string tradeOrderState, string underlyingContractId, string underlyingAssetType, string orderDescription, string orderAction, string orderActionType, int orderQuantity, string orderType, decimal orderPrice, decimal orderAmount, decimal commission, decimal totalAmount, decimal tradePnl, string tradeFillType, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) : IBindValue
-{
-    public object Bind() => new object?[] { fundId, orderId, tradeId, valueDate, tradeType, tradeSubType, tradeDate, maturityDate, tradeOrderState, underlyingContractId, underlyingAssetType, orderDescription, orderAction, orderActionType, orderQuantity, orderType, orderPrice, orderAmount, commission, totalAmount, tradePnl, tradeFillType, createdOn, createdBy, updatedOn, updatedBy };
-}
 internal readonly record struct InsertTradePlanForwardLossLimit(int orderId, int tradeId, DateOnly valueDate, string tradeType, string limitType) : IBindValue
 {
     public object Bind() => new object?[] { orderId, tradeId, tradeType, valueDate, limitType };
@@ -335,14 +315,6 @@ internal readonly record struct UpdateOptionLegDataStatus(int tradeId, DateOnly 
 internal readonly record struct UpdateOptionLegData(int orderId, int tradeId, DateOnly valueDate, string optionLegId, decimal bidPrice, decimal askPrice, double impliedVolatility, double delta, double gamma, double theta, double vega, double rho, DateTime updatedOn, string updatedBy) : IBindValue
 {
     public object Bind() => new object?[] { bidPrice, askPrice, impliedVolatility, delta, gamma, theta, vega, rho, updatedOn, updatedBy, orderId, tradeId, valueDate, optionLegId };
-}
-internal readonly record struct UpdateTradeOrderState(int tradeId, DateOnly valueDate, string tradeOrderState, DateTime updatedOn, string updatedBy) : IBindValue
-{
-    public object Bind() => new object?[] { tradeOrderState, updatedOn, updatedBy, tradeId, valueDate };
-}
-internal readonly record struct UpdateTradeOrderOrderPrice(int tradeId, DateOnly valueDate, decimal orderPrice, DateTime updatedOn, string updatedBy) : IBindValue
-{
-    public object Bind() => new object?[] { orderPrice, updatedOn, updatedBy, tradeId, valueDate };
 }
 internal readonly record struct UpdateTradePosition(int orderId, int tradeId, DateOnly valueDate, string tradeStatus, int daysToExpiry, string tradeType, decimal commission, int deltaHedge, decimal netSpread, decimal tradeValue, decimal tradePnl, decimal assetPrice, double OTMProbability, double winRatio, decimal maxPrice, double hedgeProbability, double riskFreeRate, DateTime updatedOn, string updatedBy) : IBindValue
 {

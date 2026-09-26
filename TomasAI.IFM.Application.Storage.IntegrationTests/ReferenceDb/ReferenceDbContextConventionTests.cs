@@ -95,10 +95,8 @@ public sealed class ReferenceDbContextConventionTests
         Assert.Equal("TomasAI.IFM.Domain.Reference.Shared", shared.GetName().Name);
         Assert.NotEqual(storage, shared);
         Assert.Equal(shared, typeof(ReferenceProjectionReconciliationResult).Assembly);
-        Assert.Equal(shared, typeof(LegacyTradeStrategyFamily).Assembly);
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.ReferenceProjectionBackfillResult"));
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.ReferenceProjectionReconciliationResult"));
-        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.LegacyTradeStrategyFamily"));
     }
 
     [Fact]

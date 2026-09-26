@@ -3,21 +3,20 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
 internal static class ReferenceDbCql
 {
-    public const string GetLegacyTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,name,state,createdOnUtc,createdBy FROM trade_strategy_family_v2 WHERE catalog = :catalog;";
-    public const string GetTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy FROM trade_strategy_family_v3 WHERE catalog = :catalog;";
-    public const string InsertTradeStrategyFamily = "INSERT INTO trade_strategy_family_v3 (catalog,tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy) VALUES (:catalog,:tradeStrategyFamilyId,:definitionVersion,:systemKey,:family,:strategy,:timeFrame,:symbol,:currency,:description,:state,:createdOnUtc,:createdBy) IF NOT EXISTS;";
+    public const string GetTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy FROM trade_strategy_family WHERE catalog = :catalog;";
+    public const string InsertTradeStrategyFamily = "INSERT INTO trade_strategy_family (catalog,tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy) VALUES (:catalog,:tradeStrategyFamilyId,:definitionVersion,:systemKey,:family,:strategy,:timeFrame,:symbol,:currency,:description,:state,:createdOnUtc,:createdBy) IF NOT EXISTS;";
     public const string DeleteReferenceProjectionStateV3 = """
-        DELETE FROM reference_projection_state_v3
+        DELETE FROM reference_projection_state
         WHERE projectionName = :projectionName;
     """;
 
     public const string DeleteReferenceProjectionMutationV3 = """
-    DELETE FROM reference_projection_mutation_v3
+    DELETE FROM reference_projection_mutation
     WHERE projectionName = :projectionName AND mutationId = :mutationId;
     """;
 
     public const string DeleteReferenceProjectionMutationsV3 = """
-    DELETE FROM reference_projection_mutation_v3
+    DELETE FROM reference_projection_mutation
     WHERE projectionName = :projectionName;
     """;
 
@@ -44,19 +43,19 @@ internal static class ReferenceDbCql
     """;
 
     public const string DeleteScheduledJobByNameV3ForOfflineRepair = """
-    DELETE FROM scheduled_job_by_name_v3
+    DELETE FROM scheduled_job_by_name
     WHERE jobName = :jobName;
     """;
 
     public const string ReleaseScheduledJobNameV3 = """
-    DELETE FROM scheduled_job_by_name_v3
+    DELETE FROM scheduled_job_by_name
     WHERE jobName = :jobName
     IF jobId = :jobId
     AND reservationToken = :reservationToken;
     """;
 
     public const string ReleaseScheduledJobWriteOwnershipV3 = """
-    DELETE FROM scheduled_job_write_ownership_v3
+    DELETE FROM scheduled_job_write_ownership
     WHERE scopeType = :scopeType
     AND scopeKey = :scopeKey
     IF operationId = :operationId;
@@ -64,66 +63,66 @@ internal static class ReferenceDbCql
 
     public const string GetReferenceProjectionStateV3 = """
     SELECT generation AS "Generation", completed AS "Completed"
-    FROM reference_projection_state_v3
+    FROM reference_projection_state
     WHERE projectionName = :projectionName;
     """;
 
     public const string GetReferenceProjectionStateNamesV3All = """
     SELECT projectionName AS "ProjectionName"
-    FROM reference_projection_state_v3;
+    FROM reference_projection_state;
     """;
 
     public const string GetReferenceProjectionMutationsV3 = """
     SELECT mutationId AS "MutationId"
-    FROM reference_projection_mutation_v3
+    FROM reference_projection_mutation
     WHERE projectionName = :projectionName;
     """;
 
     public const string GetReferenceProjectionMutationsV3All = """
     SELECT projectionName AS "ProjectionName", mutationId AS "MutationId", startedOn AS "StartedOn"
-    FROM reference_projection_mutation_v3;
+    FROM reference_projection_mutation;
     """;
 
     public const string InvalidateReferenceProjectionStateV3 = """
-    UPDATE reference_projection_state_v3
+    UPDATE reference_projection_state
     SET generation = :generation, completed = false, completedOn = null
     WHERE projectionName = :projectionName;
     """;
 
     public const string CompleteReferenceProjectionStateV3 = """
-    UPDATE reference_projection_state_v3
+    UPDATE reference_projection_state
     SET completed = true, completedOn = :completedOn
     WHERE projectionName = :projectionName
     IF generation = :generation;
     """;
 
     public const string InsertReferenceProjectionMutationV3 = """
-    INSERT INTO reference_projection_mutation_v3 (projectionName, mutationId, startedOn)
+    INSERT INTO reference_projection_mutation (projectionName, mutationId, startedOn)
     VALUES (:projectionName, :mutationId, :startedOn);
     """;
 
     public const string ClaimReferenceProjectionOwnershipV3 = """
-    INSERT INTO reference_projection_ownership_v3 (
+    INSERT INTO reference_projection_ownership (
         projectionName, ownerMutationId, conflicted, claimedOn)
     VALUES (:projectionName, :mutationId, false, :claimedOn)
     IF NOT EXISTS;
     """;
 
     public const string FlagReferenceProjectionOwnershipConflictV3 = """
-    UPDATE reference_projection_ownership_v3
+    UPDATE reference_projection_ownership
     SET conflicted = true
     WHERE projectionName = :projectionName
     IF EXISTS;
     """;
 
     public const string ReleaseReferenceProjectionOwnershipIfSafeV3 = """
-    DELETE FROM reference_projection_ownership_v3
+    DELETE FROM reference_projection_ownership
     WHERE projectionName = :projectionName
     IF ownerMutationId = :mutationId AND conflicted = false;
     """;
 
     public const string ReleaseReferenceProjectionOwnershipV3 = """
-    DELETE FROM reference_projection_ownership_v3
+    DELETE FROM reference_projection_ownership
     WHERE projectionName = :projectionName
     IF ownerMutationId = :mutationId;
     """;
@@ -181,13 +180,13 @@ internal static class ReferenceDbCql
 
     public const string GetScheduledJobId = """
     SELECT JobId 
-    FROM scheduled_job_by_name_v3
+    FROM scheduled_job_by_name
     WHERE JobName = :jobName;
     """;
 
     public const string GetScheduledJobReservationV3 = """
     SELECT jobId, reservationToken
-    FROM scheduled_job_by_name_v3
+    FROM scheduled_job_by_name
     WHERE jobName = :jobName;
     """;
 
@@ -198,19 +197,19 @@ internal static class ReferenceDbCql
 
     public const string GetScheduledJobsByNameV3All = """
     SELECT jobName AS "JobName", jobId AS "JobId", reservationToken AS "ReservationToken"
-    FROM scheduled_job_by_name_v3;
+    FROM scheduled_job_by_name;
     """;
 
     public const string GetScheduledJobWriteOwnershipV3 = """
     SELECT scopeType, scopeKey, operationId, startedOn
-    FROM scheduled_job_write_ownership_v3
+    FROM scheduled_job_write_ownership
     WHERE scopeType = :scopeType
     AND scopeKey = :scopeKey;
     """;
 
     public const string GetScheduledJobWriteOwnershipsV3All = """
     SELECT scopeType, scopeKey, operationId, startedOn
-    FROM scheduled_job_write_ownership_v3;
+    FROM scheduled_job_write_ownership;
     """;
 
     public const string InsertLookupType = """
@@ -229,20 +228,20 @@ internal static class ReferenceDbCql
     """;
 
     public const string InsertScheduledJobByNameV3 = """
-    INSERT INTO scheduled_job_by_name_v3 (jobName, jobId, reservationToken)
+    INSERT INTO scheduled_job_by_name (jobName, jobId, reservationToken)
     VALUES (:jobName, :jobId, :reservationToken)
     IF NOT EXISTS;
     """;
 
     public const string ClaimScheduledJobWriteOwnershipV3 = """
-    INSERT INTO scheduled_job_write_ownership_v3 (
+    INSERT INTO scheduled_job_write_ownership (
         scopeType, scopeKey, operationId, startedOn)
     VALUES (:scopeType, :scopeKey, :operationId, :startedOn)
     IF NOT EXISTS;
     """;
 
     public const string RotateScheduledJobNameV3Reservation = """
-    UPDATE scheduled_job_by_name_v3
+    UPDATE scheduled_job_by_name
     SET reservationToken = :reservationToken
     WHERE jobName = :jobName
     IF jobId = :jobId

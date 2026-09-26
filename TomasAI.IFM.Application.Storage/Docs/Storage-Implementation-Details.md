@@ -185,6 +185,13 @@ These rules define the minimum implementation pattern for every application DbCo
 - The context must return itself from its `Database`, `DbReader`, and `DbWriter` properties.
 - Every public constructor, property, and method must have XML documentation. Method documentation must describe every parameter and the returned value or asynchronous operation.
 
+### Physical table naming
+
+- Physical SQL and CQL table names must describe the table's current domain role and must not end in a schema-generation suffix such as `_v1`, `_v2`, or `_v3`.
+- When a table shape is replaced, the obsolete table definition, runtime queries, fallback APIs, and legacy-only tests must be removed. The authoritative replacement keeps the unsuffixed domain name.
+- Because legacy database layouts are not supported, a breaking table-shape replacement requires recreating the affected database or keyspace. Runtime dual-table routing and fallback reads are prohibited.
+- Version numbers that are part of persisted business data, payload contracts, schema-object step identifiers, index names, or method names are outside this physical-table rule unless they identify a physical table.
+
 The minimum class shape is:
 
 ```csharp
@@ -355,7 +362,6 @@ Consumer
 - typed Fund, Market Data, Option Pricer, Reference, Securities, Trade, and Yield Curve contexts;
 - the remaining focused repository adapters;
 - the configured schema contexts; and
-- a `ReferencePool` plus generic `Get<TRepo>()` internally used by pools.
 
 Each factory property resolves on access rather than retaining a context instance. Actual lifetime therefore depends on the host's service registration.
 
@@ -483,17 +489,6 @@ The Market Data catalog uses that narrow additive convention for the authoritati
 | Securities | Canonical futures/option contracts plus symbol projections and generation-aware cutover state. |
 | Sequence ID | 2 functions plus a generated sequence definition for every `SequenceName`. |
 | Trade | 17 option/trade/position/order/plan/signal tables. |
-
-## Context pooling
-
-`DbContextPool<TRepo>` uses one static `ConcurrentQueue<IObjectRepository<TRepo>>` per closed generic repository type:
-
-1. dequeue a repository if available;
-2. otherwise resolve one through `IDbContextFactory.Get<TRepo>()`;
-3. invoke the supplied operation; and
-4. return the repository to the queue in `finally`.
-
-Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are implemented. Collection-returning `GetAsync` and value-type `GetScalarAsync` throw `NotImplementedException`. The factory currently exposes only `ReferencePool` publicly.
 
 ## Bulk, mapping, and read/write conventions
 

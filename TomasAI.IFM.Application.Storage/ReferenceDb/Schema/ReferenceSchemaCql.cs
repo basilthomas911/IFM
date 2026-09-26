@@ -3,22 +3,15 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 internal static class ReferenceSchemaCql
 {
     public const string CreateTradeStrategyFamilyTable = """
-    CREATE TABLE IF NOT EXISTS trade_strategy_family_v3 (
+    CREATE TABLE IF NOT EXISTS trade_strategy_family (
     catalog text, tradeStrategyFamilyId int, definitionVersion bigint,
     systemKey text, family text, strategy text, timeFrame text, symbol text, currency text,
     description text, state text, createdOnUtc timestamp, createdBy text,
     PRIMARY KEY ((catalog), systemKey, definitionVersion)
     ) WITH CLUSTERING ORDER BY (systemKey ASC, definitionVersion DESC);
     """;
-    public const string CreateLegacyTradeStrategyFamilyTable = """
-    CREATE TABLE IF NOT EXISTS trade_strategy_family_v2 (
-    catalog text, tradeStrategyFamilyId int, definitionVersion bigint,
-    systemKey text, name text, state text, createdOnUtc timestamp, createdBy text,
-    PRIMARY KEY ((catalog), systemKey, definitionVersion)
-    ) WITH CLUSTERING ORDER BY (systemKey ASC, definitionVersion DESC);
-    """;
     public const string CreateReferenceProjectionStateV3Table = """
-    CREATE TABLE IF NOT EXISTS reference_projection_state_v3 (
+    CREATE TABLE IF NOT EXISTS reference_projection_state (
     projectionName text PRIMARY KEY,
     generation uuid,
     completed boolean,
@@ -27,7 +20,7 @@ internal static class ReferenceSchemaCql
     """;
 
     public const string CreateReferenceProjectionMutationV3Table = """
-    CREATE TABLE IF NOT EXISTS reference_projection_mutation_v3 (
+    CREATE TABLE IF NOT EXISTS reference_projection_mutation (
     projectionName text,
     mutationId uuid,
     startedOn timestamp,
@@ -36,7 +29,7 @@ internal static class ReferenceSchemaCql
     """;
 
     public const string CreateReferenceProjectionOwnershipV3Table = """
-    CREATE TABLE IF NOT EXISTS reference_projection_ownership_v3 (
+    CREATE TABLE IF NOT EXISTS reference_projection_ownership (
     projectionName text PRIMARY KEY,
     ownerMutationId uuid,
     conflicted boolean,
@@ -52,7 +45,7 @@ internal static class ReferenceSchemaCql
     Description text,
     CreatedOn timestamp,
     CreatedBy text,
-    PRIMARY KEY ((LookupTypeName), ShortCode, OrderId)
+    PRIMARY KEY ((LookupTypeName), OrderId, ShortCode)
     );
     """;
 
@@ -101,7 +94,7 @@ internal static class ReferenceSchemaCql
     """;
 
     public const string CreateScheduledJobByNameV3Table = """
-    CREATE TABLE IF NOT EXISTS scheduled_job_by_name_v3 (
+    CREATE TABLE IF NOT EXISTS scheduled_job_by_name (
     jobName text PRIMARY KEY,
     jobId int,
     reservationToken uuid
@@ -109,7 +102,7 @@ internal static class ReferenceSchemaCql
     """;
 
     public const string CreateScheduledJobWriteOwnershipV3Table = """
-    CREATE TABLE IF NOT EXISTS scheduled_job_write_ownership_v3 (
+    CREATE TABLE IF NOT EXISTS scheduled_job_write_ownership (
     scopeType text,
     scopeKey text,
     operationId uuid,

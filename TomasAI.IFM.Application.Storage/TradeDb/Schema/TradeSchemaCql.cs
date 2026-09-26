@@ -139,39 +139,6 @@ internal static class TradeSchemaCql
     ) WITH CLUSTERING ORDER BY (tradeId DESC);
     """;
 
-    public const string CreateTradeOrderTable = """
-    CREATE TABLE IF NOT EXISTS trade_order (
-    valueDate date,
-    tradeId int,
-    orderId int,
-    fundId int,
-    tradeType text,
-    tradeSubType text,
-    tradeDate date,
-    maturityDate date,
-    tradeOrderState text,
-    underlyingContractId text,
-    underlyingAssetType text,
-    orderDescription text,
-    orderAction text,
-    orderActionType text,
-    orderQuantity int,
-    orderFilled int,
-    orderType text,
-    orderPrice decimal,
-    orderAmount decimal,
-    commission decimal,
-    totalAmount decimal,
-    tradePnl decimal,
-    tradeFillType text,
-    createdOn timestamp,
-    createdBy text,
-    updatedOn timestamp,
-    updatedBy text,
-    PRIMARY KEY (tradeId, valueDate)
-    ) WITH CLUSTERING ORDER BY (valueDate DESC);
-    """;
-
     public const string CreateTradePlacementSignalTable = """
     CREATE TABLE IF NOT EXISTS trade_placement_signal (
     sequenceId bigint,

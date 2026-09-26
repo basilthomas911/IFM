@@ -38,7 +38,7 @@ public sealed class MarkerProjectorFixture
             throw new InvalidOperationException("Projector qualification requires isolated loopback port 25432.");
         builder.Username = ""; builder.Password = "";
         Provider = builder.ConnectionString;
-        _ = EventLogSqlLayout.ForBenchmark(Provider, false, true); // Validate before schema creation.
+        _ = EventLogSqlLayout.ForBenchmark(Provider, batchProjectionMarkers: true); // Validate before schema creation.
         var schema = Environment.GetEnvironmentVariable("IFM_PROJECTOR_SCHEMA_TEST");
         if (schema is not (null or "three-index"))
             throw new InvalidOperationException("Unknown isolated projector schema test mode.");
@@ -259,7 +259,7 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
         var events = Enumerable.Range(1, count).Select(value => new ProbeEvent
             { AggregateId = streamName, CommandId = commandId, Value = value, Projector = projector }).ToArray();
         var eventName = await fixture.Storage.ActorEventDb.GetEventNameIdFromDomainEventAsync(events[0]);
-        var layout = EventLogSqlLayout.ForBenchmark(fixture.Provider, false, batched);
+        var layout = EventLogSqlLayout.ForBenchmark(fixture.Provider, batched);
         await using var writer = new BinaryCopyEventLogAppender(fixture.Provider, true,
             new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy }, layout);
         var command = new ProbeCommand { CommandId = commandId, StreamId = streamName, Value = count };

@@ -55,9 +55,9 @@ internal static class TradePlanDbContextExtensions
         /// <returns>The provider table name.</returns>
         internal string ToTradePlanTable() => strategy switch
         {
-            TradeStrategyKind.IronCondor => "iron_condor_trade_plan_v1",
-            TradeStrategyKind.VerticalSpread => "vertical_spread_trade_plan_v1",
-            TradeStrategyKind.FuturesOutright => "futures_trade_plan_v1",
+            TradeStrategyKind.IronCondor => "iron_condor_trade_plan",
+            TradeStrategyKind.VerticalSpread => "vertical_spread_trade_plan",
+            TradeStrategyKind.FuturesOutright => "futures_trade_plan",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(strategy),
                 strategy,

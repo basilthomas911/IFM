@@ -50,7 +50,7 @@ public sealed partial class MarkerProjectorPipelineTests
         await using (var writer = new BinaryCopyEventLogAppender(fixture.Provider, true,
             new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy,
                 MaximumEventsPerBatch = 2, MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(500) },
-            EventLogSqlLayout.ForBenchmark(fixture.Provider, false, batched)))
+            EventLogSqlLayout.ForBenchmark(fixture.Provider, batched)))
         {
             Task<EventLogAppendResult> invalid, valid;
             if (rejectedFirst) { invalid = writer.AppendAsync(rejected).AsTask(); valid = writer.AppendAsync(accepted).AsTask(); }

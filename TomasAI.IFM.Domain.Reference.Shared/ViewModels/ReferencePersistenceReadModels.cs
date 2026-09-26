@@ -1,15 +1,5 @@
 namespace TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
-/// <summary>Describes the legacy v2 trade-strategy-family storage shape used during catalog migration.</summary>
-public sealed record LegacyTradeStrategyFamily(
-    int TradeStrategyFamilyId,
-    long DefinitionVersion,
-    string SystemKey,
-    string Name,
-    TradeStrategyFamilyState State,
-    DateTime CreatedOnUtc,
-    string CreatedBy);
-
 /// <summary>Reports the number of scheduled-job projections backfilled from canonical storage.</summary>
 public readonly record struct ReferenceProjectionBackfillResult(long ScheduledJobs);
 

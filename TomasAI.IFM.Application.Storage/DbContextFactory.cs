@@ -32,7 +32,6 @@ namespace TomasAI.IFM.Application.Storage;
 public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContextFactory
 {
     readonly IDbContextResolver _dbContextResolver = dbContextResolver;
-    readonly Dictionary<Type, object> _dbContextPoolMap = [];
 
     // DbContext properties
     public IEventSourceActorDbContext ActorEventSourceDb =>
@@ -64,17 +63,5 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public PortfolioSchemaDb PortfolioSchema => (_dbContextResolver.Resolve<PortfolioSchemaDb>() as PortfolioSchemaDb)!;
     public MarketDataServiceSchemaDb MarketDataServiceSchema =>
         (_dbContextResolver.Resolve<MarketDataServiceSchemaDb>() as MarketDataServiceSchemaDb)!;
-
-    public IDbContextPool<ReferenceDbContext> ReferencePool => GetPool<ReferenceDbContext>();
-
-    public IObjectRepository<TRepo> Get<TRepo>() where TRepo : IObjectRepository
-        => _dbContextResolver.Resolve<TRepo>();
-
-    IDbContextPool<TRepo> GetPool<TRepo>() where TRepo : IObjectRepository
-    {
-        if (!_dbContextPoolMap.ContainsKey(typeof(TRepo)))
-            _dbContextPoolMap.Add(typeof(TRepo), new DbContextPool<TRepo>(this));
-        return (_dbContextPoolMap[typeof(TRepo)] as IDbContextPool<TRepo>)!;
-    }
 
 }

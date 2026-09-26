@@ -85,7 +85,7 @@ internal static class EventLogIndexMigrationQualification
             var direct = config.ConnectionString;
             config.Username = ""; config.Password = "";
             var provider = config.ConnectionString;
-            var layout = EventLogSqlLayout.ForBenchmark(provider, false, true);
+            var layout = EventLogSqlLayout.ForBenchmark(provider, batchProjectionMarkers: true);
             await Sql(admin, $"CREATE DATABASE {database}");
             var success = false;
             try

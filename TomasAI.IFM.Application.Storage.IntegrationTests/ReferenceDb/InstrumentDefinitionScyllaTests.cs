@@ -40,7 +40,7 @@ public sealed class InstrumentDefinitionScyllaTests
                     "instrument_definition_snapshot",
                     "instrument_definition_selection",
                     "instrument_definition_selection_status",
-                    "trade_strategy_symbol_v1"
+                    "trade_strategy_symbol"
                 ],
                 token);
             long next = 0;

@@ -35,8 +35,8 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
         settings.Add(SequenceIdDbContext.SequenceIdDbConnection, SequenceConnection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new ReferenceSchemaDb(settings, logger);
-        await schema.RecreateAsync(["trade_strategy_family_v2", "trade_strategy_family_v3"], timeout.Token);
-        await schema.CreateAsync(["trade_strategy_family_catalog_v4", "trade_strategy_symbol_v1"], timeout.Token);
+        await schema.RecreateAsync(["trade_strategy_family", "trade_strategy_family"], timeout.Token);
+        await schema.CreateAsync(["trade_strategy_family_catalog", "trade_strategy_symbol"], timeout.Token);
         await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
 
         var processRuns = await Task.WhenAll(Enumerable.Range(0, 8)

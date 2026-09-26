@@ -1,19 +1,5 @@
 namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
-public readonly record struct EconomicCalendarCutoverReadModel(
-    long SourceRows,
-    long TargetRows,
-    string SourceFingerprint,
-    string TargetFingerprint,
-    int CountryCodes,
-    bool CutoverCompleted)
-{
-    public bool IsReconciled =>
-        SourceRows == TargetRows &&
-        string.Equals(SourceFingerprint, TargetFingerprint, StringComparison.Ordinal) &&
-        CutoverCompleted;
-}
-
 /// <summary>Reconciliation result for the remaining yield-curve query projections.</summary>
 public readonly record struct FmpQueryProjectionBackfillReadModel(
     long YieldCurveRowsSource,

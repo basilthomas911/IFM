@@ -2977,7 +2977,6 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     internal const int EconomicCalendarMaximumRowsPerMonth = EconomicCalendarQueryLimits.MaximumRowsPerPartition;
     internal const int EconomicCalendarMaximumConcurrentQueries = 4;
     internal const int EconomicCalendarLookupId = 1;
-    internal const int EconomicCalendarCutoverId = 1;
     internal static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord row) => new()
     {
         EventDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.GetDateTime(0)),
@@ -3190,65 +3189,6 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     {
         await DeleteEconomicCalendarAsync(id);
         await InsertEconomicCalendarAsync(economicCalendar);
-    }
-
-    public async Task<EconomicCalendarCutoverReadModel> BackfillEconomicCalendarV2Async(int batchSize = 256, CancellationToken cancellationToken = default)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-        var db = _dbFactory.MarketDataDb;
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateEconomicCalendarV2)}", MarketDataDbCql.TruncateEconomicCalendarV2)
-            .ExecuteCommandAsync(cancellationToken);
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateEconomicCalendarCountryCode)}", MarketDataDbCql.TruncateEconomicCalendarCountryCode)
-            .ExecuteCommandAsync(cancellationToken);
-        long sourceRows = 0;
-        var sourceIdentity = new ProjectionIdentityBuilder();
-        var countries = new HashSet<string>(StringComparer.Ordinal);
-        var batch = new List<InsertEconomicCalendarV2>(batchSize);
-        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarLegacySource)}", MarketDataDbCql.GetEconomicCalendarLegacySource)
-            .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
-        {
-            sourceRows++;
-            sourceIdentity.Add(MarketDataDbContextExtensions.GetEconomicCalendarProjectionIdentity(row));
-            countries.Add(row.CountryCode);
-            var eventDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.EventDate);
-            batch.Add(new InsertEconomicCalendarV2(row.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName, row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change, row.ChangePercentage, row.CreatedOn, row.CreatedBy, Guid.Empty));
-            if (batch.Count == batchSize)
-                await FlushCalendarBatchAsync();
-        }
-
-        await FlushCalendarBatchAsync();
-        if (countries.Count > 0)
-        {
-            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarCountryCode)}", MarketDataDbCql.InsertEconomicCalendarCountryCode)
-                .SetParameters(countries.Select(country => new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, country)))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-
-        long targetRows = 0;
-        var targetIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2All)}", MarketDataDbCql.GetEconomicCalendarV2All)
-            .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
-        {
-            targetRows++;
-            targetIdentity.Add(MarketDataDbContextExtensions.GetEconomicCalendarProjectionIdentity(row));
-        }
-
-        var source = sourceIdentity.Build();
-        var target = targetIdentity.Build();
-        var verified = sourceRows == targetRows && source.Fingerprint == target.Fingerprint;
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertEconomicCalendarCutoverV2)}", MarketDataDbCql.UpsertEconomicCalendarCutoverV2)
-            .SetParameters(new UpsertEconomicCalendarCutoverV2(EconomicCalendarCutoverId, sourceRows, targetRows, source.Fingerprint, target.Fingerprint, verified, DateTime.UtcNow))
-            .ExecuteCommandAsync(cancellationToken);
-        return new EconomicCalendarCutoverReadModel(sourceRows, targetRows, source.Fingerprint, target.Fingerprint, countries.Count, verified);
-        async Task FlushCalendarBatchAsync()
-        {
-            if (batch.Count == 0)
-                return;
-            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2)}", MarketDataDbCql.InsertEconomicCalendarV2)
-                .SetParameters(batch)
-                .ExecuteCommandAsync(cancellationToken);
-            batch.Clear();
-        }
     }
 
     public async Task<FmpQueryProjectionBackfillReadModel> BackfillFmpQueryProjectionsAsync(int batchSize = 256, CancellationToken cancellationToken = default)

@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     """;
 
     public const string CreateEconomicCalendarV2Table = """
-    CREATE TABLE IF NOT EXISTS economic_calendar_v2 (
+    CREATE TABLE IF NOT EXISTS economic_calendar (
     countryCode text,
     monthBucket int,
     eventDate timestamp,
@@ -204,18 +204,6 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     PRIMARY KEY ((lookupId), countryCode)
     )
     WITH CLUSTERING ORDER BY (countryCode ASC);
-    """;
-
-    public const string CreateEconomicCalendarCutoverV2Table = """
-    CREATE TABLE IF NOT EXISTS economic_calendar_cutover_v2 (
-    cutoverId int PRIMARY KEY,
-    sourceRows bigint,
-    targetRows bigint,
-    sourceFingerprint text,
-    targetFingerprint text,
-    verified boolean,
-    updatedOn timestamp
-    );
     """;
 
     public const string CreateTickQuoteItemType = """
@@ -419,31 +407,6 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
             contractId TEXT,
             valueDate DATE,
             timePeriod TEXT,
-            periodLength INT,
-            timestamp TIME,
-            futuresPrice DECIMAL,
-            macdLine DOUBLE,
-            signalLine DOUBLE,
-            histogram DOUBLE,
-            macd TEXT,
-            macdStrength TEXT,
-            configurationId TEXT,
-            observationId UUID,
-            marketDataAsOf TIMESTAMP,
-            sourceSequence BIGINT,
-            calculationVersion TEXT,
-            calculationMethod TEXT,
-            schemaVersion INT,
-            isValid BOOLEAN,
-            PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
-        ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
-        """;
-
-    public const string CreateFuturesMacdSignalV2Table = """
-        CREATE TABLE IF NOT EXISTS futures_macd_signal_v2 (
-            contractId TEXT,
-            valueDate DATE,
-            timePeriod TEXT,
             signalEmaPeriod INT,
             fastEmaPeriod INT,
             slowEmaPeriod INT,
@@ -470,16 +433,16 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
 
-    public const string AddFuturesMacdSignalV2ProvenanceColumns = """
-        ALTER TABLE futures_macd_signal_v2 ADD (
+    public const string AddFuturesMacdSignalProvenanceColumns = """
+        ALTER TABLE futures_macd_signal ADD (
             configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
             sourceSequence BIGINT, calculationVersion TEXT, calculationMethod TEXT,
             schemaVersion INT, isValid BOOLEAN
         );
         """;
 
-    public const string AddFuturesMacdSignalV2WarmStateColumns = """
-        ALTER TABLE futures_macd_signal_v2 ADD (
+    public const string AddFuturesMacdSignalWarmStateColumns = """
+        ALTER TABLE futures_macd_signal ADD (
             isWarm BOOLEAN, observationCount INT
         );
         """;
@@ -943,7 +906,7 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     """;
 
     public const string CreateMarketDataProjectionStateV2Table = """
-    CREATE TABLE IF NOT EXISTS market_data_projection_state_v2 (
+    CREATE TABLE IF NOT EXISTS market_data_projection_state (
     projectionName text PRIMARY KEY,
     generation uuid,
     isReady boolean,
@@ -970,7 +933,7 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     // scope in the partition key prevents live tick traffic for unrelated contracts
     // from contending on the projection-wide migration state row.
     public const string CreateMarketDataProjectionScopeStateV3Table = """
-    CREATE TABLE IF NOT EXISTS market_data_projection_scope_state_v3 (
+    CREATE TABLE IF NOT EXISTS market_data_projection_scope_state (
     projectionName text,
     scopeKey text,
     generation uuid,
@@ -985,7 +948,7 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     // Mutation rows are partitioned by the same query scope. They are durable recovery
     // evidence and intentionally have no TTL; age alone must never release a writer.
     public const string CreateMarketDataProjectionScopeMutationV3Table = """
-    CREATE TABLE IF NOT EXISTS market_data_projection_scope_mutation_v3 (
+    CREATE TABLE IF NOT EXISTS market_data_projection_scope_mutation (
     projectionName text,
     scopeKey text,
     mutationId uuid,

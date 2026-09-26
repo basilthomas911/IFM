@@ -27,7 +27,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
     public void EconomicCalendarQueriesUseSingleBoundedCanonicalTable()
     {
         MarketDataSchemaCql.CreateEconomicCalendarV2Table
-            .Should().Contain("economic_calendar_v2")
+            .Should().Contain("economic_calendar")
             .And.Contain("PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)");
         MarketDataSchemaCql.CreateEconomicCalendarCountryCodeTable
             .Should().Contain("PRIMARY KEY ((lookupId), countryCode)");
@@ -37,7 +37,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
             .And.Contain("LIMIT 512")
             .And.NotContain("FROM economic_calendar;");
         MarketDataDbCql.GetEconomicCalendars
-            .Should().Contain("FROM economic_calendar_v2")
+            .Should().Contain("FROM economic_calendar")
             .And.Contain("countryCode = :countryCode")
             .And.Contain("monthBucket = :monthBucket")
             .And.Contain("LIMIT 2501")
@@ -57,7 +57,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
             .And.Contain(":changePercentage");
         MarketDataDbCql.InsertEconomicCalendarV2IfNotExists
             .Should().Contain("IF NOT EXISTS")
-            .And.Contain("economic_calendar_v2");
+            .And.Contain("economic_calendar");
         MarketDataSchemaCql.CreateMarketDataImportOwnershipTable
             .Should().Contain("PRIMARY KEY ((dataset, logicalKey))");
         MarketDataDbCql.ClaimMarketDataImportOwnership
@@ -86,8 +86,6 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
             MarketDataDbCql.InsertEconomicCalendarCountryCode,
             MarketDataDbCql.GetEconomicCalendarCountryCodes,
             MarketDataDbCql.GetEconomicCalendarCountryCodeAll,
-            MarketDataDbCql.TruncateEconomicCalendarV2,
-            MarketDataDbCql.TruncateEconomicCalendarCountryCode,
             MarketDataDbCql.UpsertFuturesItiTimeFrameState,
             MarketDataDbCql.GetFuturesItiTimeFrameState,
             MarketDataDbCql.DeleteFuturesItiTimeFrameState,
@@ -340,74 +338,23 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
     }
 
     [Fact]
-    public async Task OfflineBackfillReconcilesCalendarCutoverAndYieldProjection()
+    public async Task OfflineBackfillReconcilesYieldProjection()
     {
-        var suffix = Guid.NewGuid().ToString("N");
-        var createdOn = DateTime.UtcNow;
-        createdOn = createdOn.AddTicks(-(createdOn.Ticks % TimeSpan.TicksPerMillisecond));
-        var calendar = new EconomicCalendarReadModel(
-            new DateTime(8997, 3, 1, 12, 0, 0, DateTimeKind.Utc),
-            "QY",
-            $"backfill-{suffix}",
-            "1",
-            "1",
-            "1",
-            createdOn,
-            nameof(FmpQueryOptimizationTests));
         var rate = SampleData.YieldCurveRate with { ValueDate = new DateOnly(9997, 3, 1) };
 
         try
         {
-            await fixture.DevDatabase.UseTest("""
-                CREATE TABLE IF NOT EXISTS economic_calendar (
-                    eventDate timestamp, countryCode text, eventName text,
-                    actual text, forecast text, prior text, impact text, unit text,
-                    change text, changePercentage text, createdOn timestamp, createdBy text,
-                    PRIMARY KEY (eventDate, countryCode, eventName)
-                ) WITH CLUSTERING ORDER BY (countryCode ASC, eventName ASC);
-                """).ExecuteCommandAsync();
-            await fixture.DevDatabase.UseTest("""
-                INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior,
-                    impact, unit, change, changePercentage, createdOn, createdBy)
-                VALUES (:eventDate, :countryCode, :eventName, :actual, :forecast, :prior,
-                    :impact, :unit, :change, :changePercentage, :createdOn, :createdBy);
-                """).SetParameters(new LegacyCalendarInsert(calendar)).ExecuteCommandAsync();
             await fixture.DevDatabase.InsertYieldCurveRateAsync(rate);
 
-            var calendarResult = await fixture.DevDatabase.BackfillEconomicCalendarV2Async(batchSize: 2);
             var result = await fixture.DevDatabase.BackfillFmpQueryProjectionsAsync(batchSize: 2);
 
-            calendarResult.IsReconciled.Should().BeTrue();
             result.IsReconciled.Should().BeTrue();
-            (await fixture.DevDatabase.GetEconomicCalendarAsync(calendar.Id))
-                .Should().BeEquivalentTo(calendar);
             (await fixture.DevDatabase.GetYieldCurveRateAsync(rate.ValueDate))
                 .Should().BeEquivalentTo(rate);
         }
         finally
         {
-            await fixture.DevDatabase.DeleteEconomicCalendarAsync(calendar.Id);
-            await fixture.DevDatabase.UseTest("""
-                DELETE FROM economic_calendar
-                WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
-                """).SetParameters(new LegacyCalendarKey(calendar)).ExecuteCommandAsync();
             await fixture.DevDatabase.DeleteYieldCurveRateAsync(rate.ValueDate);
         }
-    }
-
-    readonly record struct LegacyCalendarInsert(EconomicCalendarReadModel Row)
-        : TomasAI.IFM.Framework.Storage.IBindValue
-    {
-        public object Bind() => new object?[]
-        {
-            Row.EventDate, Row.CountryCode, Row.EventName, Row.Actual, Row.Forecast, Row.Prior,
-            Row.Impact, Row.Unit, Row.Change, Row.ChangePercentage, Row.CreatedOn, Row.CreatedBy
-        };
-    }
-
-    readonly record struct LegacyCalendarKey(EconomicCalendarReadModel Row)
-        : TomasAI.IFM.Framework.Storage.IBindValue
-    {
-        public object Bind() => new object?[] { Row.EventDate, Row.CountryCode, Row.EventName };
     }
 }

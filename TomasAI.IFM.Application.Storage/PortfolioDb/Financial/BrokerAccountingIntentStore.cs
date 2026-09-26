@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
 using System.Security.Cryptography;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using static TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbFinancialSupport;

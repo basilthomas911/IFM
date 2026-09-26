@@ -17,7 +17,7 @@ public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
     public void EconomicCalendarSchemaAndRangeQueryUseCanonicalCountryMonthTable()
     {
         MarketDataSchemaCql.CreateEconomicCalendarV2Table
-            .Should().Contain("economic_calendar_v2")
+            .Should().Contain("economic_calendar")
             .And.Contain("PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)");
 
         MarketDataDbCql.GetEconomicCalendars

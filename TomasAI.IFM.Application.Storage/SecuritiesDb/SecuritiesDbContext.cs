@@ -23,8 +23,8 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     : ObjectDataRepository<SecuritiesDbContext>(connectionSettings[SecuritiesDbConnection], logger), ISecuritiesDbContext
 {
     public const string SecuritiesDbConnection = "SecuritiesDbConnection";
-    internal const string FuturesContractSymbolProjection = "futures_contract_by_symbol_v3";
-    internal const string FuturesOptionContractSymbolProjection = "futures_option_contract_by_symbol_v2";
+    internal const string FuturesContractSymbolProjection = "futures_contract_by_symbol";
+    internal const string FuturesOptionContractSymbolProjection = "futures_option_contract_by_symbol";
     internal const int CompletionStateLookupBatchSize = 100;
     internal const string GlobalProjectionOperationScope = "global";
     internal const string ProjectionOperationScopeCount = "scope-count";
@@ -377,8 +377,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         }
         catch
         {
-            if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted))
+            if (targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure())
             {
                 if (futuresOptionOperation is not null)
                     await this.EndProjectionOperationAsync(db, futuresOptionOperation, CancellationToken.None)
@@ -492,8 +491,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         }
         catch
         {
-            if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted))
+            if (targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure())
             {
                 await this.EndProjectionOperationAsync(db, operation, CancellationToken.None)
                     .ConfigureAwait(false);
@@ -887,8 +885,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         }
         catch
         {
-            if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted))
+            if (targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure())
             {
                 await this.EndProjectionOperationAsync(db, operation, CancellationToken.None)
                     .ConfigureAwait(false);

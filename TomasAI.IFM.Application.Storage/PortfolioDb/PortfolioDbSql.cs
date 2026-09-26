@@ -489,8 +489,8 @@ public static class PortfolioDbSql
         CREATE SCHEMA IF NOT EXISTS portfolio_financial;
         DROP TRIGGER IF EXISTS financial_legacy_event_fence ON event_log;
         DO $$ BEGIN
-          IF to_regclass('public.event_log_v2') IS NOT NULL THEN
-            EXECUTE 'DROP TRIGGER IF EXISTS financial_legacy_event_fence ON public.event_log_v2';
+          IF to_regclass('public.event_log') IS NOT NULL THEN
+            EXECUTE 'DROP TRIGGER IF EXISTS financial_legacy_event_fence ON public.event_log';
           END IF;
         END $$;
         DROP FUNCTION IF EXISTS portfolio_financial.guard_legacy_event_writer();

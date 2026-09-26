@@ -17,19 +17,18 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
         new("instrument_definition_snapshot", InstrumentDefinitionStore.CreateSnapshotTable, "DROP TABLE IF EXISTS instrument_definition_snapshot;"),
         new("instrument_definition_selection", InstrumentDefinitionStore.CreateSelectionTable, "DROP TABLE IF EXISTS instrument_definition_selection;"),
         new("instrument_definition_selection_status", InstrumentDefinitionStore.CreateSelectionStatusTable, "DROP TABLE IF EXISTS instrument_definition_selection_status;"),
-        new("trade_strategy_symbol_v1", TradeStrategySymbolStore.CreateTable, "DROP TABLE IF EXISTS trade_strategy_symbol_v1;"),
-        new("trade_strategy_family_catalog_v4", TradeStrategyFamilyCatalogStore.CreateTable, "DROP TABLE IF EXISTS trade_strategy_family_catalog_v4;"),
-        new("reference_projection_state_v3", ReferenceSchemaCql.CreateReferenceProjectionStateV3Table, "DROP TABLE IF EXISTS reference_projection_state_v3;"),
-        new("reference_projection_mutation_v3", ReferenceSchemaCql.CreateReferenceProjectionMutationV3Table, "DROP TABLE IF EXISTS reference_projection_mutation_v3;"),
-        new("reference_projection_ownership_v3", ReferenceSchemaCql.CreateReferenceProjectionOwnershipV3Table, "DROP TABLE IF EXISTS reference_projection_ownership_v3;"),
+        new("trade_strategy_symbol", TradeStrategySymbolStore.CreateTable, "DROP TABLE IF EXISTS trade_strategy_symbol;"),
+        new("trade_strategy_family_catalog", TradeStrategyFamilyCatalogStore.CreateTable, "DROP TABLE IF EXISTS trade_strategy_family_catalog;"),
+        new("reference_projection_state", ReferenceSchemaCql.CreateReferenceProjectionStateV3Table, "DROP TABLE IF EXISTS reference_projection_state;"),
+        new("reference_projection_mutation", ReferenceSchemaCql.CreateReferenceProjectionMutationV3Table, "DROP TABLE IF EXISTS reference_projection_mutation;"),
+        new("reference_projection_ownership", ReferenceSchemaCql.CreateReferenceProjectionOwnershipV3Table, "DROP TABLE IF EXISTS reference_projection_ownership;"),
         new("lookup_type", ReferenceSchemaCql.CreateLookupTypeTable, "DROP TABLE IF EXISTS lookup_type;"),
         new("mdi_forward_loss_ratio", ReferenceSchemaCql.CreateMDIForwardLossRatioTable, "DROP TABLE IF EXISTS mdi_forward_loss_ratio;"),
         new("scheduled_job_days", ReferenceSchemaCql.CreateScheduledJobDaysTable, "DROP TABLE IF EXISTS scheduled_job_days;"),
         new("scheduled_job", ReferenceSchemaCql.CreateScheduledJobTable, "DROP TABLE IF EXISTS scheduled_job;"),
-        new("scheduled_job_by_name_v3", ReferenceSchemaCql.CreateScheduledJobByNameV3Table, "DROP TABLE IF EXISTS scheduled_job_by_name_v3;"),
-        new("scheduled_job_write_ownership_v3", ReferenceSchemaCql.CreateScheduledJobWriteOwnershipV3Table, "DROP TABLE IF EXISTS scheduled_job_write_ownership_v3;"),
-        new("trade_strategy_family_v2", ReferenceSchemaCql.CreateLegacyTradeStrategyFamilyTable, "DROP TABLE IF EXISTS trade_strategy_family_v2;"),
-        new("trade_strategy_family_v3", ReferenceSchemaCql.CreateTradeStrategyFamilyTable, "DROP TABLE IF EXISTS trade_strategy_family_v3;")
+        new("scheduled_job_by_name", ReferenceSchemaCql.CreateScheduledJobByNameV3Table, "DROP TABLE IF EXISTS scheduled_job_by_name;"),
+        new("scheduled_job_write_ownership", ReferenceSchemaCql.CreateScheduledJobWriteOwnershipV3Table, "DROP TABLE IF EXISTS scheduled_job_write_ownership;"),
+        new("trade_strategy_family", ReferenceSchemaCql.CreateTradeStrategyFamilyTable, "DROP TABLE IF EXISTS trade_strategy_family;")
     ];
 
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;

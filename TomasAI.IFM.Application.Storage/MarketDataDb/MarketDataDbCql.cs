@@ -189,13 +189,13 @@ internal static class MarketDataDbCql
     """;
 
     public const string DeleteEconomicCalendarV2 = """
-    DELETE FROM economic_calendar_v2
+    DELETE FROM economic_calendar
     WHERE countryCode = :countryCode AND monthBucket = :monthBucket
     AND eventDate = :eventDate AND eventName = :eventName;
     """;
     public const string GetEconomicCalendarV2ById = """
     SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar_v2 WHERE countryCode = :countryCode AND monthBucket = :monthBucket
+    FROM economic_calendar WHERE countryCode = :countryCode AND monthBucket = :monthBucket
     AND eventDate = :eventDate AND eventName = :eventName;
     """;
     public const string GetEconomicCalendarCountryCodes = """
@@ -204,21 +204,21 @@ internal static class MarketDataDbCql
     """;
     public const string GetEconomicCalendars = """
     SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar_v2
+    FROM economic_calendar
     WHERE countryCode = :countryCode AND monthBucket = :monthBucket AND eventDate >= :startDate AND eventDate <= :endDate
     LIMIT 2501;
     """;
     public const string InsertEconomicCalendarV2 = """
-    INSERT INTO economic_calendar_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy, commandId)
+    INSERT INTO economic_calendar (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy, commandId)
     VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :impact, :unit, :change, :changePercentage, :createdOn, :createdBy, :commandId);
     """;
     public const string InsertEconomicCalendarV2IfNotExists = """
-    INSERT INTO economic_calendar_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy, commandId)
+    INSERT INTO economic_calendar (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy, commandId)
     VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :impact, :unit, :change, :changePercentage, :createdOn, :createdBy, :commandId)
     IF NOT EXISTS;
     """;
     public const string GetEconomicCalendarV2CommandId = """
-    SELECT commandId AS "CommandId" FROM economic_calendar_v2
+    SELECT commandId AS "CommandId" FROM economic_calendar
     WHERE countryCode = :countryCode AND monthBucket = :monthBucket
     AND eventDate = :eventDate AND eventName = :eventName;
     """;
@@ -226,26 +226,9 @@ internal static class MarketDataDbCql
     INSERT INTO economic_calendar_country_code (lookupId, countryCode)
     VALUES (:lookupId, :countryCode);
     """;
-    public const string UpsertEconomicCalendarCutoverV2 = """
-    INSERT INTO economic_calendar_cutover_v2 (cutoverId, sourceRows, targetRows, sourceFingerprint, targetFingerprint, verified, updatedOn)
-    VALUES (:cutoverId, :sourceRows, :targetRows, :sourceFingerprint, :targetFingerprint, :verified, :updatedOn);
-    """;
-    public const string GetEconomicCalendarLegacySource = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar;
-    """;
-    public const string GetEconomicCalendarV2All = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar_v2;
-    """;
     public const string GetEconomicCalendarCountryCodeAll = """
     SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code;
     """;
-    public const string TruncateEconomicCalendarV2 =
-        "TRUNCATE economic_calendar_v2;";
-    public const string TruncateEconomicCalendarCountryCode =
-        "TRUNCATE economic_calendar_country_code;";
-
     public const string InsertTickTradeData = """
         INSERT INTO tick_trade_data (
             asset_type_id, contract_id, value_date, aggregation_time, sequence_id,
@@ -314,12 +297,12 @@ internal static class MarketDataDbCql
         SELECT projectionName AS "ProjectionName",
             generation AS "Generation",
             isReady AS "IsReady"
-        FROM market_data_projection_state_v2
+        FROM market_data_projection_state
         WHERE projectionName = :projectionName;
     """;
 
     public const string BeginMarketDataProjectionOperation = """
-        UPDATE market_data_projection_state_v2
+        UPDATE market_data_projection_state
         SET generation = :generation,
             isReady = false,
             activeOperations = activeOperations + :activeOperations
@@ -327,7 +310,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string EndMarketDataProjectionOperation = """
-        UPDATE market_data_projection_state_v2
+        UPDATE market_data_projection_state
         SET generation = :generation,
             isReady = false,
             activeOperations = activeOperations - :activeOperations
@@ -335,13 +318,13 @@ internal static class MarketDataDbCql
     """;
 
     public const string RemoveMarketDataProjectionOperations = """
-        UPDATE market_data_projection_state_v2
+        UPDATE market_data_projection_state
         SET activeOperations = activeOperations - :activeOperations
         WHERE projectionName = :projectionName;
     """;
 
     public const string CompleteMarketDataProjectionState = """
-        UPDATE market_data_projection_state_v2
+        UPDATE market_data_projection_state
         SET isReady = true,
             activeOperations = activeOperations - :activeOperations,
             sourceRowCount = :sourceRowCount,
@@ -355,7 +338,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string RestoreMarketDataProjectionState = """
-        UPDATE market_data_projection_state_v2
+        UPDATE market_data_projection_state
         SET isReady = true,
             activeOperations = activeOperations - :activeOperations,
             completedOn = :completedOn
@@ -402,7 +385,7 @@ internal static class MarketDataDbCql
             isReady AS "IsReady",
             blocked AS "Blocked",
             activeOperations AS "ActiveOperations"
-        FROM market_data_projection_scope_state_v3
+        FROM market_data_projection_scope_state
         WHERE projectionName = :projectionName
         AND scopeKey IN :scopeKeys;
     """;
@@ -414,11 +397,11 @@ internal static class MarketDataDbCql
             isReady AS "IsReady",
             blocked AS "Blocked",
             activeOperations AS "ActiveOperations"
-        FROM market_data_projection_scope_state_v3;
+        FROM market_data_projection_scope_state;
     """;
 
     public const string BeginMarketDataProjectionScopeOperationV3 = """
-        UPDATE market_data_projection_scope_state_v3
+        UPDATE market_data_projection_scope_state
         SET generation = :generation,
             isReady = false,
             blocked = true,
@@ -428,7 +411,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string EndMarketDataProjectionScopeOperationV3 = """
-        UPDATE market_data_projection_scope_state_v3
+        UPDATE market_data_projection_scope_state
         SET generation = :generation,
             isReady = false,
             blocked = true,
@@ -438,7 +421,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string CompleteMarketDataProjectionScopeOperationV3 = """
-        UPDATE market_data_projection_scope_state_v3
+        UPDATE market_data_projection_scope_state
         SET isReady = true,
             blocked = false,
             activeOperations = activeOperations - :activeOperations,
@@ -450,7 +433,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string MarkMarketDataProjectionScopeAtomicWriteV3 = """
-        UPDATE market_data_projection_scope_state_v3
+        UPDATE market_data_projection_scope_state
         SET generation = :generation,
             isReady = true
         WHERE projectionName = :projectionName
@@ -458,14 +441,14 @@ internal static class MarketDataDbCql
     """;
 
     public const string RegisterMarketDataProjectionGuardOperationV3 = """
-        UPDATE market_data_projection_scope_state_v3
+        UPDATE market_data_projection_scope_state
         SET activeOperations = activeOperations + :activeOperations
         WHERE projectionName = :projectionName
         AND scopeKey = :scopeKey;
     """;
 
     public const string CompleteMarketDataProjectionGuardOperationV3 = """
-        UPDATE market_data_projection_scope_state_v3
+        UPDATE market_data_projection_scope_state
         SET generation = :generation,
             isReady = true,
             blocked = false,
@@ -479,19 +462,19 @@ internal static class MarketDataDbCql
 
     public const string RemoveMarketDataProjectionScopeOperationV3 = """
         DELETE activeOperations[:operationId]
-        FROM market_data_projection_scope_state_v3
+        FROM market_data_projection_scope_state
         WHERE projectionName = :projectionName
         AND scopeKey = :scopeKey;
     """;
 
     public const string InsertMarketDataProjectionScopeMutationV3 = """
-        INSERT INTO market_data_projection_scope_mutation_v3 (
+        INSERT INTO market_data_projection_scope_mutation (
             projectionName, scopeKey, mutationId, startedOn)
         VALUES (:projectionName, :scopeKey, :mutationId, :startedOn);
     """;
 
     public const string FailMarketDataProjectionScopeMutationV3 = """
-        UPDATE market_data_projection_scope_mutation_v3
+        UPDATE market_data_projection_scope_mutation
         SET startedOn = :startedOn
         WHERE projectionName = :projectionName
         AND scopeKey = :scopeKey
@@ -500,7 +483,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string DeleteMarketDataProjectionScopeMutationV3 = """
-        DELETE FROM market_data_projection_scope_mutation_v3
+        DELETE FROM market_data_projection_scope_mutation
         WHERE projectionName = :projectionName
         AND scopeKey = :scopeKey
         AND mutationId = :mutationId;
@@ -511,7 +494,7 @@ internal static class MarketDataDbCql
             scopeKey AS "ScopeKey",
             mutationId AS "MutationId",
             startedOn AS "StartedOn"
-        FROM market_data_projection_scope_mutation_v3;
+        FROM market_data_projection_scope_mutation;
     """;
 
     public const string GetFuturesTickProjectionScopesSource = """
@@ -3203,7 +3186,7 @@ internal static class MarketDataDbCql
     """;
 
     public const string InsertFuturesMacdSignal = """
-        INSERT INTO futures_macd_signal_v2 (
+        INSERT INTO futures_macd_signal (
             contractId,
             valueDate,
             timePeriod,
@@ -3284,7 +3267,7 @@ internal static class MarketDataDbCql
             CalculationMethod AS "CalculationMethod",
             SchemaVersion AS "SchemaVersion",
             IsValid AS "IsValid"
-        FROM futures_macd_signal_v2
+        FROM futures_macd_signal
         WHERE ContractId = :contractId
         AND TimePeriod = :timePeriod
         AND SignalEmaPeriod = :signalEmaPeriod
@@ -3319,7 +3302,7 @@ internal static class MarketDataDbCql
             CalculationMethod AS "CalculationMethod",
             SchemaVersion AS "SchemaVersion",
             IsValid AS "IsValid"
-        FROM futures_macd_signal_v2
+        FROM futures_macd_signal
         WHERE ContractId = :contractId
         AND TimePeriod = :timePeriod
         AND SignalEmaPeriod = :signalEmaPeriod

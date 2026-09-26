@@ -43,10 +43,10 @@ public sealed class ReferenceProjectionCqlTests
         delete.Should().Contain("where projectionname = :projectionname and mutationid = :mutationid");
         read.Should().NotContain("allow filtering");
 
-        new InsertReferenceProjectionMutationV3("scheduled_job_by_name_v3", mutationId, startedOn)
+        new InsertReferenceProjectionMutationV3("scheduled_job_by_name", mutationId, startedOn)
             .Bind()
             .Should().BeEquivalentTo(
-                new object[] { "scheduled_job_by_name_v3", mutationId, startedOn },
+                new object[] { "scheduled_job_by_name", mutationId, startedOn },
                 options => options.WithStrictOrdering());
     }
 
@@ -68,14 +68,14 @@ public sealed class ReferenceProjectionCqlTests
 
         var mutationId = Guid.NewGuid();
         new ClaimReferenceProjectionOwnershipV3(
-                "scheduled_job_by_name_v3",
+                "scheduled_job_by_name",
                 mutationId,
                 new DateTime(2045, 2, 1, 12, 0, 0, DateTimeKind.Utc))
             .Bind()
             .Should().BeEquivalentTo(
                 new object[]
                 {
-                    "scheduled_job_by_name_v3",
+                    "scheduled_job_by_name",
                     mutationId,
                     new DateTime(2045, 2, 1, 12, 0, 0, DateTimeKind.Utc)
                 },
@@ -93,8 +93,7 @@ public sealed class ReferenceProjectionCqlTests
         bool activationConfirmed,
         bool expected)
     {
-        ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted,
+        targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure(
                 ownershipResolved,
                 activationConfirmed)
             .Should().Be(expected);
@@ -105,16 +104,14 @@ public sealed class ReferenceProjectionCqlTests
     [Fact]
     public void OverlappingSuccessfulWriters_CannotRestoreProjectionReadiness()
     {
-        ProjectionMutationSafety.CanPublishReady(
-                operationSucceeded: true,
+        true.CanPublishProjectionReady(
                 ownsWriteEpoch: true,
                 wasReadyOrExactlyReconciled: true,
                 markerIsExclusive: true,
                 generationStillMatches: true,
                 ownershipReleasedWithoutConflict: false)
             .Should().BeFalse("the owner's LWT release is poisoned by the overlapping contender");
-        ProjectionMutationSafety.CanPublishReady(
-                operationSucceeded: true,
+        true.CanPublishProjectionReady(
                 ownsWriteEpoch: false,
                 wasReadyOrExactlyReconciled: true,
                 markerIsExclusive: true,

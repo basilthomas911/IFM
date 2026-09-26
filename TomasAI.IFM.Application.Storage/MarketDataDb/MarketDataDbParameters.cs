@@ -142,12 +142,6 @@ internal readonly record struct InsertEconomicCalendarCountryCode(int lookupId, 
 {
     public object Bind() => new object?[] { lookupId, countryCode };
 }
-internal readonly record struct UpsertEconomicCalendarCutoverV2(
-    int cutoverId, long sourceRows, long targetRows, string sourceFingerprint,
-    string targetFingerprint, bool verified, DateTime updatedOn) : IBindValue
-{
-    public object Bind() => new object?[] { cutoverId, sourceRows, targetRows, sourceFingerprint, targetFingerprint, verified, updatedOn };
-}
 
 internal readonly record struct DeleteFuturesAdxSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {

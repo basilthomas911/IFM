@@ -81,7 +81,7 @@ internal static class EventLogMarkerQualification
             var direct = builder.ConnectionString;
             builder.Username = ""; builder.Password = "";
             var provider = builder.ConnectionString;
-            var layout = EventLogSqlLayout.ForBenchmark(provider, true, batch);
+            var layout = EventLogSqlLayout.ForBenchmark(provider, batch);
             await Sql(admin, $"CREATE DATABASE \"{database}\"");
             var success = false;
             try
@@ -92,25 +92,25 @@ internal static class EventLogMarkerQualification
                 await using var db = new NpgsqlConnection(direct);
                 await db.OpenAsync();
                 await Sql(db, PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01);
-                await Sql(db, "ALTER TABLE event_log RENAME TO event_log_v2");
+                await Sql(db, "ALTER TABLE event_log RENAME TO event_log");
                 if (schemaComparison && candidate)
                     await Sql(db, """
-                        ALTER TABLE event_log_v2 DROP CONSTRAINT event_log_pkey;
-                        ALTER TABLE event_log_v2 ADD CONSTRAINT event_log_v2_pkey
+                        ALTER TABLE event_log DROP CONSTRAINT event_log_pkey;
+                        ALTER TABLE event_log ADD CONSTRAINT event_log_pkey
                             PRIMARY KEY USING INDEX ux_event_log_stream_version_v3;
                         """);
                 Check(Convert.ToInt64(await Sql(db,
-                    "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='event_log_v2'")) == (schemaComparison && candidate ? 3 : 4),
+                    "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='event_log'")) == (schemaComparison && candidate ? 3 : 4),
                     "Unexpected event-log index count.");
                 Check((string)(await Sql(db, """
                     SELECT pg_get_constraintdef(oid) FROM pg_constraint
-                    WHERE conrelid='event_log_v2'::regclass AND contype='p'
+                    WHERE conrelid='event_log'::regclass AND contype='p'
                     """))! == (schemaComparison && candidate
                         ? "PRIMARY KEY (eventstreamid, streamversion)"
                         : "PRIMARY KEY (eventstreamid, eventnameid, eventversion)"),
                     "Unexpected primary key.");
                 Check(Convert.ToInt64(await Sql(db, """
-                    SELECT count(*) FROM pg_constraint WHERE confrelid='event_log_v2'::regclass AND contype='f'
+                    SELECT count(*) FROM pg_constraint WHERE confrelid='event_log'::regclass AND contype='f'
                     """)) >= 5, "Financial identity foreign keys must remain.");
                 var eventNameId = Convert.ToInt32(await Sql(db,
                     "INSERT INTO event_name_id(eventname,eventtypename) VALUES($1,$2) RETURNING eventnameid",
@@ -270,7 +270,7 @@ internal static class EventLogMarkerQualification
             else if (scenario == "checkpoint-advance")
                 await Sql(db, """
                     UPDATE event_projector_stream_checkpoint SET lastappliedstreamversion=8,
-                    lastappliedeventid=(SELECT max(eventversion) FROM event_log_v2 WHERE eventstreamid=$1),
+                    lastappliedeventid=(SELECT max(eventversion) FROM event_log WHERE eventstreamid=$1),
                     revision=revision+1 WHERE eventstreamid=$1
                     """, streamId);
             else cancel.Cancel();
@@ -315,7 +315,7 @@ internal static class EventLogMarkerQualification
     {
         Check(Convert.ToInt64(await Sql(db, "SELECT currentversion FROM event_stream_id WHERE eventstreamid=$1",
             request.EventStreamId)) == events, "Stream counter changed incorrectly.");
-        Check(Convert.ToInt64(await Sql(db, "SELECT count(*) FROM event_log_v2 WHERE eventstreamid=$1",
+        Check(Convert.ToInt64(await Sql(db, "SELECT count(*) FROM event_log WHERE eventstreamid=$1",
             request.EventStreamId)) == events, "Incorrect durable event count.");
         Check(Convert.ToInt64(await Sql(db, "SELECT count(*) FROM event_projector_state WHERE eventstreamid=$1",
             request.EventStreamId)) == events, "Unexpected extra durable markers.");
@@ -324,7 +324,7 @@ internal static class EventLogMarkerQualification
             AND outcome='Processing' AND stage='ApplyProjection' AND projectorname='BenchmarkProjector'
             """, request.EventStreamId)) == events, "Missing or incorrectly covered durable markers.");
         Check(Convert.ToInt64(await Sql(db, """
-            SELECT count(*) FROM event_log_v2 e JOIN event_projector_state p ON p.eventid=e.eventversion
+            SELECT count(*) FROM event_log e JOIN event_projector_state p ON p.eventid=e.eventversion
             WHERE e.eventstreamid=$1 AND p.streamversion=e.streamversion AND p.eventstreamid=e.eventstreamid
             """, request.EventStreamId)) == events, "Marker/event identities diverged.");
         Check(Convert.ToInt64(await Sql(db, "SELECT count(*) FROM command_log WHERE streamid=$1",
@@ -332,12 +332,12 @@ internal static class EventLogMarkerQualification
         Check(Convert.ToInt64(await Sql(db, """
             SELECT count(*) FROM (
             SELECT streamversion,row_number() OVER(ORDER BY streamversion) AS expected
-            FROM event_log_v2 WHERE eventstreamid=$1) s WHERE streamversion<>expected
+            FROM event_log WHERE eventstreamid=$1) s WHERE streamversion<>expected
             """, request.EventStreamId)) == 0, "Stream versions are not contiguous.");
         var codec = new EventLogMessagePackCodec(true);
         await using var read = new NpgsqlCommand("""
             SELECT e.streamversion,e.eventversion,e.eventpayload,e.commandid,c.commandid
-            FROM event_log_v2 e LEFT JOIN command_log c ON c.commandid=e.commandid
+            FROM event_log e LEFT JOIN command_log c ON c.commandid=e.commandid
             WHERE e.eventstreamid=$1 ORDER BY e.streamversion
             """, db);
         read.Parameters.AddWithValue(request.EventStreamId);

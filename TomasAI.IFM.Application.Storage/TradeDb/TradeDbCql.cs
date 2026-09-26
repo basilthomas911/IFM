@@ -447,39 +447,6 @@ WHERE OrderId = :orderId
   AND DaysToExpiry = :daysToExpiry
   AND TradeType = :tradeType;
 """;
-    public const string GetTradeOrders = """
-        SELECT 
-    fundId AS "FundId",
-    orderId AS "OrderId",
-    tradeId AS "TradeId",
-    valueDate AS "ValueDate",
-    tradeType AS "TradeType",
-    tradeSubType AS "TradeSubType",
-    tradeDate AS "TradeDate",
-    maturityDate AS "MaturityDate",
-    tradeOrderState AS "TradeOrderState",
-    underlyingContractId AS "UnderlyingContractId",
-    underlyingAssetType AS "UnderlyingAssetType",
-    orderDescription AS "OrderDescription",
-    orderAction AS "OrderAction",
-    orderActionType AS "OrderActionType",
-    orderQuantity AS "OrderQuantity",
-    orderType AS "OrderType",
-    orderPrice AS "OrderPrice",
-    orderAmount AS "OrderAmount",
-    commission AS "Commission",
-    totalAmount AS "TotalAmount",
-    tradePnl AS "TradePnl",
-    tradeFillType AS "TradeFillType",
-    createdOn AS "CreatedOn",
-    createdBy AS "CreatedBy",
-    updatedOn AS "UpdatedOn",
-    updatedBy AS "UpdatedBy"
-FROM trade_order
-where valueDate >= :startDate
-and valueDate <= :endDate
-order by valueDate desc
-""";
     public const string GetTradeTypeLimit = """
         SELECT TradeId AS "TradeId",
  TradeType AS "TradeType",
@@ -888,68 +855,6 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
 FROM trade_live_feed
 WHERE OrderId = :orderId
 AND TradeId = :tradeId;
-""";
-    public const string GetTradeOrder = """
-        SELECT 
-    FundId AS "FundId",
-    OrderId AS "OrderId",
-    TradeId AS "TradeId",
-    ValueDate AS "ValueDate",
-    TradeType AS "TradeType",
-    TradeSubType AS "TradeSubType",
-    TradeDate AS "TradeDate",
-    MaturityDate AS "MaturityDate",
-    TradeOrderState AS "TradeOrderState",
-    UnderlyingContractId AS "UnderlyingContractId",
-    UnderlyingAssetType AS "UnderlyingAssetType",
-    OrderDescription AS "OrderDescription",
-    OrderAction AS "OrderAction",
-    OrderActionType AS "OrderActionType",
-    OrderQuantity AS "OrderQuantity",
-    OrderType AS "OrderType",
-    OrderPrice AS "OrderPrice",
-    OrderAmount AS "OrderAmount",
-    Commission AS "Commission",
-    TotalAmount AS "TotalAmount",
-    TradePnl AS "TradePnl",
-    TradeFillType AS "TradeFillType",
-    CreatedOn AS "CreatedOn",
-    CreatedBy AS "CreatedBy",
-    UpdatedOn AS "UpdatedOn",
-    UpdatedBy AS "UpdatedBy"
-FROM trade_order
-WHERE tradeId = :tradeId AND valueDate = :valueDate;
-""";
-    public const string GetTradeOrdersByValueDate = """
-        SELECT 
-    FundId AS "FundId",
-    OrderId AS "OrderId",
-    TradeId AS "TradeId",
-    ValueDate AS "ValueDate",
-    TradeType AS "TradeType",
-    TradeSubType AS "TradeSubType",
-    TradeDate AS "TradeDate",
-    MaturityDate AS "MaturityDate",
-    TradeOrderState AS "TradeOrderState",
-    UnderlyingContractId AS "UnderlyingContractId",
-    UnderlyingAssetType AS "UnderlyingAssetType",
-    OrderDescription AS "OrderDescription",
-    OrderAction AS "OrderAction",
-    OrderActionType AS "OrderActionType",
-    OrderQuantity AS "OrderQuantity",
-    OrderType AS "OrderType",
-    OrderPrice AS "OrderPrice",
-    OrderAmount AS "OrderAmount",
-    Commission AS "Commission",
-    TotalAmount AS "TotalAmount",
-    TradePnl AS "TradePnl",
-    TradeFillType AS "TradeFillType",
-    CreatedOn AS "CreatedOn",
-    CreatedBy AS "CreatedBy",
-    UpdatedOn AS "UpdatedOn",
-    UpdatedBy AS "UpdatedBy"
-FROM trade_order
-WHERE valueDate = :valueDate;
 """;
     public const string GetTradeFillDataByTradeId = """
         SELECT FundId AS "FundId",
@@ -1408,69 +1313,6 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
     :openedBy
 ) IF NOT EXISTS;
 """;
-    public const string DeleteTradeOrder = """
-        delete from trade_order
-        where fundId = :fundId 
-        and orderId = :orderId 
-        and tradeId = :tradeId
-""";
-    public const string InsertTradeOrder = """
-        INSERT INTO trade_order (
-    FundId,
-    OrderId,
-    TradeId,
-    ValueDate,
-    TradeType,
-    TradeSubType,
-    TradeDate,
-    MaturityDate,
-    TradeOrderState,
-    UnderlyingContractId,
-    UnderlyingAssetType,
-    OrderDescription,
-    OrderAction,
-    OrderActionType,
-    OrderQuantity,
-    OrderType,
-    OrderPrice,
-    OrderAmount,
-    Commission,
-    TotalAmount,
-    TradePnl,
-    TradeFillType,
-    CreatedOn,
-    CreatedBy,
-    UpdatedOn,
-    UpdatedBy
-) VALUES (
-    :fundId,
-    :orderId,
-    :tradeId,
-    :valueDate,
-    :tradeType,
-    :tradeSubType,
-    :tradeDate,
-    :maturityDate,
-    :tradeOrderState,
-    :underlyingContractId,
-    :underlyingAssetType,
-    :orderDescription,
-    :orderAction,
-    :orderActionType,
-    :orderQuantity,
-    :orderType,
-    :orderPrice,
-    :orderAmount,
-    :commission,
-    :totalAmount,
-    :tradePnl,
-    :tradeFillType,
-    :createdOn,
-    :createdBy,
-    :updatedOn,
-    :updatedBy
-) IF NOT EXISTS;
-""";
     public const string UpdateTradePlanForwardLossLimit = """
         UPDATE trade_plan_forward_loss_limit
 SET LimitType = :limitType
@@ -1554,22 +1396,6 @@ SET TradeStatus = :newTradeStatus,
 WHERE TradeId = :tradeId
 AND ValueDate = :valueDate
 AND OptionLegId = :optionLegId
-""";
-    public const string UpdateTradeOrderState = """
-        UPDATE trade_order
-SET TradeOrderState = :tradeOrderState,
-    UpdatedOn = :updatedOn,
-    UpdatedBy = :updatedBy
-WHERE TradeId = :tradeId
-  AND ValueDate = :valueDate;
-""";
-    public const string UpdateTradeOrderOrderPrice = """
-        UPDATE trade_order
-SET OrderPrice = :orderPrice,
-    UpdatedOn = :updatedOn,
-    UpdatedBy = :updatedBy
-WHERE TradeId = :tradeId
-  AND ValueDate = :valueDate;
 """;
     public const string DeleteTradePositionState = """
         DELETE FROM trade_position_state

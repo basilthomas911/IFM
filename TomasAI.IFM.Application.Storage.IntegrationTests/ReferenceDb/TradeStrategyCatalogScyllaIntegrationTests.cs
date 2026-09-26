@@ -21,11 +21,9 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 /// <summary>Real CQL/LWT integration in a newly-created, disposable keyspace; no application tables are recreated.</summary>
 public sealed class TradeStrategyCatalogScyllaIntegrationTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Fact]
     [Trait("Category", "TradeStrategyCatalogScylla")]
-    public async Task Real_catalog_persistence_and_legacy_bootstrap_are_restart_safe(bool migrateLegacy)
+    public async Task Real_catalog_persistence_is_restart_safe()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(100));
         var ct = timeout.Token;
@@ -39,7 +37,7 @@ public sealed class TradeStrategyCatalogScyllaIntegrationTests
         try
         {
             var settings = new DbConnectionSettings().Add(ReferenceDbContext.ReferenceDbConnection, $"Contact Points=localhost;Port=9042;Default Keyspace={keyspace}", "System.Data.ScyllaDb");
-            await new ReferenceSchemaDb(settings, logger).CreateAsync(["trade_strategy_symbol_v1", "trade_strategy_family_catalog_v4", "trade_strategy_family_v2", "trade_strategy_family_v3"], ct);
+            await new ReferenceSchemaDb(settings, logger).CreateAsync(["trade_strategy_symbol", "trade_strategy_family_catalog", "trade_strategy_family"], ct);
             long allocated = 0;
             var ids = Substitute.For<ISequenceIdGenerator>();
             ids.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>()).Returns(_ => new ValueTask<long>(Interlocked.Increment(ref allocated)));
@@ -49,39 +47,6 @@ public sealed class TradeStrategyCatalogScyllaIntegrationTests
                 var factory = new DbContextFactory(new DbContextResolver(type => objects[type]));
                 objects.Add(typeof(IObjectRepository<ReferenceDbContext>), new ReferenceDbContext(settings, factory, ids, logger));
                 return factory;
-            }
-            if (migrateLegacy)
-            {
-                // Reproduce the persisted v2 startup path, not in-memory DateTime fixtures.
-                var audit = new DateTimeOffset(2026, 8, 31, 1, 45, 45, TimeSpan.Zero).AddMilliseconds(522);
-                foreach (var (seed, index) in TradeStrategyFamilySeed.Definitions.Select((seed, index) => (seed, index)))
-                    await Factory().ReferenceDb.Use("CatalogTest.InsertLegacy", "INSERT INTO trade_strategy_family_v2(catalog,tradestrategyfamilyid,definitionversion,systemkey,name,state,createdonutc,createdby) VALUES(:catalog,:id,:version,:systemkey,:name,:state,:created,:createdby);")
-                        .SetParameters(new TestParameters(["V1", 5901 + index, 1L, seed.LegacySystemKey, seed.Description, "Active", audit.AddMilliseconds(index).ToOffset(TimeSpan.FromHours(-4)), "ReferenceBootstrap"]))
-                        .ExecuteCommandAsync(ct);
-                var legacy = await Factory().ReferenceDb.GetLegacyTradeStrategyFamiliesAsync(ct);
-                legacy.Should().HaveCount(3).And.OnlyContain(x => x.CreatedOnUtc.Kind == DateTimeKind.Utc);
-                foreach (var old in legacy)
-                    old.CreatedOnUtc.Should().Be(audit.AddMilliseconds(old.TradeStrategyFamilyId - 5901).UtcDateTime);
-                var migrated = await new TradeStrategyFamilyBootstrapper(Factory().ReferenceDb, ids).EnsureV1Async(ct);
-                TradeStrategyFamilySeed.Validate(migrated);
-                foreach (var old in legacy)
-                {
-                    var row = migrated.Single(x => x.TradeStrategyFamilyId == old.TradeStrategyFamilyId);
-                    row.DefinitionVersion.Should().Be(old.DefinitionVersion);
-                    row.CreatedOnUtc.Should().Be(old.CreatedOnUtc);
-                    row.CreatedOnUtc.Kind.Should().Be(DateTimeKind.Utc);
-                    row.CreatedBy.Should().Be(old.CreatedBy);
-                }
-                (await new TradeStrategyFamilyBootstrapper(Factory().ReferenceDb, ids).EnsureV1Async(ct)).Should().BeEquivalentTo(migrated);
-                (await Factory().ReferenceDb.GetLegacyTradeStrategyFamiliesAsync(ct)).Should().BeEquivalentTo(legacy);
-                allocated.Should().Be(0, "migration and restart must preserve existing IDs");
-                var removeSeed = new RemoveTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Target = TradeStrategyFamilyReference.From(migrated[0]) };
-                var removedSeed = await new TradeStrategyFamilyCatalogStore(Factory(), ids).RemoveAsync(removeSeed, DateTime.UtcNow, "operator", ct);
-                removedSeed.State.Should().Be(TradeStrategyFamilyState.Retired); removedSeed.DefinitionVersion.Should().Be(2);
-                var afterRestart = await new TradeStrategyFamilyBootstrapper(Factory().ReferenceDb, ids).EnsureV1Async(ct);
-                afterRestart.Where(x => x.TradeStrategyFamilyId == removedSeed.TradeStrategyFamilyId).MaxBy(x => x.DefinitionVersion)!.State.Should().Be(TradeStrategyFamilyState.Retired);
-                (await Factory().ReferenceDb.GetTradeStrategyFamilyAsync(migrated[0].TradeStrategyFamilyId, 1, ct)).Should().Be(migrated[0]);
-                return;
             }
             var product = new TradeStrategyProduct(TradeStrategyFamilyType.FuturesOption, "ES", "USD", "XCME");
             var workers = Enumerable.Range(0, 6).Select(_ => Factory()).ToArray();

@@ -47,7 +47,7 @@ internal static class SecuritiesSchemaCql
     """;
 
     public const string CreateFuturesContractTable = """
-    CREATE TABLE IF NOT EXISTS futures_contract_v3 (
+    CREATE TABLE IF NOT EXISTS futures_contract (
     contractId text,
     description text,
     symbol text,
@@ -84,7 +84,7 @@ internal static class SecuritiesSchemaCql
     // Explicit query tables are used instead of materialized views so projection writes,
     // backfill progress, validation, and rollback can be controlled by the application.
     public const string CreateFuturesContractBySymbolV3Table = """
-    CREATE TABLE IF NOT EXISTS futures_contract_by_symbol_v3 (
+    CREATE TABLE IF NOT EXISTS futures_contract_by_symbol (
     symbol text,
     rollover boolean,
     onTheRun boolean,
@@ -102,7 +102,7 @@ internal static class SecuritiesSchemaCql
     """;
 
     public const string CreateFuturesOptionContractBySymbolV2Table = """
-    CREATE TABLE IF NOT EXISTS futures_option_contract_by_symbol_v2 (
+    CREATE TABLE IF NOT EXISTS futures_option_contract_by_symbol (
     symbol text,
     contractMonth date,
     contractId text,
@@ -120,7 +120,7 @@ internal static class SecuritiesSchemaCql
     """;
 
     public const string CreateSecuritiesProjectionStateV3Table = """
-    CREATE TABLE IF NOT EXISTS securities_projection_state_v3 (
+    CREATE TABLE IF NOT EXISTS securities_projection_state (
     projectionName text,
     generation uuid,
     completed boolean,
@@ -130,7 +130,7 @@ internal static class SecuritiesSchemaCql
     """;
 
     public const string CreateSecuritiesSymbolProjectionStateV3Table = """
-    CREATE TABLE IF NOT EXISTS securities_symbol_projection_state_v3 (
+    CREATE TABLE IF NOT EXISTS securities_symbol_projection_state (
     projectionName text,
     symbol text,
     generation uuid,
@@ -143,7 +143,7 @@ internal static class SecuritiesSchemaCql
     // Operation rows are durable recovery evidence. They intentionally have no TTL:
     // an in-flight operation must never disappear merely because it became old.
     public const string CreateSecuritiesProjectionOperationV3Table = """
-    CREATE TABLE IF NOT EXISTS securities_projection_operation_v3 (
+    CREATE TABLE IF NOT EXISTS securities_projection_operation (
     projectionName text,
     operationId uuid,
     startedOn timestamp,
@@ -155,7 +155,7 @@ internal static class SecuritiesSchemaCql
     // Scopes are journaled before any projection state is invalidated. This lets an
     // operator remove a verified-dead operation from only the rows it could have touched.
     public const string CreateSecuritiesProjectionOperationScopeV3Table = """
-    CREATE TABLE IF NOT EXISTS securities_projection_operation_scope_v3 (
+    CREATE TABLE IF NOT EXISTS securities_projection_operation_scope (
     projectionName text,
     operationId uuid,
     scopeType text,

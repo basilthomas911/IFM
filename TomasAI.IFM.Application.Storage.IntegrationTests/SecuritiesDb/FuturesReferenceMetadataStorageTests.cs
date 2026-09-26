@@ -41,7 +41,7 @@ public sealed class FuturesReferenceMetadataStorageTests
         {
             var schema = new SecuritiesSchemaDb(settings, logger);
             // Install the unchanged legacy tables first; add data before the new columns exist.
-            await schema.CreateAsync(["futures_contract_v3", "futures_option_contract"], token);
+            await schema.CreateAsync(["futures_contract", "futures_option_contract"], token);
             var raw = new Admin(settings[SecuritiesDbContext.SecuritiesDbConnection], logger);
             await raw.Use("ReferenceMetadata.Legacy", """
                 INSERT INTO futures_option_contract(contractId,description,symbol,localSymbol,securityType,currency,exchange,multiplier,contractMonth,strikePrice,optionType)

@@ -57,10 +57,10 @@ public class SecuritiesDatabaseFixture : IDisposable
         Db = DbFactory.SecuritiesDb as SecuritiesDbContext;
         foreach (var table in new[]
         {
-            "securities_projection_operation_scope_v3",
-            "securities_projection_operation_v3",
-            "securities_symbol_projection_state_v3",
-            "securities_projection_state_v3"
+            "securities_projection_operation_scope",
+            "securities_projection_operation",
+            "securities_symbol_projection_state",
+            "securities_projection_state"
         })
         {
             Db.UseTest($"TRUNCATE {table};").ExecuteCommandAsync().GetAwaiter().GetResult();
@@ -1298,14 +1298,11 @@ public class SecuritiesCqlTests
     [Fact]
     public void MutationJournalCleanup_RetainsAmbiguousPostSubmissionOperations()
     {
-        ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted: true)
+        true.CanRemoveProjectionMutationJournalAfterFailure()
             .Should().BeFalse();
-        ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted: false)
+        false.CanRemoveProjectionMutationJournalAfterFailure()
             .Should().BeTrue();
-        ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted: false,
+        false.CanRemoveProjectionMutationJournalAfterFailure(
                 activationResponseConfirmed: false)
             .Should().BeFalse("an activation/set-add timeout can apply after its caller observes failure");
     }
@@ -1326,12 +1323,12 @@ public class SecuritiesCqlTests
     public void ProjectionCompletionSchema_UsesFreshGenerationAwareV3Tables()
     {
         SecuritiesSchemaCql.CreateSecuritiesProjectionStateV3Table
-            .Should().Contain("securities_projection_state_v3")
+            .Should().Contain("securities_projection_state")
             .And.Contain("generation uuid")
             .And.Contain("completed boolean")
             .And.Contain("activeOperations set<uuid>");
         SecuritiesSchemaCql.CreateSecuritiesSymbolProjectionStateV3Table
-            .Should().Contain("securities_symbol_projection_state_v3")
+            .Should().Contain("securities_symbol_projection_state")
             .And.Contain("generation uuid")
             .And.Contain("completed boolean")
             .And.Contain("activeOperations set<uuid>")
@@ -1383,13 +1380,13 @@ public class SecuritiesCqlTests
     public void ProjectionOperationJournal_IsTimestampedScopedAndNeverExpiresAutomatically()
     {
         SecuritiesSchemaCql.CreateSecuritiesProjectionOperationV3Table
-            .Should().Contain("securities_projection_operation_v3")
+            .Should().Contain("securities_projection_operation")
             .And.Contain("startedOn timestamp")
             .And.Contain("stateMayBeActive boolean")
             .And.Contain("PRIMARY KEY ((projectionName), operationId)")
             .And.NotContain("TTL");
         SecuritiesSchemaCql.CreateSecuritiesProjectionOperationScopeV3Table
-            .Should().Contain("securities_projection_operation_scope_v3")
+            .Should().Contain("securities_projection_operation_scope")
             .And.Contain("PRIMARY KEY ((projectionName, operationId), scopeType, scopeKey)")
             .And.NotContain("TTL");
         SecuritiesDbCql.InsertSecuritiesProjectionOperationV3
@@ -1424,7 +1421,7 @@ public class SecuritiesCqlTests
     [Fact]
     public void ProjectionOperationJournalBindValues_FollowCqlMarkerOrder()
     {
-        const string projectionName = "futures_contract_by_symbol_v3";
+        const string projectionName = "futures_contract_by_symbol";
         const string symbol = "ES";
         var operationId = Guid.Parse("7a5733ab-374c-412f-bde8-75618ba91db6");
         var startedOn = new DateTime(2026, 8, 3, 14, 30, 0, DateTimeKind.Utc);

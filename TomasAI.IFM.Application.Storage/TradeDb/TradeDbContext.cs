@@ -168,36 +168,6 @@ public sealed class TradeDbContext(
             createdBy: e.GetString(5)
         );
 
-    static TradeOrderReadModel MapToTradeOrder<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
-            fundId: e.GetInt(0),
-            orderId: e.GetInt(1),
-            tradeId: e.GetInt(2),
-            valueDate: e.GetDateOnly(3),
-            tradeType: e.GetEnum<TradeType>(4),
-            tradeSubType: e.GetEnum<TradeSubType>(5),
-            tradeDate: e.GetDateOnly(6),
-            maturityDate: e.GetDateOnly(7),
-            tradeOrderState: e.GetEnum<TradeOrderState>(8),
-            underlyingContractId: e.GetString(9),
-            underlyingAssetType: e.GetEnum<AssetType>(10),
-            orderDescription: e.GetString(11),
-            orderAction: e.GetEnum<OrderAction>(12),
-            orderActionType: e.GetEnum<OrderActionType>(13),
-            orderQuantity: e.GetInt(14),
-            orderFilled: e.GetInt(15),
-            orderType: e.GetEnum<OrderType>(16),
-            orderPrice: e.GetDecimal(17),
-            orderAmount: e.GetDecimal(18),
-            commission: e.GetDecimal(19),
-            totalAmount: e.GetDecimal(20),
-            tradePnl: e.GetDecimal(21),
-            tradeFillType: e.GetEnum<TradeFillType>(22),
-            createdOn: e.GetDateTime(23),
-            createdBy: e.GetString(24),
-            updatedOn: e.GetDateTime(25),
-            updatedBy: e.GetString(26)
-        );
 
     internal static TradeTypeLimitReadModel MapToTradeTypeLimit<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
@@ -698,17 +668,6 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 .SetParameters(new GetTradeHistory(orderId))
                 .ExecuteQueryAsync(MapToTradeHistory!)).OrderBy(e => e.ValueDate)];
 
-    /// <summary>
-    /// return trade orders by date range
-    /// </summary>
-    /// <param name="startDate"></param>
-    /// <param name="endDate"></param>
-    /// <returns></returns>
-    public async Task<ICollection<TradeOrderReadModel>> GetTradeOrdersAsync(DateOnly startDate, DateOnly endDate)
-        => await _dbFactory.TradeDb
-            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrders)}", TradeDbCql.GetTradeOrders)
-            .SetParameters(new GetTradeOrders(startDate, endDate))
-            .ExecuteQueryAsync(MapToTradeOrder!);
 
     /// <summary>
     /// return list of contract ids
@@ -1032,29 +991,6 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 .SetParameters(new GetTradeLiveFeed(orderId, tradeId))
                 .ExecuteQueryAsync(MapToTradeLiveFeed!);
 
-    /// <summary>
-    /// return trade order
-    /// </summary>
-    /// <param name="valueDate"></param>
-    /// <param name="tradeId"></param>
-    /// <returns></returns>
-    public async Task<TradeOrderReadModel?> GetTradeOrderAsync(DateOnly valueDate,  int tradeId)
-        => await _dbFactory.TradeDb
-                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrder)}", TradeDbCql.GetTradeOrder)
-                .SetParameters(new GetTradeOrder(valueDate, tradeId))
-                .ExecuteSingleAsync(MapToTradeOrder!);
-
-    /// <summary>
-    /// return trade orders by value date
-    /// </summary>
-    /// <param name="valueDate"></param>
-    /// <param name="fundId"></param>
-    /// <returns></returns>
-    public async Task<ICollection<TradeOrderReadModel>> GetTradeOrdersByFundIdAsync(DateOnly valueDate, int fundId)
-        => [.. (await _dbFactory.TradeDb
-                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrdersByValueDate)}", TradeDbCql.GetTradeOrdersByValueDate)
-                .SetParameters(new GetTradeOrdersByValueDate(valueDate))
-                .ExecuteQueryAsync(MapToTradeOrder!)).Where(e => e.FundId == fundId)];
 
     /// <summary>
     /// return trade fill data
@@ -2207,105 +2143,6 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 ))
                 .ExecuteCommandAsync();
 
-    /// <summary>
-    /// save trade order
-    /// </summary>
-    /// <param name="e">trade ticket</param>
-    /// <returns></returns>
-    public async Task InsertTradeOrderAsync(TradeOrderReadModel e)
-    {
-        var db = _dbFactory.TradeDb;
-        List<object> queuedCommands = [
-           db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeOrder)}", TradeDbCql.DeleteTradeOrder)
-              .SetParameters(new DeleteTradeOrder(
-                    e.FundId,
-                    e.OrderId,
-                    e.TradeId
-              ))
-                  .QueueCommand(),
-        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFill)}", TradeDbCql.DeleteTradeFill)
-              .SetParameters(new DeleteTradeFill(
-                    e.OrderId,
-                    e.TradeId
-              ))
-                  .QueueCommand(),
-        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFillData)}", TradeDbCql.DeleteTradeFillData)
-              .SetParameters(new DeleteTradeFillData(
-                    e.OrderId,
-                    e.TradeId
-              ))
-                  .QueueCommand()
-          ];
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
-
-        // save trade order...
-        queuedCommands.Clear();
-        queuedCommands.Add(
-        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeOrder)}", TradeDbCql.InsertTradeOrder)
-            .SetParameters(new InsertTradeOrder(
-                e.FundId,
-                e.OrderId,
-                e.TradeId,
-                e.ValueDate,
-                e.TradeType.ToStringFast(),
-                e.TradeSubType.ToStringFast(),
-                e.TradeDate,
-                e.MaturityDate,
-                e.TradeOrderState.ToStringFast(),
-                e.UnderlyingContractId,
-                e.UnderlyingAssetType.ToStringFast(),
-                e.OrderDescription ?? string.Empty,
-                e.OrderAction.ToStringFast(),
-                e.OrderActionType.ToStringFast(),
-                e.OrderQuantity,
-                e.OrderType.ToStringFast(),
-                e.OrderPrice,
-                e.OrderAmount,
-                e.Commission,
-                e.TotalAmount,
-                e.TradePnl,
-                e.TradeFillType.ToStringFast(),
-                e.CreatedOn,
-                e.CreatedBy,
-                e.CreatedOn,
-                e.CreatedBy))
-            .QueueCommand());
-
-        // save trade fills...
-        foreach (var tf in e.TradeFills)
-        {
-            queuedCommands.Add(
-            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
-                .SetParameters(new InsertTradeFill(
-                    tf.OrderId,
-                    tf.TradeId,
-                    tf.FillDate,
-                    tf.FillQuantity,
-                    tf.CreatedOn,
-                    tf.CreatedBy
-                ))
-                .QueueCommand());
-
-            foreach (var tfd in tf.TradeFillData)
-                queuedCommands.Add(
-                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFillData)}", TradeDbCql.InsertTradeFillData)
-                    .SetParameters(new InsertTradeFillData(
-                        tfd.OrderId,
-                        tfd.TradeId,
-                        tfd.ContractId,
-                        tfd.FillDate,
-                        tfd.BidPrice,
-                        tfd.AskPrice,
-                        tfd.Commission,
-                        tfd.OptionLegAction.ToStringFast(),
-                        tfd.CreatedOn,
-                        tfd.CreatedBy
-                    ))
-                    .QueueCommand());
-        }
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
-
-    }
 
     /// <summary>
     /// insert trade plan forward loss limit
@@ -2561,45 +2398,6 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 ))
                 .ExecuteCommandAsync();
 
-    /// <summary>
-    /// update trade order state
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="tradeOrderState"></param>
-    /// <param name="updatedOn"></param>
-    /// <param name="updatedBy"></param>
-    /// <returns></returns>
-    public async Task UpdateTradeOrderStateAsync(TradeOrderEntityId e, TradeOrderState tradeOrderState, DateTime updatedOn, string updatedBy)
-        => await _dbFactory.TradeDb
-                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateTradeOrderState)}", TradeDbCql.UpdateTradeOrderState)
-                .SetParameters(new UpdateTradeOrderState(
-                    e.TradeId,
-                    e.ValueDate,
-                    tradeOrderState.ToStringFast(),
-                    updatedOn,
-                    updatedBy
-                ))
-                .ExecuteCommandAsync();
-
-    /// <summary>
-    /// update trade order order price
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="orderPrice"></param>
-    /// <param name="updatedOn"></param>
-    /// <param name="updatedBy"></param>
-    /// <returns></returns>
-    public async Task UpdateTradeOrderOrderPriceAsync(TradeOrderEntityId e, decimal orderPrice, DateTime updatedOn, string updatedBy)
-        => await _dbFactory.TradeDb
-                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateTradeOrderOrderPrice)}", TradeDbCql.UpdateTradeOrderOrderPrice)
-                .SetParameters(new UpdateTradeOrderOrderPrice(
-                    e.TradeId,
-                    e.ValueDate,
-                    orderPrice,
-                    updatedOn,
-                    updatedBy
-                ))
-                .ExecuteCommandAsync();
 
     /// <summary>
     /// insert trade limit for selected trade
@@ -4345,7 +4143,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public Task UpsertTradeOrderAsync(TradeOrderDefinition order, CancellationToken token = default)
     {
         order.RequireNotNull(nameof(order));
-        return _dbFactory.TradeDb.Use("TradeFlow.Order.Upsert", "INSERT INTO trade_order_v3 (portfolioId,fundId,orderId,revision,status,valueDate,updatedAtUtc,definitionHash,payload) VALUES (?,?,?,?,?,?,?,?,?);")
+        return _dbFactory.TradeDb.Use("TradeFlow.Order.Upsert", "INSERT INTO trade_order (portfolioId,fundId,orderId,revision,status,valueDate,updatedAtUtc,definitionHash,payload) VALUES (?,?,?,?,?,?,?,?,?);")
             .SetParameters(new TradeDbValues([order.Id.PortfolioId, order.Id.FundId, order.Id.OrderId, order.Revision,
                 order.Status.ToString(), order.ValueDate, DateTime.UtcNow, order.DefinitionHash,
                 MessagePackBinarySerializer.Shared.Serialize(order)]))
@@ -4356,7 +4154,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public Task<TradeOrderDefinition?> GetTradeOrderAsync(TradeOrderId id, CancellationToken token = default)
     {
         id.Require();
-        return _dbFactory.TradeDb.Use("TradeFlow.Order.Get", "SELECT payload FROM trade_order_v3 WHERE portfolioId=? AND fundId=? AND orderId=? LIMIT 1;")
+        return _dbFactory.TradeDb.Use("TradeFlow.Order.Get", "SELECT payload FROM trade_order WHERE portfolioId=? AND fundId=? AND orderId=? LIMIT 1;")
             .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId]))
             .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(row.GetBytes(0)), token);
     }
@@ -4367,13 +4165,13 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         execution.RequireNotNull(nameof(execution));
         execution.TradeOrderId.Require();
         var payload = MessagePackBinarySerializer.Shared.Serialize(execution);
-        await _dbFactory.TradeDb.Use("TradeFlow.Execution.Upsert", "INSERT INTO order_execution_v1 (portfolioId,fundId,orderId,executionAttemptId,status,startedAtUtc,completedAtUtc,payload) VALUES (?,?,?,?,?,?,?,?);")
+        await _dbFactory.TradeDb.Use("TradeFlow.Execution.Upsert", "INSERT INTO order_execution (portfolioId,fundId,orderId,executionAttemptId,status,startedAtUtc,completedAtUtc,payload) VALUES (?,?,?,?,?,?,?,?);")
             .SetParameters(new TradeDbValues([execution.TradeOrderId.PortfolioId, execution.TradeOrderId.FundId, execution.TradeOrderId.OrderId,
                 execution.ExecutionAttemptId, execution.Status.ToString(), execution.StartedAtUtc, execution.CompletedAtUtc, payload]))
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
         foreach (var fill in execution.Fills)
-            await _dbFactory.TradeDb.Use("TradeFlow.Fill.Upsert.V2", "INSERT INTO order_execution_fill_v2 (executionAttemptId,executionFillId,componentId,tradeLegId,contractId,filledAtUtc,payload) VALUES (?,?,?,?,?,?,?);")
+            await _dbFactory.TradeDb.Use("TradeFlow.Fill.Upsert.V2", "INSERT INTO order_execution_fill (executionAttemptId,executionFillId,componentId,tradeLegId,contractId,filledAtUtc,payload) VALUES (?,?,?,?,?,?,?);")
                 .SetParameters(new TradeDbValues([fill.ExecutionAttemptId, fill.ExecutionFillId, fill.ComponentId, fill.TradeLegId,
                     fill.ContractId, fill.FilledAtUtc, MessagePackBinarySerializer.Shared.Serialize(fill)]))
                 .ExecuteCommandAsync(token)
@@ -4385,7 +4183,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         id.Require();
         executionAttemptId.Require("ExecutionAttemptId is required.", nameof(executionAttemptId));
-        return _dbFactory.TradeDb.Use("TradeFlow.Execution.Get", "SELECT payload FROM order_execution_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND executionAttemptId=?;")
+        return _dbFactory.TradeDb.Use("TradeFlow.Execution.Get", "SELECT payload FROM order_execution WHERE portfolioId=? AND fundId=? AND orderId=? AND executionAttemptId=?;")
             .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, executionAttemptId]))
             .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(row.GetBytes(0)), token);
     }
@@ -4396,13 +4194,13 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         trade.RequireNotNull(nameof(trade));
         trade.Id.Require();
         var payload = MessagePackBinarySerializer.Shared.Serialize(trade);
-        await _dbFactory.TradeDb.Use("TradeFlow.Trade.Upsert", "INSERT INTO established_trade_v1 (portfolioId,fundId,orderId,tradeId,assetFamily,strategyKind,establishedAtUtc,evidenceRevision,payload) VALUES (?,?,?,?,?,?,?,?,?);")
+        await _dbFactory.TradeDb.Use("TradeFlow.Trade.Upsert", "INSERT INTO established_trade (portfolioId,fundId,orderId,tradeId,assetFamily,strategyKind,establishedAtUtc,evidenceRevision,payload) VALUES (?,?,?,?,?,?,?,?,?);")
             .SetParameters(new TradeDbValues([trade.Id.PortfolioId, trade.Id.FundId, trade.Id.OrderId, trade.Id.TradeId,
                 trade.AssetFamily.ToString(), trade.StrategyKind.ToString(), trade.EstablishedAtUtc, trade.EvidenceRevision,
                 payload]))
                     .ExecuteCommandAsync(token)
                     .ConfigureAwait(false);
-        await _dbFactory.TradeDb.Use("TradeFlow.Trade.History.Upsert", "INSERT INTO established_trade_history_v2 (portfolioId,fundId,strategyKind,establishedAtUtc,orderId,tradeId,evidenceRevision,payload) VALUES (?,?,?,?,?,?,?,?);")
+        await _dbFactory.TradeDb.Use("TradeFlow.Trade.History.Upsert", "INSERT INTO established_trade_history (portfolioId,fundId,strategyKind,establishedAtUtc,orderId,tradeId,evidenceRevision,payload) VALUES (?,?,?,?,?,?,?,?);")
             .SetParameters(new TradeDbValues([trade.Id.PortfolioId, trade.Id.FundId, trade.StrategyKind.ToString(),
                 trade.EstablishedAtUtc, trade.Id.OrderId, trade.Id.TradeId, trade.EvidenceRevision, payload]))
             .ExecuteCommandAsync(token)
@@ -4413,7 +4211,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public Task<EstablishedTradeDefinition?> GetEstablishedTradeAsync(TradeEntityId id, CancellationToken token = default)
     {
         id.Require();
-        return _dbFactory.TradeDb.Use("TradeFlow.Trade.Get", "SELECT payload FROM established_trade_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=?;")
+        return _dbFactory.TradeDb.Use("TradeFlow.Trade.Get", "SELECT payload FROM established_trade WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=?;")
             .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, id.TradeId]))
             .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(row.GetBytes(0)), token);
     }
@@ -4424,7 +4222,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         byte[]? pagingState = null, CancellationToken token = default)
     {
         portfolioId.RequireUtcHistoryScope(fundId, fromUtc, toUtc, pageSize);
-        return _dbFactory.TradeDb.Use("TradeFlow.Trade.History.Get", "SELECT payload FROM established_trade_history_v2 WHERE portfolioId=? AND fundId=? AND strategyKind=? AND establishedAtUtc>=? AND establishedAtUtc<=?;")
+        return _dbFactory.TradeDb.Use("TradeFlow.Trade.History.Get", "SELECT payload FROM established_trade_history WHERE portfolioId=? AND fundId=? AND strategyKind=? AND establishedAtUtc>=? AND establishedAtUtc<=?;")
             .SetParameters(new TradeDbValues([portfolioId, fundId, strategyKind.ToString(), fromUtc, toUtc]))
             .ExecutePageAsync(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(row.GetBytes(0)), pageSize, pagingState, token);
     }
@@ -4436,12 +4234,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         position.RequireValidIdentity();
         var payload = MessagePackBinarySerializer.Shared.Serialize(position);
         var id = position.Id.Trade;
-        await _dbFactory.TradeDb.Use("TradeFlow.Position.Current", "INSERT INTO strategy_position_current_v1 (portfolioId,fundId,orderId,tradeId,positionId,strategyKind,positionSequence,routeGeneration,isOpen,asOfUtc,payload) VALUES (?,?,?,?,?,?,?,?,?,?,?);")
+        await _dbFactory.TradeDb.Use("TradeFlow.Position.Current", "INSERT INTO strategy_position_current (portfolioId,fundId,orderId,tradeId,positionId,strategyKind,positionSequence,routeGeneration,isOpen,asOfUtc,payload) VALUES (?,?,?,?,?,?,?,?,?,?,?);")
             .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, id.TradeId, position.Id.PositionId,
                 position.StrategyKind.ToString(), position.PositionSequence, position.RouteGeneration, position.IsOpen, position.AsOfUtc, payload]))
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
-        await _dbFactory.TradeDb.Use("TradeFlow.Position.History", "INSERT INTO strategy_position_history_v1 (positionId,asOfUtc,positionSequence,phase,payload) VALUES (?,?,?,?,?);")
+        await _dbFactory.TradeDb.Use("TradeFlow.Position.History", "INSERT INTO strategy_position_history (positionId,asOfUtc,positionSequence,phase,payload) VALUES (?,?,?,?,?);")
             .SetParameters(new TradeDbValues([position.Id.PositionId, position.AsOfUtc, position.PositionSequence, position.Phase.ToString(), payload]))
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
@@ -4451,7 +4249,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public Task<QueryPage<StrategyPositionSnapshot>> GetStrategyPositionHistoryAsync(Guid positionId, DateTime fromUtc, DateTime toUtc, int pageSize, byte[]? pagingState = null, CancellationToken token = default)
     {
         positionId.RequireUtcHistoryScope(fromUtc, toUtc, pageSize);
-        return _dbFactory.TradeDb.Use("TradeFlow.Position.History.Get", "SELECT payload FROM strategy_position_history_v1 WHERE positionId=? AND asOfUtc>=? AND asOfUtc<=?;")
+        return _dbFactory.TradeDb.Use("TradeFlow.Position.History.Get", "SELECT payload FROM strategy_position_history WHERE positionId=? AND asOfUtc>=? AND asOfUtc<=?;")
             .SetParameters(new TradeDbValues([positionId, fromUtc, toUtc]))
             .ExecutePageAsync(row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetBytes(0)), pageSize, pagingState, token);
     }
@@ -4460,7 +4258,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public Task<StrategyPositionSnapshot?> GetStrategyPositionAsync(StrategyPositionId id, CancellationToken token = default)
     {
         id.Require();
-        return _dbFactory.TradeDb.Use("TradeFlow.Position.Current.Get", "SELECT payload FROM strategy_position_current_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=?;")
+        return _dbFactory.TradeDb.Use("TradeFlow.Position.Current.Get", "SELECT payload FROM strategy_position_current WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=?;")
             .SetParameters(new TradeDbValues([id.Trade.PortfolioId, id.Trade.FundId, id.Trade.OrderId, id.Trade.TradeId, id.PositionId]))
             .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetBytes(0)), token);
     }
@@ -4471,19 +4269,19 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         position.RequireNotNull(nameof(position));
         position.RequireRoutableLegs();
         var existing = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Position.Get.V2",
-                "SELECT contractId,tradeLegId FROM open_position_route_recovery_v2 WHERE shard=? AND positionId=?;")
+                "SELECT contractId,tradeLegId FROM open_position_route_recovery WHERE shard=? AND positionId=?;")
             .SetParameters(new TradeDbValues([(sbyte)0, position.Id.PositionId]))
             .ExecuteQueryAsync(row => new OpenPositionRouteKeyReadModel(row.GetString(0), row.GetGuid(1)), token)
             .ConfigureAwait(false);
         foreach (var old in existing)
         {
             await _dbFactory.TradeDb.Use("TradeFlow.Route.Delete.V2",
-                    "DELETE FROM open_position_route_v2 WHERE contractId=? AND positionId=? AND tradeLegId=?;")
+                    "DELETE FROM open_position_route WHERE contractId=? AND positionId=? AND tradeLegId=?;")
                 .SetParameters(new TradeDbValues([old.ContractId, position.Id.PositionId, old.TradeLegId]))
                 .ExecuteCommandAsync(token)
                 .ConfigureAwait(false);
             await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Delete.V2",
-                    "DELETE FROM open_position_route_recovery_v2 WHERE shard=? AND positionId=? AND tradeLegId=?;")
+                    "DELETE FROM open_position_route_recovery WHERE shard=? AND positionId=? AND tradeLegId=?;")
                 .SetParameters(new TradeDbValues([(sbyte)0, position.Id.PositionId, old.TradeLegId]))
                 .ExecuteCommandAsync(token)
                 .ConfigureAwait(false);
@@ -4495,12 +4293,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             var route = new PortfolioFundTradeLeg(position.Id.Trade.PortfolioId, position.Id.Trade.FundId,
                 position.Id.Trade.OrderId, position.Id.Trade.TradeId, position.Id.PositionId, leg.TradeLegId,
                 position.StrategyKind, position.RouteGeneration);
-            await _dbFactory.TradeDb.Use("TradeFlow.Route.Upsert.V2", "INSERT INTO open_position_route_v2 (contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?);")
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Upsert.V2", "INSERT INTO open_position_route (contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?);")
                 .SetParameters(new TradeDbValues([leg.ContractId, route.PortfolioId, route.FundId, route.OrderId,
                     route.TradeId, route.StrategyPositionId, route.TradeLegId, route.TradeType.ToString(), route.Generation]))
                 .ExecuteCommandAsync(token)
                 .ConfigureAwait(false);
-            await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Upsert.V2", "INSERT INTO open_position_route_recovery_v2 (shard,positionId,tradeLegId,contractId,portfolioId,fundId,orderId,tradeId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?,?);")
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Upsert.V2", "INSERT INTO open_position_route_recovery (shard,positionId,tradeLegId,contractId,portfolioId,fundId,orderId,tradeId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?,?);")
                 .SetParameters(new TradeDbValues([(sbyte)0, route.StrategyPositionId, route.TradeLegId, leg.ContractId,
                     route.PortfolioId, route.FundId, route.OrderId, route.TradeId, route.TradeType.ToString(), route.Generation]))
                 .ExecuteCommandAsync(token)
@@ -4512,7 +4310,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRoutesAsync(string contractId, CancellationToken token = default)
     {
         contractId.RequireContractId();
-        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Get.V2", "SELECT portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_v2 WHERE contractId=?;")
+        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Get.V2", "SELECT portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route WHERE contractId=?;")
             .SetParameters(new TradeDbValues([contractId]))
             .ExecuteQueryAsync(row => new OpenPositionRouteReadModel(contractId, new PortfolioFundTradeLeg(
                 row.GetInt(0), row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetGuid(4), row.GetGuid(5),
@@ -4524,7 +4322,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <inheritdoc />
     public async Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default)
     {
-        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Get.V2", "SELECT contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_recovery_v2 WHERE shard=?;")
+        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Get.V2", "SELECT contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_recovery WHERE shard=?;")
             .SetParameters(new TradeDbValues([(sbyte)0]))
             .ExecuteQueryAsync(row => new OpenPositionRouteReadModel(row.GetString(0), new PortfolioFundTradeLeg(
                 row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetInt(4), row.GetGuid(5), row.GetGuid(6),

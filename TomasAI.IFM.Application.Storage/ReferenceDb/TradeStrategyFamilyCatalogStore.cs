@@ -17,8 +17,8 @@ public interface ITradeStrategyFamilyCatalogStore
 /// <summary>Small reference catalog: one CAS document atomically owns natural keys and operation receipts.</summary>
 public sealed class TradeStrategyFamilyCatalogStore(IDbContextFactory db, ISequenceIdGenerator ids) : ITradeStrategyFamilyCatalogStore
 {
-    public const string CreateTable = "CREATE TABLE IF NOT EXISTS trade_strategy_family_catalog_v4 (catalog text PRIMARY KEY, revision bigint, payload_json text);";
-    const string Select = "SELECT revision,payload_json FROM trade_strategy_family_catalog_v4 WHERE catalog=:catalog;";
+    public const string CreateTable = "CREATE TABLE IF NOT EXISTS trade_strategy_family_catalog (catalog text PRIMARY KEY, revision bigint, payload_json text);";
+    const string Select = "SELECT revision,payload_json FROM trade_strategy_family_catalog WHERE catalog=:catalog;";
     public sealed record Entry(Guid OperationId, CreateTradeStrategyFamilyRequest? Request, TradeStrategyFamilyReadModel Definition,
         ChangeTradeStrategyFamilyRequest? Change = null, RemoveTradeStrategyFamilyRequest? Remove = null);
     sealed record Snapshot(long Revision, Entry[] Entries);
@@ -54,10 +54,10 @@ public sealed class TradeStrategyFamilyCatalogStore(IDbContextFactory db, ISeque
             if (row.Validate().Count != 0 || row.TradeStrategySymbolId <= 0) throw new ArgumentException("Invalid product-linked family definition.");
             var json = JsonSerializer.Serialize(entries.Append(new Entry(request.OperationId, request, row)).ToArray());
             if (snapshot is null)
-                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.Initialize", "INSERT INTO trade_strategy_family_catalog_v4(catalog,revision,payload_json) VALUES(:catalog,:revision,:payload_json) IF NOT EXISTS;")
+                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.Initialize", "INSERT INTO trade_strategy_family_catalog(catalog,revision,payload_json) VALUES(:catalog,:revision,:payload_json) IF NOT EXISTS;")
                     .SetParameters(new Parameters(["V1", 1L, json])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
             else
-                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.CompareExchange", "UPDATE trade_strategy_family_catalog_v4 SET revision=:revision,payload_json=:payload_json WHERE catalog=:catalog IF revision=:expected;")
+                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.CompareExchange", "UPDATE trade_strategy_family_catalog SET revision=:revision,payload_json=:payload_json WHERE catalog=:catalog IF revision=:expected;")
                     .SetParameters(new Parameters([snapshot.Revision + 1, json, "V1", snapshot.Revision])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
             // Read back the operation receipt. A losing initializer retries against the winning snapshot.
         }
@@ -118,10 +118,10 @@ public sealed class TradeStrategyFamilyCatalogStore(IDbContextFactory db, ISeque
             if (entries.Length >= 1000 && remove is null) throw new InvalidOperationException("The family catalog limit of 1000 entries has been reached.");
             var json = JsonSerializer.Serialize(entries.Append(new Entry(operationId, change?.Definition, next, change, remove)).ToArray());
             if (snapshot is null)
-                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.Initialize", "INSERT INTO trade_strategy_family_catalog_v4(catalog,revision,payload_json) VALUES(:catalog,:revision,:payload_json) IF NOT EXISTS;")
+                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.Initialize", "INSERT INTO trade_strategy_family_catalog(catalog,revision,payload_json) VALUES(:catalog,:revision,:payload_json) IF NOT EXISTS;")
                     .SetParameters(new Parameters(["V1", 1L, json])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
             else
-                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.CompareExchange", "UPDATE trade_strategy_family_catalog_v4 SET revision=:revision,payload_json=:payload_json WHERE catalog=:catalog IF revision=:expected;")
+                await db.ReferenceDb.Use("TradeStrategyFamilyCatalog.CompareExchange", "UPDATE trade_strategy_family_catalog SET revision=:revision,payload_json=:payload_json WHERE catalog=:catalog IF revision=:expected;")
                     .SetParameters(new Parameters([snapshot.Revision + 1, json, "V1", snapshot.Revision])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         }
         throw new InvalidOperationException("Family catalog was modified concurrently; retry the same OperationId.");

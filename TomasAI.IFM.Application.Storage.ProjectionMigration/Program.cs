@@ -28,30 +28,29 @@ internal static class Program
 
     static readonly string[] ReferenceProjectionObjects =
     [
-        "reference_projection_state_v3",
-        "reference_projection_mutation_v3",
-        "reference_projection_ownership_v3",
-        "scheduled_job_by_name_v3",
-        "scheduled_job_write_ownership_v3",
+        "reference_projection_state",
+        "reference_projection_mutation",
+        "reference_projection_ownership",
+        "scheduled_job_by_name",
+        "scheduled_job_write_ownership",
     ];
 
     static readonly string[] SecuritiesProjectionObjects =
     [
-        "futures_contract_by_symbol_v3",
-        "futures_option_contract_by_symbol_v2",
-        "securities_projection_state_v3",
-        "securities_symbol_projection_state_v3",
-        "securities_projection_operation_v3",
-        "securities_projection_operation_scope_v3"
+        "futures_contract_by_symbol",
+        "futures_option_contract_by_symbol",
+        "securities_projection_state",
+        "securities_symbol_projection_state",
+        "securities_projection_operation",
+        "securities_projection_operation_scope"
     ];
 
     static readonly string[] MarketProjectionObjects =
     [
         "market_outlook_snapshot",
         "market_outlook_working_state",
-        "economic_calendar_v2",
+        "economic_calendar",
         "economic_calendar_country_code",
-        "economic_calendar_cutover_v2",
         "yield_curve_rate_by_date",
         "yield_curve_rate_year",
         "futures_tick_data_by_time",
@@ -65,10 +64,10 @@ internal static class Program
         "futures_iti_signal_by_contract_month",
         "futures_iti_signal_by_trend_mode_month",
         "market_data_projection_month",
-        "market_data_projection_state_v2",
+        "market_data_projection_state",
         "market_data_projection_mutation",
-        "market_data_projection_scope_state_v3",
-        "market_data_projection_scope_mutation_v3",
+        "market_data_projection_scope_state",
+        "market_data_projection_scope_mutation",
         "futures_trade_signal_quarantine"
     ];
 
@@ -247,9 +246,6 @@ internal static class Program
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var calendarCutover = await context.BackfillEconomicCalendarV2Async(
-            options.BatchSize,
-            cancellationToken).ConfigureAwait(false);
         var fmpBackfill = await context.BackfillFmpQueryProjectionsAsync(
             options.BatchSize,
             cancellationToken).ConfigureAwait(false);
@@ -268,11 +264,6 @@ internal static class Program
                 .ConfigureAwait(false);
         }
 
-        Console.WriteLine(
-            $"Market economic-calendar v2 cutover: source/target={calendarCutover.SourceRows}/{calendarCutover.TargetRows}, " +
-            $"countries={calendarCutover.CountryCodes}, verified={calendarCutover.CutoverCompleted}.");
-        Console.WriteLine(
-            $"Market economic-calendar fingerprints: source={calendarCutover.SourceFingerprint}, target={calendarCutover.TargetFingerprint}.");
         Console.WriteLine(
             $"Market FMP yield reconciliation: rows={fmpBackfill.YieldCurveRowsSource}/{fmpBackfill.YieldCurveRowsProjected}, " +
             $"years={fmpBackfill.YieldCurveYearsSource}/{fmpBackfill.YieldCurveYearsProjected}.");
@@ -302,7 +293,7 @@ internal static class Program
                 $"lookupRows={repair.LookupRowsWritten}; malformed canonical rows were retained.");
         }
 
-        return Complete(calendarCutover.IsReconciled && fmpBackfill.IsReconciled && backfill.IsReconciled &&
+        return Complete(fmpBackfill.IsReconciled && backfill.IsReconciled &&
             backfill.CutoverCompleted && readiness.IsReady);
     }
 

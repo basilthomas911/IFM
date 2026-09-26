@@ -86,16 +86,18 @@ public class MarketDataFixture : IDisposable
             dbConn,
             logger);
         schema.RecreateAsync([
+            "economic_calendar",
+            "futures_macd_signal",
             "futures_eod_data",
             "futures_eod_data_by_month",
             "futures_intra_day_data",
             "vix_futures_eod_data",
             "vix_futures_contract_index",
             "market_data_projection_month",
-            "market_data_projection_state_v2",
+            "market_data_projection_state",
             "market_data_projection_mutation",
-            "market_data_projection_scope_state_v3",
-            "market_data_projection_scope_mutation_v3",
+            "market_data_projection_scope_state",
+            "market_data_projection_scope_mutation",
             "futures_eod_data_index"
         ]).GetAwaiter().GetResult();
         schema.CreateAllAsync().GetAwaiter().GetResult();

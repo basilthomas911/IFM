@@ -101,7 +101,7 @@ public static class EventLogV2Benchmark
         {
             RunId = runId, StartedUtc = DateTime.UtcNow, PostgreSql = version, Durability = durable,
             SchemaBatchedExperiment = schemaBatched,
-            SchemaComparison = schemaBatched ? "Both variants batch markers on event_log_v2; four-index control vs three-index stream primary key. All other protections retained." : null,
+            SchemaComparison = schemaBatched ? "Both variants batch markers on event_log; four-index control vs three-index stream primary key. All other protections retained." : null,
             Experiment = retained && schemaBatched ? "Retained-history timed index consolidation; both writers batch markers"
                 : retained ? "Retained-history timed load; 8192-capacity queue; unchanged four-index schema" : pressure ? "Bounded queue pressure and timed soak; unchanged four-index schema" : mixedMarkers ? "Mixed marker density; unchanged four-index schema" : markerExperiment ? "Set-based markers; unchanged four-index schema" : "Index consolidation",
             MarkerPattern = schemaBatched && !retained ? "schema-none64: none; schema-mixed8: every eighth version; schema-all64: every event"
@@ -114,7 +114,7 @@ public static class EventLogV2Benchmark
             PayloadCharacters = Payload.Length, PayloadSha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Payload))),
             Compression = true, QueueCapacity = pressure ? 8 : 8192, BatchEvents = _batchEvents, BatchBytes = 1048576, BatchDelayMs = 1,
             Limitations = retained && schemaBatched
-                ? "Same event_log_v2 table name and marker batching in both variants; only index layout differs. Retained synthetic history; 64 bounded producers; observer overhead included. Unequal measured work and final table size in timed windows. Not production migration, crash or full-day leak qualification."
+                ? "Same event_log table name and marker batching in both variants; only index layout differs. Retained synthetic history; 64 bounded producers; observer overhead included. Unequal measured work and final table size in timed windows. Not production migration, crash or full-day leak qualification."
                 : retained
                 ? "64 bounded producers, fixed synthetic payload, retained seed through real writer; not actual production distribution or full-day leak proof. No queue saturation claim. Observer overhead included; container I/O cumulative, not disk latency. No identical-table control in this timed pair."
                 : pressure
@@ -199,8 +199,7 @@ public static class EventLogV2Benchmark
         builder.Username = string.Empty;
         builder.Password = string.Empty;
         var connectionString = builder.ConnectionString;
-        var layout = EventLogSqlLayout.ForBenchmark(connectionString, variant != Variant.Baseline,
-            BatchesMarkers(variant));
+        var layout = EventLogSqlLayout.ForBenchmark(connectionString, BatchesMarkers(variant));
         await Execute(admin, $"CREATE DATABASE \"{database}\"");
         var success = false;
         try
@@ -212,14 +211,14 @@ public static class EventLogV2Benchmark
             await connection.OpenAsync();
             await Execute(connection, PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01);
             if (variant != Variant.Baseline)
-                await Execute(connection, "ALTER TABLE event_log RENAME TO event_log_v2");
+                await Execute(connection, "ALTER TABLE event_log RENAME TO event_log");
             if (ConsolidatesIndexes(variant))
                 await Execute(connection, """
-                    ALTER TABLE event_log_v2 DROP CONSTRAINT event_log_pkey;
-                    ALTER TABLE event_log_v2 ADD CONSTRAINT event_log_v2_pkey
+                    ALTER TABLE event_log DROP CONSTRAINT event_log_pkey;
+                    ALTER TABLE event_log ADD CONSTRAINT event_log_pkey
                         PRIMARY KEY USING INDEX ux_event_log_stream_version_v3;
                     """);
-            var table = variant == Variant.Baseline ? "event_log" : "event_log_v2";
+            var table = variant == Variant.Baseline ? "event_log" : "event_log";
             await VerifyShape(connection, table, variant);
             await File.WriteAllTextAsync(Path.Combine(_output, database + "-indexes.txt"),
                 (string)(await Scalar(connection,
@@ -550,7 +549,7 @@ public static class EventLogV2Benchmark
         foreach (var group in Results.GroupBy(r => (r.Scenario, r.Variant)))
             text.AppendLine(FormattableString.Invariant($"- {group.Key.Scenario}, {group.Key.Variant}: {Median(group.Select(r => (double)r.MarkerCommands)):F0} statements, {Median(group.Select(r => (double)r.MarkerRows)):F0} rows; {Median(group.Select(r => r.MarkerAwaitMs)):F2} ms cumulative marker operation time."));
         if (Results.Any(r => r.Variant == nameof(Variant.V2BatchedStreamPrimaryKey)))
-            text.AppendLine("\nSchema-only paired comparison: both variants use event_log_v2 and batch projection markers. The control has four indexes; the candidate has a stream/version primary key and three indexes. Global event identity, command lookup, financial fence, timestamp type and durable auditing remain unchanged. Gains are relative to the already-batched control, not the original unbatched writer. Synthetic storage-boundary measurements; not production migration approval.");
+            text.AppendLine("\nSchema-only paired comparison: both variants use event_log and batch projection markers. The control has four indexes; the candidate has a stream/version primary key and three indexes. Global event identity, command lookup, financial fence, timestamp type and durable auditing remain unchanged. Gains are relative to the already-batched control, not the original unbatched writer. Synthetic storage-boundary measurements; not production migration approval.");
         else if (Results.Any(r => r.Scenario == "retained-8"))
             text.AppendLine("\nRetained-history timed comparison; no identical-table control. Each fixture verifies seed count and captures seed table/index bytes before measurement. Queue capacity is 8192 with 64 bounded producers: no saturation or backpressure claim. Final outstanding queue/admission depth must be zero. Observations include client memory, PG wait snapshots and container CPU/I/O; observer overhead is included. Synthetic workload, not production-sized history or full-day leak/Gen 2 qualification.");
         else if (Results.Any(r => r.BlockedAdmissionLowerBound > 0))

@@ -84,7 +84,6 @@ public interface ITradeDbWriteContext
     Task InsertTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitReadModel tradePlanForwardLossLimit);
     Task InsertTradePlanForwardLossRatioAsync(DateOnly valueDate, double forwardLosRatio);
     Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel tradeLiveFeed);
-    Task InsertTradeOrderAsync(TradeOrderReadModel tradeTicket);
     Task InsertTradePositionStateAsync(TradePositionStateReadModel tradePositionState);
     Task InsertOptionTradeSpreadDataAsync(OptionTradeSpreadsDataModel optionTradeSpreadData);
     Task InsertOptionTradeSpreadDataAsync(ICollection<OptionTradeSpreadsDataModel> optionTradeSpreadData);
@@ -124,7 +123,5 @@ public interface ITradeDbWriteContext
     Task UpdateOptionLegDataAsync(OptionTradeLegDataReadModel optionLegData);
     Task UpdateTradeLimitDailyProfitTarget(int tradeId, TradeType tradeType, decimal dailyProfitTarget, DateTime updatedOn, string updatedBy);
     Task UpdateTradeLiveFeedAsync(TradeLiveFeedReadModel tradeLiveFeed);
-    Task UpdateTradeOrderStateAsync(TradeOrderEntityId tradeTicketId, TradeOrderState tradeOrderState, DateTime updatedOn, string updatedBy);
-    Task UpdateTradeOrderOrderPriceAsync(TradeOrderEntityId tradeOrderId, decimal orderPrice, DateTime updatedOn, string updatedBy);
 
 }

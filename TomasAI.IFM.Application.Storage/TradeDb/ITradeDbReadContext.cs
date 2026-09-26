@@ -98,9 +98,6 @@ public interface ITradeDbReadContext
     Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId, int tradeId, DateOnly startDate, DateOnly endDate);
     Task<ICollection<TradePlanForwardLossRatioReadModel>> GetTradePlanForwardLossRatiosAsync(DateOnly startDate, DateOnly endDate);
     Task<TradePlanForwardLossRatioReadModel?> GetTradePlanForwardLossRatioAsync(DateOnly valueDate);
-    Task<TradeOrderReadModel?> GetTradeOrderAsync(DateOnly valueDate, int tradeId);
-    Task<ICollection<TradeOrderReadModel>> GetTradeOrdersAsync(DateOnly startDate, DateOnly endDate);
-    Task<ICollection<TradeOrderReadModel>> GetTradeOrdersByFundIdAsync(DateOnly valueDate, int fundId);
     Task<ICollection<TradeFillDataReadModel>> GetTradeFillDataAsync(int tradeId);
     Task<ICollection<TradeLiveFeedReadModel>> GetTradeLiveFeedAsync(int orderId, int tradeId);
     Task<ICollection<string>> GetTradePositionTradeTypesAsync(

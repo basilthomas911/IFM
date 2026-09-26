@@ -24,7 +24,7 @@ internal static class EventLogProcessQualification
         var builder = new NpgsqlConnectionStringBuilder(input.Provider);
         Check(builder.Port != 5432 && string.IsNullOrEmpty(builder.Username) && string.IsNullOrEmpty(builder.Password),
             "Child requires isolated provider configuration without embedded credentials.");
-        var layout = EventLogSqlLayout.ForBenchmark(input.Provider, true, input.Batch);
+        var layout = EventLogSqlLayout.ForBenchmark(input.Provider, input.Batch);
         await using var writer = new BinaryCopyEventLogAppender(input.Provider, true,
             new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy }, layout);
         Console.WriteLine("READY");

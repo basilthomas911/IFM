@@ -14,26 +14,6 @@ public sealed class EventLogBenchmarkLayoutTests
         Assert.Equal(sql, EventLogSqlLayout.Current.Resolve(sql));
     }
 
-    [Fact]
-    public void Production_v2_layout_routes_only_the_table_and_keeps_the_shared_sequence()
-    {
-        var options = new EventLogPersistenceOptions { TableTarget = EventLogTableTarget.EventLogV2 };
-        var layout = EventLogSqlLayout.ForProduction(options);
-        Assert.Equal(
-            "INSERT INTO event_log_v2; SELECT nextval('public.event_log_eventversion_seq')",
-            layout.Resolve("INSERT INTO event_log; SELECT nextval('public.event_log_eventversion_seq')"));
-    }
-
-    [Fact]
-    public void Event_log_options_default_to_legacy_and_reject_unknown_targets()
-    {
-        Assert.Equal(EventLogTableTarget.Legacy, new EventLogPersistenceOptions().Validate().TableTarget);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new EventLogPersistenceOptions
-        {
-            TableTarget = (EventLogTableTarget)byte.MaxValue
-        }.Validate());
-    }
-
     [Theory]
     [InlineData("Host=127.0.0.1;Database=event-source-dev-db")]
     [InlineData("Host=127.0.0.1;Database=event-source-test-db")]
@@ -46,17 +26,17 @@ public sealed class EventLogBenchmarkLayoutTests
     }
 
     [Fact]
-    public void Candidate_changes_only_the_event_table_not_sequence_or_index_identifiers()
+    public void Authoritative_layout_keeps_table_sequence_and_index_identifiers()
     {
         var layout = EventLogSqlLayout.ForBenchmark(
             "Host=127.0.0.1;Database=ifm_eventlog_bench_123456abcdef_test", true);
         Assert.Equal(
-            "COPY event_log_v2 FROM STDIN; SELECT * FROM public.event_log_v2; SELECT nextval('public.event_log_eventversion_seq'); -- ux_event_log_event_version",
+            "COPY event_log FROM STDIN; SELECT * FROM public.event_log; SELECT nextval('public.event_log_eventversion_seq'); -- ux_event_log_event_version",
             layout.Resolve("COPY event_log FROM STDIN; SELECT * FROM public.event_log; SELECT nextval('public.event_log_eventversion_seq'); -- ux_event_log_event_version"));
     }
 
     [Fact]
-    public void Baseline_uses_identical_sql_to_production()
+    public void Benchmark_layout_uses_identical_sql_to_production()
     {
         var layout = EventLogSqlLayout.ForBenchmark(
             "Host=127.0.0.1;Database=ifm_eventlog_bench_123456abcdef_test", false);
@@ -66,7 +46,7 @@ public sealed class EventLogBenchmarkLayoutTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Candidate_layout_cannot_be_reused_against_an_application_database(bool copy)
+    public void Benchmark_layout_cannot_be_reused_against_an_application_database(bool copy)
     {
         var layout = EventLogSqlLayout.ForBenchmark(
             "Host=127.0.0.1;Database=ifm_eventlog_bench_123456abcdef_test", true);
@@ -81,7 +61,7 @@ public sealed class EventLogBenchmarkLayoutTests
     public void Marker_batching_is_benchmark_only_even_without_a_table_rename()
     {
         var layout = EventLogSqlLayout.ForBenchmark(
-            "Host=127.0.0.1;Database=ifm_eventlog_bench_123456abcdef_test", false, true);
+            "Host=127.0.0.1;Database=ifm_eventlog_bench_123456abcdef_test", batchProjectionMarkers: true);
         Assert.True(layout.BatchProjectionMarkers);
         Assert.Equal("COPY event_log", layout.Resolve("COPY event_log"));
         Assert.Throws<ArgumentException>(() => new BinaryCopyEventLogAppender(

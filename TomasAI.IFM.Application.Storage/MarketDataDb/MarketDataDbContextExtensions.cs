@@ -1134,7 +1134,12 @@ internal static class MarketDataDbContextExtensions
         /// </summary>
         internal DateTime NormalizeEconomicCalendarTimestamp()
         {
-            var utc = ProjectionMutationSafety.AsUtc(value);
+            var utc = value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
             return new DateTime(utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMillisecond), DateTimeKind.Utc);
         }
 
@@ -1169,25 +1174,6 @@ internal static class MarketDataDbContextExtensions
         /// </summary>
         internal bool IsAfterCursor(CalendarPageToken cursor) => cursor.LastEventDateTicks is null || row.EventDate.Ticks < cursor.LastEventDateTicks.Value || (row.EventDate.Ticks == cursor.LastEventDateTicks.Value && string.CompareOrdinal(row.EventName, cursor.LastEventName) > 0);
 
-        /// <summary>
-        /// Performs the <c>GetEconomicCalendarProjectionIdentity</c> operation for MarketDataDb persistence.
-        /// </summary>
-        internal ulong GetEconomicCalendarProjectionIdentity()
-        {
-            var hash = MarketDataProjectionHash.Start();
-            hash = MarketDataProjectionHash.Add(hash, row.EventDate.Ticks);
-            hash = MarketDataProjectionHash.Add(hash, row.CountryCode);
-            hash = MarketDataProjectionHash.Add(hash, row.EventName);
-            hash = MarketDataProjectionHash.Add(hash, row.Actual);
-            hash = MarketDataProjectionHash.Add(hash, row.Forecast);
-            hash = MarketDataProjectionHash.Add(hash, row.Prior);
-            hash = MarketDataProjectionHash.Add(hash, row.Impact);
-            hash = MarketDataProjectionHash.Add(hash, row.Unit);
-            hash = MarketDataProjectionHash.Add(hash, row.Change);
-            hash = MarketDataProjectionHash.Add(hash, row.ChangePercentage);
-            hash = MarketDataProjectionHash.Add(hash, row.CreatedOn.Ticks);
-            return MarketDataProjectionHash.Add(hash, row.CreatedBy);
-        }
     }
 
     extension(EconomicCalendarPageRequest request)

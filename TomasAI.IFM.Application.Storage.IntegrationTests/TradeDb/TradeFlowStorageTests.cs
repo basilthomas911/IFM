@@ -27,7 +27,19 @@ public sealed class TradeFlowStorageFixture
         var logger = Substitute.For<ILogger<DbProvider>>();
         var factory = new DbContextFactory(resolver);
 
-        new TradeSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();
+        var schema = new TradeSchemaDb(settings, logger);
+        schema.RecreateAsync([
+            "trade_order",
+            "order_execution",
+            "order_execution_fill",
+            "established_trade",
+            "established_trade_history",
+            "strategy_position_current",
+            "strategy_position_history",
+            "open_position_route",
+            "open_position_route_recovery"
+        ]).GetAwaiter().GetResult();
+        schema.CreateAllAsync().GetAwaiter().GetResult();
         contexts.Add(typeof(IObjectRepository<TradeDbContext>), new TradeDbContext(
             settings,
             factory,

@@ -31,8 +31,8 @@ public sealed class TradePlanStorageFixture
         // disposable test keyspace so clustering changes are exercised rather than
         // hidden by a table left behind by an earlier development build.
         schema.RecreateAsync([
-            "position_trade_plan_activity_by_date_v1",
-            "position_exit_workflow_v1"
+            "position_trade_plan_activity_by_date",
+            "position_exit_workflow"
         ]).GetAwaiter().GetResult();
         TradePlanDb = new TradePlanDbContext(settings, logger);
     }

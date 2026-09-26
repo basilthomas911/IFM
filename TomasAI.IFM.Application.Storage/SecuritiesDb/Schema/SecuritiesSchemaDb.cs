@@ -18,18 +18,18 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
         new("securities_reference_identity", SecuritiesDbCql.CreateReferenceIdentityTable, "DROP TABLE IF EXISTS securities_reference_identity;"),
         new("securities_reference_version", SecuritiesDbCql.CreateReferenceVersionTable, "DROP TABLE IF EXISTS securities_reference_version;"),
         new("futures_contract_rollover", SecuritiesSchemaCql.CreateFuturesContractRolloverTable, "DROP TABLE IF EXISTS futures_contract_rollover;"),
-        new("futures_contract_v3", SecuritiesSchemaCql.CreateFuturesContractTable, "DROP TABLE IF EXISTS futures_contract_v3;"),
+        new("futures_contract", SecuritiesSchemaCql.CreateFuturesContractTable, "DROP TABLE IF EXISTS futures_contract;"),
         new("futures_option_contract", SecuritiesSchemaCql.CreateFuturesOptionContractTable, "DROP TABLE IF EXISTS futures_option_contract;"),
-        new("futures_contract_by_symbol_v3", SecuritiesSchemaCql.CreateFuturesContractBySymbolV3Table, "DROP TABLE IF EXISTS futures_contract_by_symbol_v3;"),
-        new("futures_option_contract_by_symbol_v2", SecuritiesSchemaCql.CreateFuturesOptionContractBySymbolV2Table, "DROP TABLE IF EXISTS futures_option_contract_by_symbol_v2;"),
-        new("securities_projection_state_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionStateV3Table, "DROP TABLE IF EXISTS securities_projection_state_v3;"),
-        new("securities_symbol_projection_state_v3", SecuritiesSchemaCql.CreateSecuritiesSymbolProjectionStateV3Table, "DROP TABLE IF EXISTS securities_symbol_projection_state_v3;"),
-        new("securities_projection_operation_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationV3Table, "DROP TABLE IF EXISTS securities_projection_operation_v3;"),
-        new("securities_projection_operation_scope_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationScopeV3Table, "DROP TABLE IF EXISTS securities_projection_operation_scope_v3;"),
-        ReferencePayload("futures_contract_v3"),
-        ReferencePayload("futures_contract_by_symbol_v3"),
+        new("futures_contract_by_symbol", SecuritiesSchemaCql.CreateFuturesContractBySymbolV3Table, "DROP TABLE IF EXISTS futures_contract_by_symbol;"),
+        new("futures_option_contract_by_symbol", SecuritiesSchemaCql.CreateFuturesOptionContractBySymbolV2Table, "DROP TABLE IF EXISTS futures_option_contract_by_symbol;"),
+        new("securities_projection_state", SecuritiesSchemaCql.CreateSecuritiesProjectionStateV3Table, "DROP TABLE IF EXISTS securities_projection_state;"),
+        new("securities_symbol_projection_state", SecuritiesSchemaCql.CreateSecuritiesSymbolProjectionStateV3Table, "DROP TABLE IF EXISTS securities_symbol_projection_state;"),
+        new("securities_projection_operation", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationV3Table, "DROP TABLE IF EXISTS securities_projection_operation;"),
+        new("securities_projection_operation_scope", SecuritiesSchemaCql.CreateSecuritiesProjectionOperationScopeV3Table, "DROP TABLE IF EXISTS securities_projection_operation_scope;"),
+        ReferencePayload("futures_contract"),
+        ReferencePayload("futures_contract_by_symbol"),
         ReferencePayload("futures_option_contract"),
-        ReferencePayload("futures_option_contract_by_symbol_v2")
+        ReferencePayload("futures_option_contract_by_symbol")
     ];
 
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;

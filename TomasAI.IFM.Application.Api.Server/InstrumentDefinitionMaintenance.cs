@@ -31,7 +31,7 @@ internal static class InstrumentDefinitionMaintenance
         var referenceDb = new ReferenceDbContext(settings, factory, new PostgresSequenceIdGenerator(sequenceDb), logger);
         objects.Add(typeof(IObjectRepository<ReferenceDbContext>), referenceDb);
         await new ReferenceSchemaDb(settings, logger).CreateAsync(
-            ["instrument_definition", "instrument_definition_product", "instrument_definition_snapshot", "trade_strategy_symbol_v1"], cancellationToken);
+            ["instrument_definition", "instrument_definition_product", "instrument_definition_snapshot", "trade_strategy_symbol"], cancellationToken);
         var options = new DatabentoMarketDataRuntimeOptions
         {
             Contracts = [],

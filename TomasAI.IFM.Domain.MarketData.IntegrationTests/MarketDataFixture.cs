@@ -75,9 +75,9 @@ public class MarketDataFixture : IDisposable
                 "yield_curve_rates",
                 "yield_curve_rate_by_date",
                 "yield_curve_rate_year",
-                "economic_calendar_v2",
+                "economic_calendar",
                 "economic_calendar_country_code",
-                "economic_calendar_cutover_v2"
+                "economic_calendar"
             ])
             .GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));

@@ -68,10 +68,6 @@ public interface IMarketDataDbWriteContext
         int batchSize = 256,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
-    Task<EconomicCalendarCutoverReadModel> BackfillEconomicCalendarV2Async(
-        int batchSize = 256,
-        CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
     Task<FuturesTradeSignalRepairReadModel> RepairFuturesTradeSignalLookupAsync(
         int batchSize = 256,
         CancellationToken cancellationToken = default)

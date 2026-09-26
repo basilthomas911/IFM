@@ -132,11 +132,6 @@ public interface IReferenceDbReadContext
     /// <returns>The current family definitions.</returns>
     Task<IReadOnlyList<TradeStrategyFamilyReadModel>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Gets legacy trade-strategy-family rows for migration.</summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The legacy family rows.</returns>
-    Task<IReadOnlyList<LegacyTradeStrategyFamily>> GetLegacyTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default);
-
     /// <summary>Gets one trade-strategy-family definition.</summary>
     /// <param name="tradeStrategyFamilyId">The family identifier.</param>
     /// <param name="definitionVersion">The definition version.</param>

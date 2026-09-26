@@ -103,7 +103,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
         : this(connectionSettings, dbFactory, blackboardService, logger, options, auditOptions)
     {
         var connection = connectionSettings[EventSourceActorDbConnection].ConnectionString;
-        var layout = EventLogSqlLayout.ForBenchmark(connection, false, benchmarkBatchProjectionMarkers);
+        var layout = EventLogSqlLayout.ForBenchmark(connection, benchmarkBatchProjectionMarkers);
         var parsed = new Npgsql.NpgsqlConnectionStringBuilder(connection);
         if (parsed.Host != "127.0.0.1" || parsed.Port != 25432)
             throw new ArgumentException("Actor qualification requires isolated loopback port 25432.");

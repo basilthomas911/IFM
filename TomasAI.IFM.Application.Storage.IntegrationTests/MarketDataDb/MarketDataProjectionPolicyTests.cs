@@ -84,7 +84,7 @@ public sealed class MarketDataProjectionPolicyTests
     [Fact]
     public void ProjectionCutover_HasDurableStateAndInFlightMutationQueries()
     {
-        GetCql("GetMarketDataProjectionState").ShouldContain("market_data_projection_state_v2");
+        GetCql("GetMarketDataProjectionState").ShouldContain("market_data_projection_state");
         GetCql("BeginMarketDataProjectionOperation").ShouldContain("activeOperations = activeOperations + :activeOperations");
         GetCql("EndMarketDataProjectionOperation").ShouldContain("isReady = false");
         GetCql("CompleteMarketDataProjectionState").ShouldContain("isReady = true");
@@ -126,7 +126,7 @@ public sealed class MarketDataProjectionPolicyTests
     public void LiveProjectionWrites_AreScopedAndTickBatchesAreExplicitlyBounded()
     {
         GetCql("BeginMarketDataProjectionScopeOperationV3")
-            .ShouldContain("market_data_projection_scope_state_v3");
+            .ShouldContain("market_data_projection_scope_state");
         GetCql("BeginMarketDataProjectionScopeOperationV3")
             .ShouldContain("activeOperations = activeOperations + :activeOperations");
         GetCql("CompleteMarketDataProjectionScopeOperationV3")
@@ -188,7 +188,7 @@ public sealed class MarketDataProjectionPolicyTests
         Assert.Equal("$guard:16", getGuard.Invoke(null, new object[] { "204712" }));
         Assert.Equal("$guard:7", getGuard.Invoke(null, new object[] { "7" }));
         GetCql("RegisterMarketDataProjectionGuardOperationV3")
-            .ShouldContain("market_data_projection_scope_state_v3");
+            .ShouldContain("market_data_projection_scope_state");
         GetCql("RegisterMarketDataProjectionGuardOperationV3")
             .ShouldContain("SET activeOperations = activeOperations + :activeOperations");
     }

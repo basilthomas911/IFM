@@ -26,15 +26,8 @@ public static class EventSourceSchemaSql
         );
         """;
 
+    /// <summary>Creates the authoritative event log.</summary>
     public const string CreateEventLogTable = """
-        DO $guard$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.columns
-                       WHERE table_schema='public' AND table_name='event_log' AND column_name='eventdata') THEN
-                RAISE EXCEPTION 'Legacy JSON event_log requires the explicit binary-only reset before startup';
-            END IF;
-        END $guard$;
-
         CREATE TABLE IF NOT EXISTS public.event_log (
             EventStreamId bigint NOT NULL,
             EventNameId integer NOT NULL,
@@ -43,37 +36,17 @@ public static class EventSourceSchemaSql
             EventPayload bytea NOT NULL CHECK (octet_length(EventPayload) > 0),
             CommandId uuid NOT NULL,
             EventTimestamp text NOT NULL,
-            CONSTRAINT event_log_pkey PRIMARY KEY (EventStreamId, EventNameId, EventVersion)
+            CONSTRAINT event_log_pkey PRIMARY KEY (EventStreamId, StreamVersion)
         );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version
+        ON public.event_log (EventVersion);
 
         CREATE INDEX IF NOT EXISTS ix_event_log_command_id
         ON public.event_log (CommandId);
-        """;
 
-    /// <summary>
-    /// Creates the production-routable v2 cutover target. PostgreSQL exposes the primary-key backing index
-    /// separately from the three secondary indexes listed here.
-    /// </summary>
-    public const string CreateEventLogV2Table = """
-        CREATE TABLE IF NOT EXISTS public.event_log_v2 (
-            EventStreamId bigint NOT NULL,
-            EventNameId integer NOT NULL,
-            EventVersion bigint DEFAULT nextval('public.event_log_eventversion_seq'::regclass) NOT NULL,
-            StreamVersion bigint NOT NULL,
-            EventPayload bytea NOT NULL CHECK (octet_length(EventPayload) > 0),
-            CommandId uuid NOT NULL,
-            EventTimestamp text NOT NULL,
-            CONSTRAINT event_log_v2_pkey PRIMARY KEY (EventStreamId, StreamVersion)
-        );
-
-        CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_v2_event_version
-        ON public.event_log_v2 (EventVersion);
-
-        CREATE INDEX IF NOT EXISTS ix_event_log_v2_command_id
-        ON public.event_log_v2 (CommandId);
-
-        CREATE INDEX IF NOT EXISTS ix_event_log_v2_event_name_version
-        ON public.event_log_v2 (EventNameId, EventVersion);
+        CREATE INDEX IF NOT EXISTS ix_event_log_event_name_version
+        ON public.event_log (EventNameId, EventVersion);
         """;
 
     public const string CreateEventProjectorState = """

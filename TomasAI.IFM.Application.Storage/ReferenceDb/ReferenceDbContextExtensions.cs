@@ -353,7 +353,7 @@ internal static class ReferenceDbContextExtensions
                 var isRelevant = projectionNames.Contains(mutation.ProjectionName, StringComparer.Ordinal) ||
                     prefixes.Any(prefix => mutation.ProjectionName.StartsWith(prefix, StringComparison.Ordinal));
                 if (isRelevant &&
-                    ProjectionMutationSafety.AsUtc(mutation.StartedOn) <= staleOperationCutoffUtc)
+                    mutation.StartedOn.AsProjectionUtc() <= staleOperationCutoffUtc)
                 {
                     staleMutations.Add(mutation);
                 }
@@ -404,7 +404,7 @@ internal static class ReferenceDbContextExtensions
                 .ExecuteStreamAsync(ReferenceDbContext.MapToScheduledJobWriteOwnership, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (ProjectionMutationSafety.AsUtc(ownership.StartedOn) > staleOperationCutoffUtc)
+                if (ownership.StartedOn.AsProjectionUtc() > staleOperationCutoffUtc)
                     continue;
 
                 await context.ReleaseScheduledJobWriteOwnershipAsync(db, ownership)
@@ -441,7 +441,7 @@ internal static class ReferenceDbContextExtensions
                     .ExecuteScalarAsync(ReferenceDbContext.MapToBoolean!);
                 var state = await context.GetProjectionStateAsync(db, projectionName);
                 var activeMutations = await context.GetProjectionMutationsAsync(db, projectionName);
-                var markerIsExclusive = ProjectionMutationSafety.HasExclusiveMarker(activeMutations, generation);
+                var markerIsExclusive = activeMutations.HasExclusiveProjectionMutation(generation);
                 if (!ownsWriteOwnership || !markerIsExclusive)
                 {
                     // Poison whichever owner is current. This also poisons a newly claimed epoch when
@@ -485,8 +485,7 @@ internal static class ReferenceDbContextExtensions
                         projectionName,
                         generation)
                             .ConfigureAwait(false);
-                if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                    targetMutationSubmissionStarted: false,
+                if (false.CanRemoveProjectionMutationJournalAfterFailure(
                     ownershipReleaseOrAbsenceConfirmed: ownershipResolved,
                     activationResponseConfirmed: stateActivationConfirmed))
                 {
@@ -527,7 +526,7 @@ internal static class ReferenceDbContextExtensions
         {
             var activeMutations = await context.GetProjectionMutationsAsync(db, projectionName);
             if (!mutation.OwnsWriteOwnership ||
-                !ProjectionMutationSafety.HasExclusiveMarker(activeMutations, mutation.Generation) ||
+                !activeMutations.HasExclusiveProjectionMutation(mutation.Generation) ||
                 !await context.CompleteProjectionAsync(db, projectionName, mutation.Generation))
             {
                 return false;
@@ -536,8 +535,7 @@ internal static class ReferenceDbContextExtensions
             var releasedWithoutConflict = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)
                 .SetParameters(new ReleaseReferenceProjectionOwnershipV3(projectionName, mutation.Generation))
                 .ExecuteScalarAsync(ReferenceDbContext.MapToBoolean!);
-            if (ProjectionMutationSafety.CanPublishReady(
-                operationSucceeded: true,
+            if (true.CanPublishProjectionReady(
                 ownsWriteEpoch: mutation.OwnsWriteOwnership,
                 wasReadyOrExactlyReconciled: true,
                 markerIsExclusive: true,
@@ -684,7 +682,7 @@ internal static class ReferenceDbContextExtensions
                     .ExecuteScalarAsync(ReferenceDbContext.MapToBoolean!);
                 var activeMutations = await context.GetProjectionMutationsAsync(db, projectionName);
                 if (!ownsWriteOwnership ||
-                    !ProjectionMutationSafety.HasExclusiveMarker(activeMutations, generation))
+                    !activeMutations.HasExclusiveProjectionMutation(generation))
                 {
                     _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)}", ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)
                         .SetParameters(new FlagReferenceProjectionOwnershipConflictV3(projectionName))
@@ -703,8 +701,7 @@ internal static class ReferenceDbContextExtensions
                         projectionName,
                         generation)
                             .ConfigureAwait(false);
-                if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                    targetMutationSubmissionStarted: false,
+                if (false.CanRemoveProjectionMutationJournalAfterFailure(
                     ownershipReleaseOrAbsenceConfirmed: ownershipResolved))
                 {
                     try
@@ -832,8 +829,7 @@ internal static class ReferenceDbContextExtensions
             ReferenceProjectionWriteState state,
             bool succeeded,
             bool targetMutationSubmissionStarted)
-            => succeeded || ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                    targetMutationSubmissionStarted)
+            => succeeded || targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure()
                 ? context.FinishProjectionScopesAsync(db, state, succeeded)
                 : Task.CompletedTask;
 
@@ -1030,5 +1026,104 @@ internal static class ReferenceDbContextExtensions
                 reservationToken)
                     .ConfigureAwait(false);
         }
+
+        /// <summary>Executes an acknowledged canonical mutation before releasing its uniqueness reservation.</summary>
+        /// <param name="mutateCanonicalAsync">The canonical mutation that must receive a positive acknowledgement.</param>
+        /// <param name="releaseReservationAsync">The reservation release performed only after canonical acknowledgement.</param>
+        internal async Task ExecuteCanonicalMutationThenReleaseReservationAsync(
+            Func<Task> mutateCanonicalAsync,
+            Func<Task> releaseReservationAsync)
+        {
+            ArgumentNullException.ThrowIfNull(mutateCanonicalAsync);
+            ArgumentNullException.ThrowIfNull(releaseReservationAsync);
+
+            await mutateCanonicalAsync()
+                .ConfigureAwait(false);
+            await releaseReservationAsync()
+                .ConfigureAwait(false);
+        }
+    }
+
+    extension(DateTime? cutoffUtc)
+    {
+        /// <summary>Validates that an optional stale-operation cutoff is UTC and is not in the future.</summary>
+        /// <param name="parameterName">The public API parameter name to report when validation fails.</param>
+        internal void ValidateStaleOperationCutoffUtc(string parameterName)
+        {
+            if (cutoffUtc is not { } cutoff)
+                return;
+            if (cutoff.Kind != DateTimeKind.Utc)
+            {
+                throw new ArgumentException(
+                    "The stale-operation cutoff must have DateTimeKind.Utc.",
+                    parameterName);
+            }
+            if (cutoff > DateTime.UtcNow)
+            {
+                throw new ArgumentOutOfRangeException(
+                    parameterName,
+                    cutoff,
+                    "The stale-operation cutoff cannot be in the future.");
+            }
+        }
+    }
+
+    extension(DateTime value)
+    {
+        /// <summary>Normalizes a persisted projection timestamp to UTC.</summary>
+        /// <returns>The equivalent UTC timestamp.</returns>
+        internal DateTime AsProjectionUtc()
+            => value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+    }
+
+    extension(ICollection<Guid> activeMutations)
+    {
+        /// <summary>Determines whether a mutation is the projection's only active mutation marker.</summary>
+        /// <param name="mutationId">The mutation identifier that must own the exclusive marker.</param>
+        /// <returns><see langword="true"/> when the requested mutation is the sole active marker.</returns>
+        internal bool HasExclusiveProjectionMutation(Guid mutationId)
+            => activeMutations.Count == 1 && activeMutations.Contains(mutationId);
+    }
+
+    extension(bool targetMutationSubmissionStarted)
+    {
+        /// <summary>Determines whether a failed projection mutation journal can be removed without hiding an ambiguous write.</summary>
+        /// <param name="ownershipReleaseOrAbsenceConfirmed">Whether ownership is confirmed released or absent.</param>
+        /// <param name="activationResponseConfirmed">Whether any activation response is known rather than ambiguous.</param>
+        /// <returns><see langword="true"/> when cleanup cannot conceal a submitted or ambiguously applied mutation.</returns>
+        internal bool CanRemoveProjectionMutationJournalAfterFailure(
+            bool ownershipReleaseOrAbsenceConfirmed = true,
+            bool activationResponseConfirmed = true)
+            => !targetMutationSubmissionStarted &&
+                ownershipReleaseOrAbsenceConfirmed &&
+                activationResponseConfirmed;
+    }
+
+    extension(bool operationSucceeded)
+    {
+        /// <summary>Determines whether a projection generation may be published as ready.</summary>
+        /// <param name="ownsWriteEpoch">Whether the operation owns the projection write epoch.</param>
+        /// <param name="wasReadyOrExactlyReconciled">Whether prior readiness was retained or reconciliation was exact.</param>
+        /// <param name="markerIsExclusive">Whether the operation owns the only active mutation marker.</param>
+        /// <param name="generationStillMatches">Whether the projection generation still matches the operation.</param>
+        /// <param name="ownershipReleasedWithoutConflict">Whether ownership was released without an overlapping writer conflict.</param>
+        /// <returns><see langword="true"/> when every readiness publication condition is satisfied.</returns>
+        internal bool CanPublishProjectionReady(
+            bool ownsWriteEpoch,
+            bool wasReadyOrExactlyReconciled,
+            bool markerIsExclusive,
+            bool generationStillMatches,
+            bool ownershipReleasedWithoutConflict)
+            => operationSucceeded &&
+                ownsWriteEpoch &&
+                wasReadyOrExactlyReconciled &&
+                markerIsExclusive &&
+                generationStillMatches &&
+                ownershipReleasedWithoutConflict;
     }
 }

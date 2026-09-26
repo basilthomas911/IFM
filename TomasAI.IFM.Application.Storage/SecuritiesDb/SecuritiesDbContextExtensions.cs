@@ -428,8 +428,7 @@ internal static class SecuritiesDbContextExtensions
             }
             catch
             {
-                if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                    targetMutationSubmissionStarted: false,
+                if (false.CanRemoveProjectionMutationJournalAfterFailure(
                     activationResponseConfirmed: !activationResponseUnknown))
                 {
                     if (journalActivated)
@@ -720,8 +719,7 @@ internal static class SecuritiesDbContextExtensions
             }
             catch
             {
-                if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                    targetMutationSubmissionStarted))
+                if (targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure())
                 {
                     await context.EndProjectionOperationAsync(db, operation, CancellationToken.None)
                         .ConfigureAwait(false);
@@ -784,8 +782,7 @@ internal static class SecuritiesDbContextExtensions
             }
             catch
             {
-                if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                    targetMutationSubmissionStarted))
+                if (targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure())
                 {
                     await context.EndProjectionOperationAsync(db, operation, CancellationToken.None)
                         .ConfigureAwait(false);
@@ -1535,6 +1532,20 @@ internal static class SecuritiesDbContextExtensions
             return row;
         }
 
+    }
+
+    extension(bool targetMutationSubmissionStarted)
+    {
+        /// <summary>Determines whether a failed projection mutation journal can be removed without hiding an ambiguous write.</summary>
+        /// <param name="ownershipReleaseOrAbsenceConfirmed">Whether ownership is confirmed released or absent.</param>
+        /// <param name="activationResponseConfirmed">Whether any activation response is known rather than ambiguous.</param>
+        /// <returns><see langword="true"/> when cleanup cannot conceal a submitted or ambiguously applied mutation.</returns>
+        internal bool CanRemoveProjectionMutationJournalAfterFailure(
+            bool ownershipReleaseOrAbsenceConfirmed = true,
+            bool activationResponseConfirmed = true)
+            => !targetMutationSubmissionStarted &&
+                ownershipReleaseOrAbsenceConfirmed &&
+                activationResponseConfirmed;
     }
 
     extension(ReferenceContractVersion value)

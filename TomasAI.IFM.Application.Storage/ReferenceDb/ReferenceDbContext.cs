@@ -33,7 +33,7 @@ public sealed class ReferenceDbContext(
     readonly ISequenceIdGenerator _sequenceIdGenerator = sequenceIdGenerator;
     /// <summary>Gets the Reference database connection-setting key.</summary>
     public const string ReferenceDbConnection = "ReferenceDbConnection";
-    internal const string ScheduledJobProjectionName = "scheduled_job_by_name_v3";
+    internal const string ScheduledJobProjectionName = "scheduled_job_by_name";
     internal const string ScheduledJobIdOwnershipScope = "job-id";
     internal const string ScheduledJobNameOwnershipScope = "job-name";
     internal const char ProjectionScopeSeparator = '\u001f';
@@ -267,7 +267,7 @@ public sealed class ReferenceDbContext(
                         .QueueCommand()
                 };
                 targetMutationSubmissionStarted = true;
-                await ProjectionMutationSafety.ExecuteCanonicalMutationThenReleaseReservationAsync(
+                await this.ExecuteCanonicalMutationThenReleaseReservationAsync(
                     () => db.ExecuteQueuedCommandsAsync(queuedCommands),
                     () => this.ReleaseScheduledJobNameReservationAsync(
                         db,
@@ -825,7 +825,7 @@ public sealed class ReferenceDbContext(
                 }
 
                 targetMutationSubmissionStarted = true;
-                await ProjectionMutationSafety.ExecuteCanonicalMutationThenReleaseReservationAsync(
+                await this.ExecuteCanonicalMutationThenReleaseReservationAsync(
                     () => db.ExecuteQueuedCommandsAsync(queuedCommands),
                     oldNameReservationToken.HasValue
                         ? () => this.ReleaseScheduledJobNameReservationAsync(
@@ -971,9 +971,7 @@ public sealed class ReferenceDbContext(
         CancellationToken cancellationToken = default,
         DateTime? staleOperationCutoffUtc = null)
     {
-        ProjectionMutationSafety.ValidateStaleOperationCutoffUtc(
-            staleOperationCutoffUtc,
-            nameof(staleOperationCutoffUtc));
+        staleOperationCutoffUtc.ValidateStaleOperationCutoffUtc(nameof(staleOperationCutoffUtc));
 
         var db = _dbFactory.ReferenceDb;
         if (staleOperationCutoffUtc is { } verifiedInactiveCutoffUtc)
@@ -1072,8 +1070,7 @@ public sealed class ReferenceDbContext(
         }
         finally
         {
-            if (!published && ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted))
+            if (!published && targetMutationSubmissionStarted.CanRemoveProjectionMutationJournalAfterFailure())
             {
                 var cleanupTasks = new List<Task>(1);
                 if (scheduledJobMutation.HasValue)
@@ -1126,14 +1123,6 @@ public sealed class ReferenceDbContext(
             projectedJobs.Except(sourceJobs).LongCount(),
             tokenlessScheduledJobReservations);
     }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<LegacyTradeStrategyFamily>> GetLegacyTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default) =>
-        [.. await _dbFactory.ReferenceDb
-            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLegacyTradeStrategyFamilies)}", ReferenceDbCql.GetLegacyTradeStrategyFamilies)
-            .SetParameters(new GetTradeStrategyFamilies("V1"))
-            .ExecuteQueryAsync(e => new LegacyTradeStrategyFamily(e.GetInt(0), e.GetLong(1), e.GetString(2), e.GetString(3),
-                e.GetEnum<TradeStrategyFamilyState>(4), e.GetDateTime(5), e.GetString(6)), cancellationToken)];
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<TradeStrategyFamilyReadModel>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default) =>

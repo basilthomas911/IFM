@@ -10,7 +10,6 @@ internal static class Program
         {
             try {
                 if (args[0] == "--event-log-single-index-benchmark") EventLogSingleIndexBenchmark.RunAsync(args[1..]).GetAwaiter().GetResult();
-                else if (args[0] == "--event-log-v2-cutover-qualification") EventLogV2CutoverQualification.RunAsync(args[1..]).GetAwaiter().GetResult();
                 else if (args[0] == "--event-log-v2-benchmark") EventLogV2Benchmark.RunAsync(args[1..]).GetAwaiter().GetResult();
                 else if (args[0] == "--event-log-marker-qualification") EventLogMarkerQualification.RunAsync(args[1..]).GetAwaiter().GetResult();
                 else if (args[0] == "--event-log-index-migration-qualification") EventLogIndexMigrationQualification.RunAsync(args[1..]).GetAwaiter().GetResult();

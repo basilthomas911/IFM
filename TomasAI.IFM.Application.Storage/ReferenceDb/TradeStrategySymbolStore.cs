@@ -9,11 +9,11 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 public sealed class TradeStrategySymbolStore(IDbContextFactory db, ISequenceIdGenerator sequenceIds) : ITradeStrategySymbolStore
 {
     public const string CreateTable = """
-        CREATE TABLE IF NOT EXISTS trade_strategy_symbol_v1 (
+        CREATE TABLE IF NOT EXISTS trade_strategy_symbol (
           family int, exchange text, symbol text, currency text, id int,
           PRIMARY KEY ((family), exchange, symbol, currency));
         """;
-    const string Select = "SELECT id,symbol,currency,exchange FROM trade_strategy_symbol_v1 WHERE family=:family";
+    const string Select = "SELECT id,symbol,currency,exchange FROM trade_strategy_symbol WHERE family=:family";
     public async Task<TradeStrategySymbolReadModel> GetOrCreateAsync(TradeStrategyProduct product, CancellationToken cancellationToken)
     {
         product.Validate();
@@ -22,7 +22,7 @@ public sealed class TradeStrategySymbolStore(IDbContextFactory db, ISequenceIdGe
         var id = checked((int)await sequenceIds.GetSequenceIdAsync(SequenceName.Reference_TradeStrategySymbolId, cancellationToken).ConfigureAwait(false));
         if (id <= 0) throw new InvalidOperationException("The product sequence returned a non-positive identity.");
         await db.ReferenceDb.Use("TradeStrategySymbol.Insert", """
-            INSERT INTO trade_strategy_symbol_v1 (family,exchange,symbol,currency,id)
+            INSERT INTO trade_strategy_symbol (family,exchange,symbol,currency,id)
             VALUES (:family,:exchange,:symbol,:currency,:id) IF NOT EXISTS;
             """).SetParameters(new Parameters([(int)product.Family, product.Exchange, product.Symbol, product.Currency, id]))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);

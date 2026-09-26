@@ -196,7 +196,6 @@ public sealed class MarketDataDbContextConventionTests
     {
         Type[] resultTypes =
         [
-            typeof(EconomicCalendarCutoverReadModel),
             typeof(FmpQueryProjectionBackfillReadModel),
             typeof(FuturesTradeSignalRepairReadModel),
             typeof(MarketDataProjectionBackfillReadModel),
@@ -210,7 +209,7 @@ public sealed class MarketDataDbContextConventionTests
 
         Assert.All(resultTypes, type =>
         {
-            Assert.Same(typeof(EconomicCalendarCutoverReadModel).Assembly, type.Assembly);
+            Assert.Same(typeof(FmpQueryProjectionBackfillReadModel).Assembly, type.Assembly);
             Assert.Equal("TomasAI.IFM.Domain.MarketData.Shared.ViewModels", type.Namespace);
             Assert.EndsWith("ReadModel", type.Name, StringComparison.Ordinal);
         });

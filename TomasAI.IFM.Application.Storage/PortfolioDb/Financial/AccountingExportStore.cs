@@ -1,5 +1,6 @@
 using System.Globalization;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using static TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbFinancialSupport;
 

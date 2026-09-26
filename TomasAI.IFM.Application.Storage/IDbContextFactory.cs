@@ -27,9 +27,6 @@ namespace TomasAI.IFM.Application.Storage;
 
 public interface IDbContextFactory
 {
-    IObjectRepository<TRepo> Get<TRepo>() where TRepo : IObjectRepository;
-    IDbContextPool<ReferenceDbContext> ReferencePool { get; }
-
     IEventSourceActorDbContext ActorEventSourceDb { get; }
     IObjectRepository<SequenceIdDbContext> SequenceIdDb { get; }
 
