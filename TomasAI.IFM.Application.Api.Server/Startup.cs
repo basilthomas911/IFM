@@ -35,7 +35,6 @@ using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
@@ -45,7 +44,6 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.LogDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
@@ -530,7 +528,6 @@ public static class Startup
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("SystemAdminDbConnection", config.GetConnectionString("SystemAdminDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("PortfolioDbConnection", config.GetConnectionString("PortfolioDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
@@ -593,7 +590,6 @@ public static class Startup
                     provider.GetRequiredService<IPortfolioDbWriteContext>()));
             services.AddSingleton<ICommandAuditLogger>(provider =>
                 (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<PortfolioDbContext>() as PortfolioDbContext)!);
             services.AddSingleton<IPortfolioDbReadContext>(provider => provider.GetRequiredService<PortfolioDbContext>());
@@ -657,7 +653,6 @@ public static class Startup
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
-            services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
             services.AddSingleton<PortfolioSchemaDb>();
             services.AddSingleton<MarketDataSchemaDb>();

@@ -121,6 +121,12 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// </summary>
     public override EventSourceActorDbContext Database => this;
 
+    /// <summary>Gets the actor event-source database read capability.</summary>
+    public IEventSourceActorDbReadContext DbReader => this;
+
+    /// <summary>Gets the actor event-source database write capability.</summary>
+    public IEventSourceActorDbWriteContext DbWriter => this;
+
     /// <summary>
     /// Configuration key for the event-source database connection.
     /// </summary>

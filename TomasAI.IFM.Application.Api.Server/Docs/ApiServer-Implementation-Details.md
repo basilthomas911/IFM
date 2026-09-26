@@ -414,7 +414,6 @@ The following settings are consumed during service registration:
 | `AppSettings:MarketDataFeedSnapshotApi:{Host,Port,ClientId}` | Interactive Brokers snapshot API |
 | `AzureStorage` | Azure storage options |
 | `ConnectionStrings:EventSourceActorDbConnection` | PostgreSQL actor event source |
-| `ConnectionStrings:LogDbConnection` | PostgreSQL logs |
 | `ConnectionStrings:SequenceIdDbConnection` | PostgreSQL sequence IDs |
 | `ConnectionStrings:FundDbConnection` | ScyllaDB fund data |
 | `ConnectionStrings:MarketDataDbConnection` | ScyllaDB market data |

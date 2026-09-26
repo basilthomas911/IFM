@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -16,6 +17,12 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    Task InsertMarketDataDownloadLogAsync(
+        MarketDataDownloadOutcome outcome,
+        Guid logCommandId,
+        string payloadSha256,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Persists one exact or explicitly invalid VWAP session projection.</summary>
     Task InsertFuturesVwapSignalAsync(FuturesVwapSignalReadModel signal,
         CancellationToken cancellationToken = default);

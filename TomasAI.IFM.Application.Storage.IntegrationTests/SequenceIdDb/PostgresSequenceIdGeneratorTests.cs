@@ -127,10 +127,10 @@ public class PostgresSequenceIdGeneratorTests
         var generator = new PostgresSequenceIdGenerator(db);
 
         var failedAllocation = async () =>
-            await generator.GetSequenceIdAsync(SequenceName.TelemetryLog_SequenceId);
+            await generator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
         await failedAllocation.Should().ThrowAsync<InvalidOperationException>();
 
-        var sequenceId = await generator.GetSequenceIdAsync(SequenceName.TelemetryLog_SequenceId);
+        var sequenceId = await generator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
         sequenceId.Should().Be(1);
     }
 
@@ -175,11 +175,11 @@ public class PostgresSequenceIdGeneratorTests
 
         long last = 0;
         for (var index = 0; index < SequenceIdSettings.AllocationSize; index++)
-            last = await generator.GetSequenceIdAsync(SequenceName.TelemetryLog_SequenceId);
+            last = await generator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
 
         last.Should().Be(long.MaxValue);
         var exhausted = async () => await generator.GetSequenceIdAsync(
-            SequenceName.TelemetryLog_SequenceId);
+            SequenceName.SpreadDistribution_Id);
         await exhausted.Should().ThrowAsync<OverflowException>();
     }
 

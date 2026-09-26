@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;

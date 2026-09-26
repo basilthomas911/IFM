@@ -19,14 +19,12 @@ public sealed class PostgresPositionalParameterCatalogTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["InsertActorCommandLog"] = "InsertCommandLog",
-            ["GetTelemetryLogsByDateRange"] = "GetTelemtryLogsByDateRange",
             ["RetryEventProjectorExecution"] = "TryRetryEventProjectorExecution",
             ["SkipEventProjectorExecution"] = "TrySkipEventProjectorExecution"
         };
 
     [Theory]
     [InlineData("EventSourceDb", "EventSourceDbSql")]
-    [InlineData("LogDb", "LogDbSql")]
     [InlineData("SequenceIdDb", "SequenceIdDbSql")]
     public void EveryPostgresBinding_UsesTypedParametersInDollarOrdinalOrder(
         string catalogNamespace,

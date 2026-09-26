@@ -14,7 +14,6 @@ using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.LogDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
@@ -45,7 +44,6 @@ public sealed class Stage2DefinitionRuntimeTests
             .Add("SecuritiesDbConnection", scylla, "System.Data.ScyllaDb")
             .Add("ConfigurationDbConnection", pg, "System.Data.Postgres")
             .Add("EventSourceActorDbConnection", pg, "System.Data.Postgres")
-            .Add("LogDbConnection", pg, "System.Data.Postgres")
             .Add("SequenceIdDbConnection", pg, "System.Data.Postgres");
         var admin = new Db(settings["admin"], logger);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
@@ -57,7 +55,6 @@ public sealed class Stage2DefinitionRuntimeTests
             await nats.CreateJetStreamContext().CreateOrUpdateStreamAsync(new StreamConfig("Stage2Events", ["Event.>"]));
             await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
             await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
-            await new LogSchemaDb(settings, logger).CreateAllAsync();
             await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
             await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
             await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();

@@ -32,7 +32,6 @@ using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader;
@@ -43,7 +42,6 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.LogDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
@@ -409,7 +407,6 @@ public static class Startup
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("ConfigurationDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("ConfigurationDbConnection")
                     ?? config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("LogDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("MarketDataDbConnection", config["IFM_TEST_MARKET_DATA_CONNECTION"]
                     ?? config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
@@ -473,7 +470,6 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
                 provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             //services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(MarketDataDbContext))!)?.Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
@@ -500,7 +496,6 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore,
                 TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresCompositionRoutePlanStore>();
             services.AddSingleton<EventSourceSchemaDb>();
-            services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
             services.AddSingleton<MarketDataSchemaDb>();
             services.AddSingleton<OptionPricerSchemaDb>();

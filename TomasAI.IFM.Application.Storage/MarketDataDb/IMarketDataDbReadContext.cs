@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -19,6 +20,21 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbReadContext
 {
+    Task<MarketDataDownloadLogResult> GetMarketDataDownloadLogAsync(
+        MarketDataDownloadPartition partition,
+        MarketDataDownloadCursor attempt,
+        CancellationToken cancellationToken = default);
+    Task<MarketDataDownloadHistoryResult> GetMarketDataDownloadHistoryAsync(
+        MarketDataDownloadPartition partition,
+        int pageSize = 100,
+        MarketDataDownloadCursor? cursor = null,
+        CancellationToken cancellationToken = default);
+    Task<MarketDataDownloadStatusResult> GetMarketDataDownloadStatusAsync(
+        MarketDataDownloadPartition partition,
+        Guid? requiredImportCommandId = null,
+        MarketDataDownloadCursor? cursor = null,
+        CancellationToken cancellationToken = default);
+
     Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalAsync(
         MarketSeriesIdentity seriesIdentity,
         DateOnly valueDate,

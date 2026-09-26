@@ -1,8 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -13,19 +11,29 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Extensions;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using MessagePack;
+using MessagePack.Resolvers;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Framework.Storage.ScyllaDb;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
@@ -35,7 +43,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name="connectionSettings"></param>
 /// <param name="dbFactory"></param>
 /// <param name="logger"></param>
-public partial class MarketDataDbContext(
+public class MarketDataDbContext(
     IDbConnectionSettings connectionSettings,
     IDbContextFactory dbFactory,
     IBlackboardService blackboardService,
@@ -81,8 +89,10 @@ public partial class MarketDataDbContext(
     /// </summary>
     public override MarketDataDbContext Database => this;
 
-    // InsertFuturesItiSignalAsync
+    /// <summary>Gets the Market Data database read capability.</summary>
     public IMarketDataDbReadContext DbReader => this;
+
+    /// <summary>Gets the Market Data database write capability.</summary>
     public IMarketDataDbWriteContext DbWriter => this;
 
     static int MapToYearMonth<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -5847,6 +5857,1694 @@ public partial class MarketDataDbContext(
         }
     }
 
+public async Task<ICollection<FuturesItiSignalMDIV2ReadModel>> GetFuturesItiSignalMDIAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+    {
+        var modes = new[]
+        {
+            IntrinsicTimeModeType.TrendExtremeChanged,
+            IntrinsicTimeModeType.TrendReversalChanged,
+            IntrinsicTimeModeType.TrendDirectionChanged
+        };
+        var latest = await Task.WhenAll(modes.Select(mode => ReadLastFuturesItiTrendModeAsync(
+            contractId, valueDate, IntrinsicTimeTrendType.UpTrend, mode, cancellationToken)));
+        var maxValueDate = latest.Where(static row => row is not null)
+            .Select(static row => row!.ValueDate)
+            .DefaultIfEmpty()
+            .Max();
+        if (maxValueDate == default)
+            return [];
+        var rows = await Task.WhenAll(modes.Select(mode => ReadFuturesItiDayModeAsync(
+            contractId, maxValueDate, mode, cancellationToken: cancellationToken)));
+        return [.. rows.SelectMany(static values => values).Select(ToFuturesItiSignalMdi)];
+    }
+
+    public async Task<ICollection<FuturesItiSignalMDIV2ReadModel>> GetFuturesItiSignalMDIByTrendAsync(
+        string contractId,
+        DateOnly valueDate,
+        IntrinsicTimeTrendType intrinsicTimeTrend,
+        int intrinsicTimeGroupId,
+        CancellationToken cancellationToken)
+    {
+        _ = intrinsicTimeGroupId; // The legacy query never applied this argument.
+        var modes = new[]
+        {
+            IntrinsicTimeModeType.TrendExtremeChanged,
+            IntrinsicTimeModeType.TrendReversalChanged,
+            IntrinsicTimeModeType.TrendDirectionChanged
+        };
+        var latest = await Task.WhenAll(modes.Select(mode => ReadLastFuturesItiTrendModeAsync(
+            contractId, valueDate, intrinsicTimeTrend, mode, cancellationToken)));
+        var maxValueDate = latest.Where(static row => row is not null)
+            .Select(static row => row!.ValueDate)
+            .DefaultIfEmpty()
+            .Max();
+        if (maxValueDate == default)
+            return [];
+        var rows = await Task.WhenAll(modes.Select(mode => ReadFuturesItiDayModeAsync(
+            contractId, maxValueDate, mode, cancellationToken: cancellationToken)));
+        return [.. rows.SelectMany(static values => values)
+            .Where(row => row.IntrinsicTimeTrend == intrinsicTimeTrend)
+            .Select(ToFuturesItiSignalMdi)];
+    }
+
+    public async Task<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionFromRSISignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int periodLength,
+        DateTime timestamp,
+        int lookbackInterval,
+        DateTime startTime,
+        DateTime endTime,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.MarketDataDb;
+        var rsiValues = await db
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesRsiSignalsForTrend)}", MarketDataDbCql.GetFuturesRsiSignalsForTrend)
+            .SetParameters(new GetFuturesRsiSignalsForTrend(
+                contractId,
+                timePeriod.ToStringFast(),
+                periodLength,
+                valueDate,
+                TimeOnly.FromDateTime(startTime),
+                TimeOnly.FromDateTime(endTime)))
+            .ExecuteQueryAsync(MapToRsi!, cancellationToken)
+            .ConfigureAwait(false);
+        var upTrendCount = rsiValues.Count(static rsi => rsi >= 50);
+        var downTrendCount = rsiValues.Count(static rsi => rsi < 50);
+        var trendDirection = upTrendCount.CompareTo(downTrendCount) switch
+        {
+            > 0 => FuturesTrendType.UpTrending,
+            < 0 => FuturesTrendType.DownTrending,
+            _ => FuturesTrendType.RangeBound
+        };
+
+        return new FuturesTrendDirectionReadModel(
+            contractId,
+            valueDate,
+            TimeOnly.FromDateTime(DateTime.Now),
+            lookbackInterval,
+            upTrendCount,
+            downTrendCount,
+            trendDirection);
+    }
+
+    public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalBySymbolAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+    {
+        var securitiesDb = (ISecuritiesDbReadContext)_dbFactory.SecuritiesDb;
+        var contracts = await securitiesDb
+            .GetFuturesContractsBySymbolAsync(symbol, cancellationToken)
+            .ConfigureAwait(false);
+        List<string> contractIds = [.. contracts.Select(static contract => contract.ContractId)];
+
+        return await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)}", MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)
+            .SetParameters(new GetLastFuturesTradeSignalBySymbol(contractIds, valueDate))
+            .ExecuteSingleAsync(MapToFuturesTradeSignal, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+const string DownloadLogSelect = "SELECT dataset, provider, scope, value_date, requested_at_utc, import_command_id, log_command_id, source_terminal_event_id, schema_version, status, started_at_utc, finished_at_utc, elapsed_milliseconds, downloaded_record_count, persisted_record_count, error_code, error_message, payload_sha256, projected_at_utc FROM market_data_download_log WHERE dataset = :Dataset AND provider = :Provider AND scope = :Scope AND value_date = :ValueDate";
+    const string DownloadLogInsert = "INSERT INTO market_data_download_log (dataset, provider, scope, value_date, requested_at_utc, import_command_id, log_command_id, source_terminal_event_id, schema_version, status, started_at_utc, finished_at_utc, elapsed_milliseconds, downloaded_record_count, persisted_record_count, error_code, error_message, payload_sha256, projected_at_utc) VALUES (:Dataset, :Provider, :Scope, :ValueDate, :RequestedAtUtc, :ImportCommandId, :LogCommandId, :SourceTerminalEventId, :SchemaVersion, :Status, :StartedAtUtc, :FinishedAtUtc, :ElapsedMilliseconds, :DownloadedRecordCount, :PersistedRecordCount, :ErrorCode, :ErrorMessage, :PayloadSha256, :ProjectedAtUtc);";
+    public async Task InsertMarketDataDownloadLogAsync(MarketDataDownloadOutcome outcome, Guid logCommandId, string payloadSha256, CancellationToken cancellationToken = default)
+    {
+        var command = new InsertMarketDataDownloadLogCommand(outcome);
+        if (command.CommandId != logCommandId || command.PayloadSha256 != payloadSha256)
+            throw new ArgumentException("DownloadLog projection identity/hash mismatch.");
+        await _dbFactory.MarketDataDb.Use("DownloadLog.Insert", DownloadLogInsert)
+            .SetParameters(new DownloadLogParameters(
+outcome.Dataset.ToString(), outcome.Provider, outcome.Scope, outcome.ValueDate, outcome.RequestedAtUtc, outcome.ImportCommandId, logCommandId, outcome.SourceTerminalEventId, outcome.SchemaVersion, outcome.Status.ToString(), outcome.StartedAtUtc, outcome.FinishedAtUtc, outcome.ElapsedMilliseconds, outcome.DownloadedRecordCount, outcome.PersistedRecordCount, outcome.ErrorCode, outcome.ErrorMessage, payloadSha256, DateTime.UtcNow))
+            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<MarketDataDownloadLogResult> GetMarketDataDownloadLogAsync(MarketDataDownloadPartition partition, MarketDataDownloadCursor attempt, CancellationToken cancellationToken = default)
+    {
+        partition.Validate(); ValidateDownloadCursor(attempt);
+        var rows = await _dbFactory.MarketDataDb.Use("DownloadLog.Exact", DownloadLogSelect + " AND requested_at_utc = :RequestedAtUtc AND import_command_id = :ImportCommandId LIMIT 1;")
+            .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, attempt.RequestedAtUtc, attempt.ImportCommandId, 1, true))
+            .ExecuteQueryAsync(MapDownloadLog, cancellationToken).ConfigureAwait(false);
+        return new(rows.FirstOrDefault());
+    }
+
+    public async Task<MarketDataDownloadHistoryResult> GetMarketDataDownloadHistoryAsync(MarketDataDownloadPartition partition, int pageSize = 100, MarketDataDownloadCursor? cursor = null, CancellationToken cancellationToken = default)
+    {
+        partition.Validate();
+        if (pageSize is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        if (cursor is not null) ValidateDownloadCursor(cursor);
+        var cql = DownloadLogSelect + (cursor is null ? "" : " AND (requested_at_utc, import_command_id) < (:RequestedAtUtc, :ImportCommandId)") + " LIMIT :RowLimit;";
+        var rows = await _dbFactory.MarketDataDb.Use(cursor is null ? "DownloadLog.History" : "DownloadLog.HistoryAfter", cql)
+            .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, cursor?.RequestedAtUtc ?? DateTime.UnixEpoch, cursor?.ImportCommandId ?? Guid.Empty, pageSize + 1))
+            .ExecuteQueryAsync(MapDownloadLog, cancellationToken).ConfigureAwait(false);
+        var items = rows.Take(pageSize).ToArray();
+        var last = items.LastOrDefault()?.Outcome;
+        return new(items, rows.Count > pageSize && last is not null ? new(last.RequestedAtUtc, last.ImportCommandId) : null);
+    }
+
+    public async Task<MarketDataDownloadStatusResult> GetMarketDataDownloadStatusAsync(MarketDataDownloadPartition partition, Guid? requiredImportCommandId = null, MarketDataDownloadCursor? cursor = null, CancellationToken cancellationToken = default)
+    {
+        if (requiredImportCommandId == Guid.Empty) throw new ArgumentException("A required import ID cannot be empty.");
+        // Each call is bounded; consumers may continue explicitly. Always keep the newest attempt separate.
+        var first = await GetMarketDataDownloadHistoryAsync(partition, 100, null, cancellationToken).ConfigureAwait(false);
+        var page = cursor is null ? first : await GetMarketDataDownloadHistoryAsync(partition, 100, cursor, cancellationToken).ConfigureAwait(false);
+        var selected = page.Attempts.FirstOrDefault(r => requiredImportCommandId.HasValue
+            ? r.Outcome.ImportCommandId == requiredImportCommandId
+            : r.Outcome.Status == MarketDataDownloadStatus.Completed);
+        var success = selected?.Outcome.Status == MarketDataDownloadStatus.Completed ? selected : null;
+        return new(success is not null, first.Attempts.FirstOrDefault(), success, page.Continuation is null,
+            selected is null ? page.Continuation : null, requiredImportCommandId.HasValue ? selected : null);
+    }
+
+    static void ValidateDownloadCursor(MarketDataDownloadCursor cursor)
+    {
+        if (cursor.ImportCommandId == Guid.Empty || cursor.RequestedAtUtc == default
+            || cursor.RequestedAtUtc != MarketDataDownloadOutcome.MillisecondUtc(cursor.RequestedAtUtc))
+            throw new ArgumentException("Invalid download attempt cursor.");
+    }
+
+    static MarketDataDownloadLogReadModel MapDownloadLog(IObjectDataRecord row)
+    {
+        var outcome = new MarketDataDownloadOutcome
+        {
+            Dataset = Enum.Parse<MarketDataDownloadDataset>(row.GetString(0)),
+            Provider = row.GetString(1),
+            Scope = row.GetString(2),
+            ValueDate = row.GetDateOnly(3),
+            RequestedAtUtc = DateTime.SpecifyKind(row.GetDateTime(4), DateTimeKind.Utc),
+            ImportCommandId = row.GetGuid(5),
+            SourceTerminalEventId = row.GetGuid(7),
+            SchemaVersion = row.GetShort(8),
+            Status = Enum.Parse<MarketDataDownloadStatus>(row.GetString(9)),
+            StartedAtUtc = DateTime.SpecifyKind(row.GetDateTime(10), DateTimeKind.Utc),
+            FinishedAtUtc = DateTime.SpecifyKind(row.GetDateTime(11), DateTimeKind.Utc),
+            ElapsedMilliseconds = row.GetLong(12),
+            DownloadedRecordCount = row.IsNull(13) ? null : row.GetLong(13),
+            PersistedRecordCount = row.IsNull(14) ? null : row.GetLong(14),
+            ErrorCode = row.IsNull(15) ? null : row.GetString(15),
+            ErrorMessage = row.IsNull(16) ? null : row.GetString(16),
+        };
+        outcome.Validate();
+        var result = new MarketDataDownloadLogReadModel(outcome, row.GetGuid(6), row.GetString(17), DateTime.SpecifyKind(row.GetDateTime(18), DateTimeKind.Utc));
+        if (result.LogCommandId != MarketDataDownloadOutcome.LoggingCommandId(outcome.ImportCommandId) || result.PayloadSha256 != outcome.ComputeHash())
+            throw new InvalidOperationException("DownloadLog read model failed integrity validation.");
+        return result;
+    }
+    readonly record struct DownloadLogReadParameters(string Dataset, string Provider, string Scope, DateOnly ValueDate, DateTime RequestedAtUtc, Guid ImportCommandId, int RowLimit, bool Exact = false) : IBindValue
+    {
+        public object Bind() => Exact
+            ? new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId }
+            : ImportCommandId == Guid.Empty
+                ? new object[] { Dataset, Provider, Scope, ValueDate, RowLimit }
+                : new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId, RowLimit };
+    }
+    readonly record struct DownloadLogParameters(string Dataset, string Provider, string Scope, DateOnly ValueDate, DateTime RequestedAtUtc, Guid ImportCommandId, Guid LogCommandId, Guid SourceTerminalEventId, short SchemaVersion, string Status, DateTime StartedAtUtc, DateTime FinishedAtUtc, long ElapsedMilliseconds, long? DownloadedRecordCount, long? PersistedRecordCount, string? ErrorCode, string? ErrorMessage, string PayloadSha256, DateTime ProjectedAtUtc) : IBindValue
+    {
+        public object Bind() => new object?[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId, LogCommandId, SourceTerminalEventId, SchemaVersion, Status, StartedAtUtc, FinishedAtUtc, ElapsedMilliseconds, DownloadedRecordCount, PersistedRecordCount, ErrorCode, ErrorMessage, PayloadSha256, ProjectedAtUtc };
+    }
+
+internal const int EconomicCalendarMaximumRangeMonths = EconomicCalendarQueryLimits.MaximumRangeMonths;
+    internal const int EconomicCalendarMaximumRows = 10_000;
+    internal const int EconomicCalendarMaximumRowsPerMonth = EconomicCalendarQueryLimits.MaximumRowsPerPartition;
+    internal const int EconomicCalendarMaximumConcurrentQueries = 4;
+    const int EconomicCalendarLookupId = 1;
+    const int EconomicCalendarCutoverId = 1;
+
+    static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord row) => new()
+    {
+        EventDate = NormalizeEconomicCalendarTimestamp(row.GetDateTime(0)),
+        CountryCode = row.GetString(1),
+        EventName = row.GetString(2),
+        Actual = GetNullableString(row, 3), Forecast = GetNullableString(row, 4), Prior = GetNullableString(row, 5),
+        Impact = GetNullableString(row, 6), Unit = GetNullableString(row, 7),
+        Change = GetNullableString(row, 8), ChangePercentage = GetNullableString(row, 9),
+        CreatedOn = row.GetDateTime(10), CreatedBy = row.GetString(11)
+    };
+
+    static string? GetNullableString(IObjectDataRecord row, int index)
+        => row.IsNull(index) ? null : row.GetString(index);
+
+    static EconomicCalendarCountryCodeReadModel MapToEconomicCalendarCountryCode(IObjectDataRecord row)
+        => new(row.GetString(0));
+
+    static DateTime NormalizeEconomicCalendarTimestamp(DateTime value)
+    {
+        var utc = ProjectionMutationSafety.AsUtc(value);
+        return new DateTime(utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMillisecond), DateTimeKind.Utc);
+    }
+
+    static int EconomicCalendarMonthBucket(DateTime value) => value.Year * 100 + value.Month;
+
+    static IEnumerable<int> EconomicCalendarMonthBucketsDescending(DateTime startDate, DateTime endDate)
+    {
+        var firstMonth = new DateTime(startDate.Year, startDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var month = new DateTime(endDate.Year, endDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+             month >= firstMonth; month = month.AddMonths(-1))
+            yield return EconomicCalendarMonthBucket(month);
+    }
+
+    public Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId id)
+        => GetEconomicCalendarAsync(id, CancellationToken.None);
+
+    public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(
+        EconomicCalendarId id, CancellationToken cancellationToken)
+    {
+        var eventDate = NormalizeEconomicCalendarTimestamp(id.EventDate);
+        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2ById)}", MarketDataDbCql.GetEconomicCalendarV2ById)
+            .SetParameters(new GetEconomicCalendarV2ById(
+                id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName))
+            .ExecuteSingleAsync(MapToEconomicCalendar!, cancellationToken);
+    }
+
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode)
+        => GetEconomicCalendarsAsync(eventDate, countryCode, CancellationToken.None);
+
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime eventDate, string countryCode, CancellationToken cancellationToken)
+    {
+        var startDate = eventDate.Date;
+        var endDate = startDate == DateTime.MaxValue.Date ? DateTime.MaxValue : startDate.AddDays(1).AddTicks(-1);
+        return GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken);
+    }
+
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime startDate, DateTime endDate, string countryCode)
+        => GetEconomicCalendarsAsync(startDate, endDate, countryCode, CancellationToken.None);
+
+    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime startDate, DateTime endDate, string countryCode, CancellationToken cancellationToken)
+    {
+        startDate = NormalizeEconomicCalendarTimestamp(startDate);
+        endDate = NormalizeEconomicCalendarTimestamp(endDate);
+        if (endDate < startDate) return [];
+        var request = new EconomicCalendarPageRequest
+        {
+            StartDateUtc = startDate,
+            EndDateUtc = endDate,
+            CountryCodes = [countryCode],
+            PageSize = EconomicCalendarQueryLimits.MaximumPageSize
+        };
+        var rows = new List<EconomicCalendarReadModel>();
+        do
+        {
+            var page = await GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
+            rows.AddRange(page.Items);
+            if (!page.HasMore || rows.Count >= EconomicCalendarMaximumRows) break;
+            request = request with { ContinuationToken = page.ContinuationToken };
+        } while (true);
+        return [.. rows.Take(EconomicCalendarMaximumRows)];
+    }
+
+    public async Task<EconomicCalendarPageReadModel> GetEconomicCalendarPageAsync(
+        EconomicCalendarPageRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        var countries = request.CountryCodes
+            .Select(static code => code.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var partitions = EconomicCalendarMonthBucketsDescending(request.StartDateUtc, request.EndDateUtc)
+            .SelectMany(month => countries.Select(country => new CalendarPartition(country, month)))
+            .ToArray();
+        var fingerprint = GetPageRequestFingerprint(request, countries);
+        var cursor = DecodePageToken(request.ContinuationToken, fingerprint, partitions.Length);
+        var rows = new List<EconomicCalendarReadModel>(request.PageSize);
+
+        for (var partitionIndex = cursor.PartitionIndex; partitionIndex < partitions.Length; partitionIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partition = partitions[partitionIndex];
+            var partitionRows = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendars)}", MarketDataDbCql.GetEconomicCalendars)
+                .SetParameters(new GetEconomicCalendars(
+                    partition.CountryCode, partition.MonthBucket, request.StartDateUtc, request.EndDateUtc))
+                .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken)
+                .ConfigureAwait(false);
+            if (partitionRows.Count > EconomicCalendarMaximumRowsPerMonth)
+                throw new InvalidOperationException(
+                    $"Economic-calendar partition '{partition.CountryCode}/{partition.MonthBucket}' exceeds the configured row bound.");
+
+            var available = partitionRows
+                .OrderByDescending(static row => row.EventDate)
+                .ThenBy(static row => row.EventName, StringComparer.Ordinal)
+                .Where(row => partitionIndex != cursor.PartitionIndex || IsAfterCursor(row, cursor))
+                .ToArray();
+            var take = Math.Min(request.PageSize - rows.Count, available.Length);
+            rows.AddRange(available.Take(take));
+            if (rows.Count == request.PageSize)
+            {
+                var last = rows[^1];
+                var hasMore = take < available.Length || partitionIndex + 1 < partitions.Length;
+                return new EconomicCalendarPageReadModel
+                {
+                    Items = [.. rows],
+                    ContinuationToken = hasMore
+                        ? EncodePageToken(new CalendarPageToken(
+                            fingerprint, partitionIndex, last.EventDate.Ticks, last.EventName))
+                        : null
+                };
+            }
+            cursor = new CalendarPageToken(fingerprint, partitionIndex + 1, null, null);
+        }
+        return new EconomicCalendarPageReadModel { Items = [.. rows] };
+    }
+
+    [Obsolete("Use GetEconomicCalendarPageAsync with explicit UTC bounds and country codes.")]
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync()
+        => GetEconomicCalendarAllAsync(CancellationToken.None);
+
+    [Obsolete("Use GetEconomicCalendarPageAsync with explicit UTC bounds and country codes.")]
+    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync(CancellationToken cancellationToken)
+    {
+        var countries = await GetEconomicCalendarCountryCodesAsync(cancellationToken).ConfigureAwait(false);
+        if (countries.Count == 0) return [];
+        var now = DateTime.UtcNow;
+        var start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-107);
+        var end = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(13).AddTicks(-1);
+        var rows = new List<EconomicCalendarReadModel>();
+        var maximumCountriesPerBatch = Math.Max(
+            1,
+            EconomicCalendarQueryLimits.MaximumPartitions
+            / EconomicCalendarQueryLimits.MaximumRangeMonths);
+        var countryCodes = countries
+            .Select(static row => row.CountryCode)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal);
+        foreach (var countryBatch in countryCodes.Chunk(maximumCountriesPerBatch))
+        {
+            var request = new EconomicCalendarPageRequest
+            {
+                StartDateUtc = start,
+                EndDateUtc = end,
+                CountryCodes = countryBatch,
+                PageSize = EconomicCalendarQueryLimits.MaximumPageSize
+            };
+            do
+            {
+                var page = await GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
+                rows.AddRange(page.Items);
+                if (!page.HasMore || rows.Count >= EconomicCalendarMaximumRows) break;
+                request = request with { ContinuationToken = page.ContinuationToken };
+            } while (true);
+            if (rows.Count >= EconomicCalendarMaximumRows) break;
+        }
+        return [.. rows
+            .OrderByDescending(static row => row.EventDate)
+            .ThenBy(static row => row.CountryCode, StringComparer.Ordinal)
+            .ThenBy(static row => row.EventName, StringComparer.Ordinal)
+            .Take(EconomicCalendarMaximumRows)];
+    }
+
+    public Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync()
+        => GetEconomicCalendarCountryCodesAsync(CancellationToken.None);
+
+    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(
+        CancellationToken cancellationToken)
+        => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarCountryCodes)}", MarketDataDbCql.GetEconomicCalendarCountryCodes)
+            .SetParameters(new GetEconomicCalendarCountryCodes(EconomicCalendarLookupId))
+            .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken);
+
+    public async Task DeleteEconomicCalendarAsync(EconomicCalendarId id)
+    {
+        var eventDate = NormalizeEconomicCalendarTimestamp(id.EventDate);
+        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteEconomicCalendarV2)}", MarketDataDbCql.DeleteEconomicCalendarV2)
+            .SetParameters(new DeleteEconomicCalendarV2(
+                id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName))
+            .ExecuteCommandAsync();
+    }
+
+    public Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar)
+        => InsertEconomicCalendarsAsync([economicCalendar]);
+
+    public Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars)
+        => InsertEconomicCalendarsAsync(economicCalendars, ImportDuplicatePolicy.Overwrite, Guid.Empty);
+
+    public async Task InsertEconomicCalendarsAsync(
+        EconomicCalendarReadModel[] economicCalendars,
+        ImportDuplicatePolicy duplicatePolicy,
+        Guid commandId)
+    {
+        ArgumentNullException.ThrowIfNull(economicCalendars);
+        if (economicCalendars.Length == 0) return;
+        ValidateImportPolicy(duplicatePolicy, commandId);
+        var db = _dbFactory.MarketDataDb;
+        var commands = new List<object>(economicCalendars.Length * 2);
+        var countryCodes = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in economicCalendars)
+        {
+            var eventDate = NormalizeEconomicCalendarTimestamp(row.EventDate);
+            var parameters = new InsertEconomicCalendarV2(
+                row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName,
+                row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
+                row.ChangePercentage, row.CreatedOn, row.CreatedBy, commandId);
+            if (duplicatePolicy == ImportDuplicatePolicy.Reject)
+            {
+                var applied = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)}", MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)
+                    .SetParameters(parameters)
+                    .ExecuteScalarAsync(MapToBoolean!);
+                if (!applied)
+                {
+                    var owner = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2CommandId)}", MarketDataDbCql.GetEconomicCalendarV2CommandId)
+                        .SetParameters(new GetEconomicCalendarV2CommandId(
+                            row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName))
+                        .ExecuteSingleAsync(MapToGuid!);
+                    if (owner != commandId)
+                        throw new MarketDataImportDuplicateException(
+                            $"An economic-calendar row with logical key '{eventDate:O}|{row.CountryCode}|{row.EventName}' already exists.");
+                }
+            }
+            else
+            {
+                commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2)}", MarketDataDbCql.InsertEconomicCalendarV2)
+                    .SetParameters(parameters).QueueCommand());
+            }
+            countryCodes.Add(row.CountryCode);
+        }
+        commands.AddRange(countryCodes.Select(countryCode => db
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarCountryCode)}", MarketDataDbCql.InsertEconomicCalendarCountryCode)
+            .SetParameters(new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, countryCode))
+            .QueueCommand()));
+        if (commands.Count > 0) await db.ExecuteQueuedCommandsAsync(commands);
+    }
+
+    public async Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar)
+    {
+        await DeleteEconomicCalendarAsync(id);
+        await InsertEconomicCalendarAsync(economicCalendar);
+    }
+
+    public async Task<EconomicCalendarCutoverResult> BackfillEconomicCalendarV2Async(
+        int batchSize = 256, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        var db = _dbFactory.MarketDataDb;
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateEconomicCalendarV2)}", MarketDataDbCql.TruncateEconomicCalendarV2)
+            .ExecuteCommandAsync(cancellationToken);
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateEconomicCalendarCountryCode)}", MarketDataDbCql.TruncateEconomicCalendarCountryCode)
+            .ExecuteCommandAsync(cancellationToken);
+        long sourceRows = 0;
+        var sourceIdentity = new ProjectionIdentityBuilder();
+        var countries = new HashSet<string>(StringComparer.Ordinal);
+        var batch = new List<InsertEconomicCalendarV2>(batchSize);
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarLegacySource)}", MarketDataDbCql.GetEconomicCalendarLegacySource)
+            .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
+        {
+            sourceRows++;
+            sourceIdentity.Add(GetEconomicCalendarProjectionIdentity(row));
+            countries.Add(row.CountryCode);
+            var eventDate = NormalizeEconomicCalendarTimestamp(row.EventDate);
+            batch.Add(new InsertEconomicCalendarV2(
+                row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName,
+                row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
+                row.ChangePercentage, row.CreatedOn, row.CreatedBy, Guid.Empty));
+            if (batch.Count == batchSize) await FlushCalendarBatchAsync();
+        }
+        await FlushCalendarBatchAsync();
+        if (countries.Count > 0)
+        {
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarCountryCode)}", MarketDataDbCql.InsertEconomicCalendarCountryCode)
+                .SetParameters(countries.Select(country =>
+                    new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, country)))
+                .ExecuteCommandAsync(cancellationToken);
+        }
+        long targetRows = 0;
+        var targetIdentity = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2All)}", MarketDataDbCql.GetEconomicCalendarV2All)
+            .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
+        {
+            targetRows++;
+            targetIdentity.Add(GetEconomicCalendarProjectionIdentity(row));
+        }
+        var source = sourceIdentity.Build();
+        var target = targetIdentity.Build();
+        var verified = sourceRows == targetRows && source.Fingerprint == target.Fingerprint;
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertEconomicCalendarCutoverV2)}", MarketDataDbCql.UpsertEconomicCalendarCutoverV2)
+            .SetParameters(new UpsertEconomicCalendarCutoverV2(
+                EconomicCalendarCutoverId, sourceRows, targetRows, source.Fingerprint,
+                target.Fingerprint, verified, DateTime.UtcNow))
+            .ExecuteCommandAsync(cancellationToken);
+        return new EconomicCalendarCutoverResult(
+            sourceRows, targetRows, source.Fingerprint, target.Fingerprint, countries.Count, verified);
+
+        async Task FlushCalendarBatchAsync()
+        {
+            if (batch.Count == 0) return;
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2)}", MarketDataDbCql.InsertEconomicCalendarV2)
+                .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
+            batch.Clear();
+        }
+    }
+
+    public async Task<FmpQueryProjectionBackfillResult> BackfillFmpQueryProjectionsAsync(
+        int batchSize = 256, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        var db = _dbFactory.MarketDataDb;
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateYieldCurveRateByDate)}", MarketDataDbCql.TruncateYieldCurveRateByDate).ExecuteCommandAsync(cancellationToken);
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateYieldCurveRateYear)}", MarketDataDbCql.TruncateYieldCurveRateYear).ExecuteCommandAsync(cancellationToken);
+        long sourceRows = 0;
+        var sourceIdentity = new ProjectionIdentityBuilder();
+        var years = new HashSet<int>();
+        var batch = new List<InsertYieldCurveRate>(batchSize);
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateProjectionSource)}", MarketDataDbCql.GetYieldCurveRateProjectionSource)
+            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
+        {
+            sourceRows++;
+            sourceIdentity.Add(GetYieldCurveProjectionIdentity(row));
+            years.Add(row.ValueDate.Year);
+            batch.Add(new InsertYieldCurveRate(
+                YieldCurveLookupId, row.ValueDate, row.OneMonth, row.TwoMonth, row.ThreeMonth,
+                row.SixMonth, row.OneYear, row.TwoYear, row.ThreeYear, row.FiveYear,
+                row.SevenYear, row.TenYear, row.TwentyYear, row.ThirtyYear));
+            if (batch.Count == batchSize) await FlushYieldBatchAsync();
+        }
+        await FlushYieldBatchAsync();
+        if (years.Count > 0)
+        {
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateYear)}", MarketDataDbCql.InsertYieldCurveRateYear)
+                .SetParameters(years.Select(year => new InsertYieldCurveRateYear(YieldCurveLookupId, year)))
+                .ExecuteCommandAsync(cancellationToken);
+        }
+        long targetRows = 0;
+        var targetIdentity = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateByDateAll)}", MarketDataDbCql.GetYieldCurveRateByDateAll)
+            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
+        {
+            targetRows++;
+            targetIdentity.Add(GetYieldCurveProjectionIdentity(row));
+        }
+        var projectedYears = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateYearAll)}", MarketDataDbCql.GetYieldCurveRateYearAll)
+            .ExecuteQueryAsync(MapToYearMonth, cancellationToken);
+        var source = sourceIdentity.Build();
+        var target = targetIdentity.Build();
+        var sourceYears = BuildIntegerSetIdentity(years);
+        var targetYears = BuildIntegerSetIdentity(projectedYears);
+        return new FmpQueryProjectionBackfillResult(
+            sourceRows, targetRows, source.Fingerprint, target.Fingerprint,
+            years.Count, projectedYears.Count, sourceYears.Fingerprint, targetYears.Fingerprint);
+
+        async Task FlushYieldBatchAsync()
+        {
+            if (batch.Count == 0) return;
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateByDate)}", MarketDataDbCql.InsertYieldCurveRateByDate)
+                .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
+            batch.Clear();
+        }
+    }
+
+    static bool IsAfterCursor(EconomicCalendarReadModel row, CalendarPageToken cursor)
+        => cursor.LastEventDateTicks is null
+            || row.EventDate.Ticks < cursor.LastEventDateTicks.Value
+            || (row.EventDate.Ticks == cursor.LastEventDateTicks.Value
+                && string.CompareOrdinal(row.EventName, cursor.LastEventName) > 0);
+
+    static string GetPageRequestFingerprint(EconomicCalendarPageRequest request, string[] countries)
+    {
+        var identity = $"v1|{request.StartDateUtc.Ticks}|{request.EndDateUtc.Ticks}|{string.Join(',', countries)}|{request.PageSize}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+    }
+
+    static string EncodePageToken(CalendarPageToken token)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(token);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    static CalendarPageToken DecodePageToken(string? token, string fingerprint, int partitionCount)
+    {
+        if (string.IsNullOrEmpty(token)) return new CalendarPageToken(fingerprint, 0, null, null);
+        try
+        {
+            var value = token.Replace('-', '+').Replace('_', '/');
+            value = value.PadRight(value.Length + ((4 - value.Length % 4) % 4), '=');
+            var cursor = JsonSerializer.Deserialize<CalendarPageToken>(Convert.FromBase64String(value))
+                ?? throw new FormatException();
+            if (!string.Equals(cursor.Fingerprint, fingerprint, StringComparison.Ordinal)
+                || cursor.PartitionIndex < 0 || cursor.PartitionIndex > partitionCount
+                || cursor.LastEventName?.Any(char.IsControl) == true)
+                throw new FormatException();
+            return cursor;
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            throw new ArgumentException(
+                "The economic-calendar continuation token is invalid for this request.", nameof(token), ex);
+        }
+    }
+
+    static ulong GetEconomicCalendarProjectionIdentity(EconomicCalendarReadModel row)
+    {
+        var hash = MarketDataProjectionHash.Start();
+        hash = MarketDataProjectionHash.Add(hash, row.EventDate.Ticks);
+        hash = MarketDataProjectionHash.Add(hash, row.CountryCode);
+        hash = MarketDataProjectionHash.Add(hash, row.EventName);
+        hash = MarketDataProjectionHash.Add(hash, row.Actual);
+        hash = MarketDataProjectionHash.Add(hash, row.Forecast);
+        hash = MarketDataProjectionHash.Add(hash, row.Prior);
+        hash = MarketDataProjectionHash.Add(hash, row.Impact);
+        hash = MarketDataProjectionHash.Add(hash, row.Unit);
+        hash = MarketDataProjectionHash.Add(hash, row.Change);
+        hash = MarketDataProjectionHash.Add(hash, row.ChangePercentage);
+        hash = MarketDataProjectionHash.Add(hash, row.CreatedOn.Ticks);
+        return MarketDataProjectionHash.Add(hash, row.CreatedBy);
+    }
+
+    static ulong GetYieldCurveProjectionIdentity(YieldCurveRateReadModel row)
+    {
+        var hash = MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), row.ValueDate);
+        hash = MarketDataProjectionHash.Add(hash, row.OneMonth);
+        hash = MarketDataProjectionHash.Add(hash, row.TwoMonth);
+        hash = MarketDataProjectionHash.Add(hash, row.ThreeMonth);
+        hash = MarketDataProjectionHash.Add(hash, row.SixMonth);
+        hash = MarketDataProjectionHash.Add(hash, row.OneYear);
+        hash = MarketDataProjectionHash.Add(hash, row.TwoYear);
+        hash = MarketDataProjectionHash.Add(hash, row.ThreeYear);
+        hash = MarketDataProjectionHash.Add(hash, row.FiveYear);
+        hash = MarketDataProjectionHash.Add(hash, row.SevenYear);
+        hash = MarketDataProjectionHash.Add(hash, row.TenYear);
+        hash = MarketDataProjectionHash.Add(hash, row.TwentyYear);
+        return MarketDataProjectionHash.Add(hash, row.ThirtyYear);
+    }
+
+    static ProjectionIdentity BuildIntegerSetIdentity(IEnumerable<int> values)
+    {
+        var identity = new ProjectionIdentityBuilder();
+        foreach (var value in values)
+            identity.Add(MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), value));
+        return identity.Build();
+    }
+
+    readonly record struct CalendarPartition(string CountryCode, int MonthBucket);
+    sealed record CalendarPageToken(
+        string Fingerprint, int PartitionIndex, long? LastEventDateTicks, string? LastEventName);
+
+/// <summary>
+    /// Copies malformed legacy rows to an idempotent quarantine table and rebuilds
+    /// lookup entries from valid rows. Canonical source rows are never deleted.
+    /// </summary>
+    public async Task<FuturesTradeSignalRepairResult> RepairFuturesTradeSignalLookupAsync(
+        int batchSize = 256,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        var db = _dbFactory.MarketDataDb;
+        var latestRows = new Dictionary<string, FuturesTradeSignalRepairRow>(StringComparer.Ordinal);
+        var dateRows = new Dictionary<(string TimePeriod, DateOnly ValueDate, string ContractId), FuturesTradeSignalRepairRow>();
+        List<InsertFuturesTradeSignalQuarantine> quarantinedRows = [];
+        long rowsScanned = 0;
+        long validRowCount = 0;
+        long quarantinedRowCount = 0;
+
+        await foreach (var payload in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalJsonAll)}", MarketDataDbCql.GetFuturesTradeSignalJsonAll)
+            .ExecuteStreamAsync(MapJsonPayload, cancellationToken))
+        {
+            rowsScanned++;
+            var parsed = ParseFuturesTradeSignalRepairRow(payload);
+            if (parsed.Row is { } row)
+            {
+                validRowCount++;
+                if (!latestRows.TryGetValue(row.TimePeriod, out var latest) || IsNewer(row, latest))
+                    latestRows[row.TimePeriod] = row;
+                var dateKey = (row.TimePeriod, row.ValueDate, row.ContractId);
+                if (!dateRows.TryGetValue(dateKey, out var dateLatest) || IsNewer(row, dateLatest))
+                    dateRows[dateKey] = row;
+                continue;
+            }
+
+            quarantinedRowCount++;
+            quarantinedRows.Add(new InsertFuturesTradeSignalQuarantine(
+                Fingerprint(payload),
+                payload,
+                parsed.Error ?? "Malformed Futures Trade Signal row",
+                DateTime.UtcNow));
+            if (quarantinedRows.Count >= batchSize)
+                await FlushQuarantineAsync().ConfigureAwait(false);
+        }
+
+        await FlushQuarantineAsync().ConfigureAwait(false);
+
+        var latestLookupRows = latestRows.Values
+            .Select(static row => new InsertFuturesTradeSignalIndex(
+                $"latest:{row.TimePeriod}",
+                "latest",
+                row.SequenceId,
+                row.ContractId,
+                row.ValueDate,
+                row.TimePeriod));
+        var dateLookupRows = dateRows.Values
+            .Select(static row => new InsertFuturesTradeSignalIndex(
+                $"date:{row.TimePeriod}:{row.ValueDate.DayNumber}",
+                row.ContractId,
+                row.SequenceId,
+                row.ContractId,
+                row.ValueDate,
+                row.TimePeriod));
+        var lookupRows = latestLookupRows.Concat(dateLookupRows).ToArray();
+        for (var offset = 0; offset < lookupRows.Length; offset += batchSize)
+        {
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", MarketDataDbCql.InsertFuturesTradeSignalIndex)
+                .SetParameters(lookupRows.Skip(offset).Take(batchSize))
+                .ExecuteCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return new FuturesTradeSignalRepairResult(
+            rowsScanned,
+            validRowCount,
+            quarantinedRowCount,
+            lookupRows.Length);
+
+        async Task FlushQuarantineAsync()
+        {
+            if (quarantinedRows.Count == 0)
+                return;
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalQuarantine)}", MarketDataDbCql.InsertFuturesTradeSignalQuarantine)
+                .SetParameters(quarantinedRows)
+                .ExecuteCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
+            quarantinedRows.Clear();
+        }
+    }
+
+    static bool IsNewer(FuturesTradeSignalRepairRow candidate, FuturesTradeSignalRepairRow current)
+        => (candidate.ValueDate.DayNumber, candidate.Timestamp.Ticks, candidate.SequenceId)
+            .CompareTo((current.ValueDate.DayNumber, current.Timestamp.Ticks, current.SequenceId)) > 0;
+
+    internal static FuturesTradeSignalRepairParseResult ParseFuturesTradeSignalRepairRow(
+        string payload)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            var root = document.RootElement;
+            var contractId = GetString(root, "contractid");
+            var valueDateText = GetString(root, "valuedate");
+            var timePeriodText = GetString(root, "timeperiod");
+            var timestampText = GetString(root, "timestamp");
+            var sequenceId = GetInt64(root, "sequenceid");
+            List<string> errors = [];
+
+            if (string.IsNullOrWhiteSpace(contractId) || contractId.Contains(','))
+                errors.Add("invalid contractId");
+            var hasValidDate = DateOnly.TryParseExact(
+                    valueDateText,
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var valueDate);
+            if (!hasValidDate || valueDate == DateOnly.MinValue || valueDate == DateOnly.MaxValue)
+                errors.Add("invalid valueDate");
+            if (!Enum.TryParse<TimeFrameType>(timePeriodText, true, out var timePeriod) ||
+                !Enum.IsDefined(timePeriod))
+                errors.Add("invalid timePeriod");
+            if (!TimeOnly.TryParse(timestampText, CultureInfo.InvariantCulture, out var timestamp))
+                errors.Add("invalid timestamp");
+            if (sequenceId < 0)
+                errors.Add("invalid sequenceId");
+
+            if (errors.Count != 0)
+                return new FuturesTradeSignalRepairParseResult(null, string.Join(", ", errors));
+
+            return new FuturesTradeSignalRepairParseResult(
+                new FuturesTradeSignalRepairRow(
+                    contractId,
+                    valueDate,
+                    timePeriod.ToStringFast(),
+                    timestamp,
+                    sequenceId),
+                null);
+        }
+        catch (JsonException exception)
+        {
+            return new FuturesTradeSignalRepairParseResult(
+                null,
+                $"invalid JSON: {exception.Message}");
+        }
+    }
+
+    static string MapJsonPayload<TDataRecord>(TDataRecord row)
+        where TDataRecord : IObjectDataRecord => row.GetString(0);
+
+    static string Fingerprint(string payload)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
+
+    static string GetString(JsonElement root, string name)
+    {
+        if (!TryGetProperty(root, name, out var property) || property.ValueKind == JsonValueKind.Null)
+            return string.Empty;
+        return property.ValueKind == JsonValueKind.String
+            ? property.GetString() ?? string.Empty
+            : property.ToString();
+    }
+
+    static long GetInt64(JsonElement root, string name)
+    {
+        if (!TryGetProperty(root, name, out var property))
+            return -1;
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out var number))
+            return number;
+        return long.TryParse(property.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out number)
+            ? number
+            : -1;
+    }
+
+    static bool TryGetProperty(JsonElement root, string name, out JsonElement value)
+    {
+        foreach (var property in root.EnumerateObject())
+        {
+            if (property.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+const string FuturesItiSignalQueryProjection = "futures_iti_signal_queries";
+
+    static FuturesItiProjectionScopeData MapToFuturesItiProjectionScope<TDataRecord>(TDataRecord row)
+        where TDataRecord : IObjectDataRecord
+        => new(row.GetString(0), row.GetDateOnly(1), row.GetString(2), row.GetString(3));
+
+    static ulong GetFuturesItiSignalIdentity(FuturesItiSignalV2ReadModel row)
+    {
+        var hash = MarketDataProjectionHash.Start();
+        hash = MarketDataProjectionHash.Add(hash, row.ContractId);
+        hash = MarketDataProjectionHash.Add(hash, row.ValueDate);
+        hash = MarketDataProjectionHash.Add(hash, row.TimePeriod.ToStringFast());
+        hash = MarketDataProjectionHash.Add(hash, row.SequenceId);
+        hash = MarketDataProjectionHash.Add(hash, row.IntrinsicTime.Ticks);
+        hash = MarketDataProjectionHash.Add(hash, row.IntrinsicTimeGroupId);
+        hash = MarketDataProjectionHash.Add(hash, row.IntrinsicTimeLength);
+        hash = MarketDataProjectionHash.Add(hash, row.IntrinsicPrice);
+        hash = MarketDataProjectionHash.Add(hash, row.IntrinsicTimeTrend.ToStringFast());
+        hash = MarketDataProjectionHash.Add(hash, row.IntrinsicTimeMode.ToStringFast());
+        hash = MarketDataProjectionHash.Add(hash, row.TrendPrice);
+        hash = MarketDataProjectionHash.Add(hash, row.TrendExtreme);
+        hash = MarketDataProjectionHash.Add(hash, row.TrendReversal);
+        hash = MarketDataProjectionHash.Add(hash, row.TrendDelta);
+        hash = MarketDataProjectionHash.Add(hash, row.TargetDelta);
+        hash = MarketDataProjectionHash.Add(hash, row.Lambda);
+        hash = MarketDataProjectionHash.Add(hash, row.TradingDays);
+        hash = MarketDataProjectionHash.Add(hash, row.Threshold);
+        hash = MarketDataProjectionHash.Add(hash, row.UpTrendTrigger);
+        hash = MarketDataProjectionHash.Add(hash, row.DownTrendTrigger);
+        hash = MarketDataProjectionHash.Add(hash, row.TradeState.ToStringFast());
+        hash = MarketDataProjectionHash.Add(hash, row.BandLevel);
+        return MarketDataProjectionHash.Add(hash, row.ReversalLevel);
+    }
+
+    static string GetFuturesItiDayScopeKey(string contractId, DateOnly valueDate)
+        => $"day:{contractId.Length}:{contractId}:{valueDate:yyyyMMdd}";
+
+    static string GetFuturesItiMonthScopeKey(string contractId, int yearMonth)
+        => $"month:{contractId.Length}:{contractId}:{yearMonth}";
+
+    static string GetFuturesItiTimelineScopeKey(
+        string contractId,
+        string intrinsicTimeTrend,
+        string intrinsicTimeMode,
+        int yearMonth)
+        => $"timeline:{contractId.Length}:{contractId}:{intrinsicTimeTrend.Length}:{intrinsicTimeTrend}:{intrinsicTimeMode.Length}:{intrinsicTimeMode}:{yearMonth}";
+
+    static string[] GetFuturesItiProjectionScopeKeys(
+        string contractId,
+        DateOnly valueDate,
+        string intrinsicTimeTrend,
+        string intrinsicTimeMode)
+    {
+        var yearMonth = ToYearMonth(valueDate);
+        return
+        [
+            GetFuturesItiDayScopeKey(contractId, valueDate),
+            GetFuturesItiMonthScopeKey(contractId, yearMonth),
+            GetFuturesItiTimelineScopeKey(
+                contractId,
+                intrinsicTimeTrend,
+                intrinsicTimeMode,
+                yearMonth)
+        ];
+    }
+
+    static InsertFuturesItiSignal CreateFuturesItiSignalParameters(
+        FuturesItiSignalV2ReadModel e,
+        long sequenceId)
+        => new(
+            e.ContractId,
+            e.ValueDate,
+            e.TimePeriod.ToStringFast(),
+            sequenceId,
+            e.IntrinsicTime,
+            e.IntrinsicTimeGroupId,
+            e.IntrinsicTimeLength,
+            e.IntrinsicPrice,
+            e.IntrinsicTimeTrend.ToStringFast(),
+            e.IntrinsicTimeMode.ToStringFast(),
+            e.TrendPrice,
+            e.TrendExtreme,
+            e.TrendReversal,
+            e.TrendDelta,
+            e.TargetDelta,
+            e.Lambda,
+            e.TradingDays,
+            e.Threshold,
+            e.UpTrendTrigger,
+            e.DownTrendTrigger,
+            e.TradeState.ToStringFast(),
+            e.BandLevel,
+            e.ReversalLevel);
+
+    static InsertFuturesItiSignalByContractMonth CreateFuturesItiSignalMonthParameters(
+        FuturesItiSignalV2ReadModel e,
+        long sequenceId)
+        => new(
+            ToYearMonth(e.ValueDate),
+            e.ContractId,
+            e.ValueDate,
+            e.TimePeriod.ToStringFast(),
+            sequenceId,
+            e.IntrinsicTime,
+            e.IntrinsicTimeGroupId,
+            e.IntrinsicTimeLength,
+            e.IntrinsicPrice,
+            e.IntrinsicTimeTrend.ToStringFast(),
+            e.IntrinsicTimeMode.ToStringFast(),
+            e.TrendPrice,
+            e.TrendExtreme,
+            e.TrendReversal,
+            e.TrendDelta,
+            e.TargetDelta,
+            e.Lambda,
+            e.TradingDays,
+            e.Threshold,
+            e.UpTrendTrigger,
+            e.DownTrendTrigger,
+            e.TradeState.ToStringFast(),
+            e.BandLevel,
+            e.ReversalLevel);
+
+    static UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(
+        FuturesItiSignalV2ReadModel e,
+        long sequenceId)
+        => new(
+            e.ContractId,
+            e.TimePeriod.ToStringFast(),
+            GetFuturesItiCalendarBucketStart(e.ValueDate, e.TimePeriod),
+            e.TimeFrameStartValueDate == default ? e.ValueDate : e.TimeFrameStartValueDate,
+            e.ValueDate,
+            sequenceId,
+            e.IntrinsicTime,
+            e.IntrinsicTimeGroupId,
+            e.IntrinsicTimeLength,
+            e.IntrinsicPrice,
+            e.IntrinsicTimeTrend.ToStringFast(),
+            e.IntrinsicTimeMode.ToStringFast(),
+            e.TrendPrice,
+            e.TrendExtreme,
+            e.TrendReversal,
+            e.TrendDelta,
+            e.TargetDelta,
+            e.Lambda,
+            e.TradingDays,
+            e.Threshold,
+            e.UpTrendTrigger,
+            e.DownTrendTrigger,
+            e.TradeState.ToStringFast(),
+            e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice,
+            e.BandPercentage == 0 ? 0.15 : e.BandPercentage,
+            e.BandSize == 0 ? e.Threshold * 0.15 : e.BandSize,
+            e.BandLevel,
+            e.ReversalLevel);
+
+    static DateOnly GetFuturesItiCalendarBucketStart(
+        DateOnly valueDate,
+        TimeFrameType period)
+        => period switch
+        {
+            TimeFrameType.Daily => valueDate,
+            TimeFrameType.Weekly => valueDate.AddDays(
+                -(((int)valueDate.DayOfWeek + 6) % 7)),
+            TimeFrameType.Monthly => new DateOnly(valueDate.Year, valueDate.Month, 1),
+            _ => valueDate
+        };
+
+    async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadCanonicalFuturesItiSignalsAsync(
+        IReadOnlyCollection<string> contractIds,
+        DateOnly startDate,
+        DateOnly endDate)
+    {
+        var db = _dbFactory.MarketDataDb;
+        List<FuturesItiSignalV2ReadModel> rows = [];
+        foreach (var batch in contractIds.Chunk(ProjectionReadConcurrency))
+        {
+            var reads = batch.Select(async contractId => await db
+                .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
+                .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
+                .ExecuteQueryAsync(MapToFuturesItiSignal!));
+            foreach (var values in await Task.WhenAll(reads))
+                rows.AddRange(values);
+        }
+        return [.. rows
+            .Where(row => row.ValueDate >= startDate && row.ValueDate <= endDate)
+            .OrderBy(static row => row.ValueDate)
+            .ThenBy(static row => row.SequenceId)];
+    }
+
+    async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadFuturesItiSignalsByDateRangeAsync(
+        IReadOnlyCollection<string> contractIds,
+        DateOnly startDate,
+        DateOnly endDate)
+    {
+        if (contractIds.Count == 0 || endDate < startDate)
+            return [];
+
+        var yearMonths = GetYearMonths(startDate, endDate).ToArray();
+        var scopes = contractIds.SelectMany(contractId =>
+            yearMonths.Select(yearMonth => GetFuturesItiMonthScopeKey(contractId, yearMonth))).ToArray();
+        var stamp = await GetProjectionScopeReadStampAsync(FuturesItiSignalQueryProjection, scopes);
+        if (stamp is null)
+            return await ReadCanonicalFuturesItiSignalsAsync(contractIds, startDate, endDate);
+
+        var db = _dbFactory.MarketDataDb;
+        var partitions = contractIds.SelectMany(contractId =>
+            yearMonths.Select(yearMonth => (contractId, yearMonth))).ToArray();
+        List<FuturesItiSignalV2ReadModel> rows = [];
+        foreach (var batch in partitions.Chunk(ProjectionReadConcurrency))
+        {
+            var requests = batch.Select(async partition =>
+            {
+                var monthStart = GetMonthStart(partition.yearMonth);
+                var monthEnd = GetMonthEnd(partition.yearMonth);
+                return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractMonth)}", MarketDataDbCql.GetFuturesItiSignalsByContractMonth)
+                    .SetParameters(new GetFuturesItiSignalsByContractMonth(
+                        partition.contractId,
+                        partition.yearMonth,
+                        startDate > monthStart ? startDate : monthStart,
+                        endDate < monthEnd ? endDate : monthEnd))
+                    .ExecuteQueryAsync(MapToFuturesItiSignal!);
+            });
+            foreach (var values in await Task.WhenAll(requests))
+                rows.AddRange(values);
+        }
+        if (!await IsProjectionScopeReadStampValidAsync(stamp.Value))
+            return await ReadCanonicalFuturesItiSignalsAsync(contractIds, startDate, endDate);
+
+        return [.. rows
+            .OrderBy(static row => row.ValueDate)
+            .ThenBy(static row => row.SequenceId)];
+    }
+
+    async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadFuturesItiDayModeAsync(
+        string contractId,
+        DateOnly valueDate,
+        IntrinsicTimeModeType intrinsicTimeMode,
+        long? afterSequenceId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var stamp = await GetProjectionScopeReadStampAsync(
+            FuturesItiSignalQueryProjection,
+            [GetFuturesItiDayScopeKey(contractId, valueDate)]);
+        if (stamp is not null)
+        {
+            var mode = intrinsicTimeMode.ToStringFast();
+            var query = afterSequenceId.HasValue
+                ? _dbFactory.MarketDataDb
+                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)
+                    .SetParameters(new GetFuturesItiSignalsByContractDayModeAfterSequence(
+                        contractId, valueDate, mode, afterSequenceId.Value))
+                : _dbFactory.MarketDataDb
+                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)
+                    .SetParameters(new GetFuturesItiSignalsByContractDayMode(contractId, valueDate, mode));
+            var projected = await query.ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
+                .ConfigureAwait(false);
+            if (await IsProjectionScopeReadStampValidAsync(stamp.Value))
+                return projected;
+        }
+
+        var canonical = await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)
+            .SetParameters(new GetFuturesItiSignalsCanonicalByContractDay(contractId, valueDate))
+            .ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
+            .ConfigureAwait(false);
+        return [.. canonical
+            .Where(row => row.IntrinsicTimeMode == intrinsicTimeMode &&
+                (!afterSequenceId.HasValue || row.SequenceId > afterSequenceId.Value))
+            .OrderByDescending(static row => row.SequenceId)];
+    }
+
+    async Task<FuturesItiSignalV2ReadModel?> ReadLastFuturesItiTrendModeAsync(
+        string contractId,
+        DateOnly valueDate,
+        IntrinsicTimeTrendType intrinsicTimeTrend,
+        IntrinsicTimeModeType intrinsicTimeMode,
+        CancellationToken cancellationToken = default)
+    {
+        var db = _dbFactory.MarketDataDb;
+        var targetMonth = ToYearMonth(valueDate);
+        var months = (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
+            .SetParameters(new GetMarketDataProjectionMonths(FuturesItiSignalQueryProjection, targetMonth))
+            .ExecuteQueryAsync(MapToYearMonth, cancellationToken)
+            .ConfigureAwait(false)).ToArray();
+        var trend = intrinsicTimeTrend.ToStringFast();
+        var mode = intrinsicTimeMode.ToStringFast();
+        var scopes = months
+            .Select(month => GetFuturesItiTimelineScopeKey(contractId, trend, mode, month))
+            .Concat(GetProjectionGuardScopeKeys())
+            .ToArray();
+        var stamp = await GetProjectionScopeReadStampAsync(FuturesItiSignalQueryProjection, scopes);
+        if (stamp is not null)
+        {
+            FuturesItiSignalV2ReadModel? projected = null;
+            foreach (var yearMonth in months)
+            {
+                projected = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)
+                    .SetParameters(new GetLastFuturesItiSignalByTrendModeMonth(
+                        contractId, trend, mode, yearMonth,
+                        yearMonth == targetMonth ? valueDate : GetMonthEnd(yearMonth)))
+                    .ExecuteSingleAsync(MapToFuturesItiSignal!, cancellationToken)
+                    .ConfigureAwait(false);
+                if (projected is not null)
+                    break;
+            }
+            if (await IsProjectionScopeReadStampValidAsync(stamp.Value))
+                return projected;
+        }
+
+        return (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
+                .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
+                .ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
+                .ConfigureAwait(false))
+            .Where(row => row.ValueDate <= valueDate &&
+                row.IntrinsicTimeTrend == intrinsicTimeTrend &&
+                row.IntrinsicTimeMode == intrinsicTimeMode)
+            .OrderByDescending(static row => row.ValueDate)
+            .ThenByDescending(static row => row.SequenceId)
+            .FirstOrDefault();
+    }
+
+    static FuturesItiSignalMDIV2ReadModel ToFuturesItiSignalMdi(FuturesItiSignalV2ReadModel row)
+        => new(
+            contractId: row.ContractId,
+            valueDate: row.ValueDate,
+            intrinsicTime: row.IntrinsicTime,
+            trendType: row.IntrinsicTimeTrend,
+            mdi: row.IntrinsicPrice);
+
+static readonly MessagePackSerializerOptions MarketOutlookSerializerOptions =
+        MessagePackSerializerOptions.Standard
+            .WithResolver(ContractlessStandardResolver.Instance)
+            .WithCompression(MessagePackCompression.Lz4BlockArray);
+
+    public async Task UpsertMarketOutlookSnapshotAsync(
+        MarketOutlookReadModel snapshot,
+        long revision = 0,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var payload = MessagePackSerializer.Serialize(snapshot, MarketOutlookSerializerOptions);
+        var eod = MessagePackSerializer.Serialize(snapshot.FuturesEodData, MarketOutlookSerializerOptions);
+        var tradeSignal = snapshot.FuturesTradeSignal is null
+            ? null
+            : MessagePackSerializer.Serialize(snapshot.FuturesTradeSignal, MarketOutlookSerializerOptions);
+        await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertMarketOutlookSnapshot)}",
+                MarketDataDbCql.UpsertMarketOutlookSnapshot)
+            .SetParameters(new UpsertMarketOutlookSnapshot(
+                snapshot.ContractId,
+                snapshot.ValueDate,
+                revision,
+                snapshot.UpdatedAtUtc,
+                eod,
+                tradeSignal,
+                snapshot.MissingInputs,
+                payload))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<MarketOutlookReadModel?> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(contractId) || valueDate == default)
+            return null;
+        return await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketOutlookSnapshot)}",
+                MarketDataDbCql.GetMarketOutlookSnapshot)
+            .SetParameters(new GetMarketOutlookSnapshot(contractId, valueDate))
+            .ExecuteSingleAsync(MapMarketOutlookSnapshot, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    static MarketOutlookReadModel MapMarketOutlookSnapshot(IObjectDataRecord row)
+    {
+        var contractId = row.GetString(1);
+        var valueDate = row.GetDateOnly(2);
+        var payload = row.GetBytes(0);
+        var snapshot = payload.Length == 0
+            ? MapLegacyMarketOutlookSnapshot(row, contractId, valueDate)
+            : MessagePackSerializer.Deserialize<MarketOutlookReadModel>(
+                payload, MarketOutlookSerializerOptions);
+        if (!string.Equals(snapshot.ContractId, contractId, StringComparison.Ordinal)
+            || snapshot.ValueDate != valueDate)
+            throw new InvalidDataException(
+                $"Market Outlook snapshot payload identity '{snapshot.ContractId}.{snapshot.ValueDate:yyyyMMdd}' " +
+                $"does not match row identity '{contractId}.{valueDate:yyyyMMdd}'.");
+        return snapshot;
+    }
+
+    static MarketOutlookReadModel MapLegacyMarketOutlookSnapshot(
+        IObjectDataRecord row,
+        string contractId,
+        DateOnly valueDate)
+    {
+        var eodPayload = row.GetBytes(5);
+        if (eodPayload.Length == 0)
+            throw new InvalidDataException(
+                $"Market Outlook row '{contractId}.{valueDate:yyyyMMdd}' has neither a snapshot nor legacy EOD data.");
+
+        var updatedAtUtc = row.GetDateTime(4);
+        var tradeSignalPayload = row.GetBytes(6);
+        var eod = MessagePackSerializer.Deserialize<FuturesEodDataV2ReadModel>(
+            eodPayload, MarketOutlookSerializerOptions);
+        var tradeSignal = tradeSignalPayload.Length == 0
+            ? null
+            : MessagePackSerializer.Deserialize<FuturesTradeSignalV2ReadModel>(
+                tradeSignalPayload, MarketOutlookSerializerOptions);
+
+        return new MarketOutlookReadModel
+        {
+            ContractId = contractId,
+            ValueDate = valueDate,
+            UpdatedAtUtc = updatedAtUtc,
+            MarketDataAsOfUtc = updatedAtUtc,
+            RefreshTrigger = MarketOutlookRefreshTrigger.PersistedBaseline,
+            FuturesEodData = eod,
+            FuturesTradeSignal = tradeSignal,
+            MissingInputs = row.IsNull(7) ? string.Empty : row.GetString(7),
+            EsPriceAvailability = eod.IsValid
+                ? MarketOutlookInputAvailability.Available
+                : MarketOutlookInputAvailability.Unavailable
+        };
+    }
+
+const string EmaConfigurationId = "ema-10-20-50-200-v1";
+    const string BollingerBandConfigurationId = "bb-10-20-ema-center-population-v1";
+
+    /// <inheritdoc />
+    public Task InsertFuturesEmaSignalAsync(
+        FuturesEmaSignalReadModel signal,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        var metadata = signal.Metadata;
+        return _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEmaSignal)}",
+                MarketDataDbCql.InsertFuturesEmaSignal)
+            .SetParameters(new InsertFuturesEmaSignal(
+                metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(),
+                metadata.CalculationConfigurationId, Bucket(metadata.ValueDate),
+                metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value,
+                metadata.ContractId, metadata.ValueDate, signal.Price,
+                signal.Ema10, signal.PreviousEma10, signal.Ema10Slope,
+                signal.Ema20, signal.PreviousEma20, signal.Ema20Slope,
+                signal.Ema50, signal.PreviousEma50, signal.Ema50Slope,
+                signal.Ema200, signal.PreviousEma200, signal.Ema200Slope, signal.IsWarm,
+                metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime,
+                metadata.SchemaVersion, metadata.CalculationVersion,
+                metadata.CalculationMethod.ToString(), metadata.IsValid))
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task InsertFuturesBollingerBandSignalAsync(
+        FuturesBbSignalReadModel signal,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        var metadata = signal.Metadata;
+        return _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBollingerBandSignal)}",
+                MarketDataDbCql.InsertFuturesBollingerBandSignal)
+            .SetParameters(new InsertFuturesBollingerBandSignal(
+                metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(),
+                metadata.CalculationConfigurationId, Bucket(metadata.ValueDate),
+                metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value,
+                metadata.ContractId, metadata.ValueDate, signal.Price,
+                signal.Ema10Center, signal.StandardDeviation10, signal.Upper10, signal.Lower10,
+                signal.Width10, signal.Position10, signal.Ema20Center, signal.StandardDeviation20,
+                signal.Upper20, signal.Lower20, signal.Width20, signal.Position20,
+                signal.Width20Baseline, signal.Width20Ratio, signal.IsWarm,
+                metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime,
+                metadata.SchemaVersion, metadata.CalculationVersion,
+                metadata.CalculationMethod.ToString(), metadata.IsValid))
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default) =>
+        ReadLatestAsync(
+            seriesIdentity,
+            valueDate,
+            EmaConfigurationId,
+            MarketDataDbCql.GetLatestFuturesEmaSignal,
+            nameof(MarketDataDbCql.GetLatestFuturesEmaSignal),
+            MapToFuturesEmaSignal,
+            cancellationToken);
+
+    /// <inheritdoc />
+    public Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default) =>
+        ReadLatestAsync(
+            seriesIdentity,
+            valueDate,
+            BollingerBandConfigurationId,
+            MarketDataDbCql.GetLatestFuturesBollingerBandSignal,
+            nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal),
+            MapToFuturesBollingerBandSignal,
+            cancellationToken);
+
+    public Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalForTimeFrameAsync(
+        MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame,
+        CancellationToken cancellationToken = default)
+    {
+        if (timeFrame is not TimeFrameType.FiveMinutes)
+            throw new ArgumentOutOfRangeException(nameof(timeFrame));
+        return ReadMonthAsync(seriesIdentity, valueDate,
+            valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc),
+            BollingerBandConfigurationId, MarketDataDbCql.GetLatestFuturesBollingerBandSignal,
+            nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal), MapToFuturesBollingerBandSignal,
+            cancellationToken, timeFrame);
+    }
+
+    async Task<T?> ReadLatestAsync<T>(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly valueDate,
+        string configurationId,
+        string cql,
+        string operation,
+        Func<IObjectDataRecord, T> map,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        var endOfValueDateUtc = valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var result = await ReadMonthAsync(
+            seriesIdentity, valueDate, endOfValueDateUtc, configurationId,
+            cql, operation, map, cancellationToken).ConfigureAwait(false);
+        if (result is not null)
+            return result;
+
+        var previousMonth = valueDate.AddMonths(-1);
+        return await ReadMonthAsync(
+            seriesIdentity, previousMonth, endOfValueDateUtc, configurationId,
+            cql, operation, map, cancellationToken).ConfigureAwait(false);
+    }
+
+    Task<T?> ReadMonthAsync<T>(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly partitionMonth,
+        DateTime marketDataAsOf,
+        string configurationId,
+        string cql,
+        string operation,
+        Func<IObjectDataRecord, T> map,
+        CancellationToken cancellationToken,
+        TimeFrameType timeFrame = TimeFrameType.Daily)
+        where T : class => _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{operation}", cql)
+            .SetParameters(new GetLatestFuturesRegimeSignal(
+                seriesIdentity.Format(), timeFrame.ToString(), configurationId,
+                Bucket(partitionMonth), marketDataAsOf))
+            .ExecuteSingleAsync(map, cancellationToken);
+
+    static FuturesEmaSignalReadModel MapToFuturesEmaSignal(IObjectDataRecord value)
+    {
+        var metadata = MapMetadata(value, MarketAnalyticsSignalKind.Ema);
+        return new()
+        {
+            Metadata = metadata,
+            Price = value.GetDecimal(7),
+            Ema10 = Decimal(value, 8),
+            PreviousEma10 = Decimal(value, 9),
+            Ema10Slope = Decimal(value, 10),
+            Ema20 = Decimal(value, 11),
+            PreviousEma20 = Decimal(value, 12),
+            Ema20Slope = Decimal(value, 13),
+            Ema50 = Decimal(value, 14),
+            PreviousEma50 = Decimal(value, 15),
+            Ema50Slope = Decimal(value, 16),
+            Ema200 = Decimal(value, 17),
+            PreviousEma200 = Decimal(value, 18),
+            Ema200Slope = Decimal(value, 19),
+            IsWarm = value.GetBool(20),
+            BaselineValueDate = metadata.ValueDate
+        };
+    }
+
+    static FuturesBbSignalReadModel MapToFuturesBollingerBandSignal(IObjectDataRecord value)
+    {
+        var metadata = MapMetadata(value, MarketAnalyticsSignalKind.BollingerBand, 23);
+        return new()
+        {
+            Metadata = metadata,
+            Price = value.GetDecimal(7),
+            Ema10Center = Decimal(value, 8),
+            StandardDeviation10 = Decimal(value, 9),
+            Upper10 = Decimal(value, 10),
+            Lower10 = Decimal(value, 11),
+            Width10 = Decimal(value, 12),
+            Position10 = Decimal(value, 13),
+            Ema20Center = Decimal(value, 14),
+            StandardDeviation20 = Decimal(value, 15),
+            Upper20 = Decimal(value, 16),
+            Lower20 = Decimal(value, 17),
+            Width20 = Decimal(value, 18),
+            Position20 = Decimal(value, 19),
+            Width20Baseline = Decimal(value, 20),
+            Width20Ratio = Decimal(value, 21),
+            IsWarm = value.GetBool(22),
+            BaselineValueDate = metadata.ValueDate
+        };
+    }
+
+    static MarketAnalyticsSignalMetadata MapMetadata(
+        IObjectDataRecord value,
+        MarketAnalyticsSignalKind kind,
+        int sourceSequenceIndex = 21)
+    {
+        var series = MarketSeriesIdentity.Parse(value.GetString(0));
+        var timeFrame = value.GetEnum<TimeFrameType>(1);
+        var calculatedAtIndex = sourceSequenceIndex + 1;
+        var schemaVersionIndex = sourceSequenceIndex + 2;
+        var calculationVersionIndex = sourceSequenceIndex + 3;
+        var calculationMethodIndex = sourceSequenceIndex + 4;
+        var isValidIndex = sourceSequenceIndex + 5;
+        return new()
+        {
+            SignalKey = new(series, kind, timeFrame, value.GetString(2)),
+            ContractId = value.GetString(5),
+            ValueDate = value.GetDateOnly(6),
+            ObservationId = new FuturesTradeSessionBarId(value.GetGuid(4)),
+            MarketDataAsOfUtc = new DateTimeOffset(
+                DateTime.SpecifyKind(value.GetDateTime(3), DateTimeKind.Utc)),
+            CalculatedAtUtc = new DateTimeOffset(
+                DateTime.SpecifyKind(value.GetDateTime(calculatedAtIndex), DateTimeKind.Utc)),
+            SourceSequence = value.GetLong(sourceSequenceIndex),
+            SchemaVersion = checked((ushort)value.GetInt(schemaVersionIndex)),
+            CalculationVersion = value.GetString(calculationVersionIndex),
+            CalculationMethod = value.GetEnum<MarketSignalCalculationMethod>(calculationMethodIndex),
+            IsValid = value.GetBool(isValidIndex)
+        };
+    }
+
+    static decimal? Decimal(IObjectDataRecord value, int index) =>
+        value.IsNull(index) ? null : value.GetDecimal(index);
+
+    static int Bucket(DateOnly valueDate) => (valueDate.Year * 100) + valueDate.Month;
+
+/// <inheritdoc />
+    public Task InsertFuturesVwapSignalAsync(
+        FuturesVwapSignalReadModel signal,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesVwapSignal)}",
+                MarketDataDbCql.InsertFuturesVwapSignal)
+            .SetParameters(new InsertFuturesVwapSignal(
+                signal.ContractId, signal.ValueDate, signal.ConfigurationId,
+                signal.AsOfUtc.UtcDateTime, signal.LastTradeOrdinal,
+                signal.SessionStartUtc.UtcDateTime, signal.SessionEndUtc.UtcDateTime,
+                signal.CumulativePriceVolume, signal.CumulativeVolume,
+                signal.EligibleTradeCount, signal.RejectedTradeCount, signal.LastPrice,
+                signal.Vwap, signal.PriceMinusVwap, signal.PriceToVwapPercent,
+                signal.LastTradeSourceSequence, signal.StreamEpochId,
+                signal.IsWarm, signal.IsValid, signal.InvalidReason.ToString(),
+                signal.IsTickExact, signal.CalculationMethod.ToString(),
+                signal.SchemaVersion, signal.CalculationVersion))
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<FuturesVwapSignalReadModel?> GetLatestFuturesVwapSignalAsync(
+        string contractId, DateOnly valueDate, string configurationId,
+        CancellationToken cancellationToken = default) =>
+        _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVwapSignal)}",
+                MarketDataDbCql.GetLatestFuturesVwapSignal)
+            .SetParameters(new GetLatestFuturesVwapSignal(contractId, valueDate, configurationId))
+            .ExecuteSingleAsync(MapToFuturesVwapSignal!, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ICollection<FuturesVwapSignalReadModel>> GetFuturesVwapSignalHistoryAsync(
+        string contractId, DateOnly valueDate, string configurationId,
+        CancellationToken cancellationToken = default) =>
+        await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesVwapSignalHistory)}",
+                MarketDataDbCql.GetFuturesVwapSignalHistory)
+            .SetParameters(new GetFuturesVwapSignalHistory(contractId, valueDate, configurationId))
+            .ExecuteQueryAsync(MapToFuturesVwapSignal!, cancellationToken);
+
+    static FuturesVwapSignalReadModel MapToFuturesVwapSignal<TDataRecord>(
+        TDataRecord row) where TDataRecord : IObjectDataRecord => new()
+    {
+        ContractId = row.GetString(0),
+        ValueDate = row.GetDateOnly(1),
+        ConfigurationId = row.GetString(2),
+        SessionStartUtc = new(row.GetDateTime(3), TimeSpan.Zero),
+        SessionEndUtc = new(row.GetDateTime(4), TimeSpan.Zero),
+        AsOfUtc = new(row.GetDateTime(5), TimeSpan.Zero),
+        CumulativePriceVolume = row.GetDecimal(6),
+        CumulativeVolume = row.GetLong(7),
+        EligibleTradeCount = row.GetLong(8),
+        RejectedTradeCount = row.GetLong(9),
+        LastPrice = row.GetDecimal(10),
+        Vwap = row.IsNull(11) ? null : row.GetDecimal(11),
+        PriceMinusVwap = row.IsNull(12) ? null : row.GetDecimal(12),
+        PriceToVwapPercent = row.IsNull(13) ? null : row.GetDecimal(13),
+        LastTradeSourceSequence = row.GetLong(14),
+        StreamEpochId = row.GetGuid(15),
+        LastTradeOrdinal = row.GetLong(16),
+        IsWarm = row.GetBool(17),
+        IsValid = row.GetBool(18),
+        InvalidReason = Enum.Parse<FuturesVwapInvalidReason>(row.GetString(19)),
+        IsTickExact = row.GetBool(20),
+        CalculationMethod = Enum.Parse<FuturesVwapCalculationMethod>(row.GetString(21)),
+        SchemaVersion = row.GetInt(22),
+        CalculationVersion = row.GetString(23)
+    };
+
+/// <inheritdoc />
+    public Task InsertFuturesVxTermStructureSignalAsync(
+        FuturesVxTermStructureSignalReadModel signal,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesVxTermStructureSignal)}",
+                MarketDataDbCql.InsertFuturesVxTermStructureSignal)
+            .SetParameters(new InsertFuturesVxTermStructureSignal(
+                signal.ValueDate, signal.ConfigurationId, signal.CalculatedAtUtc.UtcDateTime,
+                signal.FrontSourceSequence, signal.BackSourceSequence,
+                signal.FrontVxContractId, signal.FrontExpiry, signal.FrontVxPrice,
+                signal.BackVxContractId, signal.BackExpiry, signal.BackVxPrice,
+                signal.FrontBackSpread, signal.FrontBackRatio, signal.TermStructurePercent,
+                signal.TermStructureState.ToString(), signal.PriorFrontBackRatio,
+                signal.PriorTermStructurePercent, signal.FrontSourceTimestampUtc.UtcDateTime,
+                signal.BackSourceTimestampUtc.UtcDateTime, signal.IsWarm, signal.IsValid,
+                signal.SchemaVersion, signal.CalculationVersion))
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<FuturesVxTermStructureSignalReadModel?> GetLatestFuturesVxTermStructureSignalAsync(
+        DateOnly valueDate,
+        string configurationId,
+        CancellationToken cancellationToken = default) =>
+        _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVxTermStructureSignal)}",
+                MarketDataDbCql.GetLatestFuturesVxTermStructureSignal)
+            .SetParameters(new GetLatestFuturesVxTermStructureSignal(valueDate, configurationId))
+            .ExecuteSingleAsync(MapToFuturesVxTermStructureSignal!, cancellationToken);
+
+    static FuturesVxTermStructureSignalReadModel MapToFuturesVxTermStructureSignal<TDataRecord>(
+        TDataRecord row) where TDataRecord : IObjectDataRecord => new()
+    {
+        ValueDate = row.GetDateOnly(0),
+        ConfigurationId = row.GetString(1),
+        FrontVxContractId = row.GetString(2),
+        FrontExpiry = row.GetDateOnly(3),
+        FrontVxPrice = row.GetDecimal(4),
+        BackVxContractId = row.GetString(5),
+        BackExpiry = row.GetDateOnly(6),
+        BackVxPrice = row.GetDecimal(7),
+        FrontBackSpread = row.GetDecimal(8),
+        FrontBackRatio = row.GetDecimal(9),
+        TermStructurePercent = row.GetDecimal(10),
+        TermStructureState = Enum.Parse<FuturesVxTermStructureState>(row.GetString(11)),
+        PriorFrontBackRatio = row.IsNull(12) ? null : row.GetDecimal(12),
+        PriorTermStructurePercent = row.IsNull(13) ? null : row.GetDecimal(13),
+        FrontSourceTimestampUtc = new(row.GetDateTime(14), TimeSpan.Zero),
+        BackSourceTimestampUtc = new(row.GetDateTime(15), TimeSpan.Zero),
+        FrontSourceSequence = row.GetLong(16),
+        BackSourceSequence = row.GetLong(17),
+        CalculatedAtUtc = new(row.GetDateTime(18), TimeSpan.Zero),
+        IsWarm = row.GetBool(19),
+        IsValid = row.GetBool(20),
+        SchemaVersion = row.GetInt(21),
+        CalculationVersion = row.GetString(22)
+    };
+
+public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e)
+    {
+        var id = e.TickDataId;
+        var data = e.TradeData;
+        return Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickTradeData)}", MarketDataDbCql.InsertTickTradeData)
+            .SetParameters(new InsertTickTradeData([
+                (sbyte)e.AssetTypeId, id.ContractId, id.ValueDate,
+                TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId,
+                id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion,
+                e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId,
+                e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn,
+                (long)data.SourceSequence, data.EventTimestampNanoseconds,
+                data.ReceiveTimestampNanoseconds, (short)data.HeaderFlags,
+                data.PriceRaw, data.Price, (long)data.Size, (short)data.Action,
+                (short)data.Side, (short)data.DbnFlags
+            ])).ExecuteCommandAsync();
+    }
+
+    /// <summary>Writes a bounded quote segment as one native CQL nested-UDT-list value.</summary>
+    public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e)
+    {
+        var id = e.TickDataId;
+        var encoded = new TickQuoteEncodedStorageCollection(e.QuoteData);
+        object?[] values = [
+            (sbyte)e.AssetTypeId, id.ContractId, id.ValueDate,
+            TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId,
+            id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion,
+            e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId,
+            e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn,
+            (short)e.EmissionReason, (short)e.QuoteCount,
+            encoded
+        ];
+        return Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickQuoteData)}", MarketDataDbCql.InsertTickQuoteData)
+            .SetParameters(new InsertTickQuoteData(values, encoded))
+            .ExecuteCommandAsync();
+    }
 }
 
 /// <summary>
@@ -5867,3 +7565,20 @@ record TradingDaysKey(
 {
     public override string ToString() => $"{StartDate:yyyy-MM-dd}|{EndDate:yyyy-MM-dd}|{MarketType}|{CurrencyType}";
 }
+
+internal sealed record FuturesTradeSignalRepairParseResult(
+    FuturesTradeSignalRepairRow? Row,
+    string? Error);
+
+internal sealed record FuturesTradeSignalRepairRow(
+    string ContractId,
+    DateOnly ValueDate,
+    string TimePeriod,
+    TimeOnly Timestamp,
+    long SequenceId);
+
+readonly record struct FuturesItiProjectionScopeData(
+    string ContractId,
+    DateOnly ValueDate,
+    string IntrinsicTimeTrend,
+    string IntrinsicTimeMode);

@@ -48,8 +48,6 @@ TomasAI.IFM.Application.Storage/                    Project root
 │   └── Schema/                                     Event-source SQL schema
 ├── FundDb/                                         Fund persistence
 │   └── Schema/                                     Fund CQL schema
-├── LogDb/                                          Telemetry-log persistence
-│   └── Schema/                                     Log SQL schema
 ├── MarketDataDb/                                   Market data and analytics persistence
 │   └── Schema/                                     Market-data CQL schema
 ├── OptionPricerDb/                                 Option-pricer persistence
@@ -128,8 +126,6 @@ TomasAI.IFM.Application.Storage/                    Project root
 | `EventSourceDb/Schema/` | Active source leaf | Defines event sequences/tables and ordered create/drop operations. |
 | `FundDb/` | Active | Fund, order, trade, transaction, balance, P&L, drawdown, bulk insert, update/delete, and backup operations. |
 | `FundDb/Schema/` | Active source leaf | Defines fund, fund-order, fund-order-trade, and fund-transaction tables. |
-| `LogDb/` | Active | Inserts telemetry logs and queries them by date range. |
-| `LogDb/Schema/` | Active source leaf | Defines the telemetry-log table. |
 | `MarketDataDb/` | Active | Broad futures tick/bar/EOD/option, volatility, analytics signal/model, yield curve, holiday, normal-curve, quote, ID, and live-feed persistence. |
 | `MarketDataDb/Schema/` | Active source leaf | Defines canonical market-data tables, query-shaped tick/EOD/VX projections, cutover state, and the RSI signal-type index in creation order. |
 | `OptionPricerDb/` | Active | Option-pricer devices, spread distributions, distribution jobs, status transitions, and domain-specific exception/parameter definitions. |
@@ -387,7 +383,6 @@ Hosts must register settings for the contexts they resolve:
 | --- | --- |
 | Actor event source | `EventSourceActorDbConnection` |
 | Fund | `FundDbConnection` |
-| Log | `LogDbConnection` |
 | Market data | `MarketDataDbConnection` |
 | Option pricer | `OptionPricerDbConnection` |
 | Predictive model | `PredictiveModelDbConnection` |
@@ -418,7 +413,6 @@ Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. 
 | --- | --- |
 | `EventSourceActorDbContext` | Actor-oriented stream save/load/map-reduce, command log status, event projector state/result persistence, incomplete-projection recovery queries, and event identity caching. |
 | `FundDbContext` | Full fund/order/trade/transaction CRUD and bulk operations plus balances, P&L, drawdown reporting, state/status changes, and database backup. |
-| `LogDbContext` | Telemetry batch insert and date-range reads. |
 | `MarketDataDbContext` | The largest context: market ticks/bars/EOD, option ticks/quotes, analytics indicators/signals/models, VX, yield curves, holidays, normal curves, IDs, and trade live feed. |
 | `OptionPricerDbContext` | Device registration and spread-distribution job/data lifecycle. |
 | `PredictiveModelDbContext` | Provider-backed context with read/write marker interfaces but no declared runtime methods; its schema remains managed. |

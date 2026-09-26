@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.LogDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
@@ -23,11 +22,10 @@ public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastruc
  {
   var connection=infrastructure.PostgresConnectionString;
   var settings=new DbConnectionSettings().Add("ConfigurationDbConnection",connection,"System.Data.Postgres")
-   .Add("EventSourceActorDbConnection",connection,"System.Data.Postgres").Add("LogDbConnection",connection,"System.Data.Postgres").Add("SequenceIdDbConnection",connection,"System.Data.Postgres");
+   .Add("EventSourceActorDbConnection",connection,"System.Data.Postgres").Add("SequenceIdDbConnection",connection,"System.Data.Postgres");
   var logger=NullLogger<DbProvider>.Instance;
   await new ConfigurationSchemaDb(settings,logger).CreateAllAsync();
   await new EventSourceSchemaDb(settings,logger).CreateAllAsync();
-  await new LogSchemaDb(settings,logger).CreateAllAsync();
   await new SequenceIdSchemaDb(settings,logger).CreateAllAsync();
   await using var source=new WebApplicationFactory<Program>();
   await using var host=source.WithWebHostBuilder(builder=>builder.UseEnvironment("Development")
@@ -37,7 +35,6 @@ public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastruc
    .UseSetting("IFM_TEST_POSTGRES_CONNECTION",connection)
    .UseSetting("ConnectionStrings:ConfigurationDbConnection",connection)
    .UseSetting("ConnectionStrings:EventSourceActorDbConnection",connection)
-   .UseSetting("ConnectionStrings:LogDbConnection",connection)
    .UseSetting("ConnectionStrings:SequenceIdDbConnection",connection)
    .ConfigureServices(services=>services.AddSingleton<IParameterAccessPolicy>(new SingleUserDevelopmentParameterAccessPolicy("Development",true))));
   using var client=host.CreateClient();
