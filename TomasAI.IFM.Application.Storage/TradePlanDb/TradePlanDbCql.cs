@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 
 public static class TradePlanDbCql
@@ -24,7 +22,4 @@ public static class TradePlanDbCql
         "SELECT payload FROM position_exit_workflow_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? LIMIT 1;";
     public const string SelectExitWorkflowTimeline =
         "SELECT payload FROM position_exit_workflow_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=?;";
-
-    public static string ForTable(string statement, string table) =>
-        string.Format(CultureInfo.InvariantCulture, statement, table);
 }

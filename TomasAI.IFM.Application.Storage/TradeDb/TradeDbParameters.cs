@@ -2,6 +2,33 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
+internal sealed record TradePlanForwardLossRatioRow(double ForwardLossRatio, long SequenceId);
+
+internal readonly record struct AssessmentValues(object[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
+internal readonly record struct CompositionValues(object[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
+internal readonly record struct RiskValues(object[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
+internal readonly record struct TradeDbValues(object?[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
+internal readonly record struct SelectionValues(object[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
 // Read query parameters
 internal readonly record struct GetOptionTrades(int orderId) : IBindValue
 {

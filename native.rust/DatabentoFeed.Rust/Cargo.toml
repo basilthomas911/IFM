@@ -29,3 +29,4 @@ strip = "symbols"
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
+linker_messages = "allow"

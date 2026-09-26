@@ -7,11 +7,23 @@ using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
 public interface ITradeDbWriteContext
 {
+    Task UpsertOrderCompositionAsync(OrderCompositionFunctionCompletedEvent completed, CancellationToken token = default);
+    Task UpsertMarketConditionAssessmentAsync(MarketConditionAssessmentCompletedEvent completed, CancellationToken cancellationToken = default);
+    Task UpsertTradeSelectionAsync(TradeSelectionFunctionCompletedEvent completed, CancellationToken cancellationToken = default);
+    Task<RiskHistoryProjectionResult> UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default);
+    Task UpsertTradeOrderAsync(TradeOrderDefinition order, CancellationToken token = default);
+    Task UpsertOrderExecutionAsync(OrderExecutionDefinition execution, CancellationToken token = default);
+    Task UpsertEstablishedTradeAsync(EstablishedTradeDefinition trade, CancellationToken token = default);
+    Task UpsertStrategyPositionAsync(StrategyPositionSnapshot position, CancellationToken token = default);
+    Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, CancellationToken token = default);
     Task UpsertMarketConditionAsync(MarketConditionReadModel result);
     Task UpsertMarketConditionAsync(MarketConditionReadModel result, CancellationToken cancellationToken);
     Task UpsertRegimeDiscoveryAsync(RegimeDiscoveryReadModel result);

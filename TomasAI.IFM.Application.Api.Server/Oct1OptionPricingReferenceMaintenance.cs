@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.Pricing;
 using TomasAI.IFM.Framework.Storage;

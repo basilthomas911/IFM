@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
-using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -24,8 +23,10 @@ public sealed class MarketDataServiceDbContext(
       IMarketDataServiceDbContext
 {
     internal readonly ISequenceIdDbContext _sequenceIds = sequenceIds;
-    internal readonly IDurableSubscriptionIntentStore _durableIntent =
-        new MarketDataServiceDurableSubscriptionStore(settings, logger);
+    internal readonly IDbConnectionSetting _connection = settings[MarketDataServiceDbConnection];
+    internal readonly ILogger<DbProvider> _logger = logger;
+    internal readonly TimeProvider _time = TimeProvider.System;
+    internal readonly Action<DurableStoreWriteStage>? _writeObserver;
 
     internal MarketDataServiceDbContext(
         IDbConnectionSettings settings,
@@ -35,7 +36,10 @@ public sealed class MarketDataServiceDbContext(
         TimeProvider? timeProvider,
         Action<DurableStoreWriteStage>? writeObserver)
         : this(settings, factory, sequenceIds, logger)
-        => _durableIntent = new MarketDataServiceDurableSubscriptionStore(settings, logger, timeProvider, writeObserver);
+    {
+        _time = timeProvider ?? TimeProvider.System;
+        _writeObserver = writeObserver;
+    }
 
     /// <summary>Gets the Market Data Service database connection name.</summary>
     public const string MarketDataServiceDbConnection = "MarketDataServiceDbConnection";
@@ -329,7 +333,7 @@ public sealed class MarketDataServiceDbContext(
         string scope,
         string dataset,
         CancellationToken cancellationToken = default)
-        => _durableIntent.ReadAsync(scope, dataset, cancellationToken);
+        => this.ReadDurableSubscriptionAsync(scope, dataset, cancellationToken);
 
     /// <summary>Gets a previously persisted durable-intent operation result.</summary>
     /// <param name="scope">The durable ownership scope.</param>
@@ -342,7 +346,7 @@ public sealed class MarketDataServiceDbContext(
         string dataset,
         Guid operationId,
         CancellationToken cancellationToken = default)
-        => _durableIntent.FindOperationAsync(scope, dataset, operationId, cancellationToken);
+        => this.FindDurableOperationAsync(scope, dataset, operationId, cancellationToken);
 
     /// <summary>Applies a durable subscription authority mutation.</summary>
     /// <param name="mutation">The authority mutation to apply atomically.</param>
@@ -351,7 +355,7 @@ public sealed class MarketDataServiceDbContext(
     public Task<DurableIntentResult> ApplyAsync(
         DurableAuthorityMutation mutation,
         CancellationToken cancellationToken = default)
-        => _durableIntent.ApplyAsync(mutation, cancellationToken);
+        => this.ApplyDurableSubscriptionAsync(mutation, cancellationToken);
 
     /// <summary>Gets pending durable subscription outbox items.</summary>
     /// <param name="scope">The durable ownership scope.</param>
@@ -364,7 +368,7 @@ public sealed class MarketDataServiceDbContext(
         string dataset,
         int pageSize = 100,
         CancellationToken cancellationToken = default)
-        => _durableIntent.ReadPendingOutboxAsync(scope, dataset, pageSize, cancellationToken);
+        => this.ReadPendingDurableOutboxAsync(scope, dataset, pageSize, cancellationToken);
 
     /// <summary>Acknowledges delivery of a durable subscription outbox item.</summary>
     /// <param name="scope">The durable ownership scope.</param>
@@ -377,7 +381,7 @@ public sealed class MarketDataServiceDbContext(
         string dataset,
         Guid transitionId,
         CancellationToken cancellationToken = default)
-        => _durableIntent.AcknowledgeOutboxAsync(scope, dataset, transitionId, cancellationToken);
+        => this.AcknowledgeDurableOutboxAsync(scope, dataset, transitionId, cancellationToken);
 
     internal static FuturesRolloverContractAssignment MapToAssignment(IObjectDataRecord row) => new()
     {

@@ -1,18 +1,30 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
+
+using MessagePack;
+using System.Security.Cryptography;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
@@ -23,7 +35,7 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <param name="dbFactory"></param>
 /// <param name="sequenceIdGenerator"></param>
 /// <param name="logger"></param>
-public partial class TradeDbContext(
+public sealed class TradeDbContext(
     IDbConnectionSettings connectionSettings,
     IDbContextFactory dbFactory,
     ISequenceIdGenerator sequenceIdGenerator,
@@ -31,18 +43,18 @@ public partial class TradeDbContext(
     : ObjectDataRepository<TradeDbContext>(connectionSettings[TradeDbConnection], logger), ITradeDbContext
 {
     public const string TradeDbConnection = "TradeDbConnection";
-    readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
-    readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
+    internal readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
+    internal readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
 
     /// <summary>
     /// Gets the database context.
     /// </summary>
     public override TradeDbContext Database => this;
 
-    /// <summary>
-    /// return db reader/writer properties
-    /// </summary>
+    /// <summary>Gets the read capability for this database context.</summary>
     public ITradeDbReadContext DbReader => this;
+
+    /// <summary>Gets the write capability for this database context.</summary>
     public ITradeDbWriteContext DbWriter => this;
 
     static TradeTypeReadModel MapToTradeType<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -68,8 +80,6 @@ public partial class TradeDbContext(
         => new(
             forwardLossRatio: e.GetDouble(0)
         );
-
-    sealed record TradePlanForwardLossRatioRow(double ForwardLossRatio, long SequenceId);
 
     static TradePlanForwardLossRatioRow MapToTradePlanForwardLossRatioRow<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
@@ -189,7 +199,7 @@ public partial class TradeDbContext(
             updatedBy: e.GetString(26)
         );
 
-    static TradeTypeLimitReadModel MapToTradeTypeLimit<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+    internal static TradeTypeLimitReadModel MapToTradeTypeLimit<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             tradeId: e.GetInt(0),
             tradeType: e.GetEnum<TradeType>(1),
@@ -254,7 +264,7 @@ public partial class TradeDbContext(
             netSpread: e.GetDecimal(8)
         );
 
-    static TradePositionReadModel MapToTradePosition<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+    internal static TradePositionReadModel MapToTradePosition<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             orderId: e.GetInt(0),
             tradeId: e.GetInt(1),
@@ -279,7 +289,7 @@ public partial class TradeDbContext(
             updatedBy: e.GetString(20)
         );
 
-    static OptionTradeLegReadModel MapToOptionLeg<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+    internal static OptionTradeLegReadModel MapToOptionLeg<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             orderId: e.GetInt(0),
             tradeId: e.GetInt(1),
@@ -294,7 +304,7 @@ public partial class TradeDbContext(
             updatedBy: e.GetString(10)
         );
 
-    static OptionTradeLegDataReadModel MapToOptionLegData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+    internal static OptionTradeLegDataReadModel MapToOptionLegData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             orderId: e.GetInt(0),
             tradeId: e.GetInt(1),
@@ -378,14 +388,14 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         await Parallel.ForEachAsync(
             Enumerable.Range(0, sourceTrades.Length),
             new ParallelOptions { MaxDegreeOfParallelism = 4 },
-            async (index, _) => hydratedTrades[index] = await FillOptionTradeAsync(sourceTrades[index]));
+            async (index, _) => hydratedTrades[index] = await this.FillOptionTradeAsync(sourceTrades[index]));
         return [.. hydratedTrades.OrderBy(e => e.IsPrimaryTrade)];
     }
 
     /// <summary>
     /// Asynchronously retrieves a collection of all option trades.
     /// </summary>
-    /// <remarks>This method queries the database to obtain all available option trade records. The returned 
+    /// <remarks>This method queries the database to obtain all available option trade records. The returned
     /// collection may be empty if no trades are found.</remarks>
     /// <returns>A task that represents the asynchronous operation. The task result contains a collection of  <see
     /// cref="OptionTradeReadModel"/> representing the option trades.</returns>
@@ -407,7 +417,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                .SetParameters(new GetOptionTrade(orderId, tradeId))
                .ExecuteSingleAsync(MapToOptionTrade!);
         if (optionTrade is not null)
-            optionTrade = await FillOptionTradeAsync(optionTrade);
+            optionTrade = await this.FillOptionTradeAsync(optionTrade);
         return optionTrade;
     }
 
@@ -483,54 +493,6 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// </summary>
     /// <param name="optionTrade"></param>
     /// <returns></returns>
-    async Task<OptionTradeReadModel> FillOptionTradeAsync(OptionTradeReadModel optionTrade)
-    {
-        var entityId = optionTrade.EntityId;
-        var db = _dbFactory.TradeDb;
-        var tradePositionsTask = db
-            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
-            .SetParameters(new GetTradePositions(entityId.OrderId, entityId.TradeId))
-            .ExecuteQueryAsync(MapToTradePosition!);
-        var optionLegsTask = db
-            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
-            .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
-            .ExecuteQueryAsync(MapToOptionLeg!);
-        var tradeLimitTask = GetTradeLimitAsync(optionTrade.TradeId);
-        var tradeTypeLimitsTask = db
-            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimits)}", TradeDbCql.GetTradeTypeLimits)
-            .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
-            .ExecuteQueryAsync(MapToTradeTypeLimit);
-        var tradeFillsTask = GetTradeFillsAsync(optionTrade.OrderId, optionTrade.TradeId);
-
-        var tradePositions = await tradePositionsTask;
-        var valueDates = tradePositions.Select(position => position.ValueDate).Distinct().ToArray();
-        var legDataByDate = new ICollection<OptionTradeLegDataReadModel>[valueDates.Length];
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, valueDates.Length),
-            new ParallelOptions { MaxDegreeOfParallelism = 4 },
-            async (dateIndex, _) => legDataByDate[dateIndex] = await db
-                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
-                .SetParameters(new GetOptionLegData(entityId.OrderId, entityId.TradeId, valueDates[dateIndex]))
-                .ExecuteQueryAsync(MapToOptionLegData!));
-
-        await Task.WhenAll(optionLegsTask, tradeLimitTask, tradeTypeLimitsTask, tradeFillsTask);
-        var optionLegs = await optionLegsTask;
-        var optionLegById = optionLegs.ToDictionary(leg => leg.ContractId, StringComparer.Ordinal);
-        var legDataByPosition = BuildLegDataByPosition(legDataByDate, optionLegById, requireOptionLeg: true);
-
-        foreach (var position in tradePositions)
-        {
-            if (legDataByPosition.TryGetValue(PositionKey(position), out var legData))
-                position.AddOptionLegData(legData);
-        }
-
-        return optionTrade
-            .AddOptionLegs(optionLegs)
-            .AddTradePosition(tradePositions)
-            .SetTradeLimit((await tradeLimitTask)!)
-            .AddTradeTypeLimits(await tradeTypeLimitsTask)
-            .AddTradeFills(await tradeFillsTask);
-    }
 
     /// <summary>
     /// return all trade positions for selected trade
@@ -563,21 +525,21 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
         var optionLegs = await optionLegsTask;
         var optionLegById = optionLegs.ToDictionary(leg => leg.ContractId, StringComparer.Ordinal);
-        var legDataByPosition = BuildLegDataByPosition(legDataByDate, optionLegById, requireOptionLeg: false);
+        var legDataByPosition = MapToLegDataByPosition(legDataByDate, optionLegById, requireOptionLeg: false);
         foreach (var position in tradePositions)
         {
-            if (legDataByPosition.TryGetValue(PositionKey(position), out var legData))
+            if (legDataByPosition.TryGetValue(MapToPositionKey(position), out var legData))
                 position.AddOptionLegData(legData);
         }
 
         return tradePositions;
     }
 
-    static (TradeType TradeType, DateOnly ValueDate, int DaysToExpiry, TradeStatus TradeStatus) PositionKey(
+    internal static (TradeType TradeType, DateOnly ValueDate, int DaysToExpiry, TradeStatus TradeStatus) MapToPositionKey(
         TradePositionReadModel position)
         => (position.TradeType, position.ValueDate, position.DaysToExpiry, position.TradeStatus);
 
-    static Dictionary<(TradeType TradeType, DateOnly ValueDate, int DaysToExpiry, TradeStatus TradeStatus), List<OptionTradeLegDataReadModel>> BuildLegDataByPosition(
+    internal static Dictionary<(TradeType TradeType, DateOnly ValueDate, int DaysToExpiry, TradeStatus TradeStatus), List<OptionTradeLegDataReadModel>> MapToLegDataByPosition(
         IEnumerable<ICollection<OptionTradeLegDataReadModel>> legDataByDate,
         IReadOnlyDictionary<string, OptionTradeLegReadModel> optionLegById,
         bool requireOptionLeg)
@@ -641,7 +603,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                     daysToExpiry
                 ))
                 .ExecuteQueryAsync(MapToTradePosition!)).Select(e => e.TradeType.ToStringFast())];
-    
+
     /// <summary>
     /// return trade position
     /// </summary>
@@ -747,7 +709,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrders)}", TradeDbCql.GetTradeOrders)
             .SetParameters(new GetTradeOrders(startDate, endDate))
             .ExecuteQueryAsync(MapToTradeOrder!);
-    
+
     /// <summary>
     /// return list of contract ids
     /// </summary>
@@ -771,7 +733,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <summary>
     /// Asynchronously retrieves a collection of all option leg data models.
     /// </summary>
-    /// <remarks>This method queries the database to obtain all option leg entries. Ensure that the database 
+    /// <remarks>This method queries the database to obtain all option leg entries. Ensure that the database
     /// connection is properly configured before calling this method.</remarks>
     /// <returns>A task that represents the asynchronous operation. The task result contains a collection of  <see
     /// cref="OptionTradeLegReadModel"/> representing all option legs.</returns>
@@ -814,7 +776,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     }
 
     /// <summary>
-    /// return trade limit for selected trade 
+    /// return trade limit for selected trade
     /// </summary>
     /// <param name="tradeId"></param>
     /// <returns></returns>
@@ -827,7 +789,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
         var tradeTypeLimit = await GetTradeTypeLimitAsync(tradeLimit!.TradeId, tradeLimit.TradeType);
         return tradeTypeLimit is not null
-            ? tradeLimit with { 
+            ? tradeLimit with {
                 MaxLossLimit = tradeTypeLimit.MaxLossLimit,
                 MinProfitLimit = tradeTypeLimit.MinProfitLimit,
                 MaxProfitLimit = tradeTypeLimit.MaxProfitLimit}
@@ -848,7 +810,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             .ExecuteQueryAsync(MapToTradeLimit!);
 
     /// <summary>
-    /// return trade limit for selected trade 
+    /// return trade limit for selected trade
     /// </summary>
     /// <param name="tradeId"></param>
     /// <param name="tradeType"></param>
@@ -860,7 +822,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             .ExecuteSingleAsync(MapToTradeTypeLimit!);
 
     /// <summary>
-    /// return all trade type limit for selected trade 
+    /// return all trade type limit for selected trade
     /// </summary>
     /// <param name="tradeId"></param>
     /// <returns></returns>
@@ -910,7 +872,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             .ExecuteQueryAsync(MapToTradeFill!);
 
     /// <summary>
-    /// return trade fills for selected trade 
+    /// return trade fills for selected trade
     /// </summary>
     /// <param name="tradeId"></param>
     /// <returns></returns>
@@ -1000,14 +962,14 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="startDate"></param>
     /// <param name="endDate"></param>
     public async Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(
-        int orderId, 
+        int orderId,
         int tradeId,
-        DateOnly startDate, 
+        DateOnly startDate,
         DateOnly endDate)
         => await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlansByDateRange)}", TradeDbCql.GetTradePlansByDateRange)
             .SetParameters(new GetTradePlansByDateRange(orderId, tradeId, startDate, endDate))
-            .ExecuteQueryAsync(MapToTradePlan!);  
+            .ExecuteQueryAsync(MapToTradePlan!);
 
     /// <summary>
     /// return trade plan forward loss ratios by date range
@@ -1019,7 +981,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         => await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlanForwardLossRatios)}", TradeDbCql.GetTradePlanForwardLossRatios)
             .SetParameters(new GetTradePlanForwardLossRatios(startDate, endDate))
-            .ExecuteQueryAsync(MapToTradePlanForwardLossRatio!);    
+            .ExecuteQueryAsync(MapToTradePlanForwardLossRatio!);
 
     /// <summary>
     /// return trade plan forward loss ration by value date
@@ -1103,7 +1065,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillDataByTradeId)}", TradeDbCql.GetTradeFillDataByTradeId)
                 .SetParameters(new GetTradeFillDataByTradeId(tradeId))
-                .ExecuteQueryAsync(MapToTradeFillData!);    
+                .ExecuteQueryAsync(MapToTradeFillData!);
 
     /// <summary>
     /// Inserts or updates an option leg in the database asynchronously.
@@ -1222,12 +1184,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         List<object> queuedCommands = [
             db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegDataById)}", TradeDbCql.DeleteOptionLegDataById)
                 .SetParameters(new DeleteOptionLegDataById(
-                    e.OrderId, 
-                    e.TradeId, 
-                    e.ValueDate, 
-                    e.TradeType.ToStringFast(), 
-                    e.DaysToExpiry, 
-                    e.TradeStatus.ToStringFast(), 
+                    e.OrderId,
+                    e.TradeId,
+                    e.ValueDate,
+                    e.TradeType.ToStringFast(),
+                    e.DaysToExpiry,
+                    e.TradeStatus.ToStringFast(),
                     e.OptionLegId))
                 .QueueCommand(),
             db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
@@ -1301,7 +1263,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// records is returned.</remarks>
     /// <param name="optionLegData">A collection of <see cref="OptionTradeLegDataReadModel"/> objects representing the option leg data to be inserted.
     /// Each object must contain valid data for all required fields.</param>
-    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of 
+    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of
     /// option leg records processed.</returns>
     public async Task<long> InsertOptionLegDataAsync(IEnumerable<OptionTradeLegDataReadModel> optionLegData)
     {
@@ -1592,11 +1554,11 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// Inserts a collection of option trade records into the database asynchronously.
     /// </summary>
     /// <remarks>This method processes the provided collection of option trades and inserts them into the
-    /// database.  The method ensures that each trade is properly formatted and includes required metadata such as 
+    /// database.  The method ensures that each trade is properly formatted and includes required metadata such as
     /// creation and update timestamps. The database operation is executed asynchronously.</remarks>
     /// <param name="optionTrades">A collection of <see cref="OptionTradeReadModel"/> objects representing the option trades to be inserted. Each
     /// object must contain valid trade details such as trade ID, order ID, trade date, and other required fields.</param>
-    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of 
+    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of
     /// option trades successfully processed and prepared for insertion.</returns>
     public async Task<long> InsertOptionTradesAsync(IEnumerable<OptionTradeReadModel> optionTrades)
     {
@@ -1647,12 +1609,14 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
               .SetParameters(new DeleteTradePositionLowerCase(
                   e.OrderId,
                   e.TradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegData)}", TradeDbCql.DeleteOptionLegData)
               .SetParameters(new DeleteOptionLegDataLowerCase(
                   e.OrderId,
                   e.TradeId
-              )).QueueCommand()
+              ))
+                  .QueueCommand()
         ];
         await db.ExecuteQueuedCommandsAsync(queuedCommands);
 
@@ -1724,7 +1688,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         if (tradePositions.Count == 0)
             return;
 
-        var queuedCommands = new List<object>();    
+        var queuedCommands = new List<object>();
         var db = _dbFactory.TradeDb;
         foreach (var e in tradePositions)
         {
@@ -1852,10 +1816,10 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// database operations.</remarks>
     /// <param name="tradePositions">A collection of <see cref="TradePositionReadModel"/> objects representing the trade positions to be inserted.
     /// Each object must contain valid trade data, including identifiers, trade details, and associated metadata.</param>
-    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of 
+    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of
     /// trade positions processed.</returns>
     public async Task<long> InsertTradePositionsAsync(IEnumerable<TradePositionReadModel> tradePositions)
-    { 
+    {
         var rowCount = 0L;
         await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePosition)}", TradeDbCql.InsertTradePosition)
@@ -2024,7 +1988,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="e">option trade spread data</param>
     /// <returns></returns>
     public async Task InsertOptionTradeSpreadDataAsync(OptionTradeSpreadsDataModel e)
-    { 
+    {
         var sequenceId = e.SequenceId > 0
             ? e.SequenceId
             : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
@@ -2257,17 +2221,20 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                     e.FundId,
                     e.OrderId,
                     e.TradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFill)}", TradeDbCql.DeleteTradeFill)
               .SetParameters(new DeleteTradeFill(
                     e.OrderId,
                     e.TradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFillData)}", TradeDbCql.DeleteTradeFillData)
               .SetParameters(new DeleteTradeFillData(
                     e.OrderId,
                     e.TradeId
-              )).QueueCommand()
+              ))
+                  .QueueCommand()
           ];
         await db.ExecuteQueuedCommandsAsync(queuedCommands);
 
@@ -2307,7 +2274,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         // save trade fills...
         foreach (var tf in e.TradeFills)
         {
-            queuedCommands.Add( 
+            queuedCommands.Add(
             db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
                 .SetParameters(new InsertTradeFill(
                     tf.OrderId,
@@ -2348,7 +2315,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task InsertTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitReadModel e)
     {
         var db = _dbFactory.TradeDb;
-        var dbReader = db as ITradeDbReadContext;   
+        var dbReader = db as ITradeDbReadContext;
         var existingTradePlanForwardLossLimit = await dbReader!.GetTradePlanForwardLossLimitAsync(e.OrderId, e.TradeId, e.ValueDate, e.TradeType);
         if (existingTradePlanForwardLossLimit is not null)
         {
@@ -2373,8 +2340,9 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
     }
 
+    /// <inheritdoc />
     public async Task InsertTradePlanForwardLossRatioAsync(
-        DateOnly valueDate, 
+        DateOnly valueDate,
         double forwardLossRatio)
     {
         var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId);
@@ -2412,7 +2380,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                     e.CreatedBy
                 ))
                 .ExecuteCommandAsync();
-        return sequenceId;  
+        return sequenceId;
     }
 
     /// <summary>
@@ -2544,14 +2512,14 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         };
 
         await dbTrade.DeleteTradePositionAsync(orderId, tradeId, tradeType, valueDate, daysToExpiry, oldTradeStatus);
-        await dbTrade.InsertTradePositionAsync(updatedTradePosition);   
+        await dbTrade.InsertTradePositionAsync(updatedTradePosition);
 
         var optionLegData = await db
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                 .SetParameters(new GetOptionLegData(orderId, tradeId, valueDate))
                 .ExecuteQueryAsync(MapToOptionLegData!);
         foreach (var o in optionLegData.Where(e => e.TradeType == tradeType
-            && e.DaysToExpiry == daysToExpiry 
+            && e.DaysToExpiry == daysToExpiry
             && e.TradeStatus == oldTradeStatus))
         {
             await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateOptionLegDataStatus)}", TradeDbCql.UpdateOptionLegDataStatus)
@@ -2780,7 +2748,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// processed  items is returned as the result.</remarks>
     /// <param name="tradeTypeLimits">A collection of <see cref="TradeTypeLimitReadModel"/> objects representing the trade type limits to be inserted.
     /// Each object must contain valid trade type and limit values.</param>
-    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of 
+    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result contains the total number of
     /// trade type limits processed and inserted into the database.</returns>
     public async Task<long> InsertTradeTypeLimitsAsync(IEnumerable<TradeTypeLimitReadModel> tradeTypeLimits)
     {
@@ -2990,7 +2958,8 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var rowCount = 0L;
         var insertTradePlansTask = InsertTradePlans();
         var insertForwardLossRatiosTask = InsertTradePlanForwardLossRatio();
-        await Task.WhenAll(insertTradePlansTask, insertForwardLossRatiosTask).ConfigureAwait(false);
+        await Task.WhenAll(insertTradePlansTask, insertForwardLossRatiosTask)
+            .ConfigureAwait(false);
         return rowCount;
 
         async Task InsertTradePlans()
@@ -3123,10 +3092,10 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePositionByPrimaryKey)}", TradeDbCql.DeleteTradePositionByPrimaryKey)
                 .SetParameters(new DeleteTradePositionByPrimaryKey(
-                    orderId, 
-                    tradeId, 
-                    tradeType.ToStringFast(), 
-                    valueDate, 
+                    orderId,
+                    tradeId,
+                    tradeType.ToStringFast(),
+                    valueDate,
                     daysToExpiry,
                     tradeStatus.ToStringFast()
                 ))
@@ -3185,40 +3154,48 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
               .SetParameters(new DeleteOptionTrade(
                   orderId,
                   tradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
          db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePosition)}", TradeDbCql.DeleteTradePosition)
               .SetParameters(new DeleteTradePosition(
                   orderId,
                   tradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLeg)}", TradeDbCql.DeleteOptionLeg)
               .SetParameters(new DeleteOptionLeg(
                   orderId,
                   tradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegData)}", TradeDbCql.DeleteOptionLegData)
               .SetParameters(new DeleteOptionLegData(
                   orderId,
                   tradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeTypeLimit)}", TradeDbCql.DeleteTradeTypeLimit)
               .SetParameters(new DeleteTradeTypeLimit(
                   tradeId
-              )).QueueCommand(),  
+              ))
+                  .QueueCommand(),
          db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeLimit)}", TradeDbCql.DeleteTradeLimit)
               .SetParameters(new DeleteTradeLimit(
                   tradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFill)}", TradeDbCql.DeleteTradeFill)
               .SetParameters(new DeleteTradeFill(
                     orderId,
                     tradeId
-              )).QueueCommand(),
+              ))
+                  .QueueCommand(),
         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFillData)}", TradeDbCql.DeleteTradeFillData)
               .SetParameters(new DeleteTradeFillData(
                     orderId,
                     tradeId
-              )).QueueCommand()];
+              ))
+                  .QueueCommand()];
 
         await db.ExecuteQueuedCommandsAsync(queuedCommands, true);
     }
@@ -3287,7 +3264,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 .SetParameters(new DeleteTradeLiveFeeds(
                     orderId
                 ))
-                .ExecuteCommandAsync(); 
+                .ExecuteCommandAsync();
 
     /// <summary>
     /// delete trade plan forward loss limit by id
@@ -3322,5 +3299,1288 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             var updatedTradeLimit = tradeLimit with { DailyProfitTarget = dailyProfitTarget, UpdatedOn = updatedOn, UpdatedBy = updatedBy };
             await InsertTradeLimitAsync(updatedTradeLimit);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<ICollection<OptionTradeReadModel>> GetOptionTradesAsync(
+        int orderId,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.TradeDb;
+        var optionTrades = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTrades)}", TradeDbCql.GetOptionTrades)
+            .SetParameters(new GetOptionTrades(orderId))
+            .ExecuteQueryAsync(MapToOptionTrade!, cancellationToken);
+
+        var sourceTrades = optionTrades.ToArray();
+        var hydratedTrades = new OptionTradeReadModel[sourceTrades.Length];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, sourceTrades.Length),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 4,
+                CancellationToken = cancellationToken
+            },
+            async (index, token) =>
+                hydratedTrades[index] = await this.FillOptionTradeAsync(sourceTrades[index], token));
+        return [.. hydratedTrades.OrderBy(e => e.IsPrimaryTrade)];
+    }
+
+    /// <inheritdoc />
+    public async Task<OptionTradeReadModel?> GetOptionTradeAsync(
+        int orderId,
+        int tradeId,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.TradeDb;
+        var optionTrade = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTrade)}", TradeDbCql.GetOptionTrade)
+            .SetParameters(new GetOptionTrade(orderId, tradeId))
+            .ExecuteSingleAsync(MapToOptionTrade!, cancellationToken);
+        return optionTrade is null
+            ? null
+            : await this.FillOptionTradeAsync(optionTrade, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<OptionTradeSpreadsDataModel?> GetOptionTradeSpreadDataAsync(
+        int orderId,
+        int tradeId,
+        DateOnly valueDate,
+        TradeType tradeType,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadData)}", TradeDbCql.GetOptionTradeSpreadData)
+            .SetParameters(new GetOptionTradeSpreadData(
+                orderId,
+                tradeId,
+                valueDate,
+                tradeType.ToStringFast()))
+            .ExecuteSingleAsync(MapToOptionTradeSpreadData!, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ICollection<OptionTradeSpreadBarsDataModel>> GetOptionTradeSpreadBarDataAsync(
+        int orderId,
+        int tradeId,
+        DateOnly valueDate,
+        TradeType tradeType,
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadBarData)}", TradeDbCql.GetOptionTradeSpreadBarData)
+            .SetParameters(new GetOptionTradeSpreadBarData(
+                orderId,
+                tradeId,
+                valueDate,
+                tradeType.ToStringFast(),
+                startDate,
+                endDate))
+            .ExecuteQueryAsync(MapToOptionTradeSpreadBarsData!, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<TradePriceReadModel?> GetIronCondorTradePriceAsync(
+        int tradeId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
+            .SetParameters(new GetOptionLegsWithValueDate(tradeId, valueDate))
+            .ExecuteSingleAsync(MapToTradePrice, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ICollection<TradePositionReadModel>> GetTradePositionsAsync(
+        int orderId,
+        int tradeId,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.TradeDb;
+        var tradePositions = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
+            .SetParameters(new GetTradePositions(orderId, tradeId))
+            .ExecuteQueryAsync(MapToTradePosition!, cancellationToken);
+        if (tradePositions.Count == 0)
+            return tradePositions;
+
+        var optionLegsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
+            .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
+            .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
+        var valueDates = tradePositions
+            .Select(position => position.ValueDate)
+            .Distinct()
+            .ToArray();
+        var legDataByDate = new ICollection<OptionTradeLegDataReadModel>[valueDates.Length];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, valueDates.Length),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 4,
+                CancellationToken = cancellationToken
+            },
+            async (dateIndex, token) =>
+                legDataByDate[dateIndex] = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
+                    .SetParameters(new GetOptionLegData(orderId, tradeId, valueDates[dateIndex]))
+                    .ExecuteQueryAsync(MapToOptionLegData!, token));
+
+        var optionLegs = await optionLegsTask;
+        var optionLegById = optionLegs.ToDictionary(
+            leg => leg.ContractId,
+            StringComparer.Ordinal);
+        var legDataByPosition = MapToLegDataByPosition(
+            legDataByDate,
+            optionLegById,
+            requireOptionLeg: false);
+        foreach (var position in tradePositions)
+        {
+            if (legDataByPosition.TryGetValue(MapToPositionKey(position), out var legData))
+                position.AddOptionLegData(legData);
+        }
+        return tradePositions;
+    }
+
+    /// <inheritdoc />
+    public async Task<TradePositionReadModel?> GetTradePositionAsync(
+        int orderId,
+        int tradeId,
+        TradeType tradeType,
+        DateOnly valueDate,
+        int daysToExpiry,
+        TradeStatus tradeStatus,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.TradeDb;
+        var tradePosition = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePosition)}", TradeDbCql.GetTradePosition)
+            .SetParameters(new GetTradePosition(
+                orderId,
+                tradeId,
+                valueDate,
+                tradeStatus.ToStringFast(),
+                daysToExpiry,
+                tradeType.ToStringFast()))
+            .ExecuteSingleAsync(MapToTradePosition!, cancellationToken);
+        if (tradePosition is null)
+            return null;
+
+        var optionLegsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
+            .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
+            .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
+        var optionLegDataTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
+            .SetParameters(new GetOptionLegData(orderId, tradeId, valueDate))
+            .ExecuteQueryAsync(MapToOptionLegData!, cancellationToken);
+        await Task.WhenAll(optionLegsTask, optionLegDataTask);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var optionLegById = (await optionLegsTask)
+            .ToDictionary(leg => leg.ContractId, StringComparer.Ordinal);
+        var updatedOptionLegData = (await optionLegDataTask)
+            .Where(e => e.TradeType == tradeType
+                && e.TradeStatus == tradeStatus
+                && e.DaysToExpiry == daysToExpiry)
+            .Select(old => (new OptionTradeLegDataReadModel(
+                orderId: tradePosition.EntityId.OrderId,
+                tradeId: tradePosition.EntityId.TradeId,
+                tradeType: tradePosition.EntityId.TradeType,
+                valueDate: tradePosition.EntityId.ValueDate,
+                daysToExpiry: tradePosition.EntityId.DaysToExpiry,
+                tradeStatus: tradePosition.EntityId.TradeStatus,
+                optionLegId: old.OptionLegId,
+                bidPrice: old.BidPrice,
+                askPrice: old.AskPrice,
+                impliedVolatility: old.ImpliedVolatility,
+                delta: old.Delta,
+                gamma: old.Gamma,
+                theta: old.Theta,
+                vega: old.Vega,
+                rho: old.Rho,
+                createdOn: old.CreatedOn,
+                createdBy: old.CreatedBy,
+                updatedOn: old.UpdatedOn,
+                updatedBy: old.UpdatedBy))
+                .SetOptionLeg(optionLegById.GetValueOrDefault(old.OptionLegId)))
+            .ToArray();
+        tradePosition.AddOptionLegData(updatedOptionLegData);
+        return tradePosition;
+    }
+
+    /// <inheritdoc />
+    public async Task<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(
+        int orderId,
+        CancellationToken cancellationToken)
+        => [.. (await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeHistory)}", TradeDbCql.GetTradeHistory)
+            .SetParameters(new GetTradeHistory(orderId))
+            .ExecuteQueryAsync(MapToTradeHistory!, cancellationToken))
+            .OrderBy(e => e.ValueDate)];
+
+    /// <inheritdoc />
+    public async Task<ICollection<TradeFillReadModel>> GetTradeFillsAsync(
+        int orderId,
+        int tradeId,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.TradeDb;
+        var tradeFills = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFills)}", TradeDbCql.GetTradeFills)
+            .SetParameters(new GetTradeFills(orderId, tradeId))
+            .ExecuteQueryAsync(MapToTradeFill!, cancellationToken);
+        foreach (var tradeFill in tradeFills)
+        {
+            var tradeFillData = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillData)}", TradeDbCql.GetTradeFillData)
+                .SetParameters(new GetTradeFillData(
+                    orderId,
+                    tradeId,
+                    tradeFill.FillDate))
+                .ExecuteQueryAsync(MapToTradeFillData!, cancellationToken);
+            if (tradeFillData.Count > 0)
+                tradeFill.AddTradeFillData(tradeFillData);
+        }
+        return tradeFills;
+    }
+
+    /// <inheritdoc />
+    public async Task<ICollection<string>> GetOptionLegContractIdsAsync(
+        int tradeId,
+        CancellationToken cancellationToken)
+        => [.. (await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
+            .SetParameters(new GetOptionLegs(tradeId))
+            .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken))
+            .Select(e => e.ContractId)];
+
+    /// <inheritdoc />
+    public async Task<int> GetTradeQuantityAsync(
+        int tradeId,
+        CancellationToken cancellationToken)
+    {
+        var optionLegs = await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
+            .SetParameters(new GetOptionLegs(tradeId))
+            .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
+        var latestTradeLegs = optionLegs
+            .GroupBy(e => e.OrderId)
+            .OrderByDescending(e => e.Max(leg => leg.UpdatedOn))
+            .FirstOrDefault();
+        return latestTradeLegs is not null
+            ? latestTradeLegs.Sum(e => e.Quantity) / latestTradeLegs.Count()
+            : 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<TradeLimitReadModel?> GetTradeLimitAsync(
+        int tradeId,
+        CancellationToken cancellationToken)
+    {
+        var tradeLimit = await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeLimit)}", TradeDbCql.GetTradeLimit)
+            .SetParameters(new GetTradeLimit(tradeId))
+            .ExecuteSingleAsync(MapToTradeLimit!, cancellationToken);
+        if (tradeLimit is null)
+            return null;
+
+        var tradeTypeLimit = await GetTradeTypeLimitAsync(
+            tradeLimit.TradeId,
+            tradeLimit.TradeType,
+            cancellationToken);
+        return tradeTypeLimit is not null
+            ? tradeLimit with
+            {
+                MaxLossLimit = tradeTypeLimit.MaxLossLimit,
+                MinProfitLimit = tradeTypeLimit.MinProfitLimit,
+                MaxProfitLimit = tradeTypeLimit.MaxProfitLimit
+            }
+            : tradeLimit;
+    }
+
+    /// <inheritdoc />
+    public Task<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(
+        int tradeId,
+        TradeType tradeType,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimit)}", TradeDbCql.GetTradeTypeLimit)
+            .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()))
+            .ExecuteSingleAsync(MapToTradeTypeLimit!, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ICollection<string>> GetTradePositionTradeTypesAsync(
+        int orderId,
+        int tradeId,
+        DateOnly valueDate,
+        TradeStatus tradeStatus,
+        int daysToExpiry,
+        CancellationToken cancellationToken)
+        => [.. (await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositionsById)}", TradeDbCql.GetTradePositionsById)
+            .SetParameters(new GetTradePositionsById(
+                orderId,
+                tradeId,
+                valueDate,
+                tradeStatus.ToStringFast(),
+                daysToExpiry))
+            .ExecuteQueryAsync(MapToTradePosition!, cancellationToken))
+            .Select(e => e.TradeType.ToStringFast())];
+
+
+    /// <inheritdoc />
+    public Task<IntrinsicTimeStrategyWorkflowReadModel?> GetIntrinsicTimeStrategyWorkflowAsync(
+        StrategyWorkflowId workflowId)
+        => GetIntrinsicTimeStrategyWorkflowAsync(workflowId, CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task<IntrinsicTimeStrategyWorkflowReadModel?> GetIntrinsicTimeStrategyWorkflowAsync(
+        StrategyWorkflowId workflowId,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetIntrinsicTimeStrategyWorkflow)}", TradeDbCql.GetIntrinsicTimeStrategyWorkflow)
+            .SetParameters(new GetIntrinsicTimeStrategyWorkflow(workflowId.Value))
+            .ExecuteSingleAsync(MapToWorkflow, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ActiveIntrinsicTimeStrategyWorkflowReadModel?> GetActiveIntrinsicTimeStrategyWorkflowAsync(
+        string workflowEntityId)
+        => GetActiveIntrinsicTimeStrategyWorkflowAsync(workflowEntityId, CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task<ActiveIntrinsicTimeStrategyWorkflowReadModel?> GetActiveIntrinsicTimeStrategyWorkflowAsync(
+        string workflowEntityId,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetActiveIntrinsicTimeStrategyWorkflow)}", TradeDbCql.GetActiveIntrinsicTimeStrategyWorkflow)
+            .SetParameters(new GetActiveIntrinsicTimeStrategyWorkflow(workflowEntityId))
+            .ExecuteSingleAsync(MapToActiveWorkflow, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowStartAttemptReadModel>> GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(
+        string workflowEntityId,
+        DateTime beforeUtc,
+        int pageSize)
+        => GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(
+            workflowEntityId,
+            beforeUtc,
+            pageSize,
+            CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowStartAttemptReadModel>> GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(
+        string workflowEntityId,
+        DateTime beforeUtc,
+        int pageSize,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetIntrinsicTimeStrategyWorkflowStartAttempts)}", TradeDbCql.GetIntrinsicTimeStrategyWorkflowStartAttempts)
+            .SetParameters(new GetIntrinsicTimeStrategyWorkflowStartAttempts(workflowEntityId, beforeUtc, pageSize.RequirePageSize()))
+            .ExecuteQueryAsync(MapToStartAttempt, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowTimelineReadModel>> GetIntrinsicTimeStrategyWorkflowTimelineAsync(
+        StrategyWorkflowId workflowId,
+        long afterEventId,
+        int pageSize)
+        => GetIntrinsicTimeStrategyWorkflowTimelineAsync(
+            workflowId,
+            afterEventId,
+            pageSize,
+            CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowTimelineReadModel>> GetIntrinsicTimeStrategyWorkflowTimelineAsync(
+        StrategyWorkflowId workflowId,
+        long afterEventId,
+        int pageSize,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetIntrinsicTimeStrategyWorkflowTimeline)}", TradeDbCql.GetIntrinsicTimeStrategyWorkflowTimeline)
+            .SetParameters(new GetIntrinsicTimeStrategyWorkflowTimeline(workflowId.Value, afterEventId, pageSize.RequirePageSize()))
+            .ExecuteQueryAsync(MapToTimelineEvent, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel>> GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+        string workflowEntityId,
+        DateTime beforeUtc,
+        int pageSize)
+        => GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+            workflowEntityId,
+            beforeUtc,
+            pageSize,
+            CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel>> GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+        string workflowEntityId,
+        DateTime beforeUtc,
+        int pageSize,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByEntity)}", TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByEntity)
+            .SetParameters(new GetIntrinsicTimeStrategyWorkflowsByEntity(workflowEntityId, beforeUtc, pageSize.RequirePageSize()))
+            .ExecuteQueryAsync(MapToWorkflowHistory, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel>> GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
+        StrategyWorkflowStatus status,
+        DateOnly startDate,
+        DateOnly endDate,
+        int pageSize)
+        => GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
+            status,
+            startDate,
+            endDate,
+            pageSize,
+            CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task<ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel>> GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
+        StrategyWorkflowStatus status,
+        DateOnly startDate,
+        DateOnly endDate,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        endDate.RequireNotBefore(startDate);
+
+        var maximumCount = pageSize.RequirePageSize();
+        var results = new List<IntrinsicTimeStrategyWorkflowHistoryReadModel>(maximumCount);
+        for (var date = endDate; results.Count < maximumCount; date = date.AddDays(-1))
+        {
+            var remaining = maximumCount - results.Count;
+            var dayResults = await _dbFactory.TradeDb
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByStatusDay)}", TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByStatusDay)
+                .SetParameters(new GetIntrinsicTimeStrategyWorkflowsByStatusDay(status.ToString(), date, remaining))
+                .ExecuteQueryAsync(MapToWorkflowHistory, cancellationToken)
+                .ConfigureAwait(false);
+            results.AddRange(dayResults);
+            if (date == startDate)
+                break;
+        }
+
+        return results;
+    }
+
+    /// <inheritdoc />
+    public Task UpsertIntrinsicTimeStrategyWorkflowAsync(IntrinsicTimeStrategyWorkflowReadModel workflow)
+        => UpsertIntrinsicTimeStrategyWorkflowAsync(workflow, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task UpsertIntrinsicTimeStrategyWorkflowAsync(
+        IntrinsicTimeStrategyWorkflowReadModel workflow,
+        CancellationToken cancellationToken)
+    {
+        workflow.RequireNotNull(nameof(workflow));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertIntrinsicTimeStrategyWorkflow)}", TradeDbCql.UpsertIntrinsicTimeStrategyWorkflow)
+            .SetParameters(new UpsertIntrinsicTimeStrategyWorkflow(
+                workflow.WorkflowId.Value,
+                workflow.WorkflowEntityId,
+                workflow.WorkflowDefinitionId,
+                workflow.WorkflowDefinitionVersion,
+                workflow.ContractId,
+                workflow.TimeFrameStartValueDate,
+                workflow.TimePeriod.ToString(),
+                workflow.TriggerEventId,
+                workflow.CorrelationId,
+                workflow.Status.ToString(),
+                workflow.Outcome.ToString(),
+                workflow.CurrentStage.ToString(),
+                workflow.WorkflowRevision,
+                workflow.LastEventId,
+                workflow.StateSchemaVersion,
+                workflow.StatePayload.ToArray(),
+                workflow.StopReasonCode,
+                workflow.StartedAtUtc,
+                workflow.TerminalAtUtc,
+                workflow.UpdatedAtUtc))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task UpsertActiveIntrinsicTimeStrategyWorkflowAsync(ActiveIntrinsicTimeStrategyWorkflowReadModel workflow)
+        => UpsertActiveIntrinsicTimeStrategyWorkflowAsync(workflow, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task UpsertActiveIntrinsicTimeStrategyWorkflowAsync(
+        ActiveIntrinsicTimeStrategyWorkflowReadModel workflow,
+        CancellationToken cancellationToken)
+    {
+        workflow.RequireNotNull(nameof(workflow));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertActiveIntrinsicTimeStrategyWorkflow)}", TradeDbCql.UpsertActiveIntrinsicTimeStrategyWorkflow)
+            .SetParameters(new UpsertActiveIntrinsicTimeStrategyWorkflow(
+                workflow.WorkflowEntityId,
+                workflow.WorkflowId.Value,
+                workflow.ContractId,
+                workflow.TimeFrameStartValueDate,
+                workflow.TimePeriod.ToString(),
+                workflow.CurrentStage.ToString(),
+                workflow.WorkflowRevision,
+                workflow.LastEventId,
+                workflow.StateSchemaVersion,
+                workflow.StatePayload.ToArray(),
+                workflow.StartedAtUtc,
+                workflow.UpdatedAtUtc))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task DeleteActiveIntrinsicTimeStrategyWorkflowAsync(string workflowEntityId)
+        => DeleteActiveIntrinsicTimeStrategyWorkflowAsync(workflowEntityId, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task DeleteActiveIntrinsicTimeStrategyWorkflowAsync(
+        string workflowEntityId,
+        CancellationToken cancellationToken)
+    {
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteActiveIntrinsicTimeStrategyWorkflow)}", TradeDbCql.DeleteActiveIntrinsicTimeStrategyWorkflow)
+            .SetParameters(new DeleteActiveIntrinsicTimeStrategyWorkflow(workflowEntityId))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync(
+        IntrinsicTimeStrategyWorkflowStartAttemptReadModel attempt)
+        => InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync(attempt, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync(
+        IntrinsicTimeStrategyWorkflowStartAttemptReadModel attempt,
+        CancellationToken cancellationToken)
+    {
+        attempt.RequireNotNull(nameof(attempt));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertIntrinsicTimeStrategyWorkflowStartAttempt)}", TradeDbCql.InsertIntrinsicTimeStrategyWorkflowStartAttempt)
+            .SetParameters(new InsertIntrinsicTimeStrategyWorkflowStartAttempt(
+                attempt.WorkflowEntityId,
+                attempt.RequestedAtUtc,
+                attempt.RequestedWorkflowId.Value,
+                attempt.Decision.ToString(),
+                attempt.ActiveWorkflowId?.Value,
+                attempt.StartCommandId,
+                attempt.TriggerEventId,
+                attempt.ActiveStage.ToString(),
+                attempt.ReasonCode,
+                attempt.SourceEventId))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task InsertIntrinsicTimeStrategyWorkflowTimelineAsync(
+        IntrinsicTimeStrategyWorkflowTimelineReadModel timelineEvent)
+        => InsertIntrinsicTimeStrategyWorkflowTimelineAsync(timelineEvent, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task InsertIntrinsicTimeStrategyWorkflowTimelineAsync(
+        IntrinsicTimeStrategyWorkflowTimelineReadModel timelineEvent,
+        CancellationToken cancellationToken)
+    {
+        timelineEvent.RequireNotNull(nameof(timelineEvent));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertIntrinsicTimeStrategyWorkflowTimeline)}", TradeDbCql.InsertIntrinsicTimeStrategyWorkflowTimeline)
+            .SetParameters(new InsertIntrinsicTimeStrategyWorkflowTimeline(
+                timelineEvent.WorkflowId.Value,
+                timelineEvent.EventId,
+                timelineEvent.WorkflowEntityId,
+                timelineEvent.WorkflowRevision,
+                timelineEvent.Stage.ToString(),
+                timelineEvent.EventName,
+                timelineEvent.EventSchemaVersion,
+                timelineEvent.EventPayload.ToArray(),
+                timelineEvent.OccurredAtUtc))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task UpsertIntrinsicTimeStrategyWorkflowByEntityAsync(
+        IntrinsicTimeStrategyWorkflowHistoryReadModel workflow)
+        => UpsertIntrinsicTimeStrategyWorkflowByEntityAsync(workflow, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task UpsertIntrinsicTimeStrategyWorkflowByEntityAsync(
+        IntrinsicTimeStrategyWorkflowHistoryReadModel workflow,
+        CancellationToken cancellationToken)
+    {
+        workflow.RequireNotNull(nameof(workflow));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertIntrinsicTimeStrategyWorkflowByEntity)}", TradeDbCql.UpsertIntrinsicTimeStrategyWorkflowByEntity)
+            .SetParameters(MapToByEntityParameters(workflow))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync(
+        IntrinsicTimeStrategyWorkflowHistoryReadModel workflow)
+        => UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync(workflow, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync(
+        IntrinsicTimeStrategyWorkflowHistoryReadModel workflow,
+        CancellationToken cancellationToken)
+    {
+        workflow.RequireNotNull(nameof(workflow));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertIntrinsicTimeStrategyWorkflowByStatusDay)}", TradeDbCql.UpsertIntrinsicTimeStrategyWorkflowByStatusDay)
+            .SetParameters(new UpsertIntrinsicTimeStrategyWorkflowByStatusDay(
+                workflow.Status.ToString(),
+                DateOnly.FromDateTime(workflow.StartedAtUtc),
+                workflow.StartedAtUtc,
+                workflow.WorkflowId.Value,
+                workflow.WorkflowEntityId,
+                workflow.Outcome.ToString(),
+                workflow.CurrentStage.ToString(),
+                workflow.WorkflowRevision,
+                workflow.TerminalAtUtc,
+                workflow.StopReasonCode))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static UpsertIntrinsicTimeStrategyWorkflowByEntity MapToByEntityParameters(
+        IntrinsicTimeStrategyWorkflowHistoryReadModel workflow)
+        => new(
+            workflow.WorkflowEntityId,
+            workflow.StartedAtUtc,
+            workflow.WorkflowId.Value,
+            workflow.Status.ToString(),
+            workflow.Outcome.ToString(),
+            workflow.CurrentStage.ToString(),
+            workflow.WorkflowRevision,
+            workflow.TerminalAtUtc,
+            workflow.StopReasonCode);
+
+    internal static IntrinsicTimeStrategyWorkflowReadModel MapToWorkflow(IObjectDataRecord row)
+        => new(
+            new StrategyWorkflowId(row.GetGuid(0)),
+            row.GetString(1),
+            row.GetString(2),
+            row.GetInt(3),
+            row.GetString(4),
+            row.GetDateOnly(5),
+            row.GetEnum<TimeFrameType>(6),
+            row.GetGuid(7),
+            row.GetGuid(8),
+            row.GetEnum<StrategyWorkflowStatus>(9),
+            row.GetEnum<StrategyWorkflowOutcome>(10),
+            row.GetEnum<StrategyWorkflowStage>(11),
+            row.GetLong(12),
+            row.GetLong(13),
+            row.GetInt(14),
+            row.GetBytes(15),
+            row.GetString(16),
+            row.GetDateTime(17),
+            row.IsNull(18) ? null : row.GetDateTime(18),
+            row.GetDateTime(19));
+
+    internal static ActiveIntrinsicTimeStrategyWorkflowReadModel MapToActiveWorkflow(IObjectDataRecord row)
+        => new(
+            row.GetString(0),
+            new StrategyWorkflowId(row.GetGuid(1)),
+            row.GetString(2),
+            row.GetDateOnly(3),
+            row.GetEnum<TimeFrameType>(4),
+            row.GetEnum<StrategyWorkflowStage>(5),
+            row.GetLong(6),
+            row.GetLong(7),
+            row.GetInt(8),
+            row.GetBytes(9),
+            row.GetDateTime(10),
+            row.GetDateTime(11));
+
+    internal static IntrinsicTimeStrategyWorkflowStartAttemptReadModel MapToStartAttempt(IObjectDataRecord row)
+        => new(
+            row.GetString(0),
+            row.GetDateTime(1),
+            new StrategyWorkflowId(row.GetGuid(2)),
+            row.GetEnum<StrategyWorkflowStartDecision>(3),
+            row.IsNull(4) ? null : new StrategyWorkflowId(row.GetGuid(4)),
+            row.GetGuid(5),
+            row.GetGuid(6),
+            row.GetEnum<StrategyWorkflowStage>(7),
+            row.GetString(8),
+            row.GetLong(9));
+
+    internal static IntrinsicTimeStrategyWorkflowTimelineReadModel MapToTimelineEvent(IObjectDataRecord row)
+        => new(
+            new StrategyWorkflowId(row.GetGuid(0)),
+            row.GetLong(1),
+            row.GetString(2),
+            row.GetLong(3),
+            row.GetEnum<StrategyWorkflowStage>(4),
+            row.GetString(5),
+            row.GetInt(6),
+            row.GetBytes(7),
+            row.GetDateTime(8));
+
+    internal static IntrinsicTimeStrategyWorkflowHistoryReadModel MapToWorkflowHistory(IObjectDataRecord row)
+        => new(
+            row.GetString(0),
+            row.GetDateTime(1),
+            new StrategyWorkflowId(row.GetGuid(2)),
+            row.GetEnum<StrategyWorkflowStatus>(3),
+            row.GetEnum<StrategyWorkflowOutcome>(4),
+            row.GetEnum<StrategyWorkflowStage>(5),
+            row.GetLong(6),
+            row.IsNull(7) ? null : row.GetDateTime(7),
+            row.GetString(8));
+
+    /// <inheritdoc />
+    public Task<MarketConditionReadModel?> GetMarketConditionAsync(StrategyWorkflowId workflowId)
+        => GetMarketConditionAsync(workflowId, CancellationToken.None);
+    /// <inheritdoc />
+    public Task<MarketConditionReadModel?> GetMarketConditionAsync(StrategyWorkflowId workflowId, CancellationToken token)
+        => _dbFactory.TradeDb.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetMarketCondition)}", TradeDbCql.GetMarketCondition)
+            .SetParameters(new GetMarketCondition(workflowId.Value))
+            .ExecuteSingleAsync(MapToMarketCondition, token);
+    /// <inheritdoc />
+    public Task<ICollection<MarketConditionReadModel>> GetMarketConditionHistoryAsync(
+        int fundId, string instrumentRoot, TimeFrameType targetHorizon, DateTime beforeUtc, int pageSize)
+        => GetMarketConditionHistoryAsync(fundId, instrumentRoot, targetHorizon, beforeUtc, pageSize,
+            CancellationToken.None);
+    /// <inheritdoc />
+    public Task<ICollection<MarketConditionReadModel>> GetMarketConditionHistoryAsync(
+        int fundId, string instrumentRoot, TimeFrameType targetHorizon, DateTime beforeUtc, int pageSize,
+        CancellationToken token)
+    {
+        fundId.RequireMarketConditionHistoryScope(instrumentRoot, pageSize);
+        return _dbFactory.TradeDb.Use(
+                $"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetMarketConditionHistory)}",
+                TradeDbCql.GetMarketConditionHistory)
+            .SetParameters(new GetMarketConditionHistory(fundId, instrumentRoot, targetHorizon.ToString(),
+                beforeUtc, pageSize))
+                    .ExecuteQueryAsync(MapToMarketCondition, token);
+    }
+    /// <inheritdoc />
+    public Task UpsertMarketConditionAsync(MarketConditionReadModel result)
+        => UpsertMarketConditionAsync(result, CancellationToken.None);
+    /// <inheritdoc />
+    public async Task UpsertMarketConditionAsync(MarketConditionReadModel result, CancellationToken token)
+    {
+        result.RequireNotNull(nameof(result));
+        await _dbFactory.TradeDb.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertMarketCondition)}", TradeDbCql.UpsertMarketCondition)
+            .SetParameters(new UpsertMarketCondition(result.WorkflowId.Value, result.WorkflowEntityId,
+                result.InputWorkflowRevision, result.CommandId, result.SourceEventId, result.FundId,
+                result.InstrumentRoot, result.TargetHorizon.ToString(), result.ParameterSetId,
+                result.ParameterSetVersion, result.ParameterPayloadSha256, result.SnapshotId,
+                result.SnapshotSha256, result.Tradeability.ToString(), result.ConditionType.ToString(),
+                result.Direction.ToString(), result.Phase.ToString(), result.Strength, result.Confidence,
+                result.PrimaryReasonCode, result.ResultPayload.ToArray(), result.ResultPayloadSha256,
+                result.EvaluatedAtUtc, result.ValidUntilUtc, result.MarketDataAsOfUtc,
+                result.CompletedAtUtc, result.UpdatedAtUtc, result.VolatilityBehavior.ToString(),
+                result.LiquidityQuality.ToString(), result.DataQuality.ToString(),
+                result.UpstreamAlignment.ToString(), result.EvidencePayload.ToArray(),
+                result.ConflictingEvidencePayload.ToArray(), result.BlockingReasonsPayload.ToArray(),
+                result.ReasonsPayload.ToArray(), result.SummaryText))
+                    .ExecuteCommandAsync(token)
+                    .ConfigureAwait(false);
+        await _dbFactory.TradeDb.Use(
+                $"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertMarketConditionByFund)}",
+                TradeDbCql.UpsertMarketConditionByFund)
+            .SetParameters(new UpsertMarketConditionByFund(result.FundId, result.InstrumentRoot,
+                result.TargetHorizon.ToString(), result.EvaluatedAtUtc, result.WorkflowId.Value,
+                result.WorkflowEntityId, result.InputWorkflowRevision, result.CommandId, result.SourceEventId,
+                result.ParameterSetId, result.ParameterSetVersion, result.ParameterPayloadSha256,
+                result.SnapshotId, result.SnapshotSha256, result.Tradeability.ToString(),
+                result.ConditionType.ToString(), result.Direction.ToString(), result.Phase.ToString(),
+                result.Strength, result.Confidence, result.PrimaryReasonCode, result.ResultPayload.ToArray(),
+                result.ResultPayloadSha256, result.ValidUntilUtc, result.MarketDataAsOfUtc,
+                result.CompletedAtUtc, result.UpdatedAtUtc, result.VolatilityBehavior.ToString(),
+                result.LiquidityQuality.ToString(), result.DataQuality.ToString(),
+                result.UpstreamAlignment.ToString(), result.EvidencePayload.ToArray(),
+                result.ConflictingEvidencePayload.ToArray(), result.BlockingReasonsPayload.ToArray(),
+                result.ReasonsPayload.ToArray(), result.SummaryText))
+                    .ExecuteCommandAsync(token)
+                    .ConfigureAwait(false);
+    }
+    internal static MarketConditionReadModel MapToMarketCondition(IObjectDataRecord row) => new()
+    {
+        WorkflowId = new StrategyWorkflowId(row.GetGuid(0)), WorkflowEntityId = row.GetString(1),
+        InputWorkflowRevision = row.GetLong(2), CommandId = row.GetGuid(3), SourceEventId = row.GetGuid(4),
+        FundId = row.GetInt(5), InstrumentRoot = row.GetString(6),
+        TargetHorizon = Enum.Parse<TimeFrameType>(row.GetString(7)), ParameterSetId = row.GetGuid(8),
+        ParameterSetVersion = row.GetInt(9), ParameterPayloadSha256 = row.GetString(10),
+        SnapshotId = row.GetGuid(11), SnapshotSha256 = row.GetString(12),
+        Tradeability = Enum.Parse<MarketTradeability>(row.GetString(13)),
+        ConditionType = Enum.Parse<MarketConditionType>(row.GetString(14)),
+        Direction = Enum.Parse<MarketConditionDirection>(row.GetString(15)),
+        Phase = Enum.Parse<MarketConditionPhase>(row.GetString(16)), Strength = row.GetDecimal(17),
+        Confidence = row.GetDecimal(18), PrimaryReasonCode = row.GetString(19),
+        ResultPayload = row.GetBytes(20), ResultPayloadSha256 = row.GetString(21),
+        EvaluatedAtUtc = row.GetDateTime(22), ValidUntilUtc = row.GetDateTime(23),
+        MarketDataAsOfUtc = row.GetDateTime(24), CompletedAtUtc = row.GetDateTime(25), UpdatedAtUtc = row.GetDateTime(26),
+        VolatilityBehavior = Enum.Parse<MarketConditionVolatilityBehavior>(row.GetString(27)),
+        LiquidityQuality = Enum.Parse<MarketConditionLiquidityQuality>(row.GetString(28)),
+        DataQuality = Enum.Parse<MarketConditionDataQuality>(row.GetString(29)),
+        UpstreamAlignment = Enum.Parse<MarketConditionUpstreamAlignment>(row.GetString(30)),
+        EvidencePayload = row.GetBytes(31), ConflictingEvidencePayload = row.GetBytes(32),
+        BlockingReasonsPayload = row.GetBytes(33), ReasonsPayload = row.GetBytes(34),
+        SummaryText = row.GetString(35)
+    };
+
+    /// <inheritdoc />
+    public async Task UpsertMarketConditionAssessmentAsync(MarketConditionAssessmentCompletedEvent completed, CancellationToken cancellationToken = default)
+    {
+        var r = MarketConditionAssessmentContracts.ReadResult(completed.Result);
+        completed.RequireAssessmentProjectionIdentity(r);
+        var bytes = MessagePackSerializer.Serialize(completed);
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        await _dbFactory.TradeDb.Use("AssessmentProjection.Exact", "INSERT INTO market_condition_assessment (workflow_id,payload,payload_sha256) VALUES (?,?,?);")
+            .SetParameters(new AssessmentValues([r.WorkflowId.Value, bytes, hash]))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await _dbFactory.TradeDb.Use("AssessmentProjection.History", "INSERT INTO market_condition_assessment_by_profile (market_profile_id,instrument_root,target_horizon,evaluated_at_utc,workflow_id,payload,payload_sha256) VALUES (?,?,?,?,?,?,?);")
+            .SetParameters(new AssessmentValues([r.MarketProfileId, r.InstrumentRoot, r.TargetHorizon.ToString(), r.EvaluatedAtUtc, r.WorkflowId.Value, bytes, hash]))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+    /// <inheritdoc />
+    public Task<MarketConditionAssessmentCompletedEvent?> GetMarketConditionAssessmentAsync(StrategyWorkflowId workflowId, CancellationToken cancellationToken = default)
+        => _dbFactory.TradeDb.Use("AssessmentProjection.Get", "SELECT payload,payload_sha256 FROM market_condition_assessment WHERE workflow_id=?;")
+            .SetParameters(new AssessmentValues([workflowId.Value]))
+            .ExecuteSingleAsync(MapToAssessment, cancellationToken);
+    /// <inheritdoc />
+    public Task<ICollection<MarketConditionAssessmentCompletedEvent>> GetMarketConditionAssessmentHistoryAsync(string profile, string root, TimeFrameType horizon, DateTime beforeUtc, int pageSize, CancellationToken cancellationToken = default)
+    {
+        profile.RequireAssessmentHistoryScope(root, horizon, beforeUtc, pageSize);
+        return _dbFactory.TradeDb.Use("AssessmentProjection.HistoryRead", "SELECT payload,payload_sha256 FROM market_condition_assessment_by_profile WHERE market_profile_id=? AND instrument_root=? AND target_horizon=? AND evaluated_at_utc<? LIMIT ?;")
+            .SetParameters(new AssessmentValues([profile, root, horizon.ToString(), beforeUtc, pageSize]))
+            .ExecuteQueryAsync(MapToAssessment, cancellationToken);
+    }
+    internal static MarketConditionAssessmentCompletedEvent MapToAssessment(IObjectDataRecord row)
+    {
+        var bytes = row.GetBytes(0);
+        if (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)) != row.GetString(1)) throw new InvalidOperationException("Stored assessment payload hash mismatch.");
+        var completed = MessagePackSerializer.Deserialize<MarketConditionAssessmentCompletedEvent>(bytes);
+        var result = MarketConditionAssessmentContracts.ReadResult(completed.Result);
+        if(completed.WorkflowId != result.WorkflowId || completed.Snapshot.PayloadSha256 != result.SnapshotSha256 ||
+            completed.Snapshot.ComputeHash() != result.SnapshotSha256)
+            throw new InvalidOperationException("Stored assessment snapshot or workflow identity mismatch.");
+        return completed;
+    }
+    /// <inheritdoc />
+    public async Task UpsertOrderCompositionAsync(OrderCompositionFunctionCompletedEvent completed, CancellationToken token = default)
+    {
+        var result = OrderCompositionContracts.ReadResult(completed.Result);
+        if (completed.Id != result.ResultId || completed.WorkflowId != result.WorkflowId || completed.EntityId != result.EntityId
+            || completed.InputWorkflowRevision != result.InputWorkflowRevision || completed.RequestFingerprint != result.InputSha256)
+            throw new InvalidDataException("Composition projection identity mismatch.");
+        var body = MessagePackBinarySerializer.Shared.Serialize(completed with { EventId = 0 });
+        var inserted = await _dbFactory.TradeDb.Use("OrderComposition.Insert", "INSERT INTO order_composition_invocation (workflow_id,invocation_id,result_hash,input_hash,payload) VALUES (?,?,?,?,?) IF NOT EXISTS;")
+            .SetParameters(new CompositionValues([result.WorkflowId.Value, result.InvocationId, completed.Result.PayloadSha256, result.InputSha256, body]))
+            .ExecuteSingleAsync(row => row.GetBool(0), token)
+            .ConfigureAwait(false);
+        if (!inserted)
+        {
+            var old = await GetOrderCompositionInvocationAsync(result.WorkflowId, result.InvocationId, token)
+                .ConfigureAwait(false);
+            if (old is null || !OrderCompositionContracts.SameCompletion(old, completed))
+                throw new InvalidOperationException("Conflicting composition invocation.");
+        }
+        // The typed decision retains exact authority even when no candidate is available.
+        int portfolioId = result.DecisionContext.PortfolioId;
+        int fundId = result.DecisionContext.FundId;
+        await _dbFactory.TradeDb.Use("OrderComposition.HistoryInsert", "INSERT INTO order_composition_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,workflow_id,event_id,target_horizon,outcome,reason_code,result_id,result_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?);")
+            .SetParameters(new CompositionValues([portfolioId, fundId, result.DecisionContext.ValueDate, result.EvaluatedAtUtc,
+                result.InvocationId, result.WorkflowId.Value, completed.Id, (short)result.TargetHorizon, (sbyte)result.Outcome,
+                result.Reasons[0], result.ResultId, completed.Result.PayloadSha256]))
+                    .ExecuteCommandAsync(token)
+                    .ConfigureAwait(false);
+    }
+    /// <inheritdoc />
+    public Task<OrderCompositionFunctionCompletedEvent?> GetOrderCompositionInvocationAsync(StrategyWorkflowId workflowId, Guid invocationId, CancellationToken token = default)
+    {
+        workflowId.RequireInvocation(invocationId, "Exact workflow and invocation required.");
+        return _dbFactory.TradeDb.Use("OrderComposition.Exact", "SELECT payload,result_hash,input_hash FROM order_composition_invocation WHERE workflow_id=? AND invocation_id=?;")
+            .SetParameters(new CompositionValues([workflowId.Value, invocationId]))
+            .ExecuteSingleAsync(row =>
+            {
+                var completed = MessagePackBinarySerializer.Shared.Deserialize<OrderCompositionFunctionCompletedEvent>(row.GetBytes(0));
+                var result = OrderCompositionContracts.ReadResult(completed.Result);
+                if (result.WorkflowId != workflowId || result.InvocationId != invocationId || completed.Result.PayloadSha256 != row.GetString(1)
+                    || result.InputSha256 != row.GetString(2)) throw new InvalidDataException("Stored composition evidence mismatch.");
+                return completed;
+            }, token);
+    }
+    /// <inheritdoc />
+    public Task<QueryPage<OrderCompositionHistoryRow>> GetOrderCompositionHistoryAsync(int portfolioId, int fundId, DateOnly valueDate,
+        int pageSize, byte[]? pagingState = null, CancellationToken token = default)
+    {
+        portfolioId.RequireHistoryScope(fundId, valueDate, pageSize, 100, "Invalid composition history scope.");
+        return _dbFactory.TradeDb.Use("OrderComposition.History", "SELECT evaluated_at_utc,workflow_id,invocation_id,event_id,target_horizon,outcome,reason_code,result_id,result_hash FROM order_composition_history WHERE portfolio_id=? AND fund_id=? AND value_date=?;")
+            .SetParameters(new CompositionValues([portfolioId, fundId, valueDate]))
+            .ExecutePageAsync(row => new OrderCompositionHistoryRow(portfolioId, fundId,
+                valueDate, row.GetDateTime(0), row.GetGuid(1), row.GetGuid(2), row.GetGuid(3), row.GetShort(4),
+                (byte)row.GetEnum<CompositionOutcome>(5), row.GetString(6), row.GetGuid(7), row.GetString(8)), pageSize, pagingState, token);
+    }
+    /// <inheritdoc />
+    public Task<RegimeDiscoveryReadModel?> GetRegimeDiscoveryAsync(StrategyWorkflowId workflowId)
+        => GetRegimeDiscoveryAsync(workflowId, CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task<RegimeDiscoveryReadModel?> GetRegimeDiscoveryAsync(
+        StrategyWorkflowId workflowId,
+        CancellationToken cancellationToken)
+        => _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetRegimeDiscovery)}", TradeDbCql.GetRegimeDiscovery)
+            .SetParameters(new GetRegimeDiscovery(workflowId.Value))
+            .ExecuteSingleAsync(MapToRegimeDiscovery, cancellationToken);
+
+    /// <inheritdoc />
+    public Task UpsertRegimeDiscoveryAsync(RegimeDiscoveryReadModel result)
+        => UpsertRegimeDiscoveryAsync(result, CancellationToken.None);
+
+    /// <inheritdoc />
+    public async Task UpsertRegimeDiscoveryAsync(
+        RegimeDiscoveryReadModel result,
+        CancellationToken cancellationToken)
+    {
+        result.RequireNotNull(nameof(result));
+        await _dbFactory.TradeDb
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpsertRegimeDiscovery)}", TradeDbCql.UpsertRegimeDiscovery)
+            .SetParameters(new UpsertRegimeDiscovery(
+                result.WorkflowId.Value,
+                result.WorkflowEntityId,
+                result.InputWorkflowRevision,
+                result.CommandId,
+                result.SourceEventId,
+                result.SourceEventSequence,
+                result.Status,
+                result.ParameterPayloadSha256,
+                result.SignalSnapshotId,
+                result.ResultPayload.ToArray(),
+                result.ResultPayloadSha256,
+                result.FailureCode,
+                result.FailureMessage,
+                result.ReasonsPayload.ToArray(),
+                result.SchemaVersion,
+                result.TerminalAtUtc,
+                result.UpdatedAtUtc))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static RegimeDiscoveryReadModel MapToRegimeDiscovery(IObjectDataRecord row) => new()
+    {
+        WorkflowId = new StrategyWorkflowId(row.GetGuid(0)),
+        WorkflowEntityId = row.GetString(1),
+        InputWorkflowRevision = row.GetLong(2),
+        CommandId = row.GetGuid(3),
+        SourceEventId = row.GetGuid(4),
+        SourceEventSequence = row.GetLong(5),
+        Status = row.GetString(6),
+        ParameterPayloadSha256 = row.GetString(7),
+        SignalSnapshotId = row.GetGuid(8),
+        ResultPayload = row.IsNull(9) ? ReadOnlyMemory<byte>.Empty : row.GetBytes(9),
+        ResultPayloadSha256 = row.IsNull(10) ? string.Empty : row.GetString(10),
+        FailureCode = row.IsNull(11) ? 0 : row.GetInt(11),
+        FailureMessage = row.IsNull(12) ? string.Empty : row.GetString(12),
+        ReasonsPayload = row.IsNull(13) ? ReadOnlyMemory<byte>.Empty : row.GetBytes(13),
+        SchemaVersion = row.GetInt(14),
+        TerminalAtUtc = row.GetDateTime(15),
+        UpdatedAtUtc = row.GetDateTime(16)
+    };
+
+    /// <inheritdoc />
+    public async Task<RiskHistoryProjectionResult> UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default)
+    {
+        var row = RiskHistoryIdentity.Row(snapshot);
+        if (row is null) return new(RiskHistoryProjectionDisposition.NotApplicable);
+        token.ThrowIfCancellationRequested();
+
+        // The exact invocation row and its scoped summary are one rebuildable projection unit.
+        // Once the unit starts, finish every idempotent Scylla statement even if the recovery
+        // worker is asked to stop; otherwise shutdown can leave an exact row without its history
+        // row and surface cancellation from the second statement as an unhandled worker error.
+        var projectionToken = CancellationToken.None;
+        if (snapshot.WorkflowId != snapshot.State.WorkflowId || snapshot.WorkflowRevision != row.Revision || snapshot.EntityId != snapshot.State.EntityId)
+            throw new InvalidDataException("Risk history source identity mismatch.");
+        var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(
+            MessagePackBinarySerializer.Shared.Serialize(snapshot with { EventId = 0 }));
+        var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
+        var hash = RiskContracts.Hash(canonical);
+        var inserted = await _dbFactory.TradeDb.Use("RiskHistory.Insert", "INSERT INTO risk_management_invocation (workflow_id,invocation_id,revision,payload,content_hash) VALUES (?,?,?,?,?) IF NOT EXISTS;")
+            .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision,payload,hash]))
+            .ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
+        if (!inserted)
+        {
+            var old = await _dbFactory.TradeDb.Use("RiskHistory.Verify", "SELECT content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? AND revision=?;")
+                .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision]))
+                .ExecuteSingleAsync(r=>r.GetString(0),projectionToken);
+            if (old != hash) return new(RiskHistoryProjectionDisposition.Conflict,row.WorkflowId,row.InvocationId,row.Revision,old,hash);
+        }
+        var disposition=inserted?RiskHistoryProjectionDisposition.Projected:RiskHistoryProjectionDisposition.AlreadyProjected;
+        var summary = MessagePackBinarySerializer.Shared.Serialize(row);
+        var added = await _dbFactory.TradeDb.Use("RiskHistory.SummaryInsert", "INSERT INTO risk_management_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload) VALUES (?,?,?,?,?,?,?) IF NOT EXISTS;")
+            .SetParameters(new RiskValues([row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision,summary]))
+            .ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
+        if (!added)
+            await _dbFactory.TradeDb.Use("RiskHistory.SummaryAdvance", "UPDATE risk_management_history SET revision=?,payload=? WHERE portfolio_id=? AND fund_id=? AND value_date=? AND evaluated_at_utc=? AND invocation_id=? IF revision<?;")
+                .SetParameters(new RiskValues([row.Revision,summary,row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision]))
+                .ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
+        return new(disposition,row.WorkflowId,row.InvocationId,row.Revision,hash,hash);
+    }
+    /// <inheritdoc />
+    public Task<WorkflowStrategyStateUpdatedEvent?> GetRiskInvocationAsync(Guid workflow, Guid invocation, CancellationToken token = default)
+    {
+        workflow.RequireInvocation(invocation, "Exact Risk identities required.");
+        return _dbFactory.TradeDb.Use("RiskHistory.Exact", "SELECT payload,content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? ORDER BY revision DESC LIMIT 1;")
+            .SetParameters(new RiskValues([workflow,invocation]))
+            .ExecuteSingleAsync(r=>
+            {
+                var payload=r.GetBytes(0);
+                var value = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(payload);
+                if (RiskContracts.Hash(value) != r.GetString(1) || RiskHistoryIdentity.Row(value) is not { } row || row.WorkflowId != workflow || row.InvocationId != invocation)
+                    throw new InvalidDataException("Risk history content hash mismatch.");
+                return value;
+            },token);
+    }
+    /// <inheritdoc />
+    public Task<QueryPage<RiskHistoryRow>> GetRiskHistoryAsync(int portfolio, int fund, DateOnly date, int size, byte[]? cursor, CancellationToken token = default)
+    {
+        portfolio.RequireHistoryScope(fund, date, size, 100, "Invalid Risk history scope.");
+        return _dbFactory.TradeDb.Use("RiskHistory.Page", "SELECT payload FROM risk_management_history WHERE portfolio_id=? AND fund_id=? AND value_date=?;")
+            .SetParameters(new RiskValues([portfolio,fund,date]))
+            .ExecutePageAsync(r=>MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetBytes(0)),size,cursor,token);
+    }
+    /// <inheritdoc />
+    public Task UpsertTradeOrderAsync(TradeOrderDefinition order, CancellationToken token = default)
+    {
+        order.RequireNotNull(nameof(order));
+        return _dbFactory.TradeDb.Use("TradeFlow.Order.Upsert", "INSERT INTO trade_order_v3 (portfolioId,fundId,orderId,revision,status,valueDate,updatedAtUtc,definitionHash,payload) VALUES (?,?,?,?,?,?,?,?,?);")
+            .SetParameters(new TradeDbValues([order.Id.PortfolioId, order.Id.FundId, order.Id.OrderId, order.Revision,
+                order.Status.ToString(), order.ValueDate, DateTime.UtcNow, order.DefinitionHash,
+                MessagePackBinarySerializer.Shared.Serialize(order)]))
+            .ExecuteCommandAsync(token);
+    }
+
+    /// <inheritdoc />
+    public Task<TradeOrderDefinition?> GetTradeOrderAsync(TradeOrderId id, CancellationToken token = default)
+    {
+        id.Require();
+        return _dbFactory.TradeDb.Use("TradeFlow.Order.Get", "SELECT payload FROM trade_order_v3 WHERE portfolioId=? AND fundId=? AND orderId=? LIMIT 1;")
+            .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId]))
+            .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(row.GetBytes(0)), token);
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertOrderExecutionAsync(OrderExecutionDefinition execution, CancellationToken token = default)
+    {
+        execution.RequireNotNull(nameof(execution));
+        execution.TradeOrderId.Require();
+        var payload = MessagePackBinarySerializer.Shared.Serialize(execution);
+        await _dbFactory.TradeDb.Use("TradeFlow.Execution.Upsert", "INSERT INTO order_execution_v1 (portfolioId,fundId,orderId,executionAttemptId,status,startedAtUtc,completedAtUtc,payload) VALUES (?,?,?,?,?,?,?,?);")
+            .SetParameters(new TradeDbValues([execution.TradeOrderId.PortfolioId, execution.TradeOrderId.FundId, execution.TradeOrderId.OrderId,
+                execution.ExecutionAttemptId, execution.Status.ToString(), execution.StartedAtUtc, execution.CompletedAtUtc, payload]))
+            .ExecuteCommandAsync(token)
+            .ConfigureAwait(false);
+        foreach (var fill in execution.Fills)
+            await _dbFactory.TradeDb.Use("TradeFlow.Fill.Upsert.V2", "INSERT INTO order_execution_fill_v2 (executionAttemptId,executionFillId,componentId,tradeLegId,contractId,filledAtUtc,payload) VALUES (?,?,?,?,?,?,?);")
+                .SetParameters(new TradeDbValues([fill.ExecutionAttemptId, fill.ExecutionFillId, fill.ComponentId, fill.TradeLegId,
+                    fill.ContractId, fill.FilledAtUtc, MessagePackBinarySerializer.Shared.Serialize(fill)]))
+                .ExecuteCommandAsync(token)
+                .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<OrderExecutionDefinition?> GetOrderExecutionAsync(TradeOrderId id, Guid executionAttemptId, CancellationToken token = default)
+    {
+        id.Require();
+        executionAttemptId.Require("ExecutionAttemptId is required.", nameof(executionAttemptId));
+        return _dbFactory.TradeDb.Use("TradeFlow.Execution.Get", "SELECT payload FROM order_execution_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND executionAttemptId=?;")
+            .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, executionAttemptId]))
+            .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(row.GetBytes(0)), token);
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertEstablishedTradeAsync(EstablishedTradeDefinition trade, CancellationToken token = default)
+    {
+        trade.RequireNotNull(nameof(trade));
+        trade.Id.Require();
+        var payload = MessagePackBinarySerializer.Shared.Serialize(trade);
+        await _dbFactory.TradeDb.Use("TradeFlow.Trade.Upsert", "INSERT INTO established_trade_v1 (portfolioId,fundId,orderId,tradeId,assetFamily,strategyKind,establishedAtUtc,evidenceRevision,payload) VALUES (?,?,?,?,?,?,?,?,?);")
+            .SetParameters(new TradeDbValues([trade.Id.PortfolioId, trade.Id.FundId, trade.Id.OrderId, trade.Id.TradeId,
+                trade.AssetFamily.ToString(), trade.StrategyKind.ToString(), trade.EstablishedAtUtc, trade.EvidenceRevision,
+                payload]))
+                    .ExecuteCommandAsync(token)
+                    .ConfigureAwait(false);
+        await _dbFactory.TradeDb.Use("TradeFlow.Trade.History.Upsert", "INSERT INTO established_trade_history_v2 (portfolioId,fundId,strategyKind,establishedAtUtc,orderId,tradeId,evidenceRevision,payload) VALUES (?,?,?,?,?,?,?,?);")
+            .SetParameters(new TradeDbValues([trade.Id.PortfolioId, trade.Id.FundId, trade.StrategyKind.ToString(),
+                trade.EstablishedAtUtc, trade.Id.OrderId, trade.Id.TradeId, trade.EvidenceRevision, payload]))
+            .ExecuteCommandAsync(token)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<EstablishedTradeDefinition?> GetEstablishedTradeAsync(TradeEntityId id, CancellationToken token = default)
+    {
+        id.Require();
+        return _dbFactory.TradeDb.Use("TradeFlow.Trade.Get", "SELECT payload FROM established_trade_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=?;")
+            .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, id.TradeId]))
+            .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(row.GetBytes(0)), token);
+    }
+
+    /// <inheritdoc />
+    public Task<QueryPage<EstablishedTradeDefinition>> GetEstablishedTradesAsync(int portfolioId, int fundId,
+        TradeStrategyKind strategyKind, DateTime fromUtc, DateTime toUtc, int pageSize,
+        byte[]? pagingState = null, CancellationToken token = default)
+    {
+        portfolioId.RequireUtcHistoryScope(fundId, fromUtc, toUtc, pageSize);
+        return _dbFactory.TradeDb.Use("TradeFlow.Trade.History.Get", "SELECT payload FROM established_trade_history_v2 WHERE portfolioId=? AND fundId=? AND strategyKind=? AND establishedAtUtc>=? AND establishedAtUtc<=?;")
+            .SetParameters(new TradeDbValues([portfolioId, fundId, strategyKind.ToString(), fromUtc, toUtc]))
+            .ExecutePageAsync(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(row.GetBytes(0)), pageSize, pagingState, token);
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertStrategyPositionAsync(StrategyPositionSnapshot position, CancellationToken token = default)
+    {
+        position.RequireNotNull(nameof(position));
+        position.RequireValidIdentity();
+        var payload = MessagePackBinarySerializer.Shared.Serialize(position);
+        var id = position.Id.Trade;
+        await _dbFactory.TradeDb.Use("TradeFlow.Position.Current", "INSERT INTO strategy_position_current_v1 (portfolioId,fundId,orderId,tradeId,positionId,strategyKind,positionSequence,routeGeneration,isOpen,asOfUtc,payload) VALUES (?,?,?,?,?,?,?,?,?,?,?);")
+            .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, id.TradeId, position.Id.PositionId,
+                position.StrategyKind.ToString(), position.PositionSequence, position.RouteGeneration, position.IsOpen, position.AsOfUtc, payload]))
+            .ExecuteCommandAsync(token)
+            .ConfigureAwait(false);
+        await _dbFactory.TradeDb.Use("TradeFlow.Position.History", "INSERT INTO strategy_position_history_v1 (positionId,asOfUtc,positionSequence,phase,payload) VALUES (?,?,?,?,?);")
+            .SetParameters(new TradeDbValues([position.Id.PositionId, position.AsOfUtc, position.PositionSequence, position.Phase.ToString(), payload]))
+            .ExecuteCommandAsync(token)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<QueryPage<StrategyPositionSnapshot>> GetStrategyPositionHistoryAsync(Guid positionId, DateTime fromUtc, DateTime toUtc, int pageSize, byte[]? pagingState = null, CancellationToken token = default)
+    {
+        positionId.RequireUtcHistoryScope(fromUtc, toUtc, pageSize);
+        return _dbFactory.TradeDb.Use("TradeFlow.Position.History.Get", "SELECT payload FROM strategy_position_history_v1 WHERE positionId=? AND asOfUtc>=? AND asOfUtc<=?;")
+            .SetParameters(new TradeDbValues([positionId, fromUtc, toUtc]))
+            .ExecutePageAsync(row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetBytes(0)), pageSize, pagingState, token);
+    }
+
+    /// <inheritdoc />
+    public Task<StrategyPositionSnapshot?> GetStrategyPositionAsync(StrategyPositionId id, CancellationToken token = default)
+    {
+        id.Require();
+        return _dbFactory.TradeDb.Use("TradeFlow.Position.Current.Get", "SELECT payload FROM strategy_position_current_v1 WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=?;")
+            .SetParameters(new TradeDbValues([id.Trade.PortfolioId, id.Trade.FundId, id.Trade.OrderId, id.Trade.TradeId, id.PositionId]))
+            .ExecuteSingleAsync(row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetBytes(0)), token);
+    }
+
+    /// <inheritdoc />
+    public async Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, CancellationToken token = default)
+    {
+        position.RequireNotNull(nameof(position));
+        position.RequireRoutableLegs();
+        var existing = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Position.Get.V2",
+                "SELECT contractId,tradeLegId FROM open_position_route_recovery_v2 WHERE shard=? AND positionId=?;")
+            .SetParameters(new TradeDbValues([(sbyte)0, position.Id.PositionId]))
+            .ExecuteQueryAsync(row => new OpenPositionRouteKeyReadModel(row.GetString(0), row.GetGuid(1)), token)
+            .ConfigureAwait(false);
+        foreach (var old in existing)
+        {
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Delete.V2",
+                    "DELETE FROM open_position_route_v2 WHERE contractId=? AND positionId=? AND tradeLegId=?;")
+                .SetParameters(new TradeDbValues([old.ContractId, position.Id.PositionId, old.TradeLegId]))
+                .ExecuteCommandAsync(token)
+                .ConfigureAwait(false);
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Delete.V2",
+                    "DELETE FROM open_position_route_recovery_v2 WHERE shard=? AND positionId=? AND tradeLegId=?;")
+                .SetParameters(new TradeDbValues([(sbyte)0, position.Id.PositionId, old.TradeLegId]))
+                .ExecuteCommandAsync(token)
+                .ConfigureAwait(false);
+        }
+        if (!position.IsOpen) return;
+
+        foreach (var leg in position.Legs)
+        {
+            var route = new PortfolioFundTradeLeg(position.Id.Trade.PortfolioId, position.Id.Trade.FundId,
+                position.Id.Trade.OrderId, position.Id.Trade.TradeId, position.Id.PositionId, leg.TradeLegId,
+                position.StrategyKind, position.RouteGeneration);
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Upsert.V2", "INSERT INTO open_position_route_v2 (contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?);")
+                .SetParameters(new TradeDbValues([leg.ContractId, route.PortfolioId, route.FundId, route.OrderId,
+                    route.TradeId, route.StrategyPositionId, route.TradeLegId, route.TradeType.ToString(), route.Generation]))
+                .ExecuteCommandAsync(token)
+                .ConfigureAwait(false);
+            await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Upsert.V2", "INSERT INTO open_position_route_recovery_v2 (shard,positionId,tradeLegId,contractId,portfolioId,fundId,orderId,tradeId,tradeType,generation) VALUES (?,?,?,?,?,?,?,?,?,?);")
+                .SetParameters(new TradeDbValues([(sbyte)0, route.StrategyPositionId, route.TradeLegId, leg.ContractId,
+                    route.PortfolioId, route.FundId, route.OrderId, route.TradeId, route.TradeType.ToString(), route.Generation]))
+                .ExecuteCommandAsync(token)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRoutesAsync(string contractId, CancellationToken token = default)
+    {
+        contractId.RequireContractId();
+        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Get.V2", "SELECT portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_v2 WHERE contractId=?;")
+            .SetParameters(new TradeDbValues([contractId]))
+            .ExecuteQueryAsync(row => new OpenPositionRouteReadModel(contractId, new PortfolioFundTradeLeg(
+                row.GetInt(0), row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetGuid(4), row.GetGuid(5),
+                row.GetEnum<TradeStrategyKind>(6), row.GetLong(7))), token)
+            .ConfigureAwait(false);
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default)
+    {
+        var result = await _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Get.V2", "SELECT contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_recovery_v2 WHERE shard=?;")
+            .SetParameters(new TradeDbValues([(sbyte)0]))
+            .ExecuteQueryAsync(row => new OpenPositionRouteReadModel(row.GetString(0), new PortfolioFundTradeLeg(
+                row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetInt(4), row.GetGuid(5), row.GetGuid(6),
+                row.GetEnum<TradeStrategyKind>(7), row.GetLong(8))), token)
+            .ConfigureAwait(false);
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertTradeSelectionAsync(TradeSelectionFunctionCompletedEvent completed, CancellationToken cancellationToken = default)
+    {
+        var r = TradeSelectionContracts.ReadResult(completed.Result);
+        TradeSelectionContracts.Require(completed.WorkflowId == r.WorkflowId && completed.CommandId == r.InvocationId && completed.Id == r.ResultId && completed.EntityId == r.EntityId
+            && completed.InputWorkflowRevision == r.InputWorkflowRevision && completed.RequestFingerprint.Length == 64, "TS.RESULT.INVALID", "Projection event identity mismatch.");
+        var selected = r.SelectedCandidate;
+        var binding = r.DecisionContext.SelectionBinding;
+        var bytes = MessagePackBinarySerializer.Shared.Serialize(completed with { EventId = 0 });
+        object[] values = [r.WorkflowId.Value,r.InvocationId,1L,completed.Id,r.PortfolioId,r.FundId,(short)r.DecisionHorizon,(sbyte)2,(sbyte)r.Outcome,r.ProducedAtUtc,r.PrimaryReasonCode,
+            selected?.DeploymentKey.Id!,selected?.DeploymentKey.Version!,selected?.StrategyKey.Id!,selected?.StrategyKey.Version!,selected?.StructureKey.Id!,selected?.StructureKey.Version!,selected?.VariantKey.Id!,selected?.VariantKey.Version!,
+            TradeSelectionContracts.WireHash(binding.Candidates.Select(x=>x.CandidateHash).ToArray()),binding.PayloadSha256,binding.CommonPolicy.Id,binding.CommonPolicy.Version,binding.CommonPolicy.PayloadSha256,r.ResultId,completed.Result.PayloadSha256,MessagePackBinarySerializer.Shared.Serialize(r)!,bytes];
+        var inserted = await _dbFactory.TradeDb.Use("TradeSelection.Insert", "INSERT INTO trade_selection_invocation_event (workflow_id,invocation_id,source_sequence,event_id,portfolio_id,fund_id,target_horizon,lifecycle_status,outcome,occurred_at_utc,reason_code,selected_deployment_id,selected_deployment_version,selected_strategy_id,selected_strategy_version,selected_structure_id,selected_structure_version,selected_variant_id,selected_variant_version,candidate_set_sha256,binding_sha256,parameter_set_id,parameter_version,parameter_sha256,result_id,result_sha256,result_payload,event_payload) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) IF NOT EXISTS;")
+            .SetParameters(new SelectionValues(values))
+            .ExecuteSingleAsync(row => row.GetBool(0), cancellationToken)
+            .ConfigureAwait(false);
+        if (!inserted)
+        {
+            var existing = await GetTradeSelectionInvocationAsync(r.WorkflowId, r.InvocationId, cancellationToken)
+                .ConfigureAwait(false);
+            if (existing is null || !TradeSelectionContracts.SameCompletion(existing, completed))
+                throw new InvalidOperationException("Conflicting selector projection for the same invocation.");
+        }
+        await _dbFactory.TradeDb.Use("TradeSelection.HistoryInsert", "INSERT INTO trade_selection_history_by_fund_date (portfolio_id,fund_id,value_date,occurred_at_utc,workflow_id,invocation_id,event_id,target_horizon,outcome,reason_code,result_id,result_sha256) VALUES (?,?,?,?,?,?,?,?,?,?,?,?);")
+            .SetParameters(new SelectionValues([r.PortfolioId, r.FundId, DateOnly.FromDateTime(r.ProducedAtUtc), r.ProducedAtUtc, r.WorkflowId.Value, r.InvocationId, completed.Id, (short)r.DecisionHorizon, (sbyte)r.Outcome, r.PrimaryReasonCode, r.ResultId, completed.Result.PayloadSha256]))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+    /// <inheritdoc />
+    public Task<TradeSelectionFunctionCompletedEvent?> GetTradeSelectionInvocationAsync(StrategyWorkflowId workflowId, Guid invocationId, CancellationToken cancellationToken = default)
+    {
+        workflowId.RequireInvocation(invocationId, "Exact workflow and invocation identities are required.");
+        return _dbFactory.TradeDb.Use("TradeSelection.Exact", "SELECT event_payload,result_sha256 FROM trade_selection_invocation_event WHERE workflow_id=? AND invocation_id=? AND source_sequence=1;")
+            .SetParameters(new SelectionValues([workflowId.Value, invocationId]))
+            .ExecuteSingleAsync(row =>
+            {
+                var completed = MessagePackBinarySerializer.Shared.Deserialize<TradeSelectionFunctionCompletedEvent>(row.GetBytes(0));
+                var r = TradeSelectionContracts.ReadResult(completed.Result);
+                if (r.WorkflowId != workflowId || r.InvocationId != invocationId || completed.Result.PayloadSha256 != row.GetString(1)) throw new InvalidOperationException("Stored selector evidence identity/hash mismatch.");
+                return completed;
+            }, cancellationToken);
+    }
+    /// <inheritdoc />
+    public Task<QueryPage<TradeSelectionHistoryRow>> GetTradeSelectionHistoryAsync(int portfolioId, int fundId, DateOnly valueDate, int pageSize, byte[]? pagingState = null, CancellationToken cancellationToken = default)
+    {
+        portfolioId.RequireHistoryScope(fundId, valueDate, pageSize, 200, "Invalid history scope or page size.");
+        return _dbFactory.TradeDb.Use("TradeSelection.HistoryPage", "SELECT occurred_at_utc,workflow_id,invocation_id,event_id,target_horizon,outcome,reason_code,result_id,result_sha256 FROM trade_selection_history_by_fund_date WHERE portfolio_id=? AND fund_id=? AND value_date=?;")
+            .SetParameters(new SelectionValues([portfolioId, fundId, valueDate]))
+            .ExecutePageAsync(row => new TradeSelectionHistoryRow(portfolioId, fundId, valueDate, row.GetDateTime(0), row.GetGuid(1), row.GetGuid(2), row.GetGuid(3), row.GetShort(4), (byte)row.GetEnum<SelectionOutcome>(5), row.GetString(6), row.GetGuid(7), row.GetString(8)), pageSize, pagingState, cancellationToken);
     }
 }

@@ -163,3 +163,35 @@ internal readonly record struct InsertScheduledJobDays(int jobId, bool monday, b
 {
     public object Bind() => new object?[] { jobId, monday, tuesday, wednesday, thursday, friday, saturday, sunday };
 }
+
+internal readonly record struct ScheduledJobProjectionKey(string JobName, int JobId);
+internal readonly record struct ScheduledJobProjectionRow(ScheduledJobProjectionKey Key, Guid? ReservationToken);
+internal readonly record struct ScheduledJobReservation(int JobId, Guid? ReservationToken);
+internal readonly record struct ScheduledJobWriteOwnership(
+    string ScopeType,
+    string ScopeKey,
+    Guid OperationId,
+    DateTime StartedOn);
+internal sealed record ScheduledJobWriteOperation(
+    Guid OperationId,
+    DateTime StartedOn,
+    List<ScheduledJobWriteOwnership> Ownerships);
+internal readonly record struct MdiForwardLossRatioLogicalKey(string TrendDirection, string TradeType, int Mdi);
+internal readonly record struct ReferenceProjectionState(Guid Generation, bool Completed);
+internal readonly record struct ReferenceProjectionMutationJournalEntry(
+    string ProjectionName,
+    Guid MutationId,
+    DateTime StartedOn);
+internal readonly record struct ReferenceProjectionReadToken(Guid ProjectionGeneration, Guid? ScopeGeneration);
+internal readonly record struct ReferenceProjectionMutation(
+    Guid Generation,
+    bool RestoreReady,
+    bool OwnsWriteOwnership);
+internal readonly record struct ReferenceProjectionScopedMutation(
+    string ScopeName,
+    ReferenceProjectionMutation Mutation);
+internal sealed record ReferenceProjectionWriteState(
+    string ProjectionName,
+    ReferenceProjectionMutation GroupMutation,
+    IReadOnlyList<ReferenceProjectionScopedMutation> ScopeMutations);
+internal sealed record ScheduledJobIdRow(int Value);

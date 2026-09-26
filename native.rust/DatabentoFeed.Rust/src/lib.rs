@@ -109,6 +109,7 @@ mod exports {
             symbol.length != 0 && valid_range(symbol.offset, symbol.length, blob_bytes)
         })
     }
+    #[cfg(feature = "live")]
     fn historical_inputs(
         request: &HistoricalRequestV1,
         symbols: *const Utf8SliceV1,

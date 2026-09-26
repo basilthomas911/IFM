@@ -1,8 +1,6 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.Storage.OptionPricerDb;
 
-internal class OptionPricerDbCql
+internal static class OptionPricerDbCql
 {
     public const string DeleteOptionPricerDevice = """
         DELETE FROM option_pricer_device 
@@ -19,6 +17,13 @@ internal class OptionPricerDbCql
         delete from spread_distribution_job
         where orderId = :orderId
         and tradeId = :tradeId
+        """;
+
+    public const string DeleteSpreadDistributionJob = """
+        DELETE FROM spread_distribution_job
+        WHERE orderId = :orderId
+        AND tradeId = :tradeId
+        AND valueDate = :valueDate;
         """;
 
     public const string GetOptionPricerDevices = """
@@ -58,10 +63,21 @@ internal class OptionPricerDbCql
         AND daysToExpiry = :daysToExpiry Limit 1;
         """;
 
-    public const string GetSpreadDistributionIJobIds = """
-        select orderId, tradeId
-        from spread_distribution_job
-        group by orderId, tradeId
+    public const string GetAllSpreadDistributionJobs = """
+        SELECT
+        orderId AS "OrderId",
+        tradeId AS "TradeId",
+        tradeType AS "TradeType",
+        tradeStatus AS "TradeStatus",
+        valueDate AS "ValueDate",
+        daysToExpiry AS "DaysToExpiry",
+        jobSubmitted AS "JobSubmitted",
+        jobStatus AS "JobStatus",
+        jobCompleted AS "JobCompleted",
+        jobFailed AS "JobFailed",
+        inProgress AS "InProgress",
+        lossProbabilityFactor AS "LossProbabilityFactor"
+        FROM spread_distribution_job;
         """;
 
     public const string GetSpreadDistributionJobs = """
@@ -82,7 +98,7 @@ internal class OptionPricerDbCql
         WHERE orderId = :orderId AND tradeId = :tradeId;
         """;
 
-    public const string InsertIOptionPricerDevice = """
+    public const string InsertOptionPricerDevice = """
         INSERT INTO option_pricer_device (deviceId, deviceName, spreadPaths, volatilityPaths, maxBatchSize, optionType, enabled)
         VALUES (:deviceId, :deviceName, :spreadPaths, :volatilityPaths, :maxBatchSize, :optionType, :enabled);
         """;
@@ -133,10 +149,10 @@ internal class OptionPricerDbCql
         ) IF NOT EXISTS;
         """;
 
-    public const string UpdateSreadDistributionJobStatus = """
+    public const string UpdateSpreadDistributionJobStatus = """
         update spread_distribution_job
         set JobCompleted = :jobCompleted,
-        JobFailed = :jobFaild,
+        JobFailed = :jobFailed,
         JobStatus = :jobStatus,
         InProgress = :inProgress
         where orderId = :orderId

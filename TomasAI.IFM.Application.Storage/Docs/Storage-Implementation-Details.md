@@ -52,8 +52,6 @@ TomasAI.IFM.Application.Storage/                    Project root
 │   └── Schema/                                     Market-data CQL schema
 ├── OptionPricerDb/                                 Option-pricer persistence
 │   └── Schema/                                     Option-pricer CQL schema
-├── PredictiveModelDb/                              Predictive-model persistence shell
-│   └── Schema/                                     Predictive-model CQL schema
 ├── ReferenceDb/                                    Reference and scheduling persistence
 │   └── Schema/                                     Reference CQL schema
 ├── Schema/                                         Shared schema abstractions
@@ -130,8 +128,6 @@ TomasAI.IFM.Application.Storage/                    Project root
 | `MarketDataDb/Schema/` | Active source leaf | Defines canonical market-data tables, query-shaped tick/EOD/VX projections, cutover state, and the RSI signal-type index in creation order. |
 | `OptionPricerDb/` | Active | Option-pricer devices, spread distributions, distribution jobs, status transitions, and domain-specific exception/parameter definitions. |
 | `OptionPricerDb/Schema/` | Active source leaf | Defines device, distribution-job, and spread-distribution tables. |
-| `PredictiveModelDb/` | Active shell | Exposes a provider-backed repository and empty read/write marker contracts; current runtime methods are not implemented here. |
-| `PredictiveModelDb/Schema/` | Active source leaf | Defines ITI trend class/delta data and model tables plus request IDs. |
 | `ReferenceDb/` | Active | Lookup types, seed IDs, scheduled jobs, economic calendars, country codes, and MDI forward-loss-ratio persistence. |
 | `ReferenceDb/Schema/` | Active source leaf | Defines economic-calendar, lookup, forward-loss, scheduled-job/day, and seed tables. |
 | `Schema/` | Active source leaf | Shared `IDbSchemaContext`, `SchemaDbContext<T>`, and immutable schema object definition. |
@@ -193,46 +189,46 @@ The minimum class shape is:
 
 ```csharp
 /// <summary>
-/// Provides persistence operations for predictive-model data.
+/// Provides persistence operations for example domain data.
 /// </summary>
 /// <param name="connectionSettings">The named database connection settings.</param>
 /// <param name="dbFactory">The factory used to resolve database contexts.</param>
 /// <param name="logger">The database-provider logger.</param>
-public class PredictiveModelDbContext(
+public class ExampleDbContext(
     IDbConnectionSettings connectionSettings,
     IDbContextFactory dbFactory,
     ILogger<DbProvider> logger)
-    : ObjectDataRepository<PredictiveModelDbContext>(
-        connectionSettings[PredictiveModelDbConnection], logger),
-      IPredictiveModelDbContext
+    : ObjectDataRepository<ExampleDbContext>(
+        connectionSettings[ExampleDbConnection], logger),
+      IExampleDbContext
 {
     private readonly IDbContextFactory _dbFactory = dbFactory;
 
-    public const string PredictiveModelDbConnection = "PredictiveModelDbConnection";
+    public const string ExampleDbConnection = "ExampleDbConnection";
 
     /// <summary>
     /// Gets the concrete database context.
     /// </summary>
-    public override PredictiveModelDbContext Database => this;
+    public override ExampleDbContext Database => this;
 
     /// <summary>
     /// Gets the read capability for this database context.
     /// </summary>
-    public IPredictiveModelDbReadContext DbReader => this;
+    public IExampleDbReadContext DbReader => this;
 
     /// <summary>
     /// Gets the write capability for this database context.
     /// </summary>
-    public IPredictiveModelDbWriteContext DbWriter => this;
+    public IExampleDbWriteContext DbWriter => this;
 }
 ```
 
 The corresponding combined interface has this minimum shape:
 
 ```csharp
-public interface IPredictiveModelDbContext :
-    IPredictiveModelDbReadContext,
-    IPredictiveModelDbWriteContext
+public interface IExampleDbContext :
+    IExampleDbReadContext,
+    IExampleDbWriteContext
 {
 }
 ```
@@ -357,8 +353,8 @@ Consumer
 
 - event-source, actor-event-source, log, and sequence repositories;
 - typed Fund, Market Data, Option Pricer, Reference, Securities, Trade, and Yield Curve contexts;
-- generic Predictive Model and Economic Calendar repositories;
-- ten schema contexts; and
+- the remaining focused repository adapters;
+- the configured schema contexts; and
 - a `ReferencePool` plus generic `Get<TRepo>()` internally used by pools.
 
 Each factory property resolves on access rather than retaining a context instance. Actual lifetime therefore depends on the host's service registration.
@@ -395,7 +391,6 @@ Hosts must register settings for the contexts they resolve:
 | Fund | `FundDbConnection` |
 | Market data | `MarketDataDbConnection` |
 | Option pricer | `OptionPricerDbConnection` |
-| Predictive model | `PredictiveModelDbConnection` |
 | Reference | `ReferenceDbConnection` |
 | Securities | `SecuritiesDbConnection` |
 | Sequence ID | `SequenceIdDbConnection` |
@@ -425,7 +420,6 @@ Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. 
 | `FundDbContext` | Full fund/order/trade/transaction CRUD and bulk operations plus balances, P&L, drawdown reporting, state/status changes, and database backup. |
 | `MarketDataDbContext` | The largest context: market ticks/bars/EOD, option ticks/quotes, analytics indicators/signals/models, VX, yield curves, holidays, normal curves, IDs, and trade live feed. |
 | `OptionPricerDbContext` | Device registration and spread-distribution job/data lifecycle. |
-| `PredictiveModelDbContext` | Provider-backed context with read/write marker interfaces but no declared runtime methods; its schema remains managed. |
 | `ReferenceDbContext` | Lookup/seed values, scheduled jobs, economic calendars, country codes, and MDI forward-loss ratios. |
 | `SecuritiesDbContext` | Futures and futures-option contract master data and currently traded contract queries. |
 | `SequenceIdDbContext` | Executes `fn_get_next_sequence_id` for a named `SequenceName`. |
@@ -483,9 +477,8 @@ The Market Data catalog uses that narrow additive convention for the authoritati
 | Event Source | 3 sequences and 5 tables: stream IDs, event names, event log, command log, and projector state. |
 | Fund | 14 canonical/projection tables, including permanent order-ID ownership, exact-key transaction identity reservations, monthly transaction queries, readiness markers, and distributed write ownership. |
 | Log | 1 telemetry-log table. |
-| Market Data | Canonical live-feed, futures/option, analytics, curve, holiday, and quote objects plus tick/EOD/VX query projections and cutover state. |
+| Market Data | Canonical live-feed, futures/option, analytics, ITI trend data/models, curve, holiday, and quote objects plus tick/EOD/VX query projections and cutover state. |
 | Option Pricer | 3 tables for devices, jobs, and distributions. |
-| Predictive Model | 5 tables for ITI trend data/models and request IDs. |
 | Reference | 13 canonical/projection tables, including country/month and exact-name queries, scoped projection readiness, scheduled-job ID/name mutation ownership, and the LWT seed allocator. |
 | Securities | Canonical futures/option contracts plus symbol projections and generation-aware cutover state. |
 | Sequence ID | 2 functions plus a generated sequence definition for every `SequenceName`. |
@@ -546,7 +539,7 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 
 Storage behavior is validated primarily outside this project:
 
-- `TomasAI.IFM.Application.Storage.IntegrationTests` exercises Event Source, Fund, Log, Market Data, Option Pricer, Predictive Model, Reference, Securities, and Trade contexts.
+- `TomasAI.IFM.Application.Storage.IntegrationTests` exercises Event Source, Fund, Log, Market Data, Option Pricer, Reference, Securities, and Trade contexts.
 - Its `FrameworkStorage/ScyllaDb` suite contains 20 real-provider tests across all four Fund tables. It covers every `IObjectRepositoryProvider` method, large single-pass bounded writes, write cancellation before enumeration, both Scylla queued-command modes (including multiple bind values in one logged command), ordinal Fund types, argument guards, disposable pooled immutable results, async streaming, early disposal, and cancellation.
 - Its `FrameworkStorage/Postgres` suite contains 19 real-provider tests across all five event-source tables. It covers the same provider API surface, ordinal PostgreSQL types, argument guards, async streaming lifecycle, server-side prepared-statement registration, single-round-trip queued batches, and rollback when a later queued command fails.
 - Both provider suites disable collection parallelism, reserve deterministic negative identifiers/names, clean before and after every test, verify cleanup, and avoid production databases. They are selected with `Category=ScyllaDBIntegration` or `Category=PostgresIntegration`.

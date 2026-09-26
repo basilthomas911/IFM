@@ -27,9 +27,17 @@ public sealed class MarketDataServiceDbContextConventionTests
     }
 
     [Fact]
-    public void Legacy_standalone_route_plan_store_does_not_exist()
-        => Assert.Null(typeof(MarketDataServiceDbContext).Assembly.GetType(
+    public void Legacy_standalone_market_data_service_stores_do_not_exist()
+    {
+        var assembly = typeof(MarketDataServiceDbContext).Assembly;
+
+        Assert.Null(assembly.GetType(
             "TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresCompositionRoutePlanStore"));
+        Assert.Null(assembly.GetType(
+            "TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.PostgresDurableSubscriptionIntentStore"));
+        Assert.Null(assembly.GetType(
+            "TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions.MarketDataServiceDurableSubscriptionStore"));
+    }
 
     [Fact]
     public void Factory_exposes_the_typed_market_data_service_context()
@@ -89,6 +97,26 @@ public sealed class MarketDataServiceDbContextConventionTests
         Assert.Contains("extension(FuturesRolloverContractAssignment assignment)", extensions, StringComparison.Ordinal);
         Assert.Contains("extension(DateTime value)", extensions, StringComparison.Ordinal);
         Assert.DoesNotContain("(this ", extensions, StringComparison.Ordinal);
+
+        var lines = File.ReadAllLines(Path.Combine(root, "TomasAI.IFM.Application.Storage", "MarketDataServiceDb", "MarketDataServiceDbContextExtensions.cs"));
+        var declarations = lines
+            .Select((text, index) => (Text: text, Index: index))
+            .Where(line => line.Text.StartsWith("        internal ", StringComparison.Ordinal)
+                && line.Text.Contains('('))
+            .ToArray();
+        Assert.NotEmpty(declarations);
+        Assert.All(declarations, declaration =>
+        {
+            var documentation = lines
+                .Take(declaration.Index)
+                .Reverse()
+                .TakeWhile(line => line.TrimStart().StartsWith("///", StringComparison.Ordinal))
+                .ToArray();
+            Assert.Contains(documentation, line =>
+                line.Contains("<summary>", StringComparison.Ordinal));
+            Assert.Contains(documentation, line =>
+                line.Contains("</summary>", StringComparison.Ordinal));
+        });
     }
 
     [Fact]

@@ -87,15 +87,13 @@ public sealed class LivePipelineProbeIntegrationTests
             CreatedOnUtc = DateTime.UtcNow, UpdatedOnUtc = DateTime.UtcNow, CreatedBy = "test", UpdatedBy = "test"
             }).ToArray();
         });
-        var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
-        catalog.GetByRootAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call => contracts.Where(c => c.Symbol == call.Arg<string>()).ToArray());
         var commands = Substitute.For<IMarketDataFeedCommandApi>();
         commands.StartFuturesBarDataStreamingAsync(Arg.Any<FuturesContractV3ReadModel[]>(), f.Date).Returns(new ServiceResult<Guid>(Guid.NewGuid()));
         commands.StartFuturesTickDataStreamingAsync(Arg.Any<FuturesContractV3ReadModel>(), f.Date, false).Returns(new ServiceResult<Guid>(Guid.NewGuid()));
         var queries = Substitute.For<IMarketDataFeedQueryApi>();
         queries.GetRuntimeStatusAsync().Returns(new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(new MarketDataFeedRuntimeStatusReadModel()
         { IsRunning = true, ActiveValueDate = f.Date, ObservedAtUtc = DateTimeOffset.UtcNow }));
-        var activities = new ApiApplicationStartupActivities(f.Sessions, authority, catalog, rollover, null!, commands, queries,
+        var activities = new ApiApplicationStartupActivities(f.Sessions, authority, rollover, null!, commands, queries,
             null!, null!, f.Storage, f.Market, null!, null!, null!, new(), new(), TimeProvider.System, NullLogger<ApiApplicationStartupActivities>.Instance);
         var context = new ApplicationStartupContext(f.Date, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         await activities.ReconcileCurrentContractsAsync(context, default);

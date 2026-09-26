@@ -1,16 +1,16 @@
-# Stage 4 durable intent transaction engine
+# Stage 4 durable intent persistence
 
 `MarketDataServiceDbContext` owns the public `IDurableSubscriptionIntentStore` persistence port.
-`MarketDataServiceDurableSubscriptionStore` is its internal transaction engine because each call
-must own an isolated repository and transaction. `Stage4SubscriptionSchemaSql.Create` is additive
-and is part of the Market Data Service schema catalog.
+Its C# 14 extension implementation creates an internal `MarketDataServiceTransactionRepository`
+for each call so concurrent operations never share mutable transaction state.
+`Stage4SubscriptionSchemaSql.Create` is additive and is part of the Market Data Service schema catalog.
 
-Startup repository discovery must not register the engine's private nested `Repository`.
-It requires the context-owned engine's per-operation connection and is deliberately not a global
+Startup repository discovery must not register the internal transaction repository.
+It requires the context extension's per-operation connection and is deliberately not a global
 DI service. The shared public-repository discovery boundary excludes this helper; a
 regression test exercises the actual type and the real API startup verifier.
 
-The transaction engine maintains one bounded typed current-intent snapshot per scope/dataset,
+The extension workflow maintains one bounded typed current-intent snapshot per scope/dataset,
 operation outcomes, an ownership-audit outbox, independent per-source watermark rows, and immutable
 lease-ID reservations/tombstones. It uses
 the existing PostgreSQL `ObjectDataRepository` implementation, a fresh repository per operation,

@@ -1,7 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
-internal class ReferenceDbCql
+internal static class ReferenceDbCql
 {
     public const string GetLegacyTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,name,state,createdOnUtc,createdBy FROM trade_strategy_family_v2 WHERE catalog = :catalog;";
     public const string GetTradeStrategyFamilies = "SELECT tradeStrategyFamilyId,definitionVersion,systemKey,family,strategy,timeFrame,symbol,currency,description,state,createdOnUtc,createdBy FROM trade_strategy_family_v3 WHERE catalog = :catalog;";

@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Persistence;
-using TomasAI.IFM.Application.Storage.TradeDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;

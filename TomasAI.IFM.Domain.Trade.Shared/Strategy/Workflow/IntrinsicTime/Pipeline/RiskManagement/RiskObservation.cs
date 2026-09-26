@@ -11,6 +11,22 @@ public sealed record RiskHistoryRow([property:Key(0)] int PortfolioId, [property
     [property:Key(11)] long OrderId,[property:Key(12)] string Variant="");
 [MessagePackObject]
 public sealed record RiskHistoryPage([property:Key(0)] RiskHistoryRow[] Items, [property:Key(1)] string? PagingState);
+
+public enum RiskHistoryProjectionDisposition
+{
+    NotApplicable,
+    Projected,
+    AlreadyProjected,
+    Conflict
+}
+
+public sealed record RiskHistoryProjectionResult(
+    RiskHistoryProjectionDisposition Disposition,
+    Guid WorkflowId = default,
+    Guid InvocationId = default,
+    long Revision = 0,
+    string? StoredHash = null,
+    string? IncomingHash = null);
 [MessagePackObject]
 public sealed record RiskObservation([property:Key(0)] WorkflowStrategyStateUpdatedEvent Snapshot,
     [property:Key(1)] RiskAssessmentResult? Calculation, [property:Key(2)] string CurrentAuthority,

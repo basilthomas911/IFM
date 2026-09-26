@@ -1,14 +1,9 @@
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
@@ -19,8 +14,31 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// contracts, as well as futures option contracts, by symbol, contract identifier, or in bulk. Implementations are
 /// expected to provide efficient, read-only access to contract information for use in trading, analytics, or reporting
 /// scenarios.</remarks>
-public interface ISecuritiesDbReadContext
+public interface ISecuritiesDbReadContext : ICurrentFuturesContractCatalog, IOptionPricingConventionStore
 {
+    /// <inheritdoc />
+    new Task<OptionPricingConvention?> GetAsync(
+        string contractId,
+        string mappingVersion,
+        CancellationToken cancellationToken);
+    Task<ReferenceContractVersion?> GetReferenceVersionAsync(
+        string contractId,
+        string version,
+        CancellationToken cancellationToken = default);
+    Task<bool> ContainsReferenceVersionAsync(
+        string contractId,
+        string version,
+        CancellationToken cancellationToken = default);
+    Task<ReferenceContractVersion?> GetEffectiveReferenceVersionAsync(
+        string contractId,
+        string version,
+        DateTimeOffset effectiveAtUtc,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ReferenceContractVersionSummaryReadModel>> ListReferenceVersionsAsync(
+        string contractId,
+        string afterVersion = "",
+        int limit = 100,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OptionContractExpiryReadModel>> GetOptionContractExpiriesAsync(
         string symbol, DateOnly fromExpiry, DateOnly throughExpiry,
         CancellationToken cancellationToken = default);
@@ -47,7 +65,7 @@ public interface ISecuritiesDbReadContext
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds, CancellationToken cancellationToken);
     Task<FuturesOptionContractPageReadModel> GetFuturesOptionContractsPageAsync(
-        TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.GetFuturesOptionContractsPageParameter request,
+        GetFuturesOptionContractsPageParameter request,
         CancellationToken cancellationToken = default);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol, CancellationToken cancellationToken);

@@ -13,6 +13,7 @@ using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -63,9 +64,16 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
         var selection = TradeSelectionDefaultProfiles.Create(Guid.NewGuid(), TimeFrameType.Daily);
         var construction = new SelectionConstructionPolicy
         {
-            SchemaVersion = 1, ParameterSetId = Guid.NewGuid(), Version = 1, MaximumLegs = 4,
-            MinimumDaysToExpiry = 7, MaximumDaysToExpiry = 90, MinimumWingWidth = 5, MaximumWingWidth = 10,
-            DeltaUnits = "UnderlyingEquivalent", MaximumDeltaTolerance = .10m
+            SchemaVersion = 1,
+            ParameterSetId = Guid.NewGuid(),
+            Version = 1,
+            MaximumLegs = 4,
+            MinimumDaysToExpiry = 7,
+            MaximumDaysToExpiry = 90,
+            MinimumWingWidth = 5,
+            MaximumWingWidth = 10,
+            DeltaUnits = "UnderlyingEquivalent",
+            MaximumDeltaTolerance = .10m
         };
         await configuration.InsertTradeSelectionDraftAsync(selection, "Synthetic qualification only", "qualification", token);
         await configuration.InsertSelectionConstructionDraftAsync(construction, "Synthetic qualification only", "qualification", token);
@@ -85,7 +93,9 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
         };
         var deployment = Own(StrategyCatalogExamples.New(StrategyCatalogKind.Deployment, "ESDaily", "Synthetic ES daily deployment")) with
         {
-            Parent = strategy.Key, Horizon = TimeFrameType.Daily, Variants = [variant.Key],
+            Parent = strategy.Key,
+            Horizon = TimeFrameType.Daily,
+            Variants = [variant.Key],
             Products = [new(product.Id, product.Symbol, product.Exchange, product.Currency)],
             Capabilities = [new("validator", "StructureVariant", 1)],
             PipelineParameters = [new("selection", CatalogPipelineParameterKind.TradeSelection, selection.ParameterSetId, 1, TradeSelectionPolicy.Hash(selection)),

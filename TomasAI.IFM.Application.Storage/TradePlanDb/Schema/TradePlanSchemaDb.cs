@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 
 public sealed class TradePlanSchemaDb(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : SchemaDbContext<TradePlanSchemaDb>(
-        settings[Application.Storage.TradeDb.TradeDbContext.TradeDbConnection], logger)
+        settings[TradePlanDbContext.TradePlanDbConnection], logger)
 {
     static readonly SchemaObjectDefinition[] Objects =
     [

@@ -146,9 +146,9 @@ public sealed class TradeFlowBehaviorTests
         var leg2 = Guid.NewGuid();
         var recovered = new[]
         {
-            ("ESZ6-C5000", new PortfolioFundTradeLeg(1, 10, 20, 30, oldPosition, leg1,
+            new OpenPositionRouteReadModel("ESZ6-C5000", new PortfolioFundTradeLeg(1, 10, 20, 30, oldPosition, leg1,
                 TradeStrategyKind.IronCondor, 1)),
-            ("ESZ6-C5000", new PortfolioFundTradeLeg(2, 11, 21, 31, currentPosition, leg2,
+            new OpenPositionRouteReadModel("ESZ6-C5000", new PortfolioFundTradeLeg(2, 11, 21, 31, currentPosition, leg2,
                 TradeStrategyKind.VerticalSpread, 2))
         };
         var index = new ContractIdRouteIndex();

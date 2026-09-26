@@ -182,7 +182,8 @@ public static class Startup
         builder.Services.AddSingleton(logger);
         builder.Services.AddControllers()
          .AddNewtonsoftJson()
-         .AddJsonOptions(options => {
+         .AddJsonOptions(options =>
+         {
              options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
          });
 
@@ -241,7 +242,8 @@ public static class Startup
 
             // Register HazelcastCache as the IDistributedCache implementation
             var hazelcastOptions = new HazelcastOptionsBuilder()
-            .With(options => {
+            .With(options =>
+            {
                 options.ClusterName = "ifm-cluster";
                 options.Networking.Addresses.Add("localhost:5701");
             })
@@ -339,7 +341,8 @@ public static class Startup
             services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
             services.AddTransient<IActorThreadQueue>(_ => new ActorThreadQueueV2(8192, 32, 32));
 
-            services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type => {
+            services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type =>
+            {
                 var instance = provider.GetService(type)!;
                 instance ??= GetContainerInstance(type)!;
                 return instance;
@@ -375,8 +378,8 @@ public static class Startup
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
             services.AddSingleton<IDownloadLogQueryApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogQueryApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.ISelectionConstructionProfileResolver,TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.SelectionConstructionProfileResolver>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.ITradeSelectionQueryApi,TomasAI.IFM.Application.Api.Nats.Client.TradeSelectionQueryApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.ISelectionConstructionProfileResolver, TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.SelectionConstructionProfileResolver>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.ITradeSelectionQueryApi, TomasAI.IFM.Application.Api.Nats.Client.TradeSelectionQueryApi>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, TomasAI.IFM.Application.Api.Nats.Client.MarketConditionAssessmentQueryApi>();
             services.AddSingleton<IDownloadLogCommandApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogCommandApi>();
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
@@ -419,7 +422,7 @@ public static class Startup
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
             );
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
-            services.AddSingleton(provider => new TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy(
+            services.AddSingleton(provider => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialDevelopmentPolicy(
                 provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IGeneralLedgerStore,
                 TomasAI.IFM.Application.Storage.PortfolioFinancial.GeneralLedgerStore>();
@@ -465,7 +468,7 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
             services.AddSingleton<ICommandAuditLogger>(provider =>
                 (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
-            services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.RiskHistoryJournal>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
                 provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
@@ -630,7 +633,7 @@ public static class Startup
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
-            services.AddSingleton<IFuturesBarDataTimer,FuturesBarDataTimer>();
+            services.AddSingleton<IFuturesBarDataTimer, FuturesBarDataTimer>();
             //services.AddHostedService<MarketDataFeedHostedService>();
 
             // trade position hosted service...
@@ -707,7 +710,7 @@ public static class Startup
         // actors and background execution while using the real production runtime.
         var selectedDomain = config["IFM_TEST_ACTOR_DOMAIN"];
         if (!string.IsNullOrWhiteSpace(selectedDomain))
-            domainAssemblies = domainAssemblies.Where(a => selectedDomain.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Contains(a.GetName().Name,StringComparer.Ordinal)).ToList();
+            domainAssemblies = domainAssemblies.Where(a => selectedDomain.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains(a.GetName().Name, StringComparer.Ordinal)).ToList();
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
             .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
@@ -727,26 +730,26 @@ public static class Startup
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         if (domainAssemblies.Contains(TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current))
         {
-        siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityReservationFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityReservationFunctionActor>)).Registration);
-        siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityConsumptionFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityConsumptionFunctionActor>)).Registration);
-        siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.IPortfolioOrderCompositionFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.PortfolioOrderCompositionFunctionActor>)).Registration);
-        siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.IPortfolioCloseOrderCompositionFunctionContext>(
-            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-                typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.PortfolioCloseOrderCompositionFunctionActor>)).Registration);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.Command.EmulatorExecutionCommandServices>(Lifestyle.Singleton);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialBookPreparation>(Lifestyle.Singleton);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeAccountingApi,
-            TomasAI.IFM.Domain.Portfolio.GeneralLedger.BrokerExecutionAccountingApi>(Lifestyle.Singleton);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialAuthorityPreparation>(Lifestyle.Singleton);
-        siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.CapacityReservationCommandServices>(Lifestyle.Singleton);
+            siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityReservationFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                    typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityReservationFunctionActor>)).Registration);
+            siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.ICapacityConsumptionFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                    typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor.CapacityConsumptionFunctionActor>)).Registration);
+            siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.IPortfolioOrderCompositionFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                    typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.PortfolioOrderCompositionFunctionActor>)).Registration);
+            siContainer.AddRegistration<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.IPortfolioCloseOrderCompositionFunctionContext>(
+                siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                    typeof(IFunctionActorContext<TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor.PortfolioCloseOrderCompositionFunctionActor>)).Registration);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.Command.EmulatorExecutionCommandServices>(Lifestyle.Singleton);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialBookPreparation>(Lifestyle.Singleton);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeAccountingApi,
+                TomasAI.IFM.Domain.Portfolio.GeneralLedger.BrokerExecutionAccountingApi>(Lifestyle.Singleton);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialAuthorityPreparation>(Lifestyle.Singleton);
+            siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.CapacityReservationCommandServices>(Lifestyle.Singleton);
         }
         // Trade actor hosts can activate the option-trade event context without loading
         // the Portfolio actor assembly, so this cross-domain API is always available.

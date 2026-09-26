@@ -4,6 +4,40 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 internal class SecuritiesDbCql
 {
+    public const string CreateReferenceIdentityTable = """
+        CREATE TABLE IF NOT EXISTS securities_reference_identity(identity_key text PRIMARY KEY, binding text);
+        """;
+
+    public const string CreateReferenceVersionTable = """
+        CREATE TABLE IF NOT EXISTS securities_reference_version(contract_id text, version text, digest text, payload blob, published boolean,
+            PRIMARY KEY ((contract_id),version));
+        """;
+
+    public const string StageReferenceVersion = """
+        INSERT INTO securities_reference_version(contract_id,version,digest,payload,published)
+        VALUES(:id,:version,:digest,:payload,false) IF NOT EXISTS;
+        """;
+
+    public const string ClaimReferenceIdentity = """
+        INSERT INTO securities_reference_identity(identity_key,binding) VALUES(:key,:binding) IF NOT EXISTS;
+        """;
+
+    public const string GetReferenceIdentityClaim = """
+        SELECT binding FROM securities_reference_identity WHERE identity_key=:key;
+        """;
+
+    public const string CommitReferenceVersion = """
+        UPDATE securities_reference_version SET published=true WHERE contract_id=:id AND version=:version IF digest=:digest;
+        """;
+
+    public const string GetReferenceVersionHistory = """
+        SELECT version,published FROM securities_reference_version WHERE contract_id=:id AND version>:after LIMIT :page_limit;
+        """;
+
+    public const string GetReferenceVersion = """
+        SELECT digest,published,payload FROM securities_reference_version WHERE contract_id=:id AND version=:version;
+        """;
+
     public const string InsertOptionContractExpiry = """
         INSERT INTO option_contract_expiry_calendar
             (symbol, generation, expiryDate, providerRoot, contractId, underlyingContractId,

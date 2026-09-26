@@ -114,7 +114,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
         DateOnly valueDate,
         CancellationToken cancellationToken)
     {
-        var contracts = await contractCatalog.GetByRootAsync("ES", cancellationToken)
+        var contracts = await contractCatalog.GetFuturesContractsBySymbolAsync("ES", cancellationToken)
             .ConfigureAwait(false);
         var current = contracts
             .Where(contract => contract.IsValid

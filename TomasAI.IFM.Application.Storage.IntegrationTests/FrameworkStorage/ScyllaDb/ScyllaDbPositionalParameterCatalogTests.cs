@@ -18,8 +18,6 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
     static readonly IReadOnlyDictionary<string, string> CqlAliases =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["InsertOptionPricerDevice"] = "InsertIOptionPricerDevice",
-            ["UpdateSpreadDistributionJobStatus"] = "UpdateSreadDistributionJobStatus",
             ["GetLastFuturesAtrDailySignal"] = "GetLastFuturesDailyAtrSignal",
             ["GetOptionLegsWithValueDate"] = "GetOptionLegs",
             ["GetTradePlansByTradeId"] = "GetTradePlansByValueDate",
@@ -32,8 +30,7 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
     static readonly IReadOnlyDictionary<string, string> ParameterAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["GetScheduledJobId:jobId"] = "jobName",
-            ["UpdateSpreadDistributionJobStatus:jobFaild"] = "jobFailed"
+            ["GetScheduledJobId:jobId"] = "jobName"
         };
 
     [Theory]

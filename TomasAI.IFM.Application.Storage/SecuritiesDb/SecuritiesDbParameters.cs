@@ -2,6 +2,102 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
+internal readonly record struct StageReferenceVersion(string id, string version, string digest, byte[] payload) : IBindValue
+{
+    public object Bind() => new object?[] { id, version, digest, payload };
+}
+
+internal readonly record struct ClaimReferenceIdentity(string key, string binding) : IBindValue
+{
+    public object Bind() => new object?[] { key, binding };
+}
+
+internal readonly record struct GetReferenceIdentityClaim(string key) : IBindValue
+{
+    public object Bind() => new object?[] { key };
+}
+
+internal readonly record struct CommitReferenceVersion(string id, string version, string digest) : IBindValue
+{
+    public object Bind() => new object?[] { id, version, digest };
+}
+
+internal readonly record struct GetReferenceVersionHistory(string id, string after, int pageLimit) : IBindValue
+{
+    public object Bind() => new object?[] { id, after, pageLimit };
+}
+
+internal readonly record struct GetReferenceVersion(string id, string version) : IBindValue
+{
+    public object Bind() => new object?[] { id, version };
+}
+
+internal readonly record struct ReferenceVersionStorageRow(
+    string Digest,
+    bool Published,
+    TomasAI.IFM.Domain.Reference.Shared.ViewModels.ReferenceContractVersion Value);
+
+internal readonly record struct FuturesContractProjectionKey(
+    string Symbol,
+    bool Rollover,
+    bool OnTheRun,
+    DateOnly LastTradeDate,
+    string ContractId);
+
+internal readonly record struct FuturesOptionContractProjectionKey(
+    string Symbol,
+    DateOnly ContractMonth,
+    string OptionType,
+    double StrikePrice,
+    string ContractId);
+
+internal readonly record struct ProjectionState(Guid Generation, bool IsComplete, bool HasNoActiveOperations);
+
+internal readonly record struct SymbolProjectionState(
+    string Symbol,
+    Guid Generation,
+    bool IsComplete,
+    bool HasNoActiveOperations);
+
+internal readonly record struct ProjectionReadStamp(
+    string ProjectionName,
+    string Symbol,
+    Guid Generation,
+    bool IsGlobal,
+    Guid? GlobalGeneration);
+
+internal readonly record struct ProjectionOperationJournalEntry(
+    Guid OperationId,
+    DateTime StartedOn,
+    bool StateMayBeActive);
+
+internal readonly record struct ProjectionOperationScope(string ScopeType, string ScopeKey);
+
+internal sealed record ProjectionOperation(
+    Guid OperationId,
+    string ProjectionName,
+    bool GlobalWasComplete,
+    HashSet<string> CompletedSymbols,
+    string[] AffectedSymbols);
+
+internal sealed record ProjectionInventory(
+    HashSet<FuturesContractProjectionKey> FuturesContractSourceKeys,
+    HashSet<FuturesContractProjectionKey> FuturesContractTargetKeys,
+    HashSet<FuturesOptionContractProjectionKey> FuturesOptionContractSourceKeys,
+    HashSet<FuturesOptionContractProjectionKey> FuturesOptionContractTargetKeys,
+    int FuturesContractSourceRows,
+    int FuturesContractTargetRows,
+    int FuturesOptionContractSourceRows,
+    int FuturesOptionContractTargetRows);
+
+internal sealed record OptionPageCursor(string Symbol, int PageSize, ProjectionReadStamp Stamp, byte[] State);
+
+internal sealed record OptionExpiryCalendarState(
+    Guid Generation,
+    DateOnly CoverageFrom,
+    DateOnly CoverageThrough,
+    DateTime RefreshedAtUtc);
+
 internal readonly record struct InsertOptionContractExpiry(
     string symbol, Guid generation, DateOnly expiryDate, string providerRoot,
     string contractId, string underlyingContractId, string optionFamily,

@@ -170,17 +170,17 @@ authenticated trading authorities.
 
 ### Isolated PostgreSQL subset and verified failure correction
 
-The new `IDurableSubscriptionIntentStore` and `PostgresDurableSubscriptionIntentStore` persist
-bounded typed current ticker intent, operation outcomes, outbox transitions, source watermarks and
-lease-ID reservations/tombstones in one transaction. The initial source contract is one source
+`MarketDataServiceDbContext` implements `IDurableSubscriptionIntentStore`; its C# 14 extension
+workflow persists bounded typed current ticker intent, operation outcomes, outbox transitions,
+source watermarks and lease-ID reservations/tombstones in one transaction. The initial source contract is one source
 stream per owner with contiguous logical versions; that contract is not an approved production
 adapter. Explicit release/terminal evidence affects only that owner. Unknown/empty active facts
 retain leases. Reserved IDs cannot be reused after release by the same or another source.
 
-Five additive `market_data_service.stage4_*` tables are created only by the isolated integration
-fixture. It verifies loopback port 5432 and database `event-source-test-db`, checks the connected
+Five additive `market_data_service.stage4_*` tables are owned by the Market Data Service schema
+catalog. The isolated integration fixture verifies loopback port 5432 and database `event-source-test-db`, checks the connected
 database name, and cleans only its registered randomized `stage4-test-<32hex>` scopes. No app
-database migration, truncation, table drop or startup registration was performed.
+database truncation or table drop is performed by the fixture.
 
 The first database run failed all 12 database cases because the existing repository write helper
 joined the ambient transaction but query helpers opened separate connections. The new store's

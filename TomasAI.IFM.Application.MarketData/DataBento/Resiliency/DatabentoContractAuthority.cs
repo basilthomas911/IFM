@@ -7,7 +7,9 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 public interface ICurrentFuturesContractCatalog
 {
-    Task<IReadOnlyList<FuturesContractV3ReadModel>> GetByRootAsync(string rootSymbol, CancellationToken cancellationToken);
+    Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsBySymbolAsync(
+        string symbol,
+        CancellationToken cancellationToken);
 }
 
 public interface IDatabentoContractAuthority
@@ -35,9 +37,9 @@ public sealed class DatabentoContractAuthority(
             return persisted;
         }
 
-        var esSources = Eligible(await sourceCatalog.GetByRootAsync("ES", cancellationToken).ConfigureAwait(false), valueDate)
+        var esSources = Eligible(await sourceCatalog.GetFuturesContractsBySymbolAsync("ES", cancellationToken).ConfigureAwait(false), valueDate)
             .Where(value => value.LastTradeDate.Month is 3 or 6 or 9 or 12).ToArray();
-        var vxSources = Eligible(await sourceCatalog.GetByRootAsync("VX", cancellationToken).ConfigureAwait(false), valueDate);
+        var vxSources = Eligible(await sourceCatalog.GetFuturesContractsBySymbolAsync("VX", cancellationToken).ConfigureAwait(false), valueDate);
         if (esSources.Length == 0 || vxSources.Length < 2)
             throw new InvalidOperationException("The source catalog must contain one eligible ES and two ordered VX contracts.");
 
@@ -99,7 +101,7 @@ public sealed class DatabentoContractAuthority(
             value.SecurityType, value.Currency, value.Exchange, value.Multiplier,
             value.LastTradeDate, onTheRun, true);
 
-    static FuturesContractV3ReadModel[] Eligible(IReadOnlyList<FuturesContractV3ReadModel> values, DateOnly valueDate)
+    static FuturesContractV3ReadModel[] Eligible(IEnumerable<FuturesContractV3ReadModel> values, DateOnly valueDate)
         => [.. values.Where(value => value.IsValid
                 && value.LastTradeDate > valueDate
                 && HasConsistentProviderIdentity(value))

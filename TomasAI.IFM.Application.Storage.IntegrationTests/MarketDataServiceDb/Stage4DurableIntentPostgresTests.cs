@@ -12,7 +12,6 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
-using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.Storage;

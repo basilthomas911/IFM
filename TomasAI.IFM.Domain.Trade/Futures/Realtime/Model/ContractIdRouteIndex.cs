@@ -103,7 +103,7 @@ public sealed class ContractIdRouteIndex
         return removed;
     }
 
-    public void ReplaceFromSnapshot(IEnumerable<(string ContractId, PortfolioFundTradeLeg Route)> routes)
+    public void ReplaceFromSnapshot(IEnumerable<OpenPositionRouteReadModel> routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
         _routes.Clear();

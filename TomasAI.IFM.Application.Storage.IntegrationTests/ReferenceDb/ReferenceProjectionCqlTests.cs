@@ -4,6 +4,7 @@ using FluentAssertions;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;

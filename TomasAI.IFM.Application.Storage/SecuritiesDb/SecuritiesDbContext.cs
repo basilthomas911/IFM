@@ -1,8 +1,11 @@
 using Microsoft.Extensions.Logging;
-using System.Globalization;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
@@ -11,34 +14,37 @@ using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 /// <summary>
-/// securities database constructor
+/// Provides Securities database read and write operations.
 /// </summary>
-/// <param name="connectionSettings"></param>
-/// <param name="dbFactory"></param>
-///  <param name="logger"
-public partial class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
+/// <param name="connectionSettings">The database connection settings.</param>
+/// <param name="dbFactory">The application database-context factory.</param>
+/// <param name="logger">The database provider logger.</param>
+public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
     : ObjectDataRepository<SecuritiesDbContext>(connectionSettings[SecuritiesDbConnection], logger), ISecuritiesDbContext
 {
     public const string SecuritiesDbConnection = "SecuritiesDbConnection";
     internal const string FuturesContractSymbolProjection = "futures_contract_by_symbol_v3";
     internal const string FuturesOptionContractSymbolProjection = "futures_option_contract_by_symbol_v2";
-    const int CompletionStateLookupBatchSize = 100;
-    const string GlobalProjectionOperationScope = "global";
-    const string ProjectionOperationScopeCount = "scope-count";
-    const string SymbolProjectionOperationScope = "symbol";
-    readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
-    readonly ConcurrentDictionary<string, SemaphoreSlim> _rolloverMutationGates =
+    internal const int CompletionStateLookupBatchSize = 100;
+    internal const string GlobalProjectionOperationScope = "global";
+    internal const string ProjectionOperationScopeCount = "scope-count";
+    internal const string SymbolProjectionOperationScope = "symbol";
+    internal readonly IDbContextFactory DbFactory = dbFactory;
+    internal readonly ConcurrentDictionary<string, SemaphoreSlim> RolloverMutationGates =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the database context.
     /// </summary>
-    public override IObjectRepository Database => this;
+    public override SecuritiesDbContext Database => this;
 
+    /// <summary>Gets the read contract implemented by this context.</summary>
     public ISecuritiesDbReadContext DbReader => this;
+
+    /// <summary>Gets the write contract implemented by this context.</summary>
     public ISecuritiesDbWriteContext DbWriter => this;
 
-    static FuturesContractV3ReadModel MapToFuturesContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+    internal static FuturesContractV3ReadModel MapToFuturesContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => ReferencePayloadCodec.ReadFuture(e.IsNull(11) ? null : e.GetBytes(11), new(
             contractId: e.GetString(0),
             description: e.GetString(1),
@@ -53,7 +59,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             rollover: e.GetBool(10)
         ));
 
-    static FuturesOptionContractReadModel MapToFuturesOptionContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+    internal static FuturesOptionContractReadModel MapToFuturesOptionContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => ReferencePayloadCodec.ReadOption(e.IsNull(11) ? null : e.GetBytes(11), new(
             contractId: e.GetString(0),
             description: e.GetString(1),
@@ -68,7 +74,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             optionType: e.GetString(10)
         ));
 
-    static FuturesContractRolloverReadModel MapToFuturesContractRollover<TDataRecord>(TDataRecord e)
+    internal static FuturesContractRolloverReadModel MapToFuturesContractRollover<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
         => new()
         {
@@ -81,769 +87,128 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             CreatedBy = e.GetString(6)
         };
 
-    readonly record struct FuturesContractProjectionKey(
-        string Symbol,
-        bool Rollover,
-        bool OnTheRun,
-        DateOnly LastTradeDate,
-        string ContractId);
-
-    readonly record struct FuturesOptionContractProjectionKey(
-        string Symbol,
-        DateOnly ContractMonth,
-        string OptionType,
-        double StrikePrice,
-        string ContractId);
-
-    readonly record struct ProjectionState(
-        Guid Generation,
-        bool IsComplete,
-        bool HasNoActiveOperations);
-
-    readonly record struct SymbolProjectionState(
-        string Symbol,
-        Guid Generation,
-        bool IsComplete,
-        bool HasNoActiveOperations);
-
-    readonly record struct ProjectionReadStamp(
-        string ProjectionName,
-        string Symbol,
-        Guid Generation,
-        bool IsGlobal,
-        Guid? GlobalGeneration);
-
-    readonly record struct ProjectionOperationJournalEntry(
-        Guid OperationId,
-        DateTime StartedOn,
-        bool StateMayBeActive);
-
-    readonly record struct ProjectionOperationScope(
-        string ScopeType,
-        string ScopeKey);
-
-    sealed record ProjectionOperation(
-        Guid OperationId,
-        string ProjectionName,
-        bool GlobalWasComplete,
-        HashSet<string> CompletedSymbols,
-        string[] AffectedSymbols);
-
-    sealed record ProjectionInventory(
-        HashSet<FuturesContractProjectionKey> FuturesContractSourceKeys,
-        HashSet<FuturesContractProjectionKey> FuturesContractTargetKeys,
-        HashSet<FuturesOptionContractProjectionKey> FuturesOptionContractSourceKeys,
-        HashSet<FuturesOptionContractProjectionKey> FuturesOptionContractTargetKeys,
-        int FuturesContractSourceRows,
-        int FuturesContractTargetRows,
-        int FuturesOptionContractSourceRows,
-        int FuturesOptionContractTargetRows);
-
-    static FuturesContractProjectionKey MapToFuturesContractProjectionKey<TDataRecord>(TDataRecord e)
+    internal static FuturesContractProjectionKey MapToFuturesContractProjectionKey<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
         => new(e.GetString(0), e.GetBool(1), e.GetBool(2), e.GetDateOnly(3), e.GetString(4));
 
-    static FuturesOptionContractProjectionKey MapToFuturesOptionContractProjectionKey<TDataRecord>(TDataRecord e)
+    internal static FuturesOptionContractProjectionKey MapToFuturesOptionContractProjectionKey<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
         => new(e.GetString(0), e.GetDateOnly(1), e.GetString(2), e.GetDouble(3), e.GetString(4));
 
-    static FuturesContractProjectionKey ToProjectionKey(FuturesContractV3ReadModel contract)
-        => new(contract.Symbol, contract.Rollover, contract.OnTheRun, contract.LastTradeDate, contract.ContractId);
 
-    static FuturesOptionContractProjectionKey ToProjectionKey(FuturesOptionContractReadModel contract)
-        => new(contract.Symbol, contract.ContractMonth, contract.OptionType, contract.StrikePrice, contract.ContractId);
 
-    static IEnumerable<FuturesContractProjectionKey> OtherProjectionKeys(
-        FuturesContractV3ReadModel contract)
-    {
-        foreach (var rollover in new[] { false, true })
-        foreach (var onTheRun in new[] { false, true })
-        {
-            var candidate = new FuturesContractProjectionKey(
-                contract.Symbol, rollover, onTheRun, contract.LastTradeDate, contract.ContractId);
-            if (candidate != ToProjectionKey(contract))
-                yield return candidate;
-        }
-    }
 
-    static bool MapToBoolean(IObjectDataRecord e)
+    internal static bool MapToBoolean(IObjectDataRecord e)
         => e.GetBool(0);
 
-    static ProjectionState MapToProjectionState(IObjectDataRecord e)
+    internal static ProjectionState MapToProjectionState(IObjectDataRecord e)
         => new(e.GetGuid(0), e.GetBool(1), e.IsCollectionEmpty(2));
 
-    static SymbolProjectionState MapToSymbolProjectionState(IObjectDataRecord e)
+    internal static SymbolProjectionState MapToSymbolProjectionState(IObjectDataRecord e)
         => new(e.GetString(0), e.GetGuid(1), e.GetBool(2), e.IsCollectionEmpty(3));
 
-    static ProjectionOperationJournalEntry MapToProjectionOperationJournalEntry(IObjectDataRecord e)
+    internal static ProjectionOperationJournalEntry MapToProjectionOperationJournalEntry(IObjectDataRecord e)
         => new(e.GetGuid(0), e.GetDateTime(1), e.GetBool(2));
 
-    static ProjectionOperationScope MapToProjectionOperationScope(IObjectDataRecord e)
+    internal static ProjectionOperationScope MapToProjectionOperationScope(IObjectDataRecord e)
         => new(e.GetString(0), e.GetString(1));
 
-    static InsertFuturesContract ToInsertParameters(FuturesContractV3ReadModel contract)
-        => new(
-            contract.ContractId,
-            contract.Description,
-            contract.Symbol,
-            contract.LocalSymbol,
-            contract.SecurityType,
-            contract.Currency,
-            contract.Exchange,
-            contract.Multiplier,
-            contract.LastTradeDate,
-            contract.OnTheRun,
-            contract.Rollover,
-            ReferencePayloadCodec.Write(contract));
+    internal static string MapToReferenceIdentityBinding(IObjectDataRecord row)
+        => row.GetString(0);
 
-    static InsertFuturesOptionContract ToInsertParameters(FuturesOptionContractReadModel contract)
-        => new(
-            contract.ContractId,
-            contract.Description,
-            contract.Symbol,
-            contract.LocalSymbol,
-            contract.SecurityType,
-            contract.Currency,
-            contract.Exchange,
-            contract.Multiplier,
-            contract.ContractMonth,
-            contract.StrikePrice,
-            contract.OptionType,
-            ReferencePayloadCodec.Write(contract));
+    internal static ReferenceContractVersionSummaryReadModel MapToReferenceVersionSummary(IObjectDataRecord row)
+        => new(row.GetString(0), row.GetBool(1));
 
-    static void EnsureDistinctFuturesContractWrites(
-        IEnumerable<FuturesContractV3ReadModel> contracts)
+    internal static ReferenceVersionStorageRow MapToReferenceVersionStorageRow(IObjectDataRecord row)
     {
-        var keysByContractId = new Dictionary<string, FuturesContractProjectionKey>(StringComparer.Ordinal);
-        foreach (var contract in contracts)
-        {
-            if (contract.OnTheRun && !contract.Rollover)
-                throw new ArgumentException(
-                    $"Futures contract '{contract.ContractId}' cannot be on-the-run without belonging to the rollover set.",
-                    nameof(contracts));
-            var key = ToProjectionKey(contract);
-            if (!keysByContractId.TryAdd(contract.ContractId, key))
-            {
-                throw new ArgumentException(
-                    $"The futures-contract write contains duplicate or ambiguous contractId '{contract.ContractId}'.",
-                    nameof(contracts));
-            }
-        }
+        var bytes = row.GetBytes(2);
+        if (bytes.Length is 0 or > 131072)
+            throw new InvalidDataException("Reference version payload exceeds its size bound.");
+        var value = MessagePackBinarySerializer.Shared.Deserialize<ReferenceContractVersion>(bytes)
+            ?? throw new InvalidDataException("Reference version payload is missing.");
+        return new(row.GetString(0), row.GetBool(1), value);
     }
 
-    static void EnsureDistinctFuturesOptionContractWrites(
-        IEnumerable<FuturesOptionContractReadModel> contracts)
-    {
-        var keysByContractId = new Dictionary<string, FuturesOptionContractProjectionKey>(StringComparer.Ordinal);
-        foreach (var contract in contracts)
-        {
-            var key = ToProjectionKey(contract);
-            if (!keysByContractId.TryAdd(contract.ContractId, key))
-            {
-                throw new ArgumentException(
-                    $"The futures-option write contains duplicate or ambiguous contractId '{contract.ContractId}'.",
-                    nameof(contracts));
-            }
-        }
-    }
-
-    static async Task<ProjectionState?> ReadProjectionStateAsync(
-        IObjectRepository db,
-        string projectionName,
+    /// <summary>Stages an immutable futures reference version.</summary>
+    public Task<PendingReferenceVersion> StageReferenceVersionAsync(
+        FuturesContractV3ReadModel value,
         CancellationToken cancellationToken = default)
-    {
-        var states = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesProjectionStateV3)}", SecuritiesDbCql.GetSecuritiesProjectionStateV3)
-            .SetParameters(new GetSecuritiesProjectionStateV3(projectionName))
-            .ExecuteQueryAsync(MapToProjectionState!, cancellationToken);
-        return states.Count == 1 ? states.First() : null;
-    }
+        => this.StageReferenceVersionCoreAsync(value, cancellationToken);
 
-    static async Task<ProjectionState?> ReadSymbolProjectionStateAsync(
-        IObjectRepository db,
-        string projectionName,
-        string symbol,
+    /// <summary>Stages an immutable futures-option reference version.</summary>
+    public Task<PendingReferenceVersion> StageReferenceVersionAsync(
+        FuturesOptionContractReadModel value,
         CancellationToken cancellationToken = default)
-    {
-        var states = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesSymbolProjectionStateV3)}", SecuritiesDbCql.GetSecuritiesSymbolProjectionStateV3)
-            .SetParameters(new GetSecuritiesSymbolProjectionStateV3(projectionName, symbol))
-            .ExecuteQueryAsync(static row => new ProjectionState(
-                row.GetGuid(0),
-                row.GetBool(1),
-                row.IsCollectionEmpty(2)), cancellationToken);
-        return states.Count == 1 ? states.First() : null;
-    }
+        => this.StageReferenceVersionCoreAsync(value, cancellationToken);
 
-    static async Task InvalidateGlobalProjectionStateAsync(
-        IObjectRepository db,
-        string projectionName,
+    /// <summary>Publishes a previously staged immutable reference version.</summary>
+    public Task CommitReferenceVersionAsync(
+        PendingReferenceVersion value,
         CancellationToken cancellationToken = default)
-        => await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InvalidateSecuritiesProjectionStateV3)}", SecuritiesDbCql.InvalidateSecuritiesProjectionStateV3)
-            .SetParameters(new InvalidateSecuritiesProjectionStateV3(Guid.NewGuid(), projectionName))
-            .ExecuteCommandAsync(cancellationToken);
+        => this.CommitReferenceVersionCoreAsync(value, cancellationToken);
 
-    static async Task<ProjectionReadStamp?> GetProjectionReadStampAsync(
-        IObjectRepository db,
-        string projectionName,
-        string symbol,
+    /// <summary>Gets a published immutable reference version.</summary>
+    public Task<ReferenceContractVersion?> GetReferenceVersionAsync(
+        string contractId,
+        string version,
         CancellationToken cancellationToken = default)
-    {
-        var global = await ReadProjectionStateAsync(db, projectionName, cancellationToken).ConfigureAwait(false);
-        if (global is { HasNoActiveOperations: false })
-            return null;
-        if (global is { IsComplete: true, HasNoActiveOperations: true })
-        {
-            return new ProjectionReadStamp(
-                projectionName,
-                symbol,
-                global.Value.Generation,
-                IsGlobal: true,
-                GlobalGeneration: global.Value.Generation);
-        }
+        => this.GetReferenceVersionCoreAsync(contractId, version, cancellationToken);
 
-        var symbolState = await ReadSymbolProjectionStateAsync(db, projectionName, symbol, cancellationToken).ConfigureAwait(false);
-        return symbolState is { IsComplete: true, HasNoActiveOperations: true }
-            ? new ProjectionReadStamp(
-                projectionName,
-                symbol,
-                symbolState.Value.Generation,
-                IsGlobal: false,
-                GlobalGeneration: global?.Generation)
-            : null;
-    }
+    /// <inheritdoc />
+    public async Task<OptionPricingConvention?> GetAsync(
+        string contractId,
+        string mappingVersion,
+        CancellationToken cancellationToken)
+        => (await GetReferenceVersionAsync(contractId, mappingVersion, cancellationToken)
+            .ConfigureAwait(false))?.Convention;
 
-    static async Task<bool> IsProjectionReadStampCurrentAsync(
-        IObjectRepository db,
-        ProjectionReadStamp stamp,
+    /// <summary>Gets whether a staged or published immutable reference version exists.</summary>
+    public Task<bool> ContainsReferenceVersionAsync(
+        string contractId,
+        string version,
         CancellationToken cancellationToken = default)
-    {
-        var global = await ReadProjectionStateAsync(db, stamp.ProjectionName, cancellationToken).ConfigureAwait(false);
-        if (stamp.IsGlobal)
-        {
-            return global is { IsComplete: true, HasNoActiveOperations: true } &&
-                global.Value.Generation == stamp.Generation;
-        }
+        => this.ContainsReferenceVersionCoreAsync(contractId, version, cancellationToken);
 
-        var symbol = await ReadSymbolProjectionStateAsync(
-            db,
-            stamp.ProjectionName,
-            stamp.Symbol,
-            cancellationToken).ConfigureAwait(false);
-        return IsSymbolProjectionReadFenceCurrent(
-            stamp.GlobalGeneration,
-            global?.Generation,
-            global?.IsComplete ?? false,
-            global?.HasNoActiveOperations ?? true,
-            stamp.Generation,
-            symbol?.Generation,
-            symbol?.IsComplete ?? false,
-            symbol?.HasNoActiveOperations ?? false);
-    }
-
-    internal static bool IsSymbolProjectionReadFenceCurrent(
-        Guid? stampedGlobalGeneration,
-        Guid? currentGlobalGeneration,
-        bool currentGlobalIsComplete,
-        bool currentGlobalHasNoActiveOperations,
-        Guid stampedSymbolGeneration,
-        Guid? currentSymbolGeneration,
-        bool currentSymbolIsComplete,
-        bool currentSymbolHasNoActiveOperations)
-        => stampedGlobalGeneration == currentGlobalGeneration &&
-            !currentGlobalIsComplete &&
-            currentGlobalHasNoActiveOperations &&
-            currentSymbolGeneration == stampedSymbolGeneration &&
-            currentSymbolIsComplete &&
-            currentSymbolHasNoActiveOperations;
-
-    static async Task<TResult> ReadProjectionOrFallbackAsync<TResult>(
-        IObjectRepository db,
-        string projectionName,
-        string symbol,
-        Func<Task<TResult>> readProjection,
-        Func<Task<TResult>> readFallback)
-    {
-        var stamp = await GetProjectionReadStampAsync(db, projectionName, symbol).ConfigureAwait(false);
-        if (stamp is null)
-            return await readFallback().ConfigureAwait(false);
-
-        var projected = await readProjection().ConfigureAwait(false);
-        return await IsProjectionReadStampCurrentAsync(db, stamp.Value).ConfigureAwait(false)
-            ? projected
-            : await readFallback().ConfigureAwait(false);
-    }
-
-    static async Task<TResult> ReadProjectionOrFallbackAsync<TResult>(
-        IObjectRepository db,
-        string projectionName,
-        string symbol,
-        CancellationToken cancellationToken,
-        Func<CancellationToken, Task<TResult>> readProjection,
-        Func<CancellationToken, Task<TResult>> readFallback)
-    {
-        var stamp = await GetProjectionReadStampAsync(
-            db,
-            projectionName,
-            symbol,
-            cancellationToken).ConfigureAwait(false);
-        if (stamp is null)
-            return await readFallback(cancellationToken).ConfigureAwait(false);
-
-        var projected = await readProjection(cancellationToken).ConfigureAwait(false);
-        return await IsProjectionReadStampCurrentAsync(
-            db,
-            stamp.Value,
-            cancellationToken).ConfigureAwait(false)
-            ? projected
-            : await readFallback(cancellationToken).ConfigureAwait(false);
-    }
-
-    static async Task<ProjectionOperation> BeginProjectionOperationAsync(
-        IObjectRepository db,
-        string projectionName,
-        IEnumerable<string> affectedSymbols,
+    /// <summary>Gets a published reference version effective at the specified UTC instant.</summary>
+    public Task<ReferenceContractVersion?> GetEffectiveReferenceVersionAsync(
+        string contractId,
+        string version,
+        DateTimeOffset effectiveAtUtc,
         CancellationToken cancellationToken = default)
-    {
-        var symbols = affectedSymbols
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        var globalWasComplete = (await ReadProjectionStateAsync(db, projectionName, cancellationToken).ConfigureAwait(false))
-            is { IsComplete: true, HasNoActiveOperations: true };
-        var completedSymbols = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var symbolBatch in symbols.Chunk(CompletionStateLookupBatchSize))
-        {
-            var states = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesSymbolProjectionStatesV3)}", SecuritiesDbCql.GetSecuritiesSymbolProjectionStatesV3)
-                .SetParameters(new GetSecuritiesSymbolProjectionStatesV3(projectionName, symbolBatch))
-                .ExecuteQueryAsync(MapToSymbolProjectionState!, cancellationToken);
-            foreach (var state in states)
-            {
-                if (state.IsComplete && state.HasNoActiveOperations)
-                    completedSymbols.Add(state.Symbol);
-            }
-        }
+        => this.GetEffectiveReferenceVersionCoreAsync(contractId, version, effectiveAtUtc, cancellationToken);
 
-        var operationId = Guid.NewGuid();
-        var activeOperations = new HashSet<Guid> { operationId };
-        var operation = new ProjectionOperation(
-            operationId,
-            projectionName,
-            globalWasComplete,
-            completedSymbols,
-            symbols);
-        var journalActivated = false;
-        var activationResponseUnknown = false;
-
-        try
-        {
-            // The catalog begins in a preparation phase. Recovery can discard a torn
-            // preparation without touching state because invalidation starts only after
-            // every scope is durable and the phase is conditionally advanced.
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertSecuritiesProjectionOperationV3)}", SecuritiesDbCql.InsertSecuritiesProjectionOperationV3)
-                .SetParameters(new InsertSecuritiesProjectionOperationV3(
-                    projectionName,
-                    operationId,
-                    DateTime.UtcNow))
-                .ExecuteCommandAsync(cancellationToken);
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertSecuritiesProjectionOperationScopeV3)}", SecuritiesDbCql.InsertSecuritiesProjectionOperationScopeV3)
-                .SetParameters(
-                    new[]
-                    {
-                        new InsertSecuritiesProjectionOperationScopeV3(
-                            projectionName,
-                            operationId,
-                            GlobalProjectionOperationScope,
-                            projectionName),
-                        new InsertSecuritiesProjectionOperationScopeV3(
-                            projectionName,
-                            operationId,
-                            ProjectionOperationScopeCount,
-                            (symbols.Length + 1).ToString(CultureInfo.InvariantCulture))
-                    }.Concat(symbols.Select(symbol =>
-                        new InsertSecuritiesProjectionOperationScopeV3(
-                            projectionName,
-                            operationId,
-                            SymbolProjectionOperationScope,
-                            symbol))))
-                .ExecuteCommandAsync(cancellationToken);
-            activationResponseUnknown = true;
-            var journalActivationApplied = await db
-                .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.SetSecuritiesProjectionOperationStateMayBeActiveV3)}", SecuritiesDbCql.SetSecuritiesProjectionOperationStateMayBeActiveV3)
-                .SetParameters(new SetSecuritiesProjectionOperationStateMayBeActiveV3(
-                    true,
-                    projectionName,
-                    operationId,
-                    false))
-                .ExecuteSingleAsync(MapToBoolean!, cancellationToken);
-            activationResponseUnknown = false;
-            if (journalActivationApplied != true)
-            {
-                throw new StorageException(
-                    $"SecuritiesDb could not activate projection operation {operationId}; no data was changed.");
-            }
-            journalActivated = true;
-
-            activationResponseUnknown = true;
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.BeginSecuritiesProjectionOperationV3)}", SecuritiesDbCql.BeginSecuritiesProjectionOperationV3)
-                .SetParameters(new BeginSecuritiesProjectionOperationV3(
-                    operationId,
-                    activeOperations,
-                    projectionName))
-                .ExecuteCommandAsync(cancellationToken);
-            activationResponseUnknown = false;
-            if (symbols.Length > 0)
-            {
-                activationResponseUnknown = true;
-                await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.BeginSecuritiesSymbolProjectionOperationV3)}", SecuritiesDbCql.BeginSecuritiesSymbolProjectionOperationV3)
-                    .SetParameters(symbols.Select(symbol =>
-                        new BeginSecuritiesSymbolProjectionOperationV3(
-                            operationId,
-                            activeOperations,
-                            projectionName,
-                            symbol)))
-                    .ExecuteCommandAsync(cancellationToken);
-                activationResponseUnknown = false;
-            }
-            return operation;
-        }
-        catch
-        {
-            if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted: false,
-                activationResponseConfirmed: !activationResponseUnknown))
-            {
-                if (journalActivated)
-                    await EndProjectionOperationAsync(db, operation, CancellationToken.None).ConfigureAwait(false);
-                else
-                    await DeleteProjectionOperationJournalAsync(db, operation, CancellationToken.None).ConfigureAwait(false);
-            }
-            // An activation/set-add request can apply after a timeout. Preserve its
-            // original journal when the response is unknown; only explicit stale
-            // recovery may classify it after writers have drained.
-            throw;
-        }
-    }
-
-    static async Task EndProjectionOperationAsync(
-        IObjectRepository db,
-        ProjectionOperation operation,
+    /// <summary>Lists a bounded page of staged and published reference versions.</summary>
+    public Task<IReadOnlyList<ReferenceContractVersionSummaryReadModel>> ListReferenceVersionsAsync(
+        string contractId,
+        string afterVersion = "",
+        int limit = 100,
         CancellationToken cancellationToken = default)
-    {
-        var endGeneration = Guid.NewGuid();
-        var activeOperations = new HashSet<Guid> { operation.OperationId };
-        if (operation.AffectedSymbols.Length > 0)
-        {
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.EndSecuritiesSymbolProjectionOperationV3)}", SecuritiesDbCql.EndSecuritiesSymbolProjectionOperationV3)
-                .SetParameters(operation.AffectedSymbols.Select(symbol =>
-                    new EndSecuritiesSymbolProjectionOperationV3(
-                        endGeneration,
-                        activeOperations,
-                        operation.ProjectionName,
-                        symbol)))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.EndSecuritiesProjectionOperationV3)}", SecuritiesDbCql.EndSecuritiesProjectionOperationV3)
-            .SetParameters(new EndSecuritiesProjectionOperationV3(
-                endGeneration,
-                activeOperations,
-                operation.ProjectionName))
-            .ExecuteCommandAsync(cancellationToken);
-        await DeleteProjectionOperationJournalAsync(db, operation, cancellationToken).ConfigureAwait(false);
-    }
+        => this.ListReferenceVersionsCoreAsync(contractId, afterVersion, limit, cancellationToken);
 
-    static async Task DeleteProjectionOperationJournalAsync(
-        IObjectRepository db,
-        ProjectionOperation operation,
-        CancellationToken cancellationToken = default)
-    {
-        // State is cleaned first by the caller. Move the journal to an inert phase before
-        // deleting scopes so a crash between deletes is distinguishable from live work.
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.SetSecuritiesProjectionOperationStateMayBeActiveV3)}", SecuritiesDbCql.SetSecuritiesProjectionOperationStateMayBeActiveV3)
-            .SetParameters(new SetSecuritiesProjectionOperationStateMayBeActiveV3(
-                false,
-                operation.ProjectionName,
-                operation.OperationId,
-                true))
-            .ExecuteSingleAsync(MapToBoolean!);
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)
-            .SetParameters(new DeleteSecuritiesProjectionOperationScopesV3(
-                operation.ProjectionName,
-                operation.OperationId))
-            .ExecuteCommandAsync(cancellationToken);
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)
-            .SetParameters(new DeleteSecuritiesProjectionOperationV3(
-                operation.ProjectionName,
-                operation.OperationId))
-            .ExecuteCommandAsync(cancellationToken);
-    }
 
-    static async Task<bool> CompleteProjectionOperationAsync(
-        IObjectRepository db,
-        ProjectionOperation operation,
-        bool completeGlobal,
-        bool completeAllSymbols,
-        CancellationToken cancellationToken = default)
-    {
-        var activeOperations = new HashSet<Guid> { operation.OperationId };
-        var allCompleted = true;
-        foreach (var symbol in operation.AffectedSymbols)
-        {
-            var shouldComplete = completeAllSymbols || operation.CompletedSymbols.Contains(symbol);
-            if (!shouldComplete)
-            {
-                await EndSymbolOperationAsync(symbol).ConfigureAwait(false);
-                continue;
-            }
 
-            var applied = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.CompleteSecuritiesSymbolProjectionOperationV3)}", SecuritiesDbCql.CompleteSecuritiesSymbolProjectionOperationV3)
-                .SetParameters(new CompleteSecuritiesSymbolProjectionOperationV3(
-                    activeOperations,
-                    operation.ProjectionName,
-                    symbol,
-                    operation.OperationId,
-                    activeOperations))
-                .ExecuteSingleAsync(MapToBoolean!);
-            if (applied == true)
-                continue;
 
-            allCompleted = false;
-            await EndSymbolOperationAsync(symbol).ConfigureAwait(false);
-        }
 
-        var shouldCompleteGlobal = completeGlobal || operation.GlobalWasComplete;
-        if (shouldCompleteGlobal && (!completeGlobal || allCompleted))
-        {
-            var applied = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.CompleteSecuritiesProjectionOperationV3)}", SecuritiesDbCql.CompleteSecuritiesProjectionOperationV3)
-                .SetParameters(new CompleteSecuritiesProjectionOperationV3(
-                    activeOperations,
-                    operation.ProjectionName,
-                    operation.OperationId,
-                    activeOperations))
-                .ExecuteSingleAsync(MapToBoolean!);
-            if (applied == true)
-            {
-                await DeleteProjectionOperationJournalAsync(
-                    db,
-                    operation,
-                    CancellationToken.None).ConfigureAwait(false);
-                return allCompleted;
-            }
 
-            allCompleted = false;
-        }
 
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.EndSecuritiesProjectionOperationV3)}", SecuritiesDbCql.EndSecuritiesProjectionOperationV3)
-            .SetParameters(new EndSecuritiesProjectionOperationV3(
-                Guid.NewGuid(),
-                activeOperations,
-                operation.ProjectionName))
-            .ExecuteCommandAsync(cancellationToken);
-        await DeleteProjectionOperationJournalAsync(
-            db,
-            operation,
-            CancellationToken.None).ConfigureAwait(false);
-        return !shouldCompleteGlobal && allCompleted;
 
-        Task<long[]> EndSymbolOperationAsync(string symbol)
-            => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.EndSecuritiesSymbolProjectionOperationV3)}", SecuritiesDbCql.EndSecuritiesSymbolProjectionOperationV3)
-                .SetParameters(new EndSecuritiesSymbolProjectionOperationV3(
-                    Guid.NewGuid(),
-                    activeOperations,
-                    operation.ProjectionName,
-                    symbol))
-                .ExecuteCommandAsync(cancellationToken);
-    }
 
-    static async Task ExecuteProjectionMutationAsync(
-        IObjectRepository db,
-        string projectionName,
-        IEnumerable<string> affectedSymbols,
-        Func<Task> mutation)
-    {
-        var operation = await BeginProjectionOperationAsync(db, projectionName, affectedSymbols);
-        // Invoking the mutation begins the submission boundary. It may have applied
-        // even when invocation or its returned task fails (for example, a driver
-        // timeout), so leave the journal and active state for stale-cutoff recovery.
-        var mutationTask = mutation();
-        await mutationTask.ConfigureAwait(false);
-        await CompleteProjectionOperationAsync(
-            db,
-            operation,
-            completeGlobal: false,
-            completeAllSymbols: false).ConfigureAwait(false);
-    }
 
-    async Task PopulateFuturesContractSymbolProjectionAsync(
-        ICollection<FuturesContractV3ReadModel> contracts,
-        CancellationToken cancellationToken = default)
-    {
-        if (contracts.Count == 0)
-            return;
 
-        await _dbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
-            .SetParameters(contracts.Select(ToInsertParameters))
-            .ExecuteCommandAsync(cancellationToken);
-    }
 
-    async Task PopulateFuturesOptionContractSymbolProjectionAsync(
-        ICollection<FuturesOptionContractReadModel> contracts,
-        CancellationToken cancellationToken = default)
-    {
-        if (contracts.Count == 0)
-            return;
 
-        await _dbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)
-            .SetParameters(contracts.Select(ToInsertParameters))
-            .ExecuteCommandAsync(cancellationToken);
-    }
 
-    async Task<FuturesContractV3ReadModel[]> LoadFuturesContractProjectionAsync(
-        string symbol,
-        CancellationToken cancellationToken = default)
-        => [.. (await _dbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsBySymbol)}", SecuritiesDbCql.GetFuturesContractsBySymbol)
-            .SetParameters(new GetFuturesContractsBySymbol(symbol))
-            .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken))];
 
-    async Task<FuturesOptionContractReadModel[]> LoadFuturesOptionContractProjectionAsync(
-        string symbol,
-        CancellationToken cancellationToken = default)
-        => [.. (await _dbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsBySymbol)}", SecuritiesDbCql.GetFuturesOptionContractsBySymbol)
-            .SetParameters(new GetFuturesOptionContractsBySymbol(symbol))
-            .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken))];
 
-    async Task<FuturesContractV3ReadModel[]> LoadAndPopulateFuturesContractsBySymbolAsync(
-        string symbol,
-        CancellationToken cancellationToken = default)
-    {
-        var db = _dbFactory.SecuritiesDb;
-        var operation = await BeginProjectionOperationAsync(
-            db,
-            FuturesContractSymbolProjection,
-            [symbol],
-            cancellationToken);
-        var targetMutationSubmissionStarted = false;
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            targetMutationSubmissionStarted = true;
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
-                .SetParameters(new DeleteFuturesContractBySymbolV3Partition(symbol))
-                .ExecuteCommandAsync(CancellationToken.None);
 
-            var matchingContracts = new List<FuturesContractV3ReadModel>();
-            await foreach (var contract in db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContracts)}", SecuritiesDbCql.GetFuturesContracts)
-                .ExecuteStreamAsync(MapToFuturesContract!, CancellationToken.None))
-            {
-                if (string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
-                    matchingContracts.Add(contract);
-            }
-            var contracts = matchingContracts
-                .OrderByDescending(contract => contract.OnTheRun)
-                .ThenByDescending(contract => contract.LastTradeDate)
-                .ThenBy(contract => contract.ContractId, StringComparer.Ordinal)
-                .ToArray();
-            await PopulateFuturesContractSymbolProjectionAsync(contracts, CancellationToken.None);
 
-            var projectedContracts = await LoadFuturesContractProjectionAsync(symbol, CancellationToken.None);
-            if (!HasExactFuturesContractKeys(contracts, projectedContracts))
-            {
-                throw new StorageException(
-                    $"SecuritiesDb could not reconcile the '{symbol}' futures-contract symbol projection; completion was not recorded.");
-            }
 
-            await CompleteProjectionOperationAsync(
-                db,
-                operation,
-                completeGlobal: false,
-                completeAllSymbols: true,
-                cancellationToken: CancellationToken.None);
-            return contracts;
-        }
-        catch
-        {
-            if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted))
-            {
-                await EndProjectionOperationAsync(db, operation, CancellationToken.None).ConfigureAwait(false);
-            }
-            throw;
-        }
-    }
 
-    async Task<FuturesOptionContractReadModel[]> LoadAndPopulateFuturesOptionContractsBySymbolAsync(
-        string symbol,
-        CancellationToken cancellationToken = default)
-    {
-        var db = _dbFactory.SecuritiesDb;
-        var operation = await BeginProjectionOperationAsync(
-            db,
-            FuturesOptionContractSymbolProjection,
-            [symbol],
-            cancellationToken);
-        var targetMutationSubmissionStarted = false;
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            targetMutationSubmissionStarted = true;
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)
-                .SetParameters(new DeleteFuturesOptionContractBySymbolV2Partition(symbol))
-                .ExecuteCommandAsync(CancellationToken.None);
 
-            var matchingContracts = new List<FuturesOptionContractReadModel>();
-            await foreach (var contract in db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContracts)}", SecuritiesDbCql.GetFuturesOptionContracts)
-                .ExecuteStreamAsync(MapToFuturesOptionContract!, CancellationToken.None))
-            {
-                if (string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
-                    matchingContracts.Add(contract);
-            }
-            var contracts = matchingContracts
-                .OrderByDescending(contract => contract.ContractMonth)
-                .ThenBy(contract => contract.OptionType, StringComparer.Ordinal)
-                .ThenBy(contract => contract.StrikePrice)
-                .ThenBy(contract => contract.ContractId, StringComparer.Ordinal)
-                .ToArray();
-            await PopulateFuturesOptionContractSymbolProjectionAsync(contracts, CancellationToken.None);
 
-            var projectedContracts = await LoadFuturesOptionContractProjectionAsync(symbol, CancellationToken.None);
-            if (!HasExactFuturesOptionContractKeys(contracts, projectedContracts))
-            {
-                throw new StorageException(
-                    $"SecuritiesDb could not reconcile the '{symbol}' futures-option symbol projection; completion was not recorded.");
-            }
 
-            await CompleteProjectionOperationAsync(
-                db,
-                operation,
-                completeGlobal: false,
-                completeAllSymbols: true,
-                cancellationToken: CancellationToken.None);
-            return contracts;
-        }
-        catch
-        {
-            if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted))
-            {
-                await EndProjectionOperationAsync(db, operation, CancellationToken.None).ConfigureAwait(false);
-            }
-            throw;
-        }
-    }
 
-    static bool HasExactFuturesContractKeys(
-        IReadOnlyCollection<FuturesContractV3ReadModel> source,
-        IReadOnlyCollection<FuturesContractV3ReadModel> target)
-        => source.Count == target.Count
-            && source.Select(ToProjectionKey).ToHashSet().SetEquals(target.Select(ToProjectionKey));
 
-    static bool HasExactFuturesOptionContractKeys(
-        IReadOnlyCollection<FuturesOptionContractReadModel> source,
-        IReadOnlyCollection<FuturesOptionContractReadModel> target)
-        => source.Count == target.Count
-            && source.Select(ToProjectionKey).ToHashSet().SetEquals(target.Select(ToProjectionKey));
 
     /// <summary>
     /// Streams the canonical Securities tables and idempotently rebuilds both symbol projections.
@@ -861,56 +226,42 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         CancellationToken cancellationToken = default,
         DateTime? staleOperationCutoffUtc = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-        if (staleOperationCutoffUtc is { } cutoff)
-        {
-            if (cutoff.Kind != DateTimeKind.Utc)
-            {
-                throw new ArgumentException(
-                    "The stale-operation cutoff must have DateTimeKind.Utc.",
-                    nameof(staleOperationCutoffUtc));
-            }
-            if (cutoff > DateTime.UtcNow)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(staleOperationCutoffUtc),
-                    cutoff,
-                    "The stale-operation cutoff cannot be in the future.");
-            }
-        }
+        this.ValidateBackfillParameters(batchSize, staleOperationCutoffUtc);
 
-        var db = _dbFactory.SecuritiesDb;
+        var db = DbFactory.SecuritiesDb;
         if (staleOperationCutoffUtc is { } verifiedInactiveCutoffUtc)
         {
             // This is deliberately opt-in. The caller must first drain every Securities
             // projection writer and verify that operations at/before the cutoff cannot
             // resume; age alone is not proof that an operation is dead.
-            await RecoverVerifiedInactiveProjectionOperationsAsync(
+            await this.RecoverVerifiedInactiveProjectionOperationsAsync(
                 db,
                 FuturesContractSymbolProjection,
                 verifiedInactiveCutoffUtc,
-                cancellationToken).ConfigureAwait(false);
-            await RecoverVerifiedInactiveProjectionOperationsAsync(
+                cancellationToken)
+                    .ConfigureAwait(false);
+            await this.RecoverVerifiedInactiveProjectionOperationsAsync(
                 db,
                 FuturesOptionContractSymbolProjection,
                 verifiedInactiveCutoffUtc,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken)
+                    .ConfigureAwait(false);
         }
 
         // Cutover is disabled before validation starts. An ambiguous canonical identity
         // or an inventory failure must never leave a previous global completion visible.
-        await InvalidateGlobalProjectionStateAsync(
+        await this.InvalidateGlobalProjectionStateAsync(
             db,
             FuturesContractSymbolProjection,
             cancellationToken);
-        await InvalidateGlobalProjectionStateAsync(
+        await this.InvalidateGlobalProjectionStateAsync(
             db,
             FuturesOptionContractSymbolProjection,
             cancellationToken);
 
         // Inventory both sides before deleting target partitions. The source identity
         // validation prevents an arbitrary symbol from winning for APIs keyed by contractId.
-        var inventory = await ReadProjectionInventoryAsync(db, cancellationToken);
+        var inventory = await this.ReadProjectionInventoryAsync(db, cancellationToken);
         var futuresContractSymbols = inventory.FuturesContractSourceKeys
             .Select(static key => key.Symbol)
             .Concat(inventory.FuturesContractTargetKeys.Select(static key => key.Symbol))
@@ -929,12 +280,12 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         var targetMutationSubmissionStarted = false;
         try
         {
-            futuresOperation = await BeginProjectionOperationAsync(
+            futuresOperation = await this.BeginProjectionOperationAsync(
                 db,
                 FuturesContractSymbolProjection,
                 futuresContractSymbols,
                 cancellationToken);
-            futuresOptionOperation = await BeginProjectionOperationAsync(
+            futuresOptionOperation = await this.BeginProjectionOperationAsync(
                 db,
                 FuturesOptionContractSymbolProjection,
                 futuresOptionContractSymbols,
@@ -966,11 +317,11 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 if (futuresContracts.Count < batchSize)
                     continue;
 
-                await PopulateFuturesContractSymbolProjectionAsync(futuresContracts, cancellationToken);
+                await this.PopulateFuturesContractSymbolProjectionAsync(futuresContracts, cancellationToken);
                 futuresContractsUpserted += futuresContracts.Count;
                 futuresContracts.Clear();
             }
-            await PopulateFuturesContractSymbolProjectionAsync(futuresContracts, cancellationToken);
+            await this.PopulateFuturesContractSymbolProjectionAsync(futuresContracts, cancellationToken);
             futuresContractsUpserted += futuresContracts.Count;
 
             var futuresOptionContracts = new List<FuturesOptionContractReadModel>(batchSize);
@@ -981,11 +332,11 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 if (futuresOptionContracts.Count < batchSize)
                     continue;
 
-                await PopulateFuturesOptionContractSymbolProjectionAsync(futuresOptionContracts, cancellationToken);
+                await this.PopulateFuturesOptionContractSymbolProjectionAsync(futuresOptionContracts, cancellationToken);
                 futuresOptionContractsUpserted += futuresOptionContracts.Count;
                 futuresOptionContracts.Clear();
             }
-            await PopulateFuturesOptionContractSymbolProjectionAsync(futuresOptionContracts, cancellationToken);
+            await this.PopulateFuturesOptionContractSymbolProjectionAsync(futuresOptionContracts, cancellationToken);
             futuresOptionContractsUpserted += futuresOptionContracts.Count;
 
             var reconciliation = await ReconcileSymbolProjectionsAsync(cancellationToken);
@@ -1000,13 +351,13 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                     "Completion remains disabled; replay the backfill before cutover.");
             }
 
-            var futuresCompleted = await CompleteProjectionOperationAsync(
+            var futuresCompleted = await this.CompleteProjectionOperationAsync(
                 db,
                 futuresOperation,
                 completeGlobal: true,
                 completeAllSymbols: true,
                 cancellationToken);
-            var futuresOptionsCompleted = await CompleteProjectionOperationAsync(
+            var futuresOptionsCompleted = await this.CompleteProjectionOperationAsync(
                 db,
                 futuresOptionOperation,
                 completeGlobal: true,
@@ -1030,144 +381,16 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 targetMutationSubmissionStarted))
             {
                 if (futuresOptionOperation is not null)
-                    await EndProjectionOperationAsync(db, futuresOptionOperation, CancellationToken.None).ConfigureAwait(false);
+                    await this.EndProjectionOperationAsync(db, futuresOptionOperation, CancellationToken.None)
+                        .ConfigureAwait(false);
                 if (futuresOperation is not null)
-                    await EndProjectionOperationAsync(db, futuresOperation, CancellationToken.None).ConfigureAwait(false);
+                    await this.EndProjectionOperationAsync(db, futuresOperation, CancellationToken.None)
+                        .ConfigureAwait(false);
             }
             throw;
         }
     }
 
-    static async Task RecoverVerifiedInactiveProjectionOperationsAsync(
-        IObjectRepository db,
-        string projectionName,
-        DateTime staleOperationCutoffUtc,
-        CancellationToken cancellationToken)
-    {
-        var journalEntries = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesProjectionOperationsV3)}", SecuritiesDbCql.GetSecuritiesProjectionOperationsV3)
-            .SetParameters(new GetSecuritiesProjectionOperationsV3(projectionName))
-            .ExecuteQueryAsync(MapToProjectionOperationJournalEntry!);
-        var staleEntries = journalEntries
-            .Where(entry => AsUtc(entry.StartedOn) <= staleOperationCutoffUtc)
-            .ToArray();
-        if (staleEntries.Length == 0)
-            return;
-
-        var globalOperationIds = new HashSet<Guid>();
-        var operationIdsBySymbol = new Dictionary<string, HashSet<Guid>>(StringComparer.Ordinal);
-        foreach (var entry in staleEntries)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!entry.StateMayBeActive)
-                continue;
-
-            var scopes = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesProjectionOperationScopesV3)}", SecuritiesDbCql.GetSecuritiesProjectionOperationScopesV3)
-                .SetParameters(new GetSecuritiesProjectionOperationScopesV3(
-                    projectionName,
-                    entry.OperationId))
-                .ExecuteQueryAsync(MapToProjectionOperationScope!);
-            var hasGlobalScope = false;
-            var stateScopeCount = 0;
-            int? expectedStateScopeCount = null;
-            foreach (var scope in scopes)
-            {
-                if (scope.ScopeType == ProjectionOperationScopeCount)
-                {
-                    if (expectedStateScopeCount.HasValue ||
-                        !int.TryParse(
-                            scope.ScopeKey,
-                            NumberStyles.None,
-                            CultureInfo.InvariantCulture,
-                            out var scopeCount) ||
-                        scopeCount < 1)
-                    {
-                        throw new StorageException(
-                            $"SecuritiesDb projection operation {entry.OperationId} has an invalid scope count. " +
-                            "No stale operation was cleared.");
-                    }
-                    expectedStateScopeCount = scopeCount;
-                    continue;
-                }
-
-                if (scope.ScopeType == GlobalProjectionOperationScope &&
-                    scope.ScopeKey == projectionName)
-                {
-                    hasGlobalScope = true;
-                    stateScopeCount++;
-                    globalOperationIds.Add(entry.OperationId);
-                    continue;
-                }
-
-                if (scope.ScopeType != SymbolProjectionOperationScope ||
-                    string.IsNullOrEmpty(scope.ScopeKey))
-                {
-                    throw new StorageException(
-                        $"SecuritiesDb projection operation {entry.OperationId} has an invalid journal scope. " +
-                        "No stale operation was cleared.");
-                }
-
-                if (!operationIdsBySymbol.TryGetValue(scope.ScopeKey, out var operationIds))
-                {
-                    operationIds = [];
-                    operationIdsBySymbol.Add(scope.ScopeKey, operationIds);
-                }
-                stateScopeCount++;
-                operationIds.Add(entry.OperationId);
-            }
-            if (!hasGlobalScope ||
-                expectedStateScopeCount is null ||
-                stateScopeCount != expectedStateScopeCount.Value)
-            {
-                throw new StorageException(
-                    $"SecuritiesDb projection operation {entry.OperationId} has an incomplete journal. " +
-                    "No stale operation was cleared.");
-            }
-        }
-
-        // Exact collection-element tombstones are idempotent and commutative. Unlike an
-        // UPDATE, DELETE cannot manufacture a partially-null state row when activation
-        // was journaled but the process died before its first state write.
-        if (globalOperationIds.Count > 0)
-        {
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.RemoveSecuritiesProjectionOperationV3)}", SecuritiesDbCql.RemoveSecuritiesProjectionOperationV3)
-                .SetParameters(globalOperationIds.Select(operationId =>
-                    new RemoveSecuritiesProjectionOperationV3(
-                        operationId,
-                        projectionName)))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-        if (operationIdsBySymbol.Count > 0)
-        {
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.RemoveSecuritiesSymbolProjectionOperationV3)}", SecuritiesDbCql.RemoveSecuritiesSymbolProjectionOperationV3)
-                .SetParameters(operationIdsBySymbol.SelectMany(entry =>
-                    entry.Value.Select(operationId =>
-                        new RemoveSecuritiesSymbolProjectionOperationV3(
-                            operationId,
-                            projectionName,
-                            entry.Key))))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-
-        // Delete exact journal partitions only after every recorded state scope has been
-        // cleaned. Any interruption leaves the catalog entry available for an idempotent retry.
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)
-            .SetParameters(staleEntries.Select(entry =>
-                new DeleteSecuritiesProjectionOperationScopesV3(
-                    projectionName,
-                    entry.OperationId)))
-            .ExecuteCommandAsync(cancellationToken);
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)
-            .SetParameters(staleEntries.Select(entry =>
-                new DeleteSecuritiesProjectionOperationV3(
-                    projectionName,
-                    entry.OperationId)))
-            .ExecuteCommandAsync(cancellationToken);
-
-        static DateTime AsUtc(DateTime value)
-            => value.Kind == DateTimeKind.Utc
-                ? value
-                : DateTime.SpecifyKind(value, DateTimeKind.Utc);
-    }
 
     /// <summary>
     /// Streams canonical and projected primary keys and reports missing or unexpected projection rows.
@@ -1175,96 +398,19 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     public async Task<SecuritiesProjectionReconciliationResult> ReconcileSymbolProjectionsAsync(
         CancellationToken cancellationToken = default)
     {
-        var inventory = await ReadProjectionInventoryAsync(_dbFactory.SecuritiesDb, cancellationToken);
+        var inventory = await this.ReadProjectionInventoryAsync(DbFactory.SecuritiesDb, cancellationToken);
         return new SecuritiesProjectionReconciliationResult(
             inventory.FuturesContractSourceRows,
             inventory.FuturesContractTargetRows,
-            CountMissing(inventory.FuturesContractSourceKeys, inventory.FuturesContractTargetKeys),
-            CountMissing(inventory.FuturesContractTargetKeys, inventory.FuturesContractSourceKeys),
+            this.CountMissing(inventory.FuturesContractSourceKeys, inventory.FuturesContractTargetKeys),
+            this.CountMissing(inventory.FuturesContractTargetKeys, inventory.FuturesContractSourceKeys),
             inventory.FuturesOptionContractSourceRows,
             inventory.FuturesOptionContractTargetRows,
-            CountMissing(inventory.FuturesOptionContractSourceKeys, inventory.FuturesOptionContractTargetKeys),
-            CountMissing(inventory.FuturesOptionContractTargetKeys, inventory.FuturesOptionContractSourceKeys));
+            this.CountMissing(inventory.FuturesOptionContractSourceKeys, inventory.FuturesOptionContractTargetKeys),
+            this.CountMissing(inventory.FuturesOptionContractTargetKeys, inventory.FuturesOptionContractSourceKeys));
     }
 
-    static async Task<ProjectionInventory> ReadProjectionInventoryAsync(
-        IObjectRepository db,
-        CancellationToken cancellationToken)
-    {
-        var futuresContractSourceKeys = new HashSet<FuturesContractProjectionKey>();
-        var futuresContractProjectionKeys = new HashSet<FuturesContractProjectionKey>();
-        var futuresOptionContractSourceKeys = new HashSet<FuturesOptionContractProjectionKey>();
-        var futuresOptionContractProjectionKeys = new HashSet<FuturesOptionContractProjectionKey>();
-        var futuresContractsById = new Dictionary<string, FuturesContractProjectionKey>(StringComparer.Ordinal);
-        var futuresOptionContractsById = new Dictionary<string, FuturesOptionContractProjectionKey>(StringComparer.Ordinal);
-        var futuresContractSourceRows = 0;
-        var futuresContractProjectionRows = 0;
-        var futuresOptionContractSourceRows = 0;
-        var futuresOptionContractProjectionRows = 0;
 
-        await foreach (var key in db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractProjectionSourceKeys)}", SecuritiesDbCql.GetFuturesContractProjectionSourceKeys)
-            .ExecuteStreamAsync(MapToFuturesContractProjectionKey!, cancellationToken))
-        {
-            futuresContractSourceRows++;
-            futuresContractSourceKeys.Add(key);
-            if (futuresContractsById.TryGetValue(key.ContractId, out var existing) && existing != key)
-            {
-                throw new StorageException(
-                    $"SecuritiesDb canonical futures contract '{key.ContractId}' maps to multiple symbol/date keys " +
-                    $"('{existing.Symbol}'/{existing.LastTradeDate:yyyy-MM-dd} and " +
-                    $"'{key.Symbol}'/{key.LastTradeDate:yyyy-MM-dd}). Resolve the ambiguous contract before cutover.");
-            }
-            futuresContractsById[key.ContractId] = key;
-        }
-        await foreach (var key in db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractProjectionTargetKeys)}", SecuritiesDbCql.GetFuturesContractProjectionTargetKeys)
-            .ExecuteStreamAsync(MapToFuturesContractProjectionKey!, cancellationToken))
-        {
-            futuresContractProjectionRows++;
-            futuresContractProjectionKeys.Add(key);
-        }
-        await foreach (var key in db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractProjectionSourceKeys)}", SecuritiesDbCql.GetFuturesOptionContractProjectionSourceKeys)
-            .ExecuteStreamAsync(MapToFuturesOptionContractProjectionKey!, cancellationToken))
-        {
-            futuresOptionContractSourceRows++;
-            futuresOptionContractSourceKeys.Add(key);
-            if (futuresOptionContractsById.TryGetValue(key.ContractId, out var existing) && existing != key)
-            {
-                throw new StorageException(
-                    $"SecuritiesDb canonical futures-option contract '{key.ContractId}' maps to multiple symbol/contract keys " +
-                    $"('{existing.Symbol}'/{existing.ContractMonth:yyyy-MM-dd} and " +
-                    $"'{key.Symbol}'/{key.ContractMonth:yyyy-MM-dd}). Resolve the ambiguous contract before cutover.");
-            }
-            futuresOptionContractsById[key.ContractId] = key;
-        }
-        await foreach (var key in db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractProjectionTargetKeys)}", SecuritiesDbCql.GetFuturesOptionContractProjectionTargetKeys)
-            .ExecuteStreamAsync(MapToFuturesOptionContractProjectionKey!, cancellationToken))
-        {
-            futuresOptionContractProjectionRows++;
-            futuresOptionContractProjectionKeys.Add(key);
-        }
-
-        return new ProjectionInventory(
-            futuresContractSourceKeys,
-            futuresContractProjectionKeys,
-            futuresOptionContractSourceKeys,
-            futuresOptionContractProjectionKeys,
-            futuresContractSourceRows,
-            futuresContractProjectionRows,
-            futuresOptionContractSourceRows,
-            futuresOptionContractProjectionRows);
-    }
-
-    static int CountMissing<TKey>(HashSet<TKey> expected, HashSet<TKey> actual)
-        where TKey : notnull
-    {
-        var count = 0;
-        foreach (var key in expected)
-        {
-            if (!actual.Contains(key))
-                count++;
-        }
-        return count;
-    }
 
     /// <summary>
     /// Insert a new futures contract into SecuritiesDb
@@ -1273,11 +419,11 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task InsertFuturesContractAsync(FuturesContractV3ReadModel futuresContract)
     {
-        var reference = await StageReferenceAsync(futuresContract);
-        var db = _dbFactory.SecuritiesDb;
-        var parameters = ToInsertParameters(futuresContract);
-        EnsureDistinctFuturesContractWrites([futuresContract]);
-        List<object> queuedCommands = OtherProjectionKeys(futuresContract)
+        var reference = await this.StageReferenceAsync(futuresContract);
+        var db = DbFactory.SecuritiesDb;
+        var parameters = this.ToInsertParameters(futuresContract);
+        this.EnsureDistinctFuturesContractWrites([futuresContract]);
+        List<object> queuedCommands = this.OtherProjectionKeys(futuresContract)
             .Select(key => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
                 .SetParameters(new DeleteFuturesContractBySymbolV3(
                     key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId))
@@ -1291,12 +437,12 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 .SetParameters(parameters)
                 .QueueCommand()
         ]);
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesContractSymbolProjection,
             [futuresContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
-        await CommitReferenceAsync(reference);
+        await this.CommitReferenceAsync(reference);
     }
 
     /// <summary>
@@ -1314,11 +460,11 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         if (futuresContracts.Count == 0)
             return;
 
-        var db = _dbFactory.SecuritiesDb;
-        EnsureDistinctFuturesContractWrites(futuresContracts);
-        var references = new List<ReferenceVersionStore.Pending?>();
-        foreach (var contract in futuresContracts) references.Add(await StageReferenceAsync(contract));
-        var operation = await BeginProjectionOperationAsync(
+        var db = DbFactory.SecuritiesDb;
+        this.EnsureDistinctFuturesContractWrites(futuresContracts);
+        var references = new List<PendingReferenceVersion?>();
+        foreach (var contract in futuresContracts) references.Add(await this.StageReferenceAsync(contract));
+        var operation = await this.BeginProjectionOperationAsync(
             db,
             FuturesContractSymbolProjection,
             futuresContracts.Select(static contract => contract.Symbol));
@@ -1327,29 +473,30 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         {
             targetMutationSubmissionStarted = true;
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(futuresContracts.SelectMany(OtherProjectionKeys).Select(static key =>
+                .SetParameters(futuresContracts.SelectMany(this.OtherProjectionKeys).Select(static key =>
                     new DeleteFuturesContractBySymbolV3(
                         key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId)))
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", SecuritiesDbCql.InsertFuturesContract)
-                .SetParameters(futuresContracts.Select(ToInsertParameters))
+                .SetParameters(futuresContracts.Select(this.ToInsertParameters))
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
-                .SetParameters(futuresContracts.Select(ToInsertParameters))
+                .SetParameters(futuresContracts.Select(this.ToInsertParameters))
                 .ExecuteCommandAsync();
-            await CompleteProjectionOperationAsync(
+            await this.CompleteProjectionOperationAsync(
                 db,
                 operation,
                 completeGlobal: false,
                 completeAllSymbols: false);
-            foreach (var reference in references) await CommitReferenceAsync(reference);
+            foreach (var reference in references) await this.CommitReferenceAsync(reference);
         }
         catch
         {
             if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
                 targetMutationSubmissionStarted))
             {
-                await EndProjectionOperationAsync(db, operation, CancellationToken.None).ConfigureAwait(false);
+                await this.EndProjectionOperationAsync(db, operation, CancellationToken.None)
+                    .ConfigureAwait(false);
             }
             throw;
         }
@@ -1363,15 +510,15 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task UpdateFuturesContractAsync(FuturesContractId e, FuturesContractV3ReadModel futuresContract)
     {
-        var reference = await StageReferenceAsync(futuresContract, e.ContractId);
-        var db = _dbFactory.SecuritiesDb;
+        var reference = await this.StageReferenceAsync(futuresContract, e.ContractId);
+        var db = DbFactory.SecuritiesDb;
         var originalContract = await GetFuturesContractAsync(e);
-        var replacementProjectionKey = ToProjectionKey(futuresContract);
+        var replacementProjectionKey = this.ToProjectionKey(futuresContract);
         List<object> queuedCommands = [];
 
         if (originalContract is not null)
         {
-            var originalProjectionKey = ToProjectionKey(originalContract);
+            var originalProjectionKey = this.ToProjectionKey(originalContract);
             if (originalContract.ContractId != futuresContract.ContractId ||
                 originalContract.Symbol != futuresContract.Symbol ||
                 originalContract.LastTradeDate != futuresContract.LastTradeDate)
@@ -1430,17 +577,17 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
 
         queuedCommands.AddRange([
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", SecuritiesDbCql.InsertFuturesContract)
-                .SetParameters(ToInsertParameters(futuresContract))
+                .SetParameters(this.ToInsertParameters(futuresContract))
                 .QueueCommand(),
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
-                .SetParameters(ToInsertParameters(futuresContract))
+                .SetParameters(this.ToInsertParameters(futuresContract))
                 .QueueCommand()]);
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesContractSymbolProjection,
             [e.Symbol, futuresContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
-        await CommitReferenceAsync(reference);
+        await this.CommitReferenceAsync(reference);
     }
 
     /// Delete a futures contract from SecuritiesDb by its ID
@@ -1449,7 +596,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task DeleteFuturesContractAsync(string contractId)
     {
-        var db = _dbFactory.SecuritiesDb;
+        var db = DbFactory.SecuritiesDb;
         var contracts = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContract)}", SecuritiesDbCql.GetFuturesContract)
             .SetParameters(new GetFuturesContract(contractId))
             .ExecuteQueryAsync(MapToFuturesContract!);
@@ -1468,7 +615,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                     contract.LastTradeDate,
                     contract.ContractId))
                 .QueueCommand()));
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesContractSymbolProjection,
             contracts.Select(static contract => contract.Symbol),
@@ -1484,7 +631,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task DeleteFuturesContractAsync(FuturesContractId e)
     {
-        var db = _dbFactory.SecuritiesDb;
+        var db = DbFactory.SecuritiesDb;
         List<object> queuedCommands =
         [
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractById)}", SecuritiesDbCql.DeleteFuturesContractById)
@@ -1499,7 +646,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                     e.Symbol, rollover, onTheRun, e.MaturityDate, e.ContractId))
                 .QueueCommand());
         }
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesContractSymbolProjection,
             [e.Symbol],
@@ -1524,15 +671,15 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The futures contract with the specified ID</returns>
     public async Task<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(string symbol)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync(
             db,
             FuturesContractSymbolProjection,
             symbol,
             () => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOnTheRunFuturesContract)}", SecuritiesDbCql.GetOnTheRunFuturesContract)
                 .SetParameters(new GetOnTheRunFuturesContract(symbol))
                 .ExecuteSingleAsync(MapToFuturesContract!),
-            async () => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
+            async () => (await this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
                 .FirstOrDefault(static candidate => candidate.OnTheRun));
     }
 
@@ -1540,8 +687,8 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         string symbol,
         CancellationToken cancellationToken)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync(
             db,
             FuturesContractSymbolProjection,
             symbol,
@@ -1549,7 +696,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             token => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOnTheRunFuturesContract)}", SecuritiesDbCql.GetOnTheRunFuturesContract)
                 .SetParameters(new GetOnTheRunFuturesContract(symbol))
                 .ExecuteSingleAsync(MapToFuturesContract!, token),
-            async token => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
+            async token => (await this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
                 .FirstOrDefault(static candidate => candidate.OnTheRun));
     }
 
@@ -1559,15 +706,15 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The futures contract with the specified ID</returns>
     public async Task<ICollection<FuturesContractV3ReadModel>> GetRolloverFuturesContractsAsync(string symbol)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync<ICollection<FuturesContractV3ReadModel>>(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync<ICollection<FuturesContractV3ReadModel>>(
             db,
             FuturesContractSymbolProjection,
             symbol,
             () => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetRolloverFuturesContracts)}", SecuritiesDbCql.GetRolloverFuturesContracts)
                 .SetParameters(new GetRolloverFuturesContracts(symbol))
                 .ExecuteQueryAsync(MapToFuturesContract!),
-            async () => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
+            async () => (await this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
                 .Where(static contract => contract.Rollover)
                 .ToArray());
     }
@@ -1576,8 +723,8 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         string symbol,
         CancellationToken cancellationToken)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync<ICollection<FuturesContractV3ReadModel>>(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync<ICollection<FuturesContractV3ReadModel>>(
             db,
             FuturesContractSymbolProjection,
             symbol,
@@ -1585,7 +732,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
             token => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetRolloverFuturesContracts)}", SecuritiesDbCql.GetRolloverFuturesContracts)
                 .SetParameters(new GetRolloverFuturesContracts(symbol))
                 .ExecuteQueryAsync(MapToFuturesContract!, token),
-            async token => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
+            async token => (await this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
                 .Where(static contract => contract.Rollover)
                 .ToArray());
     }
@@ -1603,7 +750,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The futures contract with the specified ID</returns>
     public async Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(string contractId)
     {
-        var contracts = await _dbFactory.SecuritiesDb
+        var contracts = await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContract)}", SecuritiesDbCql.GetFuturesContract)
             .SetParameters(new GetFuturesContract(contractId))
             .ExecuteQueryAsync(MapToFuturesContract!);
@@ -1620,7 +767,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         string contractId,
         CancellationToken cancellationToken)
     {
-        var contracts = await _dbFactory.SecuritiesDb
+        var contracts = await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContract)}", SecuritiesDbCql.GetFuturesContract)
             .SetParameters(new GetFuturesContract(contractId))
             .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken);
@@ -1643,7 +790,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A <see cref="FuturesContractV3ReadModel"/> representing the futures contract if found; otherwise, <see
     /// langword="null"/>.</returns>
     public async Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(FuturesContractId e)
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
                 .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractById)}", SecuritiesDbCql.GetFuturesContractById)
                 .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
                 .ExecuteSingleAsync(MapToFuturesContract!);
@@ -1651,7 +798,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     public async Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(
         FuturesContractId e,
         CancellationToken cancellationToken)
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractById)}", SecuritiesDbCql.GetFuturesContractById)
             .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
             .ExecuteSingleAsync(MapToFuturesContract!, cancellationToken);
@@ -1661,13 +808,13 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <returns>A list of all futures contracts</returns>
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsAsync()
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContracts)}", SecuritiesDbCql.GetFuturesContracts)
             .ExecuteQueryAsync(MapToFuturesContract!);
 
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsAsync(
         CancellationToken cancellationToken)
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContracts)}", SecuritiesDbCql.GetFuturesContracts)
             .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken);
 
@@ -1678,9 +825,9 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task InsertFuturesOptionContractAsync(FuturesOptionContractReadModel futuresOptionContract)
     {
-        var reference = await StageReferenceAsync(futuresOptionContract);
-        var db = _dbFactory.SecuritiesDb;
-        var parameters = ToInsertParameters(futuresOptionContract);
+        var reference = await this.StageReferenceAsync(futuresOptionContract);
+        var db = DbFactory.SecuritiesDb;
+        var parameters = this.ToInsertParameters(futuresOptionContract);
         List<object> queuedCommands =
         [
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContract)}", SecuritiesDbCql.InsertFuturesOptionContract)
@@ -1690,12 +837,12 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
                 .SetParameters(parameters)
                 .QueueCommand()
         ];
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesOptionContractSymbolProjection,
             [futuresOptionContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
-        await CommitReferenceAsync(reference);
+        await this.CommitReferenceAsync(reference);
     }
 
     /// <summary>
@@ -1713,11 +860,11 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         if (futuresOptionContract.Count == 0)
             return;
 
-        var db = _dbFactory.SecuritiesDb;
-        EnsureDistinctFuturesOptionContractWrites(futuresOptionContract);
-        var references = new List<ReferenceVersionStore.Pending?>();
-        foreach (var contract in futuresOptionContract) references.Add(await StageReferenceAsync(contract));
-        var operation = await BeginProjectionOperationAsync(
+        var db = DbFactory.SecuritiesDb;
+        this.EnsureDistinctFuturesOptionContractWrites(futuresOptionContract);
+        var references = new List<PendingReferenceVersion?>();
+        foreach (var contract in futuresOptionContract) references.Add(await this.StageReferenceAsync(contract));
+        var operation = await this.BeginProjectionOperationAsync(
             db,
             FuturesOptionContractSymbolProjection,
             futuresOptionContract.Select(static contract => contract.Symbol));
@@ -1726,24 +873,25 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         {
             targetMutationSubmissionStarted = true;
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContract)}", SecuritiesDbCql.InsertFuturesOptionContract)
-                .SetParameters(futuresOptionContract.Select(ToInsertParameters))
+                .SetParameters(futuresOptionContract.Select(this.ToInsertParameters))
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)
-                .SetParameters(futuresOptionContract.Select(ToInsertParameters))
+                .SetParameters(futuresOptionContract.Select(this.ToInsertParameters))
                 .ExecuteCommandAsync();
-            await CompleteProjectionOperationAsync(
+            await this.CompleteProjectionOperationAsync(
                 db,
                 operation,
                 completeGlobal: false,
                 completeAllSymbols: false);
-            foreach (var reference in references) await CommitReferenceAsync(reference);
+            foreach (var reference in references) await this.CommitReferenceAsync(reference);
         }
         catch
         {
             if (ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
                 targetMutationSubmissionStarted))
             {
-                await EndProjectionOperationAsync(db, operation, CancellationToken.None).ConfigureAwait(false);
+                await this.EndProjectionOperationAsync(db, operation, CancellationToken.None)
+                    .ConfigureAwait(false);
             }
             throw;
         }
@@ -1757,31 +905,22 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task UpdateFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel futuresOptionContract)
     {
-        var reference = await StageReferenceAsync(futuresOptionContract, originalContractId);
-        var db = _dbFactory.SecuritiesDb;
+        var reference = await this.StageReferenceAsync(futuresOptionContract, originalContractId);
+        var db = DbFactory.SecuritiesDb;
         var originalContract = await GetFuturesOptionContractAsync(originalContractId);
-        var replacementProjectionKey = ToProjectionKey(futuresOptionContract);
+
+        var replacementProjectionKey = this.ToProjectionKey(futuresOptionContract);
         List<object> queuedCommands = [];
         if (originalContract is not null)
         {
-            var originalProjectionKey = ToProjectionKey(originalContract);
+            var originalProjectionKey = this.ToProjectionKey(originalContract);
             if (originalProjectionKey != replacementProjectionKey)
             {
                 queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractById)}", SecuritiesDbCql.DeleteFuturesOptionContractById)
-                    .SetParameters(new DeleteFuturesOptionContractById(
-                        originalContract.ContractId,
-                        originalContract.ContractMonth,
-                        originalContract.Symbol,
-                        originalContract.OptionType,
-                        originalContract.StrikePrice))
+                    .SetParameters(new DeleteFuturesOptionContractById(originalContract.ContractId, originalContract.ContractMonth, originalContract.Symbol, originalContract.OptionType, originalContract.StrikePrice))
                     .QueueCommand());
                 queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)
-                    .SetParameters(new DeleteFuturesOptionContractBySymbolV2(
-                        originalContract.Symbol,
-                        originalContract.ContractMonth,
-                        originalContract.OptionType,
-                        originalContract.StrikePrice,
-                        originalContract.ContractId))
+                    .SetParameters(new DeleteFuturesOptionContractBySymbolV2(originalContract.Symbol, originalContract.ContractMonth, originalContract.OptionType, originalContract.StrikePrice, originalContract.ContractId))
                     .QueueCommand());
             }
         }
@@ -1794,29 +933,23 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
 
         queuedCommands.AddRange([
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContract)}", SecuritiesDbCql.InsertFuturesOptionContract)
-                .SetParameters(ToInsertParameters(futuresOptionContract))
+                .SetParameters(this.ToInsertParameters(futuresOptionContract))
                 .QueueCommand(),
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)
-                .SetParameters(ToInsertParameters(futuresOptionContract))
+                .SetParameters(this.ToInsertParameters(futuresOptionContract))
                 .QueueCommand()]);
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesOptionContractSymbolProjection,
-            originalContract is null
-                ? [futuresOptionContract.Symbol]
-                : [originalContract.Symbol, futuresOptionContract.Symbol],
+            originalContract is null ? [futuresOptionContract.Symbol] : [originalContract.Symbol, futuresOptionContract.Symbol],
             () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
-        await CommitReferenceAsync(reference);
+        await this.CommitReferenceAsync(reference);
     }
 
-    /// <summary>
-    /// Delete a futures option contract from SecuritiesDb by its ID
-    /// </summary>
-    /// <param name="contractId"></param>
-    /// <returns></returns>
+    /// <summary>Deletes a futures option contract by identifier.</summary>
     public async Task DeleteFuturesOptionContractAsync(string contractId)
     {
-        var db = _dbFactory.SecuritiesDb;
+        var db = DbFactory.SecuritiesDb;
         var contracts = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContract)}", SecuritiesDbCql.GetFuturesOptionContract)
             .SetParameters(new GetFuturesOptionContract(contractId))
             .ExecuteQueryAsync(MapToFuturesOptionContract!);
@@ -1828,14 +961,9 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         ];
         queuedCommands.AddRange(contracts.Select(contract =>
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)
-                .SetParameters(new DeleteFuturesOptionContractBySymbolV2(
-                    contract.Symbol,
-                    contract.ContractMonth,
-                    contract.OptionType,
-                    contract.StrikePrice,
-                    contract.ContractId))
+                .SetParameters(new DeleteFuturesOptionContractBySymbolV2(contract.Symbol, contract.ContractMonth, contract.OptionType, contract.StrikePrice, contract.ContractId))
                 .QueueCommand()));
-        await ExecuteProjectionMutationAsync(
+        await this.ExecuteProjectionMutationAsync(
             db,
             FuturesOptionContractSymbolProjection,
             contracts.Select(static contract => contract.Symbol),
@@ -1849,7 +977,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The futures option contract with the specified ID</returns>
     public async Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId)
     {
-        var contracts = await _dbFactory.SecuritiesDb
+        var contracts = await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContract)}", SecuritiesDbCql.GetFuturesOptionContract)
             .SetParameters(new GetFuturesOptionContract(contractId))
             .ExecuteQueryAsync(MapToFuturesOptionContract!);
@@ -1866,7 +994,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         string contractId,
         CancellationToken cancellationToken)
     {
-        var contracts = await _dbFactory.SecuritiesDb
+        var contracts = await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContract)}", SecuritiesDbCql.GetFuturesOptionContract)
             .SetParameters(new GetFuturesOptionContract(contractId))
             .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
@@ -1884,7 +1012,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     {
         if (contractIds.Count == 0)
             return [];
-        return await _dbFactory.SecuritiesDb
+        return await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsByIds)}", SecuritiesDbCql.GetFuturesOptionContractsByIds)
             .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
             .ExecuteQueryAsync(MapToFuturesOptionContract!);
@@ -1896,7 +1024,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     {
         if (contractIds.Count == 0)
             return [];
-        return await _dbFactory.SecuritiesDb
+        return await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsByIds)}", SecuritiesDbCql.GetFuturesOptionContractsByIds)
             .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
             .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
@@ -1909,27 +1037,27 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A list of all futures option contracts</returns>
     public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync<FuturesOptionContractReadModel[]>(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync<FuturesOptionContractReadModel[]>(
             db,
             FuturesOptionContractSymbolProjection,
             symbol,
-            () => LoadFuturesOptionContractProjectionAsync(symbol),
-            () => LoadAndPopulateFuturesOptionContractsBySymbolAsync(symbol));
+            () => this.LoadFuturesOptionContractProjectionAsync(symbol),
+            () => this.LoadAndPopulateFuturesOptionContractsBySymbolAsync(symbol));
     }
 
     public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(
         string symbol,
         CancellationToken cancellationToken)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync<FuturesOptionContractReadModel[]>(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync<FuturesOptionContractReadModel[]>(
             db,
             FuturesOptionContractSymbolProjection,
             symbol,
             cancellationToken,
-            token => LoadFuturesOptionContractProjectionAsync(symbol, token),
-            token => LoadAndPopulateFuturesOptionContractsBySymbolAsync(symbol, token));
+            token => this.LoadFuturesOptionContractProjectionAsync(symbol, token),
+            token => this.LoadAndPopulateFuturesOptionContractsBySymbolAsync(symbol, token));
     }
 
     /// <summary>
@@ -1941,13 +1069,13 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task that represents the asynchronous operation. The task result contains a collection of  <see
     /// cref="FuturesOptionContractReadModel"/> representing the futures option contracts.</returns>
     public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync()
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContracts)}", SecuritiesDbCql.GetFuturesOptionContracts)
             .ExecuteQueryAsync(MapToFuturesOptionContract!);
 
     public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(
         CancellationToken cancellationToken)
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContracts)}", SecuritiesDbCql.GetFuturesOptionContracts)
             .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
 
@@ -1958,7 +1086,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <param name="symbol">The symbol of the futures contracts to retrieve</param>
     /// <returns>A list of futures contracts with the specified IDs</returns>
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsByIdsAsync(ICollection<string> contractIds, string symbol)
-        =>  await _dbFactory.SecuritiesDb
+        =>  await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsByIds)}", SecuritiesDbCql.GetFuturesContractsByIds)
             .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
             .ExecuteQueryAsync(MapToFuturesContract!);
@@ -1967,7 +1095,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         ICollection<string> contractIds,
         string symbol,
         CancellationToken cancellationToken)
-        => await _dbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsByIds)}", SecuritiesDbCql.GetFuturesContractsByIds)
             .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
             .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken);
@@ -1979,27 +1107,27 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsBySymbolAsync(string symbol)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync<FuturesContractV3ReadModel[]>(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync<FuturesContractV3ReadModel[]>(
             db,
             FuturesContractSymbolProjection,
             symbol,
-            () => LoadFuturesContractProjectionAsync(symbol),
-            () => LoadAndPopulateFuturesContractsBySymbolAsync(symbol));
+            () => this.LoadFuturesContractProjectionAsync(symbol),
+            () => this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol));
     }
 
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsBySymbolAsync(
         string symbol,
         CancellationToken cancellationToken)
     {
-        var db = _dbFactory.SecuritiesDb;
-        return await ReadProjectionOrFallbackAsync<FuturesContractV3ReadModel[]>(
+        var db = DbFactory.SecuritiesDb;
+        return await this.ReadProjectionOrFallbackAsync<FuturesContractV3ReadModel[]>(
             db,
             FuturesContractSymbolProjection,
             symbol,
             cancellationToken,
-            token => LoadFuturesContractProjectionAsync(symbol, token),
-            token => LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token));
+            token => this.LoadFuturesContractProjectionAsync(symbol, token),
+            token => this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token));
     }
 
     public async Task EnsureFuturesContractRolloverRowsAsync(
@@ -2008,21 +1136,12 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         string createdBy,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(symbols);
-        ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
-
-        var normalized = symbols
-            .Select(static symbol => symbol?.Trim().ToUpperInvariant())
-            .Where(static symbol => !string.IsNullOrWhiteSpace(symbol))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (normalized.Length == 0)
-            throw new ArgumentException("At least one futures symbol is required.", nameof(symbols));
+        var normalized = this.ValidateAndNormalizeRolloverSymbols(symbols, createdBy);
 
         foreach (var symbol in normalized)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await _dbFactory.SecuritiesDb
+            await DbFactory.SecuritiesDb
                 .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractRolloverIfMissing)}", SecuritiesDbCql.InsertFuturesContractRolloverIfMissing)
                 .SetParameters(new InsertFuturesContractRolloverIfMissing(
                     symbol!, createdOnUtc, createdBy))
@@ -2034,10 +1153,10 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         string symbol,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
-        return await _dbFactory.SecuritiesDb
+        symbol = this.ValidateAndNormalizeSymbol(symbol);
+        return await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractRollover)}", SecuritiesDbCql.GetFuturesContractRollover)
-            .SetParameters(new GetFuturesContractRollover(symbol.Trim().ToUpperInvariant()))
+            .SetParameters(new GetFuturesContractRollover(symbol))
             .ExecuteSingleAsync(MapToFuturesContractRollover!, cancellationToken);
     }
 
@@ -2048,7 +1167,7 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
 
     public async Task<IReadOnlyCollection<FuturesContractRolloverReadModel>> GetFuturesContractRolloversAsync(
         CancellationToken cancellationToken = default)
-        => (await _dbFactory.SecuritiesDb
+        => (await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractRollovers)}", SecuritiesDbCql.GetFuturesContractRollovers)
             .ExecuteQueryAsync(MapToFuturesContractRollover!, cancellationToken))
             .ToArray();
@@ -2065,15 +1184,17 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         IReadOnlyCollection<FuturesContractV3ReadModel> contracts,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(rollover);
+        this.ValidateRollover(rollover);
         var symbol = rollover.Symbol.Trim().ToUpperInvariant();
-        var gate = _rolloverMutationGates.GetOrAdd(
+        var gate = RolloverMutationGates.GetOrAdd(
             symbol, static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await gate.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
         try
         {
-            await ReplaceFuturesRolloverSetCoreAsync(
-                rollover, contracts, cancellationToken).ConfigureAwait(false);
+            await this.ReplaceFuturesRolloverSetCoreAsync(
+                rollover, contracts, cancellationToken)
+                    .ConfigureAwait(false);
         }
         finally
         {
@@ -2081,120 +1202,170 @@ public partial class SecuritiesDbContext(IDbConnectionSettings connectionSetting
         }
     }
 
-    async Task ReplaceFuturesRolloverSetCoreAsync(
-        FuturesContractRolloverReadModel rollover,
-        IReadOnlyCollection<FuturesContractV3ReadModel> contracts,
-        CancellationToken cancellationToken)
+
+
+    // Tokens belong to this server lifetime. A restart requires a fresh first page.
+    /// <summary>Reads one page from a completed symbol projection without scanning or repairing the base table.</summary>
+    public async Task<FuturesOptionContractPageReadModel> GetFuturesOptionContractsPageAsync(
+        GetFuturesOptionContractsPageParameter request, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(rollover);
-        ArgumentNullException.ThrowIfNull(contracts);
+        this.ValidatePagingRequest(request);
         cancellationToken.ThrowIfCancellationRequested();
-        var replacements = contracts.ToArray();
-        if (replacements.Length == 0)
-            throw new ArgumentException("At least one rollover-set contract is required.", nameof(contracts));
-        if (string.IsNullOrWhiteSpace(rollover.ContractId)
-            || rollover.NextRolloverDate is null
-            || rollover.UpdatedOn is null
-            || string.IsNullOrWhiteSpace(rollover.UpdatedBy))
-        {
-            throw new ArgumentException("The replacement rollover row must be fully resolved.", nameof(rollover));
-        }
-        var symbol = rollover.Symbol.Trim().ToUpperInvariant();
-        var orderedReplacements = replacements
-            .OrderBy(static contract => contract.LastTradeDate)
-            .ThenBy(static contract => contract.ContractId, StringComparer.Ordinal)
-            .ToArray();
-        if (replacements.Any(contract =>
-                !string.Equals(symbol, contract.Symbol, StringComparison.Ordinal)
-                || !contract.Rollover)
-            || replacements.Count(static contract => contract.OnTheRun) != 1
-            || !orderedReplacements[0].OnTheRun
-            || (symbol == "ES" && replacements.Length != 1)
-            || (symbol == "VX" && replacements.Length != 2)
-            || replacements.Select(static contract => contract.ContractId)
-                .Distinct(StringComparer.Ordinal).Count() != replacements.Length
-            || !replacements.Any(contract =>
-                string.Equals(rollover.ContractId, contract.ContractId, StringComparison.Ordinal)
-                && contract.OnTheRun
-                && rollover.NextRolloverDate == contract.LastTradeDate))
-        {
-            throw new ArgumentException(
-                "The rollover row must identify the one on-the-run contract in a distinct rollover set for the same symbol.",
-                nameof(contracts));
-        }
+        var cursor = string.IsNullOrEmpty(request.ContinuationToken) ? null : this.DecodeOptionCursor(request);
+        var db = DbFactory.SecuritiesDb;
+        var stamp = await this.GetProjectionReadStampAsync(db, FuturesOptionContractSymbolProjection,
+            request.Symbol, cancellationToken)
+                .ConfigureAwait(false);
+        if (stamp is null)
+            throw new InvalidOperationException("The option contract catalog is not ready. Complete its symbol projection and retry.");
+        if (cursor is not null && cursor.Stamp != stamp.Value)
+            throw new InvalidOperationException("The option contract catalog changed. Refresh the list to restart paging.");
 
-        var existing = await GetFuturesRolloverSetAsync(symbol, cancellationToken);
-        var replacementKeys = replacements
-            .Select(static contract => (contract.ContractId, contract.LastTradeDate))
-            .ToHashSet();
-        var db = _dbFactory.SecuritiesDb;
-        List<object> queuedCommands = [];
-        foreach (var current in existing)
-        {
-            if (replacementKeys.Contains((current.ContractId, current.LastTradeDate)))
-                continue;
-            queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(
-                    current.Symbol, current.Rollover, current.OnTheRun,
-                    current.LastTradeDate, current.ContractId))
-                .QueueCommand());
-            var retired = current with { OnTheRun = false, Rollover = false };
-            var retiredInsert = ToInsertParameters(retired);
-            queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", SecuritiesDbCql.InsertFuturesContract)
-                .SetParameters(retiredInsert)
-                .QueueCommand());
-            queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
-                .SetParameters(retiredInsert)
-                .QueueCommand());
-        }
+        var page = await db
+            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsBySymbol)}", SecuritiesDbCql.GetFuturesOptionContractsBySymbol)
+            .SetParameters(new GetFuturesOptionContractsBySymbol(request.Symbol))
+            .ExecutePageAsync(MapToFuturesOptionContract!, request.PageSize, cursor?.State, cancellationToken)
+            .ConfigureAwait(false);
+        if (!await this.IsProjectionReadStampCurrentAsync(db, stamp.Value, cancellationToken)
+            .ConfigureAwait(false))
+            throw new InvalidOperationException("The option contract catalog changed. Refresh the list to restart paging.");
+        var token = page.PagingState is null ? null : this.EncodeOptionCursor(
+            new OptionPageCursor(request.Symbol, request.PageSize, stamp.Value, page.PagingState));
+        return new FuturesOptionContractPageReadModel(page.Items, token);
+    }
 
-        foreach (var contract in orderedReplacements)
-        {
-            var insert = ToInsertParameters(contract);
-            queuedCommands.AddRange(OtherProjectionKeys(contract).Select(key =>
-                db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                    .SetParameters(new DeleteFuturesContractBySymbolV3(
-                        key.Symbol, key.Rollover, key.OnTheRun,
-                        key.LastTradeDate, key.ContractId))
-                    .QueueCommand()));
-            queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", SecuritiesDbCql.InsertFuturesContract)
-                .SetParameters(insert)
-                .QueueCommand());
-            queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
-                .SetParameters(insert)
-                .QueueCommand());
-        }
-        queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.UpdateFuturesContractRollover)}", SecuritiesDbCql.UpdateFuturesContractRollover)
-            .SetParameters(new UpdateFuturesContractRollover(
-                rollover.ContractId,
-                rollover.NextRolloverDate.Value,
-                rollover.UpdatedOn.Value,
-                rollover.UpdatedBy,
-                symbol))
-            .QueueCommand());
 
-        await ExecuteProjectionMutationAsync(
-            db,
-            FuturesContractSymbolProjection,
-            [symbol],
-            () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
+
+    internal static OptionExpiryCalendarState MapToOptionExpiryCalendarState<TDataRecord>(TDataRecord row)
+        where TDataRecord : TomasAI.IFM.Framework.Storage.IObjectDataRecord => new(
+            row.GetGuid(0), row.GetDateOnly(1), row.GetDateOnly(2), row.GetDateTime(3));
+
+    internal static OptionContractExpiryReadModel MapToOptionContractExpiry<TDataRecord>(TDataRecord row)
+        where TDataRecord : TomasAI.IFM.Framework.Storage.IObjectDataRecord => new()
+        {
+            Symbol = row.GetString(0),
+            ContractId = row.IsNull(1) ? string.Empty : row.GetString(1),
+            ExpiryDate = row.GetDateOnly(2),
+            ProviderRoot = row.GetString(3),
+            OptionFamily = row.GetString(4),
+            RefreshedAtUtc = row.GetDateTime(5)
+        };
+
+    internal static CachedOptionContractDefinitionReadModel? MapToCachedOptionContractDefinition<TDataRecord>(TDataRecord row)
+        where TDataRecord : TomasAI.IFM.Framework.Storage.IObjectDataRecord
+    {
+        if (row.IsNull(1) || row.IsNull(5)) return null;
+        return new()
+        {
+            Symbol = row.GetString(0), UnderlyingContractId = row.GetString(1),
+            ExpiryDate = row.GetDateOnly(2), ProviderRoot = row.GetString(3),
+            OptionFamily = row.GetString(4), Definition = ReferencePayloadCodec.ReadOption(row.GetBytes(5)),
+            RefreshedAtUtc = row.GetDateTime(6)
+        };
+    }
+
+    public async Task<IReadOnlyList<OptionContractExpiryReadModel>> GetOptionContractExpiriesAsync(
+        string symbol,
+        DateOnly fromExpiry,
+        DateOnly throughExpiry,
+        CancellationToken cancellationToken = default)
+    {
+        symbol = this.ValidateAndNormalizeExpiryRange(symbol, fromExpiry, throughExpiry);
+        var db = DbFactory.SecuritiesDb;
+        var state = await db
+            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
+                SecuritiesDbCql.GetOptionContractExpiryCalendarState)
+            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
+            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken);
+        if (state is null || fromExpiry < state.CoverageFrom || fromExpiry > state.CoverageThrough)
+            return [];
+        var rows = (await db
+            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiries)}",
+                SecuritiesDbCql.GetOptionContractExpiries)
+            .SetParameters(new GetOptionContractExpiries(symbol, state.Generation, fromExpiry, state.CoverageThrough))
+            .ExecuteQueryAsync(MapToOptionContractExpiry!, cancellationToken)).ToArray();
+        var nearestAfter = rows.Where(row => row.ExpiryDate > throughExpiry)
+            .Select(row => row.ExpiryDate).OrderBy(date => date).FirstOrDefault();
+        return rows.Where(row => !string.IsNullOrWhiteSpace(row.ContractId)
+                                 && (row.ExpiryDate <= throughExpiry
+                                 || nearestAfter != default && row.ExpiryDate == nearestAfter))
+            .DistinctBy(row => (row.ContractId, row.ExpiryDate, row.ProviderRoot)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> GetCachedOptionContractDefinitionsAsync(
+        string symbol, string underlyingContractId, DateOnly expiryDate,
+        IReadOnlyCollection<string>? providerRoots = null, CancellationToken cancellationToken = default)
+    {
+        symbol = this.ValidateAndNormalizeCachedDefinitionQuery(symbol, underlyingContractId);
+        var db = DbFactory.SecuritiesDb;
+        var state = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
+                SecuritiesDbCql.GetOptionContractExpiryCalendarState)
+            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
+            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken);
+        if (state is null || expiryDate < state.CoverageFrom || expiryDate > state.CoverageThrough) return [];
+        var roots = (providerRoots ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var rows = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetCachedOptionContractDefinitions)}",
+                SecuritiesDbCql.GetCachedOptionContractDefinitions)
+            .SetParameters(new GetCachedOptionContractDefinitions(symbol, state.Generation, expiryDate))
+            .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, cancellationToken);
+        return rows.Where(row => row is not null
+                                 && string.Equals(row.UnderlyingContractId, underlyingContractId, StringComparison.OrdinalIgnoreCase)
+                                 && (roots.Count == 0 || roots.Contains(row.ProviderRoot)))
+            .Select(row => row!).DistinctBy(row => row.Definition.ContractId).ToArray();
+    }
+
+    public async Task ReplaceOptionContractDefinitionsAsync(
+        string symbol,
+        DateOnly coverageFrom,
+        DateOnly coverageThrough,
+        IReadOnlyCollection<CachedOptionContractDefinitionReadModel> definitions,
+        CancellationToken cancellationToken = default)
+    {
+        symbol = this.ValidateAndNormalizeOptionDefinitions(symbol, coverageFrom, coverageThrough, definitions);
+
+        var generation = Guid.NewGuid();
+        var refreshedAtUtc = DateTime.UtcNow;
+        var db = DbFactory.SecuritiesDb;
+        var previous = await db
+            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
+                SecuritiesDbCql.GetOptionContractExpiryCalendarState)
+            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
+            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken);
+        var definitionCommands = definitions
+            .DistinctBy(row => (row.ExpiryDate, row.ProviderRoot.ToUpperInvariant(), row.Definition.ContractId))
+            .Select(row => db
+                .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertOptionContractExpiry)}",
+                    SecuritiesDbCql.InsertOptionContractExpiry)
+                .SetParameters(new InsertOptionContractExpiry(
+                    symbol, generation, row.ExpiryDate, row.ProviderRoot.ToUpperInvariant(),
+                    row.Definition.ContractId, row.UnderlyingContractId, row.OptionFamily,
+                    ReferencePayloadCodec.Write(row.Definition), refreshedAtUtc))
+                .QueueCommand())
+            .Cast<object>()
+            .ToList();
         cancellationToken.ThrowIfCancellationRequested();
-
-        var persistedSet = (await GetFuturesRolloverSetAsync(symbol, cancellationToken))
-            .OrderBy(static contract => contract.LastTradeDate)
-            .ThenBy(static contract => contract.ContractId, StringComparer.Ordinal)
-            .ToArray();
-        var persistedPointer = await GetFuturesContractRolloverAsync(symbol, cancellationToken);
-        if (persistedSet.Length != orderedReplacements.Length
-            || !persistedSet.Select(static contract => (
-                    contract.ContractId, contract.OnTheRun, contract.Rollover))
-                .SequenceEqual(orderedReplacements.Select(static contract => (
-                    contract.ContractId, contract.OnTheRun, contract.Rollover)))
-            || persistedPointer?.ContractId != rollover.ContractId
-            || persistedPointer.NextRolloverDate != rollover.NextRolloverDate)
+        // A generation may contain many thousands of definition payloads. Sending them as one
+        // logged CQL batch exceeds Scylla's batch-size limit. Write the unpublished generation
+        // sequentially, then publish only its small state pointer after every row succeeds.
+        if (definitionCommands.Count > 0)
+            await db.ExecuteQueuedCommandsAsync(definitionCommands, false);
+        var publish = db
+            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.PublishOptionContractExpiryGeneration)}",
+                SecuritiesDbCql.PublishOptionContractExpiryGeneration)
+            .SetParameters(new PublishOptionContractExpiryGeneration(
+                symbol, generation, coverageFrom, coverageThrough, refreshedAtUtc))
+            .QueueCommand();
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.ExecuteQueuedCommandsAsync([publish], true);
+        if (previous is not null && previous.Generation != generation)
         {
-            throw new StorageException(
-                $"The '{symbol}' futures rollover set did not pass durable post-write verification.");
+            await db.ExecuteQueuedCommandsAsync(
+            [
+                db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteOptionContractExpiryGeneration)}",
+                        SecuritiesDbCql.DeleteOptionContractExpiryGeneration)
+                    .SetParameters(new DeleteOptionContractExpiryGeneration(symbol, previous.Generation))
+                    .QueueCommand()
+            ], true);
         }
     }
 

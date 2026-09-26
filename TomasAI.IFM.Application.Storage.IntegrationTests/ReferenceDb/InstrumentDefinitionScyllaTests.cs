@@ -33,7 +33,16 @@ public sealed class InstrumentDefinitionScyllaTests
         await admin.Use("DefinitionsTest.Create", $"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};").ExecuteCommandAsync(token);
         try
         {
-            await new ReferenceSchemaDb(settings, logger).CreateAsync(["instrument_definition", "instrument_definition_product", "instrument_definition_snapshot", "trade_strategy_symbol_v1"], token);
+            await new ReferenceSchemaDb(settings, logger).CreateAsync(
+                [
+                    "instrument_definition",
+                    "instrument_definition_product",
+                    "instrument_definition_snapshot",
+                    "instrument_definition_selection",
+                    "instrument_definition_selection_status",
+                    "trade_strategy_symbol_v1"
+                ],
+                token);
             long next = 0;
             var ids = Substitute.For<ISequenceIdGenerator>();
             ids.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>()).Returns(_ => new ValueTask<long>(Interlocked.Increment(ref next)));

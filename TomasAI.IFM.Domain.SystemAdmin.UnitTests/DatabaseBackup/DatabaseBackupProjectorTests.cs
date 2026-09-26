@@ -6,6 +6,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.EventProjector;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventProjector;
@@ -49,7 +50,7 @@ public sealed class DatabaseBackupProjectorTests
             });
         db.GetDatabaseBackupProjectionCheckpointAsync(
                 nameof(DatabaseBackupEventProjector), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<DatabaseBackupProjectionCheckpoint?>(
+            .Returns(ValueTask.FromResult<DatabaseBackupProjectionCheckpointReadModel?>(
                 new(nameof(DatabaseBackupEventProjector), 3, 3, DateTimeOffset.UtcNow)));
         var rebuilder = new DatabaseBackupProjectionRebuilder(db);
 

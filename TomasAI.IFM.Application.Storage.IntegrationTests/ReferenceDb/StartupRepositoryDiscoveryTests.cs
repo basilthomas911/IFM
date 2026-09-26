@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Subscriptions;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Framework.Storage;
 using Xunit;
@@ -14,9 +14,9 @@ public sealed class StartupRepositoryDiscoveryTests
     [Fact]
     public void Discovery_excludes_the_actual_stage4_private_repository_and_keeps_public_contexts()
     {
-        var assembly = typeof(MarketDataServiceDurableSubscriptionStore).Assembly;
-        var owned = typeof(MarketDataServiceDurableSubscriptionStore).GetNestedType("Repository", BindingFlags.NonPublic)!;
-        owned.IsNestedPrivate.Should().BeTrue();
+        var assembly = typeof(MarketDataServiceTransactionRepository).Assembly;
+        var owned = typeof(MarketDataServiceTransactionRepository);
+        owned.IsVisible.Should().BeFalse();
         // Characterize the exact old scan that caused the production startup exception.
         assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces().Any(i =>
             i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IObjectRepository<>))).Should().Contain(owned);

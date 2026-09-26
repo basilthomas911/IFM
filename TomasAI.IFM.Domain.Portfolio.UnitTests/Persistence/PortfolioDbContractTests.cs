@@ -41,27 +41,27 @@ public sealed class PortfolioDbContractTests
 
     [Fact]
     [Trait("Gate", "PPG-05")]
-    public void Portfolio_context_is_one_sealed_type_with_exact_read_write_interfaces()
+    public void Portfolio_context_is_one_sealed_type_with_combined_read_write_contract()
     {
         typeof(PortfolioDbContext).IsSealed.Should().BeTrue();
         typeof(PortfolioDbContext).GetInterfaces().Where(type => type.Namespace == typeof(IPortfolioDbReadContext).Namespace)
-            .Should().BeEquivalentTo([typeof(IPortfolioDbReadContext), typeof(IPortfolioDbWriteContext)]);
+            .Should().BeEquivalentTo([typeof(IPortfolioDbContext), typeof(IPortfolioDbReadContext), typeof(IPortfolioDbWriteContext)]);
         typeof(IPortfolioDbReadContext).Assembly.GetTypes()
             .Where(type => type.IsInterface && type.Namespace == typeof(IPortfolioDbReadContext).Namespace
                 && type.Name.StartsWith("IPortfolioDb", StringComparison.Ordinal))
-            .Should().BeEquivalentTo([typeof(IPortfolioDbReadContext), typeof(IPortfolioDbWriteContext)]);
+            .Should().BeEquivalentTo([typeof(IPortfolioDbContext), typeof(IPortfolioDbReadContext), typeof(IPortfolioDbWriteContext)]);
     }
 
     [Fact]
     [Trait("Gate", "PPG-05")]
     public void Projection_factory_creates_stable_canonical_hash_and_rejects_invalid_metadata()
     {
-        var now = new DateTime(2026,8,29,20,0,0,DateTimeKind.Utc);
-        var value = new PortfolioReadModel { PortfolioId=1,Name="P1",PortfolioVersion=1,OperatingState=PortfolioOperatingState.Draft,EffectiveFromUtc=now,CreatedOnUtc=now,CreatedBy="unit" };
-        var a = PortfolioProjection<PortfolioReadModel>.Create(value,1,1,now);
-        var b = PortfolioProjection<PortfolioReadModel>.Create(value,1,1,now);
+        var now = new DateTime(2026, 8, 29, 20, 0, 0, DateTimeKind.Utc);
+        var value = new PortfolioReadModel { PortfolioId = 1, Name = "P1", PortfolioVersion = 1, OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "unit" };
+        var a = PortfolioProjection<PortfolioReadModel>.Create(value, 1, 1, now);
+        var b = PortfolioProjection<PortfolioReadModel>.Create(value, 1, 1, now);
         a.PayloadHash.Should().Be(b.PayloadHash).And.HaveLength(64);
-        FluentActions.Invoking(() => PortfolioProjection<PortfolioReadModel>.Create(value,0,1,now)).Should().Throw<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => PortfolioProjection<PortfolioReadModel>.Create(value, 0, 1, now)).Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Fact]

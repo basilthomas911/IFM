@@ -210,8 +210,6 @@ public sealed class DatabentoOptionChainSessionManager :
         if (!session.Routes.TryGetValue(record.Header.InstrumentId, out var route))
             throw new InvalidOperationException(
                 $"The option-chain record instrument {record.Header.InstrumentId} is not mapped.");
-        if (record.Header.PublisherId != route.Definition.Instrument.PublisherId)
-            throw new InvalidOperationException("Option-chain record publisher does not match the exact provider route.");
 
         switch (record.Header.RecordKind)
         {

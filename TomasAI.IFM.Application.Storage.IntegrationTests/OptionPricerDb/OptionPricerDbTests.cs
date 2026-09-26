@@ -162,4 +162,30 @@ public  class OptionPricerDbTests : IClassFixture<OptionPricerFixture>
         // Assert
         result.Should().Be(expectedCount);
     }
+
+    /// <summary>
+    /// Verifies that the global in-progress cleanup resolves and deletes the exact persisted job identity.
+    /// </summary>
+    [Fact]
+    public async Task DeleteSpreadDistributionJobsInProgressAsync_DeletesPersistedInProgressJob()
+    {
+        // Arrange
+        var job = SampleData.SpreadDistributionJob with
+        {
+            OrderId = 910001,
+            TradeId = 910002,
+            ValueDate = new DateOnly(2026, 9, 26)
+        };
+        await TestFixture.DevDatabase.DeleteSpreadDistributionJobsAsync(job.OrderId, job.TradeId);
+        await TestFixture.DevDatabase.InsertSpreadDistributionJobAsync(job);
+
+        // Act
+        await TestFixture.DevDatabase.DeleteSpreadDistributionJobsInProgressAsync();
+
+        // Assert
+        var result = await TestFixture.DevDatabase.GetSpreadDistributionJobInProgressCountAsync(
+            job.OrderId,
+            job.TradeId);
+        result.Should().Be(0);
+    }
 }

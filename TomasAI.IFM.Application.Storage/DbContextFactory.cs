@@ -3,14 +3,12 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
-using TomasAI.IFM.Application.Storage.PredictiveModelDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
-using TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
@@ -43,14 +41,13 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public IMarketDataDbContext MarketDataDb =>
         (_dbContextResolver.Resolve<MarketDataDbContext>() as IMarketDataDbContext)!;
     public IOptionPricerDbContext OptionPricerDb => _dbContextResolver.Resolve<OptionPricerDbContext>() as IOptionPricerDbContext;
-    public IObjectRepository<PredictiveModelDbContext> PredictiveModelDb => _dbContextResolver.Resolve<PredictiveModelDbContext>();
     public IReferenceDbContext ReferenceDb => _dbContextResolver.Resolve<ReferenceDbContext>() as IReferenceDbContext;
     public ISecuritiesDbContext SecuritiesDb => _dbContextResolver.Resolve<SecuritiesDbContext>() as ISecuritiesDbContext;
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
     public ITradePlanDbContext TradePlanDb => (_dbContextResolver.Resolve<TradePlanDbContext>() as ITradePlanDbContext)!;
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
-    public PortfolioDbContext PortfolioDb => (_dbContextResolver.Resolve<PortfolioDbContext>() as PortfolioDbContext)!;
+    public IPortfolioDbContext PortfolioDb => (_dbContextResolver.Resolve<PortfolioDbContext>() as IPortfolioDbContext)!;
     public IMarketDataServiceDbContext MarketDataServiceDb =>
         (_dbContextResolver.Resolve<MarketDataServiceDbContext>() as IMarketDataServiceDbContext)!;
 
@@ -58,7 +55,6 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public SequenceIdSchemaDb SequenceIdSchema => (_dbContextResolver.Resolve<SequenceIdSchemaDb>() as SequenceIdSchemaDb)!;
     public MarketDataSchemaDb MarketDataSchema => (_dbContextResolver.Resolve<MarketDataSchemaDb>() as MarketDataSchemaDb)!;
     public OptionPricerSchemaDb OptionPricerSchema => (_dbContextResolver.Resolve<OptionPricerSchemaDb>() as OptionPricerSchemaDb)!;
-    public PredictiveModelSchemaDb PredictiveModelSchema => (_dbContextResolver.Resolve<PredictiveModelSchemaDb>() as PredictiveModelSchemaDb)!;
     public ReferenceSchemaDb ReferenceSchema => (_dbContextResolver.Resolve<ReferenceSchemaDb>() as ReferenceSchemaDb)!;
     public SecuritiesSchemaDb SecuritiesSchema => (_dbContextResolver.Resolve<SecuritiesSchemaDb>() as SecuritiesSchemaDb)!;
     public TradeSchemaDb TradeSchema => (_dbContextResolver.Resolve<TradeSchemaDb>() as TradeSchemaDb)!;
@@ -73,7 +69,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
 
     public IObjectRepository<TRepo> Get<TRepo>() where TRepo : IObjectRepository
         => _dbContextResolver.Resolve<TRepo>();
-  
+
     IDbContextPool<TRepo> GetPool<TRepo>() where TRepo : IObjectRepository
     {
         if (!_dbContextPoolMap.ContainsKey(typeof(TRepo)))

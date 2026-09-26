@@ -31,7 +31,6 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class ApiApplicationStartupActivities(
     IFuturesMarketSessionAuthority marketSessionAuthority,
     IDatabentoContractAuthority contractAuthority,
-    ICurrentFuturesContractCatalog contractCatalog,
     IFuturesContractRolloverStartupCheck rolloverCheck,
     IFmpMarketDataImportCoordinator referenceImportCoordinator,
     IMarketDataFeedCommandApi marketDataFeedCommandApi,

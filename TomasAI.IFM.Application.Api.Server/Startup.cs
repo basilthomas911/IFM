@@ -164,7 +164,8 @@ public static class Startup
     {
         _siContainer.Options.DefaultScopedLifestyle = new AsyncScopedLifestyle();
         _ = builder.WebHost
-                       .ConfigureAppConfiguration((ctx, configBuilder) => {
+                       .ConfigureAppConfiguration((ctx, configBuilder) =>
+                       {
                            configBuilder.SetBasePath(Directory.GetCurrentDirectory())
                                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                                .AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true)
@@ -196,7 +197,8 @@ public static class Startup
         logger.LogInformationEvent("ApiServer", "configure web api server...");
         builder.Services.AddControllers()
             .AddNewtonsoftJson()
-            .AddJsonOptions(options => {
+            .AddJsonOptions(options =>
+            {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
         builder.Services.AddEndpointsApiExplorer();
@@ -319,7 +321,8 @@ public static class Startup
 
             // Register HazelcastCache as the IDistributedCache implementation
             var hazelcastOptions = new HazelcastOptionsBuilder()
-            .With(options => {
+            .With(options =>
+            {
                 options.ClusterName = "ifm-cluster";
                 options.Networking.Addresses.Add("localhost:5701");
             })
@@ -336,7 +339,7 @@ public static class Startup
 
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             services.AddHttpClient();
-              var redisUri = config.GetValue<string>("AppSettings:RedisUri")!;
+            var redisUri = config.GetValue<string>("AppSettings:RedisUri")!;
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
             services.AddSingleton<IRedisCache, RedisCache>();
             services.AddSingleton<IBlackboardService, BlackboardService>();
@@ -399,7 +402,8 @@ public static class Startup
             services.AddSingleton<ActorAdmissionController>();
             services.AddSingleton<IActorSupervisor, ActorSupervisor>();
             services.AddSingleton<IActorService, ActorService>();
-            services.AddSingleton<IActorRegistry>(_ => {
+            services.AddSingleton<IActorRegistry>(_ =>
+            {
                 var actorTypes = (
                     from reg in _siContainer.GetCurrentRegistrations()
                     where reg.ServiceType.IsClosedTypeOf(typeof(IActor<>))
@@ -408,7 +412,7 @@ public static class Startup
                     .ToArray();
                 return new ActorRegistry(actorTypes);
             });
-            services.AddSingleton<IActorFactory>( _ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
+            services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
             services.AddSingleton<INatsProducerOptions>(_ => EventLogQualification.Active is null
                 ? new NatsProducerOptions() : new NatsProducerOptions { Url = EventLogQualification.BrokerUrl });
             services.AddSingleton<INatsConsumerOptions>(natsConsumerOptions);
@@ -423,7 +427,8 @@ public static class Startup
             services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
             services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
             services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
-            services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type => {
+            services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type =>
+            {
                 var instance = provider.GetService(type)!;
                 instance ??= GetContainerInstance(type)!;
                 return instance;
@@ -493,8 +498,8 @@ public static class Startup
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
             services.AddSingleton<IDownloadLogQueryApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogQueryApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.ISelectionConstructionProfileResolver,TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.SelectionConstructionProfileResolver>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.ITradeSelectionQueryApi,TomasAI.IFM.Application.Api.Nats.Client.TradeSelectionQueryApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.ISelectionConstructionProfileResolver, TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.SelectionConstructionProfileResolver>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.ITradeSelectionQueryApi, TomasAI.IFM.Application.Api.Nats.Client.TradeSelectionQueryApi>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, TomasAI.IFM.Application.Api.Nats.Client.MarketConditionAssessmentQueryApi>();
             services.AddSingleton<IDownloadLogCommandApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogCommandApi>();
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
@@ -548,7 +553,7 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioOrderCompositionStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioCloseOrderCompositionStore>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
-            services.AddSingleton(provider => new TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy(
+            services.AddSingleton(provider => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialDevelopmentPolicy(
                 provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IGeneralLedgerStore,
                 TomasAI.IFM.Application.Storage.PortfolioFinancial.GeneralLedgerStore>();
@@ -576,7 +581,7 @@ public static class Startup
             // Financial history recovery, workflow recovery, and capacity expiry polling are
             // temporarily disabled pending review of retry behavior and persisted-data compatibility.
             services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialWorkflowRecoveryJournal>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.RiskHistoryJournal>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
                 provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
@@ -602,9 +607,7 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.IInstrumentDefinitionStore>(provider =>
                 provider.GetRequiredService<IDbContextFactory>().ReferenceDb.InstrumentDefinitions);
             services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>(provider =>
-                new TomasAI.IFM.Application.Storage.SecuritiesDb.SecuritiesOptionPricingConventionStore(
-                    provider.GetRequiredService<IDbContextFactory>().SecuritiesDb,
-                    provider.GetRequiredService<IDbContextFactory>().ReferenceDb.OptionPricingConventions));
+                provider.GetRequiredService<IDbContextFactory>().SecuritiesDb);
             services.AddSingleton(provider => provider.GetRequiredService<IDbContextFactory>().ReferenceDb.OptionPricingReferenceBundles);
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.EuropeanOptionUniverse>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.TreasuryPricingProvider>();
@@ -614,13 +617,13 @@ public static class Startup
             services.AddSingleton<ITradeStrategyFamilyCatalogStore, TradeStrategyFamilyCatalogStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
-            services.AddSingleton(provider=>new TomasAI.IFM.Application.Api.Server.ParameterSets.RsiHistoricalPilotOptions(
-                provider.GetRequiredService<IHostEnvironment>().IsDevelopment()&&config.GetValue<bool>("ParameterSets:RsiHistoricalPilotEnabled")));
-            services.AddSingleton<TomasAI.IFM.Application.Api.Server.ParameterSets.IRsiHistoricalPilotStartup,TomasAI.IFM.Application.Api.Server.ParameterSets.RsiHistoricalPilotStartup>();
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi,TomasAI.IFM.Application.Api.Nats.Client.ParameterSetsApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>(provider=>
+            services.AddSingleton(provider => new TomasAI.IFM.Application.Api.Server.ParameterSets.RsiHistoricalPilotOptions(
+                provider.GetRequiredService<IHostEnvironment>().IsDevelopment() && config.GetValue<bool>("ParameterSets:RsiHistoricalPilotEnabled")));
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.ParameterSets.IRsiHistoricalPilotStartup, TomasAI.IFM.Application.Api.Server.ParameterSets.RsiHistoricalPilotStartup>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi, TomasAI.IFM.Application.Api.Nats.Client.ParameterSetsApi>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>(provider =>
                 new TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterRuntimeSnapshotModel(
-                    provider.GetRequiredService<IHostEnvironment>().IsDevelopment()&&config.GetValue<bool>("ParameterSets:SingleUserDevelopmentEnabled")));
+                    provider.GetRequiredService<IHostEnvironment>().IsDevelopment() && config.GetValue<bool>("ParameterSets:SingleUserDevelopmentEnabled")));
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterAccessPolicy>(provider =>
                 new TomasAI.IFM.Domain.Reference.ParameterSets.Model.SingleUserDevelopmentParameterAccessPolicy(
                     provider.GetRequiredService<IHostEnvironment>().EnvironmentName,
@@ -836,7 +839,8 @@ public static class Startup
                 Synthetic = feedOptions.Synthetic
             });
             services.AddSingleton<IDatabentoWatchdogPublisher, DatabentoWatchdogStatusConsolePublisher>();
-            services.AddSingleton<ICurrentFuturesContractCatalog, SecuritiesCurrentFuturesContractCatalog>();
+            services.AddSingleton<ICurrentFuturesContractCatalog>(provider =>
+                provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton<IDatabentoContractAuthority, DatabentoContractAuthority>();
             if (stage3Options.Enabled)
                 services.AddSingleton<IDatabentoLifecycleRuntime, SupervisedDatabentoLifecycleRuntime>();
@@ -928,7 +932,7 @@ public static class Startup
             services.AddSingleton<MarketDataRuntimeHealthCheck>();
             services.AddSingleton<ActorRuntimeHealthCheck>();
             services.AddSingleton((config.GetSection("MarketDataRecovery:LivePipeline")
-                .Get<LivePipelineMonitorOptions>() ?? new LivePipelineMonitorOptions()).Validate());            services.AddSingleton<ILivePipelineProbe, LivePipelineProbe>();
+                .Get<LivePipelineMonitorOptions>() ?? new LivePipelineMonitorOptions()).Validate()); services.AddSingleton<ILivePipelineProbe, LivePipelineProbe>();
             services.AddSingleton<LivePipelineMonitor>();
             services.AddHostedService(provider => provider.GetRequiredService<LivePipelineMonitor>());
             services.AddHostedService<HistoricalDailyAnalyticsInitializationService>();
@@ -1180,7 +1184,7 @@ public static class Startup
                 [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
             },
             ResponseWriter = WriteHealthResponseAsync
-        });        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        }); app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains("ready"),
             ResultStatusCodes =

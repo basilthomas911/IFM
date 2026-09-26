@@ -4,6 +4,7 @@ using NSubstitute;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
@@ -1342,8 +1343,9 @@ public class SecuritiesCqlTests
     {
         var globalGeneration = Guid.NewGuid();
         var symbolGeneration = Guid.NewGuid();
+        var context = (SecuritiesDbContext)RuntimeHelpers.GetUninitializedObject(typeof(SecuritiesDbContext));
 
-        SecuritiesDbContext.IsSymbolProjectionReadFenceCurrent(
+        context.IsSymbolProjectionReadFenceCurrent(
                 globalGeneration,
                 globalGeneration,
                 currentGlobalIsComplete: false,
@@ -1354,7 +1356,7 @@ public class SecuritiesCqlTests
                 currentSymbolHasNoActiveOperations: true)
             .Should().BeTrue("an idle incomplete global state permits lazy per-symbol readiness");
 
-        SecuritiesDbContext.IsSymbolProjectionReadFenceCurrent(
+        context.IsSymbolProjectionReadFenceCurrent(
                 globalGeneration,
                 globalGeneration,
                 currentGlobalIsComplete: false,
@@ -1365,7 +1367,7 @@ public class SecuritiesCqlTests
                 currentSymbolHasNoActiveOperations: true)
             .Should().BeFalse("an active global backfill fences every per-symbol stamp");
 
-        SecuritiesDbContext.IsSymbolProjectionReadFenceCurrent(
+        context.IsSymbolProjectionReadFenceCurrent(
                 globalGeneration,
                 Guid.NewGuid(),
                 currentGlobalIsComplete: false,

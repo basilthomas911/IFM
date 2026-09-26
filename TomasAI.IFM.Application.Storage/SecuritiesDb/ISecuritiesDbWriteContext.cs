@@ -1,10 +1,21 @@
 ﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
+/// <summary>Defines mutations supported by the Securities database.</summary>
 public interface ISecuritiesDbWriteContext
 {
+    Task<PendingReferenceVersion> StageReferenceVersionAsync(
+        FuturesContractV3ReadModel value,
+        CancellationToken cancellationToken = default);
+    Task<PendingReferenceVersion> StageReferenceVersionAsync(
+        FuturesOptionContractReadModel value,
+        CancellationToken cancellationToken = default);
+    Task CommitReferenceVersionAsync(
+        PendingReferenceVersion value,
+        CancellationToken cancellationToken = default);
     Task ReplaceOptionContractDefinitionsAsync(
         string symbol, DateOnly coverageFrom, DateOnly coverageThrough,
         IReadOnlyCollection<CachedOptionContractDefinitionReadModel> definitions,
@@ -21,11 +32,9 @@ public interface ISecuritiesDbWriteContext
     Task<SecuritiesProjectionBackfillResult> BackfillSymbolProjectionsAsync(
         int batchSize = 256,
         CancellationToken cancellationToken = default,
-        DateTime? staleOperationCutoffUtc = null)
-        => throw new NotSupportedException();
+        DateTime? staleOperationCutoffUtc = null);
     Task<SecuritiesProjectionReconciliationResult> ReconcileSymbolProjectionsAsync(
-        CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        CancellationToken cancellationToken = default);
     Task DeleteFuturesContractAsync(string contractId);
     Task DeleteFuturesContractAsync(FuturesContractId contractId);
     Task DeleteOnTheRunFuturesContractAsync(string symbol);

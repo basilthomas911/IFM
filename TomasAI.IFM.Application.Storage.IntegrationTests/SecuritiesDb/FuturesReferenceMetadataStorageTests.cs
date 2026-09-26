@@ -113,11 +113,14 @@ public sealed class FuturesReferenceMetadataStorageTests
                 DayCount = ReferenceDayCount.Actual365Fixed
             };
             await db.UpdateFuturesOptionContractAsync(option.ContractId, reviewedOption);
-            var versions = new ReferenceVersionStore(Open());
-            var first = await versions.GetAsync(option.ContractId, "fixture/v1", token);
+            var versions = Open();
+            var first = await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v1", token);
             Assert.Equal(reviewedOption, first!.Option);
             Assert.Equal(strike, first.Convention!.Strike);
             Assert.Equal(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionExerciseStyle.American, first.Convention.ExerciseStyle);
+            IOptionPricingConventionStore conventionStore = versions;
+            Assert.Equal(first.Convention, await conventionStore.GetAsync(option.ContractId, "fixture/v1", token));
+            Assert.Null(await conventionStore.GetAsync(option.ContractId, "missing", token));
             // Given an imported American reference, retain a real full-Greek Trade-basis result and reopen it.
             var at = new DateTimeOffset(2026, 9, 8, 16, 0, 0, TimeSpan.Zero);
             var rate = TreasuryRateConversion.Convert(new TreasuryCurveSnapshot(new(2026, 9, 8),
@@ -159,14 +162,14 @@ public sealed class FuturesReferenceMetadataStorageTests
                 reviewedOption with { InstrumentId = 123, MappingVersion = "collision/v1" }));
             Assert.Equal(reviewedOption, await db.GetFuturesOptionContractAsync(option.ContractId, token));
             var second = reviewedOption with { MappingVersion = "fixture/v2", EvidenceId = "fixture/correction" };
-            var staged = await versions.StageAsync(second, token);
-            Assert.Null(await versions.GetAsync(option.ContractId, "fixture/v2", token));
+            var staged = await versions.StageReferenceVersionAsync(second, token);
+            Assert.Null(await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v2", token));
             await db.UpdateFuturesOptionContractAsync(option.ContractId, second);
-            Assert.Equal(second, (await versions.GetAsync(option.ContractId, "fixture/v2", token))!.Option);
-            Assert.Equal(reviewedOption, (await versions.GetAsync(option.ContractId, "fixture/v1", token))!.Option);
-            Assert.Equal(reviewedOption, (await versions.GetEffectiveAsync(option.ContractId, "fixture/v1", start, token))!.Option);
-            Assert.Null(await versions.GetEffectiveAsync(option.ContractId, "fixture/v1", expiry, token));
-            Assert.Contains(await versions.ListVersionsAsync(option.ContractId, token: token),
+            Assert.Equal(second, (await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v2", token))!.Option);
+            Assert.Equal(reviewedOption, (await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v1", token))!.Option);
+            Assert.Equal(reviewedOption, (await versions.GetEffectiveReferenceVersionAsync(option.ContractId, "fixture/v1", start, token))!.Option);
+            Assert.Null(await versions.GetEffectiveReferenceVersionAsync(option.ContractId, "fixture/v1", expiry, token));
+            Assert.Contains(await versions.ListReferenceVersionsAsync(option.ContractId, cancellationToken: token),
                 row => row.Version == "fixture/v1" && row.Published);
             await Assert.ThrowsAsync<InvalidOperationException>(() => db.UpdateFuturesOptionContractAsync(
                 option.ContractId, second with { MappingVersion = "wrong-underlying", UnderlyingInstrumentId = 999 }));
@@ -174,7 +177,7 @@ public sealed class FuturesReferenceMetadataStorageTests
                 InstrumentId = 999, MappingVersion = "concurrent/v1" };
             async Task<bool> TryClaim(uint instrument)
             {
-                try { await versions.StageAsync(concurrent with { InstrumentId = instrument }, token); return true; }
+                try { await versions.StageReferenceVersionAsync(concurrent with { InstrumentId = instrument }, token); return true; }
                 catch (InvalidOperationException) { return false; }
             }
             var claims = await Task.WhenAll(TryClaim(999), TryClaim(1000));
@@ -189,10 +192,10 @@ public sealed class FuturesReferenceMetadataStorageTests
                 .ExecuteCommandAsync(token);
             await Assert.ThrowsAsync<InvalidOperationException>(() => db.UpdateFuturesOptionContractAsync(
                 option.ContractId, second with { MappingVersion = "fixture/v3" }));
-            var repair = await versions.StageAsync(reviewedFuture, token);
-            await versions.CommitAsync(repair, token);
+            var repair = await versions.StageReferenceVersionAsync(reviewedFuture, token);
+            await versions.CommitReferenceVersionAsync(repair, token);
             await db.UpdateFuturesOptionContractAsync(option.ContractId, second with { MappingVersion = "fixture/v3" });
-            Assert.NotNull(await versions.GetAsync(option.ContractId, "fixture/v3", token));
+            Assert.NotNull(await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v3", token));
         }
         finally
         {

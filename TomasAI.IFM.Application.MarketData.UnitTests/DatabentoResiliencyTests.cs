@@ -285,9 +285,9 @@ public sealed class DatabentoResiliencyTests
     {
         var store = new InMemoryMarketDataServiceStore();
         var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
-        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("ES", Arg.Any<CancellationToken>()).Returns([
             Contract("ES20261218", "ES", new(2026, 12, 18))]);
-        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("VX", Arg.Any<CancellationToken>()).Returns([
             Contract("VX20260916", "VX", new(2026, 9, 16)),
             Contract("VX20261021", "VX", new(2026, 10, 21))]);
         var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
@@ -321,7 +321,7 @@ public sealed class DatabentoResiliencyTests
         var assignments = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
 
         assignments.Should().HaveCount(3);
-        await catalog.DidNotReceiveWithAnyArgs().GetByRootAsync(default!, default);
+        await catalog.DidNotReceiveWithAnyArgs().GetFuturesContractsBySymbolAsync(default!, default);
         registry.Received(1).ReplaceFuturesRolloverSet("ES",
             Arg.Is<IReadOnlyCollection<FuturesContractV3ReadModel>>(values => values.Count == 1));
         registry.Received(1).ReplaceFuturesRolloverSet("VX",
@@ -334,9 +334,9 @@ public sealed class DatabentoResiliencyTests
         var valueDate = new DateOnly(2026, 9, 16);
         var store = new InMemoryMarketDataServiceStore();
         var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
-        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("ES", Arg.Any<CancellationToken>()).Returns([
             Contract("ES20260918", "ES", new(2026, 9, 18))]);
-        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("VX", Arg.Any<CancellationToken>()).Returns([
             Contract("VX20260916", "VX", valueDate),
             Contract("VX20261021", "VX", new(2026, 10, 21)),
             Contract("VX20261118", "VX", new(2026, 11, 18))]);
@@ -361,10 +361,10 @@ public sealed class DatabentoResiliencyTests
     {
         var store = new InMemoryMarketDataServiceStore();
         var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
-        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("ES", Arg.Any<CancellationToken>()).Returns([
             Contract("ES20251010", "ES", new(2026, 12, 2)) with { LocalSymbol = "ESH25" },
             Contract("ES20261218", "ES", new(2026, 12, 18)) with { LocalSymbol = "ESZ6" }]);
-        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("VX", Arg.Any<CancellationToken>()).Returns([
             Contract("VX20261021", "VX", new(2026, 10, 21)) with { LocalSymbol = "VX/V6" },
             Contract("VX20261118", "VX", new(2026, 11, 18)) with { LocalSymbol = "VX/X6" }]);
         var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
@@ -391,9 +391,9 @@ public sealed class DatabentoResiliencyTests
         var valueDate = new DateOnly(2026, 9, 16);
         var store = new InMemoryMarketDataServiceStore();
         var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
-        catalog.GetByRootAsync("ES", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("ES", Arg.Any<CancellationToken>()).Returns([
             Contract("ES20260918", "ES", new(2026, 9, 18))]);
-        catalog.GetByRootAsync("VX", Arg.Any<CancellationToken>()).Returns([
+        catalog.GetFuturesContractsBySymbolAsync("VX", Arg.Any<CancellationToken>()).Returns([
             Contract("VX20260916", "VX", valueDate),
             Contract("VX20261021", "VX", new(2026, 10, 21))]);
         var authority = new DatabentoContractAuthority(

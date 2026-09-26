@@ -45,7 +45,6 @@ public class MarketDataFixture : IDisposable
         SetSeqIdDatabase();
         SetSecDatabase();
         SetDevDatabase();
-        SetPMDatabase();
     }
 
     public void Dispose()
@@ -55,7 +54,6 @@ public class MarketDataFixture : IDisposable
 
     public Storage.MarketDataDb.MarketDataDbContext DevDatabase { get; private set; }
     public Storage.SecuritiesDb.SecuritiesDbContext SecDatabase { get; private set; }
-    public Storage.PredictiveModelDb.PredictiveModelDbContext PMDatabase { get; private set; }
     public Storage.SequenceIdDb.SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
 
@@ -102,24 +100,9 @@ public class MarketDataFixture : IDisposable
         ]).GetAwaiter().GetResult();
         schema.CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), new Storage.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
-        diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SecDatabase );
+        diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SecDatabase);
 
         DevDatabase = dbFactory.MarketDataDb as Storage.MarketDataDb.MarketDataDbContext;
-    }
-
-    void SetPMDatabase()
-    {
-        var dbConn = new DbConnectionSettings()
-            .Add("PredictiveModelDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=predictive_model_test_db", "System.Data.ScyllaDb");
-        var diContainer = new Dictionary<Type, Storage.PredictiveModelDb.PredictiveModelDbContext>();
-        var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
-        var dbFactory = new DbContextFactory(dbResolver);
-        var logger = Substitute.For<ILogger<DbProvider>>();
-        logger.When(_ => { }).Do(_ => { });
-        new TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema.PredictiveModelSchemaDb(dbConn, logger)
-            .CreateAllAsync().GetAwaiter().GetResult();
-        diContainer.Add(typeof(IObjectRepository<Storage.PredictiveModelDb.PredictiveModelDbContext>), new Storage.PredictiveModelDb.PredictiveModelDbContext(dbConn, dbFactory, logger));
-        PMDatabase = dbFactory.PredictiveModelDb as Storage.PredictiveModelDb.PredictiveModelDbContext;
     }
 
     void SetSeqIdDatabase()
@@ -133,10 +116,10 @@ public class MarketDataFixture : IDisposable
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
         diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, dbFactory, logger));
-        SeqIdDatabase  = dbFactory.SequenceIdDb as SequenceIdDbContext;
+        SeqIdDatabase = dbFactory.SequenceIdDb as SequenceIdDbContext;
         SequenceIdDatabaseInitializer.EnsureInitialized(new TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb(dbConn, logger));
         SequenceIdGenerator = new PostgresSequenceIdGenerator(dbFactory.SequenceIdDb as SequenceIdDbContext);
-        
+
     }
 
     void SetSecDatabase()
@@ -147,7 +130,7 @@ public class MarketDataFixture : IDisposable
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var dbFactory  = new DbContextFactory(dbResolver);
+        var dbFactory = new DbContextFactory(dbResolver);
         new TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaDb(dbConn, logger)
             .CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, dbFactory, logger));
@@ -312,19 +295,19 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         MarketAnalyticsSignalMetadata Metadata(
             MarketAnalyticsSignalKind kind,
             string configurationId) => new()
-        {
-            SignalKey = new(series, kind, TimeFrameType.Daily, configurationId),
-            ContractId = "ESH98",
-            ValueDate = valueDate,
-            ObservationId = observationId,
-            MarketDataAsOfUtc = asOf,
-            CalculatedAtUtc = asOf.AddSeconds(1),
-            SourceSequence = 901,
-            SchemaVersion = 1,
-            CalculationVersion = "integration-v1",
-            CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate,
-            IsValid = true
-        };
+            {
+                SignalKey = new(series, kind, TimeFrameType.Daily, configurationId),
+                ContractId = "ESH98",
+                ValueDate = valueDate,
+                ObservationId = observationId,
+                MarketDataAsOfUtc = asOf,
+                CalculatedAtUtc = asOf.AddSeconds(1),
+                SourceSequence = 901,
+                SchemaVersion = 1,
+                CalculationVersion = "integration-v1",
+                CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate,
+                IsValid = true
+            };
         var ema = new FuturesEmaSignalReadModel
         {
             Metadata = Metadata(MarketAnalyticsSignalKind.Ema, "ema-10-20-50-200-v1"),

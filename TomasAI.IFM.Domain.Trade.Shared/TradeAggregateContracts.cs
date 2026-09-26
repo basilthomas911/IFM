@@ -225,6 +225,14 @@ public readonly record struct PortfolioFundTradeLeg(
     [property: Key(6)] TradeStrategyKind TradeType,
     [property: Key(7)] long Generation);
 
+/// <summary>Associates a market contract with its persisted open-position route.</summary>
+public sealed record OpenPositionRouteReadModel(
+    string ContractId,
+    PortfolioFundTradeLeg Route);
+
+/// <summary>Identifies a persisted route entry for replacement or deletion.</summary>
+public sealed record OpenPositionRouteKeyReadModel(string ContractId, Guid TradeLegId);
+
 /// <summary>Compact normalized price change consumed by the realtime route index.</summary>
 public readonly record struct PositionMarketTick(
     string ContractId,

@@ -2,6 +2,67 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
 internal static class MarketDataServiceDbSql
 {
+    internal const string ConfigureDurableTransaction = """
+        SET LOCAL lock_timeout = '5s';
+        SET LOCAL statement_timeout = '10s';
+        SET LOCAL idle_in_transaction_session_timeout = '15s';
+        """;
+    internal const string EnsureDurableCurrent = """
+        INSERT INTO market_data_service.stage4_intent_current(scope,dataset,revision,snapshot)
+        VALUES($1,$2,0,$3::jsonb) ON CONFLICT(scope,dataset) DO NOTHING;
+        """;
+    internal const string CheckDurableLeaseIdentity = """
+        SELECT EXISTS(SELECT 1 FROM market_data_service.stage4_lease_identity
+        WHERE scope=$1 AND dataset=$2 AND lease_id IN
+          (SELECT jsonb_array_elements_text($3::jsonb)::uuid));
+        """;
+    internal const string UpdateDurableCurrent = """
+        UPDATE market_data_service.stage4_intent_current
+        SET revision=$3,snapshot=$4::jsonb WHERE scope=$1 AND dataset=$2 AND revision=$5;
+        """;
+    internal const string ReserveDurableLeaseIdentity = """
+        INSERT INTO market_data_service.stage4_lease_identity
+        (scope,dataset,lease_id,source_id,owner_digest,lease_digest,created_revision)
+        VALUES($1,$2,$3,$4,$5,$6,$7);
+        """;
+    internal const string RetireDurableLeaseIdentity = """
+        UPDATE market_data_service.stage4_lease_identity SET released_revision=$3
+        WHERE scope=$1 AND dataset=$2 AND released_revision IS NULL AND lease_id IN
+          (SELECT jsonb_array_elements_text($4::jsonb)::uuid);
+        """;
+    internal const string InsertDurableOperation = """
+        INSERT INTO market_data_service.stage4_intent_operation
+        (scope,dataset,operation_id,request_digest,result,created_at_utc) VALUES($1,$2,$3,$4,$5::jsonb,$6);
+        """;
+    internal const string InsertDurableOutbox = """
+        INSERT INTO market_data_service.stage4_intent_outbox
+        (scope,dataset,transition_id,operation_id,revision,payload,created_at_utc)
+        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7);
+        """;
+    internal const string UpdateDurableWatermark = """
+        INSERT INTO market_data_service.stage4_authority_watermark
+        (scope,dataset,source_id,source_version,source_event_id,fact_digest,owner_digest)
+        VALUES($1,$2,$3,$4,$5,$6,$7)
+        ON CONFLICT(scope,dataset,source_id) DO UPDATE SET
+          source_version=EXCLUDED.source_version,source_event_id=EXCLUDED.source_event_id,
+          fact_digest=EXCLUDED.fact_digest,owner_digest=EXCLUDED.owner_digest;
+        """;
+    internal const string ReadDurableOutbox = """
+        SELECT payload::text FROM market_data_service.stage4_intent_outbox
+        WHERE scope=$1 AND dataset=$2 AND delivered_at_utc IS NULL ORDER BY revision LIMIT $3;
+        """;
+    internal const string AcknowledgeDurableOutbox = """
+        UPDATE market_data_service.stage4_intent_outbox SET delivered_at_utc=COALESCE(delivered_at_utc,$4)
+        WHERE scope=$1 AND dataset=$2 AND transition_id=$3;
+        """;
+    internal const string ReadDurableCurrent =
+        "SELECT snapshot::text,revision FROM market_data_service.stage4_intent_current WHERE scope=$1 AND dataset=$2;";
+    internal const string ReadDurableCurrentForUpdate =
+        "SELECT snapshot::text,revision FROM market_data_service.stage4_intent_current WHERE scope=$1 AND dataset=$2 FOR UPDATE;";
+    internal const string ReadDurableOperation = """
+        SELECT request_digest,result::text FROM market_data_service.stage4_intent_operation
+        WHERE scope=$1 AND dataset=$2 AND operation_id=$3;
+        """;
     internal const string GetCompositionRoutePlan =
         "SELECT payload::text FROM market_data_service.composition_route_plan WHERE plan_id=$1;";
     internal const string InsertCompositionRoutePlan =

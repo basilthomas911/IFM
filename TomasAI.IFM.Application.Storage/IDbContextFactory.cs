@@ -3,14 +3,12 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
-using TomasAI.IFM.Application.Storage.PredictiveModelDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
-using TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
@@ -38,21 +36,19 @@ public interface IDbContextFactory
     //IObjectRepository<MarketDataDbContext> MarketDataDb { get; }
     IMarketDataDbContext MarketDataDb { get; }
     IOptionPricerDbContext OptionPricerDb { get; }
-    IObjectRepository<PredictiveModelDbContext> PredictiveModelDb { get; }
     IReferenceDbContext ReferenceDb { get; }
     ISecuritiesDbContext SecuritiesDb { get; }
     ITradeDbContext TradeDb { get; }
     ITradePlanDbContext TradePlanDb { get; }
     ISystemAdminDbContext SystemAdminDb { get; }
     IConfigurationDbContext ConfigurationDb { get; }
-    PortfolioDbContext PortfolioDb { get; }
+    IPortfolioDbContext PortfolioDb { get; }
     IMarketDataServiceDbContext MarketDataServiceDb { get; }
 
     EventSourceSchemaDb EventSourceSchema { get; }
     SequenceIdSchemaDb SequenceIdSchema { get; }
     MarketDataSchemaDb MarketDataSchema { get; }
     OptionPricerSchemaDb OptionPricerSchema { get; }
-    PredictiveModelSchemaDb PredictiveModelSchema { get; }
     ReferenceSchemaDb ReferenceSchema { get; }
     SecuritiesSchemaDb SecuritiesSchema { get; }
     TradeSchemaDb TradeSchema { get; }

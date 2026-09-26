@@ -1,5 +1,4 @@
 using MessagePack;
-using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Serialization;
 
