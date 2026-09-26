@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 
-/// <summary>Represents the GetPortfolioQuery actor message.</summary>
+/// <summary>Canonical replacement for the published GetPortfolio query.</summary>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetPortfolioQuery : IQuery<PortfolioReadModel>
 {
@@ -19,7 +19,7 @@ public sealed record GetPortfolioQuery : IQuery<PortfolioReadModel>
     public const int ErrorId = 34100;
 
     [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public ActorEntityId QueryEntityId { get; init; } = ActorEntityId.Default;
+    [Key(1)] public ActorEntityId EntityId { get; init; } = ActorEntityId.Default;
     [Key(2)] public int PortfolioId { get; init; } = default!;
     [Key(3)] public long? Version { get; init; } = default!;
     [Key(4)] public Guid CorrelationId { get; init; }
@@ -27,8 +27,8 @@ public sealed record GetPortfolioQuery : IQuery<PortfolioReadModel>
     [Key(6)] public PortfolioAccessContext Access { get; init; } = new();
 
     [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string? QueryParams => QueryEntityId.Format();
-    [IgnoreMember] IActorEntityId IQuery.EntityId => QueryEntityId;
+    [IgnoreMember] public string? QueryParams => EntityId.Format();
+    [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
 
     /// <summary>Initializes an empty message for serialization.</summary>
     public GetPortfolioQuery() { }
@@ -40,5 +40,25 @@ public sealed record GetPortfolioQuery : IQuery<PortfolioReadModel>
     {
         PortfolioId = portfolioId;
         Version = version;
+    }
+
+    /// <summary>Rehydrates every serialized field in numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="portfolioId">The PortfolioId field.</param>
+    /// <param name="version">The Version field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
+    /// <param name="access">The Access field.</param>
+    [SerializationConstructor]
+    public GetPortfolioQuery(ActorSubject subject, ActorEntityId entityId, int portfolioId, long? version, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        PortfolioId = portfolioId;
+        Version = version;
+        CorrelationId = correlationId;
+        RequestedOnUtc = requestedOnUtc;
+        Access = access;
     }
 }

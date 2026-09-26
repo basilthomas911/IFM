@@ -10,6 +10,25 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetDatabentoOptionChainRangeQuery : IQuery<OptionContractExpiryReadModel[]>
 {
+
+    /// <summary>Creates an empty query for serialization.</summary>
+    public GetDatabentoOptionChainRangeQuery() { }
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="underlyingSymbol">The UnderlyingSymbol field.</param>
+    /// <param name="fromMaturityDate">The FromMaturityDate field.</param>
+    /// <param name="throughMaturityDate">The ThroughMaturityDate field.</param>
+    [SerializationConstructor]
+    public GetDatabentoOptionChainRangeQuery(ActorSubject subject, IActorEntityId entityId, string underlyingSymbol, DateOnly fromMaturityDate, DateOnly throughMaturityDate)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        UnderlyingSymbol = underlyingSymbol;
+        FromMaturityDate = fromMaturityDate;
+        ThroughMaturityDate = throughMaturityDate;
+    }
     [IgnoreMember] public const string Actor = "MarketDataQuery";
     [IgnoreMember] public const string Verb = "GetDatabentoOptionChainRange";
     [IgnoreMember] public const int ErrorId = 1063;

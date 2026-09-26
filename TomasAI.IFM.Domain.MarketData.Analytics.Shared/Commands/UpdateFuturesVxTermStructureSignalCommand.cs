@@ -6,10 +6,35 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
 /// <summary>Requests an event-sourced VX front/back leg update.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record UpdateFuturesVxTermStructureSignalCommand
     : ICommand<FuturesVxTermStructureSignalEntityId>
 {
+
+    /// <summary>Creates an empty command for serialization.</summary>
+    public UpdateFuturesVxTermStructureSignalCommand() { }
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="observation">The Observation field.</param>
+    /// <param name="configuration">The Configuration field.</param>
+    [SerializationConstructor]
+    public UpdateFuturesVxTermStructureSignalCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesVxTermStructureSignalEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesVxTermStructureLegObservation observation, FuturesVxTermStructureConfiguration configuration)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        Observation = observation;
+        Configuration = configuration;
+    }
     public const string Actor = "FuturesVxTermStructureSignalCommand";
     public const string Verb = "Update";
     public const int ErrorId = 26300;

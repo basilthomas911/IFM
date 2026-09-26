@@ -101,7 +101,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
 }
 
 /// <summary>Controls live automatic ITI-trigger routing for the workflow skeleton.</summary>
-public sealed class IntrinsicTimeStrategyWorkflowOptions
+public sealed class IntrinsicTimeStrategyWorkflowOptions : TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy
 {
     /// <summary>Gets or sets whether live ITI triggers may start workflow executions.</summary>
     public bool Enabled { get; set; }

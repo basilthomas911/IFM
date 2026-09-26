@@ -11,19 +11,20 @@ using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests.ParameterSets;
-public sealed class ParameterSetProjectionIntegrationTests
+[Collection(ReferenceIntegrationInfrastructureCollection.Name)]
+public sealed class ParameterSetProjectionIntegrationTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
  [Fact, Trait("Category","Integration")]
  public async Task Projection_is_idempotent_and_rejects_payload_mutation()
  {
-  var connection=Environment.GetEnvironmentVariable("IFM_POSTGRES_CONFIGURATION_TEST_CONNECTION")??"Host=localhost;Port=5432;Database=ifm-configuration-integration-tests";
+  var connection=infrastructure.PostgresConnectionString;
   var builder=new NpgsqlConnectionStringBuilder(connection);
   if(builder.Database is null||!builder.Database.Contains("test",StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("An isolated test database is required.");
   var settings=new DbConnectionSettings().Add(ConfigurationDbContext.ConfigurationDbConnection,connection,"System.Data.Postgres");
   var factory=Substitute.For<IDbContextFactory>();var logger=Substitute.For<ILogger<DbProvider>>();
   var store=new ConfigurationDbContext(settings,factory,logger);factory.ConfigurationDb.Returns(store);
   await new ConfigurationSchemaDb(settings,logger).CreateAllAsync();
-  var components=await store.ReadParameterComponentsAsync();
+  var components=await store.GetParameterComponentsAsync();
   components.Should().Contain(x=>x.ComponentCode==RegimeDiscoveryParameterModel.ComponentCode&&x.SchemaVersions.SequenceEqual(new[]{1,2,3,4,5}));
   components.Should().Contain(x=>
    x.AreaCode=="market-data-analytics"&&
@@ -31,14 +32,14 @@ public sealed class ParameterSetProjectionIntegrationTests
    x.ComponentCode==FuturesItiSignalParameterModel.ComponentCode&&
    x.Name=="Future ITI Signal"&&
    x.SchemaVersions.SequenceEqual(new[]{1}));
-  var schema=await store.ReadParameterSchemaAsync(RegimeDiscoveryParameterModel.ComponentCode,3);
+  var schema=await store.GetParameterSchemaAsync(RegimeDiscoveryParameterModel.ComponentCode,3);
   schema.Should().NotBeNull();schema!.SchemaSha256.Should().Be(ParameterSchemaRegistry.Default.Get(RegimeDiscoveryParameterModel.ComponentCode,3).SchemaSha256);
   var id=Guid.NewGuid();var json=new RegimeDiscoveryParameterModel().CreateDraftPayload(id);
   var version=new ParameterSetVersion(new(id,1,RegimeDiscoveryParameterModel.ComponentCode,ParameterCanonicalPayloadModel.Hash(json)),"Integration","",2,ParameterVersionStatus.Draft,json,DateTime.UtcNow,"test",CatalogRevision:1);
   var fact=new ParameterSetCreatedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=1,RequestHash=new string('a',64),VersionJson=JsonSerializer.Serialize(version)};
   fact=fact with {AuditJson=JsonSerializer.Serialize(new ParameterAuditEntry(fact.CommandId,id,1,"Create","test",DateTime.UtcNow,"null",JsonSerializer.Serialize(version.Reference)))};
   await store.ProjectParameterSetAsync(fact);await store.ProjectParameterSetAsync(fact);
-  (await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Should().ContainSingle();
+  (await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Should().ContainSingle();
   await using(var db=store.CreateConnection().As<NpgsqlConnection>(store.ConnectionString))
   {
    await db.OpenAsync();
@@ -67,12 +68,12 @@ public sealed class ParameterSetProjectionIntegrationTests
   }
   var renamed=version with {Name="Renamed",Description="Metadata only",CatalogRevision=2};
   await store.ProjectParameterSetAsync(new ParameterSetRenamedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=2,RequestHash=new string('c',64),VersionJson=JsonSerializer.Serialize(renamed)});
-  var read=(await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Single();
+  var read=(await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Single();
   read.Name.Should().Be("Renamed");read.CatalogRevision.Should().Be(2);read.PayloadJson.Should().Be(version.PayloadJson);
   var changed=version with {Reference=version.Reference with {PayloadSha256=new string('b',64)}};
   Func<Task> corrupt=()=>store.ProjectParameterSetAsync(fact with {CommandId=Guid.NewGuid(),Revision=3,VersionJson=JsonSerializer.Serialize(changed)});
   await corrupt.Should().ThrowAsync<InvalidOperationException>().WithMessage("PARAM.VERSION_IMMUTABLE");
-  (await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Single().Reference.PayloadSha256.Should().Be(version.Reference.PayloadSha256);
+  (await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Single().Reference.PayloadSha256.Should().Be(version.Reference.PayloadSha256);
   var published=renamed with {Status=ParameterVersionStatus.Published,PublishedAtUtc=DateTime.UtcNow,CatalogRevision=3};
   await store.ProjectParameterSetAsync(new ParameterVersionPublishedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=3,RequestHash=new string('d',64),VersionJson=JsonSerializer.Serialize(published)});
   var scope=WorkflowParameterScopeModel.Create(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id,TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
@@ -92,16 +93,16 @@ public sealed class ParameterSetProjectionIntegrationTests
   var nextPayload=JsonSerializer.Serialize(RegimeDiscoveryParameterModel.CreateExplicitSeed(id) with {Version=2});
   var nextVersion=published with {SchemaVersion=ParameterSchemaRegistry.CurrentRegimeSchemaVersion,Reference=new(id,2,RegimeDiscoveryParameterModel.ComponentCode,ParameterCanonicalPayloadModel.Hash(nextPayload)),PayloadJson=nextPayload,Status=ParameterVersionStatus.Draft,PublishedAtUtc=null,CatalogRevision=4};
   await store.ProjectParameterSetAsync(new ParameterDraftSavedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=4,RequestHash=new string('1',64),VersionJson=JsonSerializer.Serialize(nextVersion)});
-  var pageOne=await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id,limit:1);
+  var pageOne=await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id,limit:1);
   pageOne.Should().ContainSingle().Which.Reference.Version.Should().Be(2);
   pageOne.Single().SchemaVersion.Should().Be(ParameterSchemaRegistry.CurrentRegimeSchemaVersion);
   new RegimeDiscoveryParameterModel().Validate(pageOne.Single().PayloadJson,ParameterSchemaRegistry.CurrentRegimeSchemaVersion).Should().BeEmpty();
-  var pageTwo=await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id,limit:1,afterName:pageOne[0].Name,afterSetId:id,afterVersion:2);
+  var pageTwo=await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id,limit:1,afterName:pageOne[0].Name,afterSetId:id,afterVersion:2);
   pageTwo.Should().ContainSingle().Which.Reference.Version.Should().Be(1);
-  (await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id,limit:1,afterName:pageTwo[0].Name,afterSetId:id,afterVersion:1)).Should().BeEmpty();
+  (await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id,limit:1,afterName:pageTwo[0].Name,afterSetId:id,afterVersion:1)).Should().BeEmpty();
   var retired=published with {Status=ParameterVersionStatus.Retired,RetiredAtUtc=DateTime.UtcNow,CatalogRevision=5};
   await store.ProjectParameterSetAsync(new ParameterVersionRetiredEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=5,RequestHash=new string('2',64),VersionJson=JsonSerializer.Serialize(retired)});
-  (await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Single(x=>x.Reference.Version==1).Status.Should().Be(ParameterVersionStatus.Retired);
+  (await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,id)).Single(x=>x.Reference.Version==1).Status.Should().Be(ParameterVersionStatus.Retired);
   var runId=Guid.NewGuid();var snapshot=new ParameterStartupSnapshotModel(runId,[],new Dictionary<ParameterVersionRef,ParameterSetVersion>());
   var run=new ParameterStartupRun(runId,[],[],SignalStartupPlanModel.Create(snapshot,SignalStartupPlanModel.ExistingIntradayConsumers()),DateTime.UtcNow,"test");
   var applied=new ParameterStartupChangedEvent{RunId=runId,EntityId=ParameterStartupEntityId.Registry,Revision=1,CommandId=runId,RunJson=JsonSerializer.Serialize(run)};
@@ -134,14 +135,14 @@ public sealed class ParameterSetProjectionIntegrationTests
   }
   var legacyValue=RegimeDiscoveryParameterModel.CreateSeed(Guid.NewGuid());
   await store.InsertRegimeDiscoveryDraftAsync(legacyValue,"Exact legacy fixture","test");
-  var legacy=(await store.ReadLegacyParameterVersionsAsync(legacyValue.ParameterSetId,legacyValue.Version)).Single();
+  var legacy=(await store.GetLegacyParameterVersionsAsync(legacyValue.ParameterSetId,legacyValue.Version)).Single();
   var migratedJson=ParameterLegacyMigrationModel.Expand(legacy);
   var target=ParameterLegacyMigrationModel.TargetId(legacy.Reference);
   var migration=new CreateParameterSetCommand{CommandId=target,EntityId=new(target),Name="Legacy migration fixture",SchemaVersion=2,PayloadJson=migratedJson,LegacySource=legacy.Reference};
   var migratedVersion=ParameterMutationModel.Decide(migration,0,new Dictionary<int,ParameterSetVersion>(),DateTime.UtcNow);
   var migrationFact=new ParameterSetCreatedEvent{CommandId=target,EntityId=new(target),Revision=1,RequestHash=ParameterMutationModel.RequestHash(migration),VersionJson=JsonSerializer.Serialize(migratedVersion)};
   await store.ProjectParameterSetAsync(migrationFact);await store.ProjectParameterSetAsync(migrationFact);
-  (await store.ReadParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,target)).Single().LegacySource.Should().Be(legacy.Reference);
+  (await store.GetParameterSetsAsync(RegimeDiscoveryParameterModel.ComponentCode,target)).Single().LegacySource.Should().Be(legacy.Reference);
   (await store.GetRegimeDiscoveryAsync(legacyValue.ParameterSetId,legacyValue.Version))!.PayloadSha256.Should().Be(legacy.Reference.PayloadSha256);
   await using(var mappingDb=store.CreateConnection().As<NpgsqlConnection>(store.ConnectionString))
   {

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using NATS.Net;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;

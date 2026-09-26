@@ -48,9 +48,38 @@ public sealed record FuturesBbSignalGeneratedEvent : IEvent<FuturesTradeSessionB
 }
 
 /// <summary>Reports successful Bollinger projection.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record FuturesBbSignalGeneratedCompleteEvent : ICompleteEvent<FuturesTradeSessionBarEntityId>
 {
+
+    /// <summary>Creates an empty event for serialization.</summary>
+    public FuturesBbSignalGeneratedCompleteEvent() { }
+
+    /// <summary>Rehydrates every published event field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="id">The Id field.</param>
+    /// <param name="eventId">The EventId field.</param>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="aggregateId">The AggregateId field.</param>
+    /// <param name="eventSource">The EventSource field.</param>
+    /// <param name="receivedOn">The ReceivedOn field.</param>
+    /// <param name="signal">The Signal field.</param>
+    /// <param name="checkpoint">The Checkpoint field.</param>
+    [SerializationConstructor]
+    public FuturesBbSignalGeneratedCompleteEvent(ActorSubject subject, FuturesTradeSessionBarEntityId entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesBbSignalReadModel signal, FuturesBbAccumulatorCheckpoint checkpoint)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        Id = id;
+        EventId = eventId;
+        CommandId = commandId;
+        AggregateId = aggregateId;
+        EventSource = eventSource;
+        ReceivedOn = receivedOn;
+        Signal = signal;
+        Checkpoint = checkpoint;
+    }
     public const string Verb = "SignalGeneratedComplete";
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public FuturesTradeSessionBarEntityId EntityId { get; init; }

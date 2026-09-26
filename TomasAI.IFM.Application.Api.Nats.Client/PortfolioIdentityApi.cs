@@ -31,10 +31,11 @@ public sealed class PortfolioIdentityApi(IActorProducer actorProducer) : NatsCli
         CancellationToken cancellationToken)
     {
         var correlationId = PortfolioRequestCorrelation.CurrentOrNew();
-        var subject = new ActorSubject(ActorType.Query, GetPortfolioQuery.Actor, "AllocatePortfolioBusinessId", kind.ToString());
+        var subject = new ActorSubject(ActorType.Query, AllocatePortfolioBusinessIdQuery.Actor, AllocatePortfolioBusinessIdQuery.Verb, kind.ToString());
         var query = new AllocatePortfolioBusinessIdQuery
         {
             Subject = subject,
+            EntityId = new ActorEntityId(kind.ToString()),
             Kind = kind,
             CorrelationId = correlationId,
             RequestedOnUtc = DateTime.UtcNow,

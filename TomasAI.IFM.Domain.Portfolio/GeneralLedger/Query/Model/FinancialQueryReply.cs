@@ -15,7 +15,7 @@ internal static class FinancialQueryReply
         where TResult : class where TActor : IActor
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (query.SchemaVersion != 1 || query.Parameters is null || query.Scope is null || query.Scope.Access is null || query.Scope.PortfolioId <= 0 ||
+        if (query.SchemaVersion != 2 || query.Parameters is null || query.Scope is null || query.Scope.Access is null || query.Scope.PortfolioId <= 0 ||
             query.QueryEntityId.PortfolioId != query.Scope.PortfolioId || query.Subject.EntityId != query.QueryEntityId.Format() ||
             !query.Subject.Is(ActorType.Query, actor, verb) || query.CorrelationId == Guid.Empty || query.RequestedAtUtc.Kind != DateTimeKind.Utc ||
             MessagePackBinarySerializer.MeasureContent(query.GetType(), query) > 1048576)

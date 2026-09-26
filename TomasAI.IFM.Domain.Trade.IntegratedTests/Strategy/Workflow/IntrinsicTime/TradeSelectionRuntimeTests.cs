@@ -15,6 +15,7 @@ using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
@@ -94,14 +95,14 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
             var p=TradeSelectionDefaultProfiles.Create(Guid.NewGuid(),Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly);
             await db.InsertTradeSelectionDraftAsync(p,"Trade selection integration fixture","integration");
             var draft=await db.GetTradeSelectionVersionAsync(p.ParameterSetId,p.Version);draft!.PayloadSha256.Should().Be(TradeSelectionPolicy.Hash(p));
-            Func<Task> premature=()=>db.ResolveTradeSelectionVersionAsync(p.ParameterSetId,p.Version,draft.PayloadSha256,at);await premature.Should().ThrowAsync<InvalidOperationException>();
+            Func<Task> premature=()=>db.GetEffectiveTradeSelectionVersionAsync(p.ParameterSetId,p.Version,draft.PayloadSha256,at);await premature.Should().ThrowAsync<InvalidOperationException>();
             await db.PublishAsync(StrategyParameterSetKind.TradeSelection,p.ParameterSetId,p.Version,at);
-            var exact=await db.ResolveTradeSelectionVersionAsync(p.ParameterSetId,p.Version,draft.PayloadSha256,at);exact.Status.Should().Be(ConfigurationParameterSetStatus.Published);
+            var exact=await db.GetEffectiveTradeSelectionVersionAsync(p.ParameterSetId,p.Version,draft.PayloadSha256,at);exact.Status.Should().Be(ConfigurationParameterSetStatus.Published);
             var activation=new TradeSelectionActivation{SchemaVersion=1,ParameterSetId=Guid.NewGuid(),Version=1,PortfolioId=1,FundId=1,InstrumentRoot="ES",TargetHorizon=p.TargetHorizon,
                 SelectionPolicyReference=new(){Kind=CatalogPipelineParameterKind.TradeSelection,Id=p.ParameterSetId,Version=1,PayloadSha256=draft.PayloadSha256}};
             await db.InsertTradeSelectionActivationDraftAsync(activation,"Trade selection integration fixture","integration");
             await db.PublishAsync(StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow,activation.ParameterSetId,1,at);
-            var active=await db.ResolveTradeSelectionActivationAsync(activation.ParameterSetId,1,activation.Hash(),at);active.Should().BeEquivalentTo(activation);
+            var active=await db.GetEffectiveTradeSelectionActivationAsync(activation.ParameterSetId,1,activation.Hash(),at);active.Should().BeEquivalentTo(activation);
             var storage=factory.Services.GetRequiredService<IDbContextFactory>();
             async Task Tamper(string table,Guid id)=>await storage.ConfigurationDb.Use("SelectionVerification.Immutable",$"UPDATE reference_configuration.{table} SET description='changed' WHERE parameter_set_id=$1 AND version=1;")
                 .SetParameters(new Values([id])).ExecuteCommandAsync();
@@ -115,7 +116,7 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
             await db.RetireAsync(StrategyParameterSetKind.OrderComposition,construction.ParameterSetId,1,at.AddMilliseconds(1));
             await db.RetireAsync(StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow,activation.ParameterSetId,1,at.AddMilliseconds(1));
             await db.RetireAsync(StrategyParameterSetKind.TradeSelection,p.ParameterSetId,1,at.AddMilliseconds(1));
-            Func<Task> retired=()=>db.ResolveTradeSelectionVersionAsync(p.ParameterSetId,p.Version,draft.PayloadSha256,DateTime.UtcNow);await retired.Should().ThrowAsync<InvalidOperationException>();
+            Func<Task> retired=()=>db.GetEffectiveTradeSelectionVersionAsync(p.ParameterSetId,p.Version,draft.PayloadSha256,DateTime.UtcNow);await retired.Should().ThrowAsync<InvalidOperationException>();
         }
         finally{await supervisor.ShutdownAsync();}
     }
@@ -145,7 +146,10 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         finally
         {
             await db.Use("SelectionVerification.CleanupAssignments","DELETE FROM portfolio.fund_template_assignment WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3;")
-                .SetParameters(new Values([id,id,1L])).ExecuteCommandAsync();
+                .SetParameters(new Values(new Npgsql.NpgsqlParameter[]
+                {
+                    new() { Value = id }, new() { Value = id }, new() { Value = 1L }
+                })).ExecuteCommandAsync();
         }
     }
     [Fact,Trait("Gate","TS-05"),Trait("Gate","TS-08")]

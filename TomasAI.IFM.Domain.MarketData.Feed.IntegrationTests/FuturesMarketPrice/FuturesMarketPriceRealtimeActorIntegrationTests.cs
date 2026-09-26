@@ -101,8 +101,18 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
     {
         var message = callInfo.Arg<IActorMessage>();
         var subject = callInfo.Arg<ActorSubject>();
-        await actor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
-        received.TrySetResult(message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!);
+        try
+        {
+            // The actor owns and disposes the inbound payload during handling.
+            var parsed = message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!;
+            await actor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
+            received.TrySetResult(parsed);
+        }
+        catch (Exception exception)
+        {
+            received.TrySetException(exception);
+            throw;
+        }
         return ActorAdmissionResult.AcceptedResult;
     }
 

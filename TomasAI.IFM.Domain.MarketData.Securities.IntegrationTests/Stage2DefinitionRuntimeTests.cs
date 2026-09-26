@@ -54,7 +54,7 @@ public sealed class Stage2DefinitionRuntimeTests
         try
         {
             await using var nats = new NatsClient("nats://127.0.0.1:24222");
-            await nats.CreateJetStreamContext().CreateStreamAsync(new StreamConfig("Stage2Events", ["Event.>"]));
+            await nats.CreateJetStreamContext().CreateOrUpdateStreamAsync(new StreamConfig("Stage2Events", ["Event.>"]));
             await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
             await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
             await new LogSchemaDb(settings, logger).CreateAllAsync();

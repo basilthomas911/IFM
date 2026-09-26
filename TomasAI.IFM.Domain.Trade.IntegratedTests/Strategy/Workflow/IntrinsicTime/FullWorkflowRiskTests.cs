@@ -10,6 +10,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -30,6 +31,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
 using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.MarketCondition;
@@ -91,6 +93,10 @@ public sealed partial class TradeSelectionRuntimeTests
         static string Key(IntrinsicTimeStrategyWorkflowView view) => $"{view.EntityId.Format()}|{view.WorkflowId}";
         await using var host = Host(services =>
         {
+            // This fixture explicitly starts a workflow command. The shared Host defaults to
+            // disabled starts so unrelated Function tests cannot launch one accidentally.
+            services.RemoveAll<IntrinsicTimeStrategyWorkflowOptions>();
+            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
             var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
             // Observe the post-commit enqueue boundary. Every full-workflow event still reaches
             // the production projector, queue, Scylla writes, cache and realtime dispatcher.
@@ -119,7 +125,11 @@ public sealed partial class TradeSelectionRuntimeTests
             market.CaptureAsync(Arg.Any<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentParameterSet>(),
                 Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
             {
-                var input = AssessmentFixture.Command(horizon, call.Arg<DateTime>()) with { ParameterSet = call.Arg<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentParameterSet>() };
+                var frozenProfile = call.Arg<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentParameterSet>();
+                var input = AssessmentFixture.Command(horizon, call.Arg<DateTime>()) with
+                {
+                    ParameterSet = frozenProfile, MarketProfileId = frozenProfile.MarketProfileId
+                };
                 var snapshot = TradeSelectionFixture.Snapshot(input);
                 return ValueTask.FromResult((snapshot with { Observations = snapshot.Observations.Select(x => x with { ObservedAtUtc = snapshot.EvaluatedAtUtc }).ToArray() }).Seal());
             });
@@ -180,9 +190,22 @@ public sealed partial class TradeSelectionRuntimeTests
             var assessment = AssessmentFixture.Command(horizon, DateTime.UtcNow, $"FLOW{Guid.NewGuid():N}");
             // This is an authored integration profile for deterministic lab observations;
             // production defaults and all validity intersection checks remain unchanged.
-            var profile = assessment.ParameterSet with { Sources = assessment.ParameterSet.Sources.Select(x => x with { MaximumAgeSeconds = 15 }).ToArray() };
-            assessment = assessment with { ParameterSet = profile, ParameterPayloadSha256 = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentHash.Parameters(profile) };
+            var profile = assessment.ParameterSet with
+            {
+                MarketProfileId = $"FullWorkflow-{Guid.NewGuid():N}",
+                Sources = assessment.ParameterSet.Sources.Select(x => x with { MaximumAgeSeconds = 15 }).ToArray()
+            };
+            assessment = assessment with { ParameterSet = profile, MarketProfileId = profile.MarketProfileId,
+                ParameterPayloadSha256 = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentHash.Parameters(profile) };
             assessment = assessment with { WorkflowView = assessment.WorkflowView with { AssessmentBinding = new() { Parameters = profile, PayloadSha256 = assessment.ParameterPayloadSha256 } } };
+            var regimeProfile = assessment.WorkflowView.RegimeDiscoveryParameterSet!;
+            await config.InsertRegimeDiscoveryDraftAsync(regimeProfile, "Full workflow integration regime", "integration-test");
+            await config.PublishAsync(StrategyParameterSetKind.RegimeDiscovery,
+                regimeProfile.ParameterSetId, regimeProfile.Version, DateTime.UtcNow.AddSeconds(-1));
+            await config.InsertMarketConditionAssessmentDraftAsync(profile, "Full workflow integration profile", "integration-test");
+            await config.PublishAsync(StrategyParameterSetKind.MarketConditionAssessment,
+                profile.ParameterSetId, profile.Version, DateTime.UtcNow.AddMinutes(-1));
+            host.Services.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>().MarketConditionAssessmentProfileId = profile.MarketProfileId;
             var bearish = variant.Contains("Bear", StringComparison.Ordinal) || variant == "ShortFuture";
             var balanced = variant.Contains("Balanced", StringComparison.Ordinal);
             var trigger = assessment.TriggerEvent with { FuturesItiSignal = assessment.TriggerEvent.FuturesItiSignal! with

@@ -13,6 +13,32 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record RemoveManualFundOrderTradeCommand : ICommand<PortfolioFundId>, ICommandRetryIdentity
 {
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="request">The Request field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
+    /// <param name="access">The Access field.</param>
+    [SerializationConstructor]
+    public RemoveManualFundOrderTradeCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, ManualFundOrderTradeMutationRequest request, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        Request = request;
+        CorrelationId = correlationId;
+        RequestedOnUtc = requestedOnUtc;
+        Access = access;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "RemoveManualFundOrderTrade";
     public const int ErrorId = 34000;

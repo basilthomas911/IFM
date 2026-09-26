@@ -204,7 +204,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         string? cursor = null; var found = new List<StrategyCatalogSummary>();
         while (true)
         {
-            var page = await ctx.ListStrategyCatalogAsync(StrategyCatalogKind.Deployment, 7, cursor);
+            var page = await ctx.GetStrategyCatalogsAsync(StrategyCatalogKind.Deployment, 7, cursor);
             if (page.Count == 0) break;
             found.AddRange(page); cursor = page[^1].Code;
         }

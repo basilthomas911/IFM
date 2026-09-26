@@ -32,14 +32,16 @@ public sealed class DatabaseBackupQueryActorTests
         var query = new GetDatabaseBackupServiceHealthQuery
         {
             EntityId = new DatabaseRecoveryOperationId(Guid.NewGuid()), Request = Request(),
-            Subject = new ActorSubject(ActorType.Query, DatabaseBackupQuery.Actor, "GetServiceHealth", Guid.NewGuid().ToString("N"))
+            Subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, "GetServiceHealth", Guid.NewGuid().ToString("N"))
         };
-        db.GetServiceHealthAsync(query, CancellationToken.None).Returns(ValueTask.FromResult(rows));
+        db.GetServiceHealthAsync(Arg.Any<GetDatabaseBackupServiceHealthQuery>(), CancellationToken.None).Returns(ValueTask.FromResult(rows));
         var actor = new TestableQueryActor(db, Substitute.For<ILogger<DatabaseBackupQueryActor>>());
 
         await actor.Receive(context, query, CancellationToken.None);
 
-        await db.Received(1).GetServiceHealthAsync(query, CancellationToken.None);
+        await db.Received(1).GetServiceHealthAsync(
+            Arg.Is<GetDatabaseBackupServiceHealthQuery>(legacy => legacy.EntityId == query.EntityId && legacy.Request.RequestId == query.Request.RequestId),
+            CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId, query.Verb,
             Arg.Is<ServiceResult<DatabaseBackupHealthReadModel[]>>(result => result.Success && result.Value == rows));
@@ -54,9 +56,9 @@ public sealed class DatabaseBackupQueryActorTests
         var query = new GetDatabaseBackupOperationQuery
         {
             EntityId = operationId, OperationId = operationId, Request = Request(),
-            Subject = new ActorSubject(ActorType.Query, DatabaseBackupQuery.Actor, "GetBackupOperation", operationId.Format())
+            Subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, "GetBackupOperation", operationId.Format())
         };
-        db.GetBackupOperationAsync(query, CancellationToken.None).Returns(ValueTask.FromResult<DatabaseBackupOperationReadModel?>(null));
+        db.GetBackupOperationAsync(Arg.Any<GetDatabaseBackupOperationQuery>(), CancellationToken.None).Returns(ValueTask.FromResult<DatabaseBackupOperationReadModel?>(null));
         var actor = new TestableQueryActor(db, Substitute.For<ILogger<DatabaseBackupQueryActor>>());
 
         await actor.Receive(context, query, CancellationToken.None);

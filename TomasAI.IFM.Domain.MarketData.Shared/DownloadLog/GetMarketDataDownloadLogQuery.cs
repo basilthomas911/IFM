@@ -7,6 +7,20 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 [MessagePackObject(AllowPrivate = true)]
 public sealed class GetMarketDataDownloadLogQuery : IQuery<MarketDataDownloadLogResult>
 {
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="request">The Request field.</param>
+    /// <param name="attempt">The Attempt field.</param>
+    [SerializationConstructor]
+    public GetMarketDataDownloadLogQuery(ActorSubject subject, IActorEntityId entityId, MarketDataDownloadPartition request, MarketDataDownloadCursor attempt)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        Request = request;
+        Attempt = attempt;
+    }
     public const string Actor = "DownloadLogQuery";
     public const string Verb = "GetMarketDataDownloadLog";
     public const int ErrorId = 6051;

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -150,7 +151,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                 activation.ParameterSetId, activation.Version, activation.Hash(),
                 () => configuration.InsertTradeSelectionActivationDraftAsync(activation, "Development paper-trading workflow activation", Principal, token),
                 StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow, now, token).ConfigureAwait(false);
-            _ = await configuration.ResolveTradeSelectionActivationAsync(activation.ParameterSetId, activation.Version, activation.Hash(), now, token).ConfigureAwait(false);
+            _ = await configuration.GetEffectiveTradeSelectionActivationAsync(activation.ParameterSetId, activation.Version, activation.Hash(), now, token).ConfigureAwait(false);
             activationReferences.Add(new(pair.Key, activation.ParameterSetId, activation.Version, activation.Hash()));
         }
         workflow.PortfolioId = portfolioId;
@@ -537,7 +538,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         else if (current.PayloadSha256 != hash) throw new InvalidOperationException($"Development selector {policy.TargetHorizon} hash conflict.");
         if (current?.Status != ConfigurationParameterSetStatus.Published)
             await configuration.PublishAsync(StrategyParameterSetKind.TradeSelection, policy.ParameterSetId, policy.Version, now.AddSeconds(-1), token).ConfigureAwait(false);
-        _ = await configuration.ResolveTradeSelectionVersionAsync(policy.ParameterSetId, policy.Version, hash, now, token).ConfigureAwait(false);
+        _ = await configuration.GetEffectiveTradeSelectionVersionAsync(policy.ParameterSetId, policy.Version, hash, now, token).ConfigureAwait(false);
     }
 
     async Task EnsurePipelinePolicyAsync(CatalogPipelineParameterKind kind, Guid id, int version, string hash,

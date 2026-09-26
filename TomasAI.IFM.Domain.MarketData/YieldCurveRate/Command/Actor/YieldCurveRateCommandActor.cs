@@ -144,7 +144,7 @@ public class YieldCurveRateCommandActor(
             return new List<ValidationError>(2)
                 .ValidateCommandId(remove.CommandId, remove.CommandName)
                 .ValidateEntityId(remove.EntityId, remove.CommandName)
-                .ValidateValueDate(remove.ValueDate, remove.CommandName);
+                .ValidateDateOnly(remove.ValueDate, remove.CommandName, "ValueDate");
         },
         [typeof(ImportYieldCurveRatesCommand)] = static command =>
             Validate((ImportYieldCurveRatesCommand)command, ValidationRules)
@@ -178,7 +178,7 @@ public class YieldCurveRateCommandActor(
         => new List<ValidationError>()
             .ValidateCommandId(command.CommandId, command.CommandName)
             .ValidateEntityId(command.EntityId, command.CommandName)
-            .ValidateImportDate(command.ImportDate, command.CommandName);
+            .ValidateDateTime(command.ImportDate, command.CommandName, "ImportDate");
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

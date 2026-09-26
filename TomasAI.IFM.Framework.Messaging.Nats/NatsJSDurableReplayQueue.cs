@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,6 +9,7 @@ using Newtonsoft.Json;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -460,12 +462,17 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         ProjectorQueueState state,
         CancellationTokenSource idleCancellation)
     {
+        // Each queued delivery supplies its own parent, never the worker's startup context.
+        Activity.Current = null;
         try
         {
             await foreach (var message in _transport.ConsumeProcessAsync(eventProjectorName, idleCancellation.Token)
                 .ConfigureAwait(false))
             {
                 ResetIdleTimeout(idleCancellation);
+                using var trace = message.TraceContext != default
+                    ? ActorTrace.Source.StartActivity("projector.process", ActivityKind.Consumer, message.TraceContext)
+                    : null;
                 try
                 {
                     var domainEvent = Deserialize(message.Data);
@@ -577,12 +584,16 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         ProjectorQueueState state,
         CancellationTokenSource idleCancellation)
     {
+        Activity.Current = null;
         try
         {
             await foreach (var message in _transport.ConsumeReplayAsync(eventProjectorName, idleCancellation.Token)
                 .ConfigureAwait(false))
             {
                 ResetIdleTimeout(idleCancellation);
+                using var trace = message.TraceContext != default
+                    ? ActorTrace.Source.StartActivity("projector.replay", ActivityKind.Consumer, message.TraceContext)
+                    : null;
                 IEvent domainEvent;
                 try
                 {

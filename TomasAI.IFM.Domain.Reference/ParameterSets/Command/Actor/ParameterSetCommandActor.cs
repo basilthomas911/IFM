@@ -48,7 +48,7 @@ public sealed class ParameterSetCommandActor(ICommandActorContext<ParameterSetCo
   if(cmd is CreateParameterSetCommand or SaveParameterDraftCommand)
   {
    var mutation=(IParameterSetMutation)cmd;
-   if(await Services.ConfigurationDb.ReadParameterSchemaAsync(mutation.ComponentCode,mutation.SchemaVersion) is null)
+   if(await Services.ConfigurationDb.GetParameterSchemaAsync(mutation.ComponentCode,mutation.SchemaVersion) is null)
     throw new InvalidOperationException("PARAM.SCHEMA_UNREGISTERED");
   }
   var lease=await Services.ConfigurationDb.AcquireParameterWriteLeaseAsync();

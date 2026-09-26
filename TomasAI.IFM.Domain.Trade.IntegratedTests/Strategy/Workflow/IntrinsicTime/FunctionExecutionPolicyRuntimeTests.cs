@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -87,7 +89,25 @@ public sealed partial class TradeSelectionRuntimeTests
                     RequestedAtUtc = assessment.RequestedAtUtc, ExpiresAtUtc = assessment.ExpiresAtUtc,
                     ParameterSet = assessment.WorkflowView.RegimeDiscoveryParameterSet!,
                     ParameterPayloadSha256 = assessment.WorkflowView.RegimeDiscoveryParameterPayloadSha256,
-                    TargetHorizon = assessment.TargetHorizon
+                    TargetHorizon = assessment.TargetHorizon,
+                    Snapshot = new RegimeDiscoveryMarketSignalSnapshot
+                    {
+                        SnapshotId = Guid.NewGuid(), CacheRevision = 1,
+                        MarketSeriesIdentity = MarketSeriesIdentity.ForContract(assessment.TriggerEvent.EntityId.ContractId),
+                        TargetHorizon = assessment.TargetHorizon,
+                        CapturedAtUtc = DateTime.UtcNow, MarketDataAsOfUtc = DateTime.UtcNow,
+                        Observations = [new RegimeDiscoverySignalObservation
+                        {
+                            Metric = RegimeDiscoverySignalMetric.Atr14,
+                            SignalKey = new(MarketSeriesIdentity.ForContract(assessment.TriggerEvent.EntityId.ContractId),
+                                TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalKind.Atr,
+                                TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.OneHour, "Atr14.v1"),
+                            Value = 1m, MarketDataAsOfUtc = DateTime.UtcNow, CalculatedAtUtc = DateTime.UtcNow,
+                            SourceSequence = 1, SchemaVersion = 1, CalculationVersion = "1", IsWarm = true,
+                            IsValid = true, Availability = RegimeDiscoverySignalAvailability.Available,
+                            FreshnessFactor = 1m, SignalIdentity = "ExpiredPolicyIntegration"
+                        }]
+                    }
                 };
                 var reply = await producer.RequestFunctionAsync<ExecuteRegimeDiscoveryPipelineCommand, RegimeDiscoveryExecutionEntityId,
                     FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>(command.Subject, command, entity);

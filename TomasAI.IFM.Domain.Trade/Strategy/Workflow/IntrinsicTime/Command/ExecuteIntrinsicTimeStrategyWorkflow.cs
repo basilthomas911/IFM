@@ -33,6 +33,11 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         if (current?.TriggerEventId == command.TriggerEventId)
             return Ok(command);
 
+        // A disabled host may replay established authority, but must not admit
+        // a new ITI-triggered workflow through direct or event-bridged commands.
+        if (context is IntrinsicTimeStrategyWorkflowCommandContext { WorkflowStartsEnabled: false })
+            return Ok(command);
+
         if (current is { Status: WorkflowStrategyMachineStatus.Started } && now < current.ExpiresAtUtc)
         {
             context.Logger.LogWarning(
@@ -74,7 +79,10 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
                 ExpiresAtUtc = expiresAtUtc
             },
             Outcome = StrategyWorkflowOutcome.None,
-            TriggerEvent = command.TriggerEvent
+            TriggerEvent = command.TriggerEvent,
+            // Explicitly pinned starts retain their frozen selection authority. The
+            // Trade Selection boundary validates it before any Function dispatch.
+            SelectionBinding = command.SelectionBinding
         };
         AppendSnapshot(state, command, current?.Status ?? WorkflowStrategyMachineStatus.Empty, started, now);
         return Ok(command);

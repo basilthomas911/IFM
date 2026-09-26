@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.Schema;
+using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using TomasAI.IFM.Framework.Storage;

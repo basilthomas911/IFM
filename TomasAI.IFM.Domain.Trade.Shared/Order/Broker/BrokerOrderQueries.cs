@@ -18,29 +18,3 @@ public interface IBrokerOrderQueryApi
         TradeOrderId tradeOrderId,
         CancellationToken cancellationToken = default);
 }
-
-/// <summary>Reads the latest projected state for one logical broker order.</summary>
-[MessagePackObject]
-public sealed record GetBrokerOrderQuery : IQuery<BrokerOrderDefinition>
-{
-    public const string Actor = BrokerOrderActorNames.Query;
-    public const string Verb = "GetBrokerOrder";
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [Key(2)] public BrokerOrderId BrokerOrderId { get; init; }
-    [IgnoreMember] public int ErrorCode => 25211;
-    [IgnoreMember] public string? QueryParams => null;
-}
-
-/// <summary>Reads every latest logical broker-order projection for one Trade Order.</summary>
-[MessagePackObject]
-public sealed record GetBrokerOrdersForTradeOrderQuery : IQuery<BrokerOrderDefinition[]>
-{
-    public const string Actor = BrokerOrderActorNames.Query;
-    public const string Verb = "GetBrokerOrdersForTradeOrder";
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [Key(2)] public TradeOrderId TradeOrderId { get; init; }
-    [IgnoreMember] public int ErrorCode => 25211;
-    [IgnoreMember] public string? QueryParams => null;
-}

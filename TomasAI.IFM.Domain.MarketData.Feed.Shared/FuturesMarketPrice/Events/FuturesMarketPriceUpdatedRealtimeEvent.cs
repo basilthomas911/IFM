@@ -144,9 +144,40 @@ public readonly record struct FuturesMarketPriceSnapshot(
 /// <summary>
 /// Carries one non-durable update to the primary futures market-price realtime actor and its registered routes.
 /// </summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEntityId>
 {
+
+    /// <summary>Creates an empty event for serialization.</summary>
+    public FuturesMarketPriceUpdatedRealtimeEvent() { }
+
+    /// <summary>Rehydrates every published event field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="id">The Id field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="eventId">The EventId field.</param>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="aggregateId">The AggregateId field.</param>
+    /// <param name="eventSource">The EventSource field.</param>
+    /// <param name="receivedOn">The ReceivedOn field.</param>
+    /// <param name="schemaVersion">The SchemaVersion field.</param>
+    /// <param name="price">The Price field.</param>
+    /// <param name="updateSource">The UpdateSource field.</param>
+    [SerializationConstructor]
+    public FuturesMarketPriceUpdatedRealtimeEvent(ActorSubject subject, Guid id, TickDataEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, ushort schemaVersion, FuturesMarketPriceSnapshot price, FuturesMarketPriceUpdateSource updateSource)
+    {
+        Subject = subject;
+        Id = id;
+        EntityId = entityId;
+        EventId = eventId;
+        CommandId = commandId;
+        AggregateId = aggregateId;
+        EventSource = eventSource;
+        ReceivedOn = receivedOn;
+        SchemaVersion = schemaVersion;
+        Price = price;
+        UpdateSource = updateSource;
+    }
     /// <summary>The primary actor mailbox name used by the realtime subject.</summary>
     public const string Actor = "FuturesMarketPrice";
 

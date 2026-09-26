@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
+/// <summary>Sends canonical direct-key DatabaseBackup queries to the actor.</summary>
 public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IDatabaseBackupQueryApi
 {
     readonly IActorProducer _actorProducer = actorProducer ?? throw new ArgumentNullException(nameof(actorProducer));
@@ -29,7 +30,7 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
     public ValueTask<ServiceResult<DatabaseRecoveryRunStatsReadModel>> GetRecoveryRunStatsAsync(GetDatabaseRecoveryRunStatsQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseRecoveryRunStatsQuery, DatabaseRecoveryRunStatsReadModel>(query, cancellationToken);
 
     async ValueTask<ServiceResult<TResult>> SendAsync<TQuery, TResult>(TQuery query, CancellationToken cancellationToken)
-        where TQuery : DatabaseBackupQuery, IQuery<TResult>
+        where TQuery : class, IDatabaseBackupQuery, IQuery<TResult>
         where TResult : class
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -37,20 +38,34 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
         try
         {
             var entityId = query.EntityId.Value == Guid.Empty
-                ? new DatabaseRecoveryOperationId(query.Request.RequestId)
-                : query.EntityId;
-            var normalized = (TQuery)(query with
-            {
-                EntityId = entityId,
-                Subject = new ActorSubject(ActorType.Query, DatabaseBackupQuery.Actor, query.Verb, entityId.Format())
-            });
+                ? new DatabaseRecoveryOperationId(query.Request.RequestId) : query.EntityId;
+            var subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, query.Verb, entityId.Format());
+            var normalized = (TQuery)Normalize(query, entityId, subject);
             normalized.Validate();
             return await _actorProducer.RequestAsync<TResult, TQuery>(normalized.Subject, normalized, cancellationToken);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception)
-        {
-            return new ServiceFailed<TResult>(query.ErrorCode, exception.Message);
-        }
+        catch (Exception exception) { return new ServiceFailed<TResult>(query.ErrorCode, exception.Message); }
     }
+
+    static IDatabaseBackupQuery Normalize(IDatabaseBackupQuery query, DatabaseRecoveryOperationId id, ActorSubject subject)
+        => query switch
+        {
+            GetDatabaseProtectionSetsQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseBackupPolicyQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseBackupOperationQuery q => q with { EntityId = id, Subject = subject },
+            ListDatabaseBackupOperationsQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseBackupSetQuery q => q with { EntityId = id, Subject = subject },
+            ListDatabaseRestorePointsQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseRestorePointQuery q => q with { EntityId = id, Subject = subject },
+            GetLatestVerifiedDatabaseBackupQuery q => q with { EntityId = id, Subject = subject },
+            GetLatestRestoreTestedDatabaseBackupQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseRecoveryObjectiveComplianceQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseRestoreOperationQuery q => q with { EntityId = id, Subject = subject },
+            ListDatabaseRestoreDrillsQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseRetentionForecastQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseBackupServiceHealthQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseRecoveryRunStatsQuery q => q with { EntityId = id, Subject = subject },
+            _ => throw new ArgumentException("Unsupported DatabaseBackup query.", nameof(query))
+        };
 }

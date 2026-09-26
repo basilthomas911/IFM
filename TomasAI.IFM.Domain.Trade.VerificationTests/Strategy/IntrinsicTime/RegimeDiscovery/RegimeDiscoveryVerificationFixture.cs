@@ -23,6 +23,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
@@ -57,19 +58,36 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
     public IDbContextFactory Database => Services.GetRequiredService<IDbContextFactory>();
     public MarketConditionPipelineCommandProbe Probe { get; }
 
+    /// <summary>Starts the real actor host with a recording assessment repository and a held assessment calculation.</summary>
     public static async Task<RegimeDiscoveryVerificationFixture> StartAsync(
         WebApplicationFactory<Program> source,
         Action<IServiceCollection>? configure = null)
     {
+        MarketConditionPipelineCommandProbe probe = null!;
         var factory = source.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
             services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, BlockingAssessmentSnapshotProvider>();
+            var container = (SimpleInjector.Container)services.Single(descriptor =>
+                descriptor.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
+            container.Register<MarketConditionAssessmentStateRepository>();
+            probe = new MarketConditionPipelineCommandProbe(
+                () => container.GetInstance<MarketConditionAssessmentStateRepository>());
+            var allowOverrides = container.Options.AllowOverridingRegistrations;
+            try
+            {
+                container.Options.AllowOverridingRegistrations = true;
+                container.RegisterInstance<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,
+                    ExecuteMarketConditionAssessmentCommand>>(probe);
+            }
+            finally
+            {
+                container.Options.AllowOverridingRegistrations = allowOverrides;
+            }
             configure?.Invoke(services);
         }));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
-        var probe = new MarketConditionPipelineCommandProbe(factory.Services);
 
         var publisher = factory.Services.GetRequiredService<IActorProducer>();
         await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, $"RdvPublisher{Guid.NewGuid():N}"));

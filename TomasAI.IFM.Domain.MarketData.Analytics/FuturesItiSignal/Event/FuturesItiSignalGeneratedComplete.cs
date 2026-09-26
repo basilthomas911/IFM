@@ -118,6 +118,7 @@ public static class FuturesItiSignalGeneratedComplete
     {
         ArgumentNullException.ThrowIfNull(completed);
         ArgumentNullException.ThrowIfNull(context);
+
         ArgumentNullException.ThrowIfNull(logger);
 
         if (completed.EntityId.TimePeriod != TimeFrameType.Daily)
@@ -184,6 +185,10 @@ public static class FuturesItiSignalGeneratedComplete
     {
         ArgumentNullException.ThrowIfNull(completed);
         ArgumentNullException.ThrowIfNull(context);
+
+        if (context is IFuturesItiSignalEventContext eventContext &&
+            !eventContext.WorkflowStartPolicy.Enabled)
+            return ValueTask.CompletedTask;
 
         var signal = completed.FuturesItiSignal
             ?? throw new InvalidOperationException(

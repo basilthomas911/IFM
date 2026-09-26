@@ -32,10 +32,11 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
         var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=25432;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
         match.Success.Should().BeTrue("fixture publication is restricted to the disposable host");
+        var scyllaPort = Environment.GetEnvironmentVariable("IFM_QUALIFICATION_EXISTING_SCYLLA") == "1" ? 9042 : 29042;
         var settings = new DbConnectionSettings()
             .Add(ConfigurationDbContext.ConfigurationDbConnection, connection, "System.Data.Postgres")
             .Add(SequenceIdDbContext.SequenceIdDbConnection, connection, "System.Data.Postgres")
-            .Add(ReferenceDbContext.ReferenceDbConnection, $"Contact Points=127.0.0.1;Port=29042;Default Keyspace=ifm_synthetic_{match.Groups[1].Value}_reference", "System.Data.ScyllaDb");
+            .Add(ReferenceDbContext.ReferenceDbConnection, $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{match.Groups[1].Value}_reference", "System.Data.ScyllaDb");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var repositories = new Dictionary<Type, object>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));

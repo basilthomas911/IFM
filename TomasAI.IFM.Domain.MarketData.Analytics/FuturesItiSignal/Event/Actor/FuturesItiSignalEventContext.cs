@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
@@ -18,6 +19,8 @@ public interface IFuturesItiSignalEventContext : IEventActorContext<FuturesItiSi
     ILogger<FuturesItiSignalEventActor> Logger { get; }
     /// <summary>Gets bounded Futures ITI runtime telemetry.</summary>
     FuturesItiSignalRuntimeTelemetry Telemetry { get; }
+    /// <summary>Gets the admission policy for new ITI-triggered strategy workflows.</summary>
+    IIntrinsicTimeWorkflowStartPolicy WorkflowStartPolicy { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="FuturesItiSignalEventActor"/>.</summary>
@@ -28,12 +31,14 @@ public sealed class FuturesItiSignalEventContext : EventActorContext, IEventActo
         IActorSupervisor supervisor,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesItiSignalEventActor> logger,
+        IIntrinsicTimeWorkflowStartPolicy workflowStartPolicy,
         FuturesItiSignalRuntimeTelemetry? telemetry = null)
         : base(supervisor, new ActorMailboxId(ActorType.Event, FuturesItiSignalEventActor.Actor))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
         Logger = IsArgumentNull.Set(logger);
+        WorkflowStartPolicy = IsArgumentNull.Set(workflowStartPolicy);
         Telemetry = telemetry ?? new FuturesItiSignalRuntimeTelemetry(TimeProvider.System);
     }
 
@@ -45,4 +50,6 @@ public sealed class FuturesItiSignalEventContext : EventActorContext, IEventActo
     public ILogger<FuturesItiSignalEventActor> Logger { get; }
     /// <inheritdoc/>
     public FuturesItiSignalRuntimeTelemetry Telemetry { get; }
+    /// <inheritdoc/>
+    public IIntrinsicTimeWorkflowStartPolicy WorkflowStartPolicy { get; }
 }

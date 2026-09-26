@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Actor;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events;
 using TomasAI.IFM.Shared.EventModelActor;

@@ -16,12 +16,12 @@ using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests.ParameterSets;
-/// <summary>Requires disposable brokers on 24222/26379 and PostgreSQL on 25432; never uses default application infrastructure.</summary>
-public sealed class ParameterSetActorRuntimeTests
+[Collection(ReferenceIntegrationInfrastructureCollection.Name)]
+public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
  [Fact]public async Task Real_actor_routes_complete_parameter_lifecycle_and_keep_frozen_startup_versions()
  {
-  const string connection="Host=127.0.0.1;Port=25432;Database=ifm-parametersets-runtime-tests";
+  var connection=infrastructure.PostgresConnectionString;
   var settings=new DbConnectionSettings().Add("ConfigurationDbConnection",connection,"System.Data.Postgres")
    .Add("EventSourceActorDbConnection",connection,"System.Data.Postgres").Add("LogDbConnection",connection,"System.Data.Postgres").Add("SequenceIdDbConnection",connection,"System.Data.Postgres");
   var logger=NullLogger<DbProvider>.Instance;
@@ -32,8 +32,8 @@ public sealed class ParameterSetActorRuntimeTests
   await using var source=new WebApplicationFactory<Program>();
   await using var host=source.WithWebHostBuilder(builder=>builder.UseEnvironment("Development")
    .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Reference")
-   .UseSetting("IFM_TEST_NATS_URL","nats://127.0.0.1:24222")
-   .UseSetting("IFM_TEST_REDIS_URL","127.0.0.1:26379")
+   .UseSetting("IFM_TEST_NATS_URL",infrastructure.NatsUrl)
+   .UseSetting("IFM_TEST_REDIS_URL",infrastructure.RedisConnectionString)
    .UseSetting("IFM_TEST_POSTGRES_CONNECTION",connection)
    .UseSetting("ConnectionStrings:ConfigurationDbConnection",connection)
    .UseSetting("ConnectionStrings:EventSourceActorDbConnection",connection)

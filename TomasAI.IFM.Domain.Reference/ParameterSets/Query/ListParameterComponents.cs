@@ -10,7 +10,7 @@ public static class ListParameterComponents
  {
   ArgumentNullException.ThrowIfNull(context);ArgumentNullException.ThrowIfNull(logger);
   context.AccessPolicy.Demand(ParameterCapability.Read);token.ThrowIfCancellationRequested();
-  var result=await context.ConfigurationDb.ReadParameterComponentsAsync(token);
+  var result=await context.ConfigurationDb.GetParameterComponentsAsync(token);
   await context.ReplyAsync(query.Subject.ThreadId,query.Subject.Verb,new ServiceOk<ParameterComponentSummary[]>(result));
  }
 }

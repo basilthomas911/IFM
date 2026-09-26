@@ -4,8 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.CommandDeduplication;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandDeduplication;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.CommandDeduplication;

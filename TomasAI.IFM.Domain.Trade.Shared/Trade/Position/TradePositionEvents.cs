@@ -29,15 +29,6 @@ public abstract record PositionChangedEvent : IEvent<StrategyPositionId>
 }
 
 [MessagePackObject]
-public sealed record StrategyPositionOpenedEvent : PositionBoundaryEvent;
-
-[MessagePackObject]
-public sealed record StrategyPositionClosedEvent : PositionBoundaryEvent;
-
-[MessagePackObject]
-public sealed record StrategyPositionCorrectedEvent : PositionBoundaryEvent;
-
-[MessagePackObject]
 [Union(0, typeof(StrategyPositionOpenedEvent))]
 [Union(1, typeof(StrategyPositionClosedEvent))]
 [Union(2, typeof(StrategyPositionCorrectedEvent))]
@@ -55,23 +46,5 @@ public abstract record PositionBoundaryEvent : IEvent<StrategyPositionId>
     [Key(8)] public StrategyPositionSnapshot Position { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public EventType EventType => EventType.DomainEvent;
-}
-
-[MessagePackObject]
-public sealed record OpenPositionRoutesChangedEvent : IEvent<StrategyPositionId>
-{
-    public const string Verb = "OpenPositionRoutesChanged";
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public Guid Id { get; init; }
-    [Key(2)] public StrategyPositionId EntityId { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; } = string.Empty;
-    [Key(6)] public string EventSource { get; init; } = string.Empty;
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public StrategyPositionSnapshot Position { get; init; } = new();
-    [IgnoreMember] public string UserName => string.Empty;
-    [IgnoreMember] public string EventName => nameof(OpenPositionRoutesChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 }

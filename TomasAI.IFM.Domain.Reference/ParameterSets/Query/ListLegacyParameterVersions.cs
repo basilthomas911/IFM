@@ -14,7 +14,7 @@ public static class ListLegacyParameterVersions
         CancellationToken token)
     {
         context.AccessPolicy.Demand(ParameterCapability.Read);
-        var rows = await context.ConfigurationDb.ReadLegacyParameterVersionsAsync(offset: query.Offset, token: token);
+        var rows = await context.ConfigurationDb.GetLegacyParameterVersionsAsync(offset: query.Offset, cancellationToken: token);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterLegacyVersion[]>(rows));
     }
 }

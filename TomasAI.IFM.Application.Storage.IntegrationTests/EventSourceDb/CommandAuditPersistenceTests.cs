@@ -7,7 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage;

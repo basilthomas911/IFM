@@ -96,7 +96,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 await db.InsertRiskManagementDraftAsync(policy,"Isolated Risk publication qualification","risk-publication-fixture");
                 var kind=TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.RiskManagement;
                 var draft=await db.GetSelectionPipelinePolicyAsync(kind,policy.ParameterSetId,1);draft!.Status.Should().Be(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogLifecycleStatus.Draft);
-                await db.PublishAsync(TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyParameterSetKind.RiskManagement,policy.ParameterSetId,1,DateTime.UtcNow.AddSeconds(-1));
+                await db.PublishAsync(TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration.StrategyParameterSetKind.RiskManagement,policy.ParameterSetId,1,DateTime.UtcNow.AddSeconds(-1));
                 var published=await db.GetSelectionPipelinePolicyAsync(kind,policy.ParameterSetId,1);
                 published!.Status.Should().Be(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogLifecycleStatus.Published);
                 published.PayloadSha256.Should().Be(policy.Hash());RiskParameterSet.Read(published.PayloadJson).TargetHorizon.Should().Be(horizon);

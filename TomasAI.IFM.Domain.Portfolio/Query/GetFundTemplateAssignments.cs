@@ -1,15 +1,22 @@
 using TomasAI.IFM.Domain.Portfolio.Query.Actor;
-using TomasAI.IFM.Domain.Portfolio.Query.Model;
-using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
+using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using GetFundTemplateAssignmentsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundTemplateAssignmentsQuery;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 
-/// <summary>Handles <see cref="GetFundTemplateAssignmentsQuery"/>.</summary>
+/// <summary>Compatibility handler for the published PortfolioQuery route; Fund owns new traffic.</summary>
 public static class GetFundTemplateAssignments
 {
-    /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
-    public static ValueTask ExecuteAsync(this GetFundTemplateAssignmentsQuery query, IQueryActorContext<PortfolioQueryActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetAssignmentsAsync(query.PortfolioId, query.FundId, query.MandateVersion, cancellationToken));
+    /// <summary>Forwards the legacy query to the Fund-owned implementation.</summary>
+    /// <param name="query">The published legacy query message.</param>
+    /// <param name="context">The legacy Portfolio query actor context.</param>
+    /// <param name="parameters">The query services shared with the owning child actor.</param>
+    /// <param name="cancellationToken">Cancellation for the projection read.</param>
+    /// <returns>The asynchronous reply operation.</returns>
+    public static ValueTask ExecuteAsync(
+        this GetFundTemplateAssignmentsQuery query,
+        IQueryActorContext<PortfolioQueryActor> context,
+        PortfolioQueryParameters parameters,
+        CancellationToken cancellationToken) =>
+        TomasAI.IFM.Domain.Portfolio.Fund.Query.GetFundTemplateAssignments.ExecuteAsync(query, context, parameters, cancellationToken);
 }

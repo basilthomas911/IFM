@@ -166,7 +166,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         // act...
         _httpClientFactory.CreateClient();
-        await ResetApplicationMarketDataApiAsync();
+        await ResetApplicationMarketDataApiAsync(valueDate);
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
@@ -255,7 +255,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         // start streaming first...
         _httpClientFactory.CreateClient();
-        await ResetApplicationMarketDataApiAsync();
+        await ResetApplicationMarketDataApiAsync(valueDate);
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var startResponse = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
@@ -332,10 +332,12 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         }
     }
 
-    private async Task ResetApplicationMarketDataApiAsync()
+    private async Task ResetApplicationMarketDataApiAsync(DateOnly? startValueDate = null)
     {
         var api = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
         if (api.ActiveValueDate is { } activeValueDate)
             await api.StopAsync(activeValueDate);
+        if (startValueDate is { } valueDate)
+            await api.StartAsync(valueDate);
     }
 }

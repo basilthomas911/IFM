@@ -10,12 +10,12 @@ internal static class DatabaseBackupQueryReply
 {
     /// <summary>Replies with a required projection result.</summary>
     internal static ValueTask RequiredAsync<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult result)
-        where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
-        => context.ReplyAsync(query.Subject.ThreadId, query.Verb, new ServiceOk<TResult>(result));
+        where TQuery : IQuery<TResult> where TResult : class
+        => context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<TResult>(result));
 
     /// <summary>Replies with an optional projection result or a typed not-found failure.</summary>
     internal static ValueTask OptionalAsync<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult? result)
-        where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
-        => context.ReplyAsync<TResult>(query.Subject.ThreadId, query.Verb,
+        where TQuery : IQuery<TResult> where TResult : class
+        => context.ReplyAsync<TResult>(query.Subject.ThreadId, query.Subject.Verb,
             result is null ? new ServiceFailed<TResult>(404, "DatabaseBackup projection was not found.") : new ServiceOk<TResult>(result));
 }

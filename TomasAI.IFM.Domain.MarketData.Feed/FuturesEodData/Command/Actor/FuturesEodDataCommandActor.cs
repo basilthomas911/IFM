@@ -133,7 +133,7 @@ public class FuturesEodDataCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName)
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
                 .ValidateFuturesTickData(e.FuturesTickData)
                 .ValidateContract(e.Contract)
                 .ValidateEodDataToday(e.EodDataToday)

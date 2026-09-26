@@ -11,7 +11,10 @@ namespace TomasAI.IFM.Application.Storage.PredictiveModelDb;
 /// <param name="connectionSettings"></param>
 /// <param name="dbFactory"></param>
 /// <param name="logger"></param>
-public class PredictiveModelDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
+public class PredictiveModelDbContext(
+    IDbConnectionSettings connectionSettings,
+    IDbContextFactory dbFactory,
+    ILogger<DbProvider> logger)
     : ObjectDataRepository<PredictiveModelDbContext>(connectionSettings[PredictiveModelDbConnection], logger), IPredictiveModelDbContext
 {
     public const string PredictiveModelDbConnection = "PredictiveModelDbConnection";

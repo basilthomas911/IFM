@@ -10,6 +10,13 @@ namespace TomasAI.IFM.Domain.Portfolio.Query;
 public static class AllocatePortfolioBusinessId
 {
     /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
-    public static ValueTask ExecuteAsync(this AllocatePortfolioBusinessIdQuery query, IQueryActorContext<PortfolioQueryActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
+    /// <typeparam name="TActor">The owning Query actor type.</typeparam>
+    /// <param name="query">The concrete query message.</param>
+    /// <param name="context">The owning actor reply context.</param>
+    /// <param name="parameters">The Portfolio projection query dependencies.</param>
+    /// <param name="cancellationToken">Cancellation for the projection read.</param>
+    /// <returns>The asynchronous reply operation.</returns>
+    public static ValueTask ExecuteAsync<TActor>(this AllocatePortfolioBusinessIdQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
+        where TActor : IActor
         => PortfolioQueryHandlerModel.ReplyAsync(context, query, PortfolioQueryHandlerModel.AllocateAsync(query, parameters.IdentityAllocator, cancellationToken));
 }

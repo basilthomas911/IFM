@@ -13,6 +13,7 @@ internal sealed class LostCommitReplyProxy : IAsyncDisposable
     readonly CancellationTokenSource shutdown=new();
     readonly ConcurrentBag<Task> connections=[];
     readonly bool refuseRecovery;
+    readonly int upstreamPort;
     readonly Task accepting;
     int dropped;
     public bool Dropped=>Volatile.Read(ref dropped)==1;
@@ -21,6 +22,8 @@ internal sealed class LostCommitReplyProxy : IAsyncDisposable
     public LostCommitReplyProxy(bool refuseRecovery=false)
     {
         this.refuseRecovery=refuseRecovery;
+        var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION");
+        upstreamPort = connection is null ? 5432 : new Npgsql.NpgsqlConnectionStringBuilder(connection).Port;
         listener.Start(); accepting=AcceptAsync();
     }
     async Task AcceptAsync()
@@ -46,7 +49,7 @@ internal sealed class LostCommitReplyProxy : IAsyncDisposable
             Task? requests=null,replies=null;
             try
             {
-                await upstream.ConnectAsync(IPAddress.Loopback,5432,stop.Token);
+                await upstream.ConnectAsync(IPAddress.Loopback,upstreamPort,stop.Token);
                 var incoming=client.GetStream(); var outgoing=upstream.GetStream();
                 // Tests explicitly disable TLS only for this loopback connection. Never record authentication bytes.
                 var prefix=new byte[4]; await incoming.ReadExactlyAsync(prefix,stop.Token);

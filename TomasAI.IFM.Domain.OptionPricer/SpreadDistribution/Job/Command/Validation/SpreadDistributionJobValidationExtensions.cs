@@ -1,5 +1,6 @@
 ﻿using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validation;
 
@@ -8,6 +9,16 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validat
 /// </summary>
 public static class SpreadDistributionJobValidationExtensions
 {
+    /// <summary>Validates the option-trade identity used by a spread distribution job.</summary>
+    public static List<ValidationError> ValidateOptionTradeId(this List<ValidationError> validationErrors, OptionTradeEntityId optionTradeId, string commandName)
+    {
+        if (optionTradeId.OrderId < 1)
+            validationErrors.Add(new($"{commandName}.OrderId must be > 0"));
+        if (optionTradeId.TradeId < 1)
+            validationErrors.Add(new($"{commandName}.TradeId must be > 0"));
+        return validationErrors;
+    }
+
     static readonly SpreadDistributionJobValidationRules ValidationRules = new();
     /// <summary>
     /// Validates the spread distribution job read model and adds any validation errors to the provided list.

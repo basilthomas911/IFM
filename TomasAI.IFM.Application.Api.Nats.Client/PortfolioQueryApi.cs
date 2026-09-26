@@ -74,33 +74,54 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
     async Task<ServiceResult<TResult>> Send<TQuery, TResult>(string verb, string entityKey, TQuery queryMessage, CancellationToken cancellationToken)
         where TResult : class
     {
-        var subject = new ActorSubject(ActorType.Query, GetPortfolioQuery.Actor, verb, entityKey);
+        var actor = queryMessage switch
+        {
+            GetFundQuery => PortfolioQueryRoutes.Fund,
+            GetFundRevisionQuery => PortfolioQueryRoutes.Fund,
+            GetFundsQuery => PortfolioQueryRoutes.Fund,
+            GetFundAllocationQuery => PortfolioQueryRoutes.Fund,
+            GetFundRiskEnvelopeQuery => PortfolioQueryRoutes.Fund,
+            GetFundTemplateAssignmentsQuery => PortfolioQueryRoutes.Fund,
+            ResolveForSelectionQuery => PortfolioQueryRoutes.Fund,
+            GetPortfolioFundStrategySnapshotQuery => PortfolioQueryRoutes.Fund,
+            GetFundOrderByOrderIdQuery => PortfolioQueryRoutes.Fund,
+            GetFundOrderTradeByTradeIdQuery => PortfolioQueryRoutes.Fund,
+            GetFundCompositionByWorkflowQuery => PortfolioQueryRoutes.Fund,
+            GetFundOrdersPageQuery => PortfolioQueryRoutes.Fund,
+            GetFundOrderTradesPageQuery => PortfolioQueryRoutes.Fund,
+            GetPortfolioFundStrategyReferenceCombinationsQuery => PortfolioQueryRoutes.Fund,
+            GetPortfolioFinancialPolicyQuery => PortfolioQueryRoutes.FinancialPolicy,
+            GetPortfolioFinancialPoliciesQuery => PortfolioQueryRoutes.FinancialPolicy,
+            GetActivePortfolioFinancialPolicyQuery => PortfolioQueryRoutes.FinancialPolicy,
+            _ => PortfolioQueryRoutes.Portfolio,
+        };
+        var subject = new ActorSubject(ActorType.Query, actor, verb, entityKey);
         var entityId = new ActorEntityId(entityKey);
         var correlationId = PortfolioRequestCorrelation.CurrentOrNew();
         var requestedOnUtc = DateTime.UtcNow;
         var access = PortfolioAccessScope.Current ?? PortfolioAccessContext.Reader($"interactive:{Environment.UserName}");
         object query = queryMessage switch
         {
-            GetPortfolioQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetPortfolioRevisionQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetPortfoliosQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundRevisionQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundsQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundAllocationQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundRiskEnvelopeQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundTemplateAssignmentsQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            ResolveForSelectionQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetPortfolioFundStrategySnapshotQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundOrderByOrderIdQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundOrderTradeByTradeIdQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundCompositionByWorkflowQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundOrdersPageQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetFundOrderTradesPageQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetPortfolioFundStrategyReferenceCombinationsQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetPortfolioFinancialPolicyQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetPortfolioFinancialPoliciesQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            GetActivePortfolioFinancialPolicyQuery value => value with { Subject = subject, QueryEntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfolioQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfolioRevisionQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfoliosQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundRevisionQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundsQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundAllocationQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundRiskEnvelopeQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundTemplateAssignmentsQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            ResolveForSelectionQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfolioFundStrategySnapshotQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundOrderByOrderIdQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundOrderTradeByTradeIdQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundCompositionByWorkflowQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundOrdersPageQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetFundOrderTradesPageQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfolioFundStrategyReferenceCombinationsQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfolioFinancialPolicyQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetPortfolioFinancialPoliciesQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            GetActivePortfolioFinancialPolicyQuery value => value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
             _ => throw new InvalidOperationException($"Unsupported Portfolio query message {typeof(TQuery).FullName}."),
         };
         var result = query switch

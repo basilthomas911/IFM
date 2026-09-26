@@ -63,7 +63,7 @@ public static class DatabaseBackupEventTranslator
             CommandId = source.Source.SourceEventId,
             EntityId = source.Source.OperationId,
             ErrorCode = 9190,
-            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommand.Actor, template.Verb, source.Source.OperationId.Format()),
+            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, template.Verb, source.Source.OperationId.Format()),
             Source = source.Source,
             ProgressPercent = source.ProgressPercent,
             SafeDiagnosticReference = source.SafeDiagnosticReference,

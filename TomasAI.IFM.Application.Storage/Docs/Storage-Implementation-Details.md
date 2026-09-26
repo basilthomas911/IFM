@@ -163,7 +163,7 @@ Do not manually edit or commit `bin` or `obj` contents.
 
 ## Source organization conventions
 
-Most active database folders follow this pattern:
+Database folders follow this pattern:
 
 | File kind | Purpose |
 | --- | --- |
@@ -177,7 +177,146 @@ Most active database folders follow this pattern:
 | `Schema/<Domain>SchemaDb.cs` | Ordered schema-object catalog and connection selection. |
 | `Schema/<Domain>SchemaCql.cs` or `...Sql.cs` | Checked-in create statements. |
 
-Not every domain uses every file kind. Economic Calendars and Yield Curve Rates are read-only data-reader adapters; Predictive Model is currently a context/schema shell; Log and Sequence ID expose focused contracts instead of read/write splits.
+Every class named `*DbContext` is governed by the mandatory implementation conventions below. Any DbContext that does not conform is an alignment finding. Focused storage components that are not DbContext implementations, such as Log and Sequence ID services, may expose narrower contracts.
+
+## Mandatory DbContext implementation conventions
+
+These rules define the minimum implementation pattern for every application DbContext. They are architectural requirements, not optional style guidance.
+
+### Context structure
+
+- A DbContext must be implemented as one non-partial `NameOfDbContext` class. Its implementation must not be split across partial class files.
+- The class must inherit `ObjectDataRepository<NameOfDbContext>`, where the generic type argument is the concrete DbContext class itself.
+- The class must directly implement only its combined `INameOfDbContext` contract.
+- `INameOfDbContext` must inherit both `INameOfDbReadContext` and `INameOfDbWriteContext`.
+- The context must return itself from its `Database`, `DbReader`, and `DbWriter` properties.
+- Every public constructor, property, and method must have XML documentation. Method documentation must describe every parameter and the returned value or asynchronous operation.
+
+The minimum class shape is:
+
+```csharp
+/// <summary>
+/// Provides persistence operations for predictive-model data.
+/// </summary>
+/// <param name="connectionSettings">The named database connection settings.</param>
+/// <param name="dbFactory">The factory used to resolve database contexts.</param>
+/// <param name="logger">The database-provider logger.</param>
+public class PredictiveModelDbContext(
+    IDbConnectionSettings connectionSettings,
+    IDbContextFactory dbFactory,
+    ILogger<DbProvider> logger)
+    : ObjectDataRepository<PredictiveModelDbContext>(
+        connectionSettings[PredictiveModelDbConnection], logger),
+      IPredictiveModelDbContext
+{
+    private readonly IDbContextFactory _dbFactory = dbFactory;
+
+    public const string PredictiveModelDbConnection = "PredictiveModelDbConnection";
+
+    /// <summary>
+    /// Gets the concrete database context.
+    /// </summary>
+    public override PredictiveModelDbContext Database => this;
+
+    /// <summary>
+    /// Gets the read capability for this database context.
+    /// </summary>
+    public IPredictiveModelDbReadContext DbReader => this;
+
+    /// <summary>
+    /// Gets the write capability for this database context.
+    /// </summary>
+    public IPredictiveModelDbWriteContext DbWriter => this;
+}
+```
+
+The corresponding combined interface has this minimum shape:
+
+```csharp
+public interface IPredictiveModelDbContext :
+    IPredictiveModelDbReadContext,
+    IPredictiveModelDbWriteContext
+{
+}
+```
+
+### Read and write contracts
+
+- `INameOfDbReadContext` owns all asynchronous queries that return data or scalar results.
+- Read methods must normally be named `GetXXXAsync`.
+- `INameOfDbWriteContext` owns all asynchronous commands that change persisted state.
+- Write methods must use operation-oriented names such as `InsertXXXAsync`, `UpdateXXXAsync`, and `DeleteXXXAsync`.
+- Every read/write interface method must be implemented as a public method on the single concrete `NameOfDbContext` class.
+- DbContext methods must not validate their method arguments. Validation belongs to the caller before the storage method is invoked.
+
+A simple command follows this pattern:
+
+```csharp
+/// <summary>
+/// Deletes the MDI forward loss ratio for the supplied trend direction and trade type.
+/// </summary>
+/// <param name="trendDirection">The intrinsic-time trend direction.</param>
+/// <param name="tradeType">The trade type.</param>
+/// <returns>A task representing the asynchronous delete operation.</returns>
+public async Task DeleteMDIForwardLossRatioAsync(
+    IntrinsicTimeTrendType trendDirection,
+    TradeType tradeType)
+    => await _dbFactory.ReferenceDb
+        .Use(
+            $"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}",
+            ReferenceDbCql.DeleteMDIForwardLossRatio)
+        .SetParameters(new DeleteMDIForwardLossRatio(
+            trendDirection.ToStringFast(),
+            tradeType.ToStringFast()))
+        .ExecuteCommandAsync();
+```
+
+### Result mapping
+
+- Every result-set mapper must be a static `MapToXXX` method.
+- A mapper must construct the target type directly from `IObjectDataRecord` fields using stable zero-based ordinals.
+- Selected columns, mapper ordinals, field types, and constructor arguments must remain aligned.
+- Result mapping must not use reflection or property-name matching.
+
+The minimum mapper pattern is:
+
+```csharp
+static LookupTypeReadModel MapToLookupType(IObjectDataRecord e)
+    => new(
+        lookupTypeName: e.GetString(0),
+        shortCode: e.GetString(1),
+        orderId: e.GetInt(2),
+        description: e.GetString(3),
+        createdOn: e.GetDateTime(4),
+        createdBy: e.GetString(5));
+```
+
+### Statement and parameter catalogs
+
+- Every ScyllaDB query or command string must be declared in `NameOfDbCql.cs`.
+- Every PostgreSQL query or command string must be declared in `NameOfDbSql.cs`.
+- SQL and CQL must not be embedded directly in DbContext method bodies.
+- `NameOfDbParameters.cs` must contain the query/command parameter-binding models used by `SetParameters`.
+- Parameter models should be internal `readonly record struct` values implementing `IBindValue`.
+- The bound value order must exactly match the statement marker or placeholder order.
+
+ScyllaDB statement example:
+
+```csharp
+public const string DeleteReferenceProjectionStateV3 = """
+    DELETE FROM reference_projection_state_v3
+    WHERE projectionName = :projectionName;
+    """;
+```
+
+Parameter model example:
+
+```csharp
+internal readonly record struct GetTradeStrategyFamilies(string Catalog) : IBindValue
+{
+    public object Bind() => new object?[] { Catalog };
+}
+```
 
 ## Project definition and dependencies
 
@@ -375,7 +514,7 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 - Option trade-spread sequence generation is awaited before each row is submitted; the previous unawaited `List<T>.ForEach(async ...)` and synchronous `GetAwaiter().GetResult()` paths have been removed. Futures ITI trend class/delta collection writes now use positional `IBindValue` records instead of anonymous objects.
 - Database-independent catalog tests verify positional bindings against each CQL marker sequence, including nullable values, update-marker order, LWT ownership parameters, and `DateOnly` values for CQL `date` columns.
 - Several Fund, Market Data, and Trade APIs accept `IEnumerable<T>` and return inserted row counts for bulk operations.
-- Combined contexts commonly expose `DbReader => this` and `DbWriter => this`, giving consumers capability-oriented interfaces over one repository object.
+- Combined contexts must expose `DbReader => this` and `DbWriter => this`, giving consumers capability-oriented interfaces over one repository object.
 - Query methods generally return nullable single records and non-null collections.
 - Command text and schema are source-controlled separately, allowing operation changes without embedding large query strings in context methods.
 

@@ -24,9 +24,24 @@ public sealed record LookupDefinitionReadModel(
     [property: Key(7)] DateTime CreatedUtc,
     [property: Key(8)] DateTime UpdatedUtc);
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed class GetLookupDefinitionsQuery : IQuery<LookupDefinitionReadModel[]>
 {
+
+    /// <summary>Creates an empty query for serialization.</summary>
+    public GetLookupDefinitionsQuery() { }
+
+    /// <summary>Rehydrates the published query fields in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="groupName">The GroupName field.</param>
+    [SerializationConstructor]
+    public GetLookupDefinitionsQuery(ActorSubject subject, IActorEntityId entityId, string groupName)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        GroupName = groupName;
+    }
     [IgnoreMember] public const string Actor = "ReferenceQuery";
     [IgnoreMember] public const string Verb = "GetLookupDefinitions";
     [IgnoreMember] public const int ErrorId = 1064;

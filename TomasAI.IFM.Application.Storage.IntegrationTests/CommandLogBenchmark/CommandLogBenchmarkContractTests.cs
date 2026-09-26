@@ -1,6 +1,6 @@
 using System;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.CommandLogBenchmark;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandLogBenchmark;
 using TomasAI.IFM.Framework.Serialization;
 using Xunit;
 

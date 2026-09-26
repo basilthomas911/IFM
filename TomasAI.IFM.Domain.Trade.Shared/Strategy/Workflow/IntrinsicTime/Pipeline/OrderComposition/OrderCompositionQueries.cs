@@ -14,52 +14,6 @@ public sealed record OrderCompositionProjection([property:Key(0)] OrderCompositi
 public sealed record OrderCompositionHistoryRow([property:Key(0)] int PortfolioId,[property:Key(1)] int FundId,[property:Key(2)] DateOnly ValueDate,[property:Key(3)] DateTime OccurredAtUtc,[property:Key(4)] Guid WorkflowId,[property:Key(5)] Guid InvocationId,[property:Key(6)] Guid EventId,[property:Key(7)] short TargetHorizon,[property:Key(8)] byte Outcome,[property:Key(9)] string ReasonCode,[property:Key(10)] Guid ResultId,[property:Key(11)] string ResultSha256);
 [MessagePackObject]
 public sealed record OrderCompositionHistoryPage([property:Key(0)] OrderCompositionHistoryRow[] Items,[property:Key(1)] string? PagingState);
-[MessagePackObject]
-public sealed record GetOrderCompositionInvocationQuery:IQuery<OrderCompositionProjection>
-{
-    [IgnoreMember] public const string Actor="OrderCompositionPipelineQuery";
-    [IgnoreMember] public const string Verb="GetOrderCompositionInvocation";
-    [IgnoreMember] public const int ErrorId=23213;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public CompositionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public StrategyWorkflowId WorkflowId {get;init;}
-    [Key(4)] public Guid InvocationId {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
-}
-[MessagePackObject]
-public sealed record GetOrderCompositionResultQuery:IQuery<OrderCompositionResult>
-{
-    [IgnoreMember] public const string Actor="OrderCompositionPipelineQuery";
-    [IgnoreMember] public const string Verb="GetOrderCompositionResult";
-    [IgnoreMember] public const int ErrorId=23214;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public CompositionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public StrategyWorkflowId WorkflowId {get;init;}
-    [Key(4)] public Guid InvocationId {get;init;}
-    [Key(5)] public Guid ResultId {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
-}
-[MessagePackObject]
-public sealed record GetOrderCompositionHistoryPageQuery:IQuery<OrderCompositionHistoryPage>
-{
-    [IgnoreMember] public const string Actor="OrderCompositionPipelineQuery";
-    [IgnoreMember] public const string Verb="GetOrderCompositionHistoryPage";
-    [IgnoreMember] public const int ErrorId=23215;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public CompositionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public int PortfolioId {get;init;}
-    [Key(4)] public int FundId {get;init;}
-    [Key(5)] public DateOnly ValueDate {get;init;}
-    [Key(6)] public int PageSize {get;init;}=50;
-    [Key(7)] public string? PagingState {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
-}
 public interface IOrderCompositionQueryApi
 {
     Task<ServiceResult<OrderCompositionProjection>> GetInvocationAsync(StrategyWorkflowId workflowId,Guid invocationId,CancellationToken cancellationToken=default);

@@ -27,35 +27,3 @@ public sealed record ExitPositionWorkflowProjection
 public sealed record PositionExitWorkflowHistoryPage(
     [property: Key(0)] ExitPositionWorkflowProjection[] Items,
     [property: Key(1)] byte[]? PagingState);
-
-/// <summary>Reads the latest exit workflow stage for a strategy position and value date.</summary>
-[MessagePackObject]
-public sealed record GetPositionExitWorkflowQuery : IQuery<ExitPositionWorkflowProjection?>
-{
-    [IgnoreMember] public const string Actor = "PositionExitWorkflowQuery";
-    [IgnoreMember] public const string Verb = "GetPositionExitWorkflow";
-    [IgnoreMember] public const int ErrorId = 27231;
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [Key(2)] public StrategyPositionId PositionId { get; init; }
-    [Key(3)] public DateOnly ValueDate { get; init; }
-    [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string? QueryParams => null;
-}
-
-/// <summary>Reads the bounded stage timeline for a strategy position and value date.</summary>
-[MessagePackObject]
-public sealed record GetPositionExitWorkflowTimelineQuery : IQuery<PositionExitWorkflowHistoryPage>
-{
-    [IgnoreMember] public const string Actor = GetPositionExitWorkflowQuery.Actor;
-    [IgnoreMember] public const string Verb = "GetPositionExitWorkflowTimeline";
-    [IgnoreMember] public const int ErrorId = 27232;
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [Key(2)] public StrategyPositionId PositionId { get; init; }
-    [Key(3)] public DateOnly ValueDate { get; init; }
-    [Key(4)] public int PageSize { get; init; } = 100;
-    [Key(5)] public byte[]? PagingState { get; init; }
-    [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string? QueryParams => null;
-}

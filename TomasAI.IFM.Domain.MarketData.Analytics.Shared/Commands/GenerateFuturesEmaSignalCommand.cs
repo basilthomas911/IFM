@@ -6,9 +6,32 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
 /// <summary>Requests event-sourced EMA10/20/50/200 calculation for one closed bar.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record GenerateFuturesEmaSignalCommand : ICommand<FuturesTradeSessionBarEntityId>
 {
+
+    /// <summary>Creates an empty command for serialization.</summary>
+    public GenerateFuturesEmaSignalCommand() { }
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="observation">The Observation field.</param>
+    [SerializationConstructor]
+    public GenerateFuturesEmaSignalCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesTradeSessionBarEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesTradeSessionBarReadModel observation)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        Observation = observation;
+    }
     /// <summary>Gets the command actor name.</summary>
     public const string Actor = "FuturesEmaSignalCommand";
     /// <summary>Gets the command verb.</summary>

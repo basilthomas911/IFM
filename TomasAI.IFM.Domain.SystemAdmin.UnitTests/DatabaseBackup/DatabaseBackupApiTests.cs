@@ -1,5 +1,7 @@
 using NSubstitute;
 using FluentAssertions;
+using MessagePack;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
@@ -61,7 +63,7 @@ public sealed class DatabaseBackupApiTests
         result.Success.Should().BeTrue();
         result.Value.Should().BeEquivalentTo(accepted);
         await producer.Received(1).RequestAsync<RequestDatabaseBackupCommand, DatabaseRecoveryOperationId, GuidResult>(
-            Arg.Is<ActorSubject>(subject => subject.ActorType == ActorType.Command && subject.Name == DatabaseBackupCommand.Actor && subject.Verb == command.Verb),
+            Arg.Is<ActorSubject>(subject => subject.ActorType == ActorType.Command && subject.Name == DatabaseBackupCommandRoute.Actor && subject.Verb == command.Verb),
             Arg.Is<RequestDatabaseBackupCommand>(sent => sent.CommandId == requestId && sent.EntityId.Value == requestId),
             Arg.Is<DatabaseRecoveryOperationId>(id => id.Value == requestId),
             CancellationToken.None);
@@ -82,9 +84,43 @@ public sealed class DatabaseBackupApiTests
 
         result.Value.Should().BeEquivalentTo(rows);
         await producer.Received(1).RequestAsync<DatabaseBackupHealthReadModel[], GetDatabaseBackupServiceHealthQuery>(
-            Arg.Is<ActorSubject>(subject => subject.ActorType == ActorType.Query && subject.Name == DatabaseBackupQuery.Actor),
+            Arg.Is<ActorSubject>(subject => subject.ActorType == ActorType.Query && subject.Name == DatabaseBackupQueryRoute.Actor && subject.Verb == "GetServiceHealth"),
             Arg.Is<GetDatabaseBackupServiceHealthQuery>(query => query.EntityId.Value == requestId),
             CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Protection_set_query_uses_canonical_direct_wire_route()
+    {
+        var producer = Substitute.For<IActorProducer>();
+        var rows = Array.Empty<DatabaseProtectionSetReadModel>();
+        producer.RequestAsync<DatabaseProtectionSetReadModel[], GetDatabaseProtectionSetsQuery>(
+                Arg.Any<ActorSubject>(), Arg.Any<GetDatabaseProtectionSetsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ServiceResult<DatabaseProtectionSetReadModel[]>>(
+                new ServiceOk<DatabaseProtectionSetReadModel[]>(rows)));
+        var requestId = Guid.NewGuid();
+        var api = new DatabaseBackupQueryApi(producer);
+
+        var result = await api.GetProtectionSetsAsync(
+            new GetDatabaseProtectionSetsQuery { Request = ValidRequest(requestId) });
+
+        result.Success.Should().BeTrue();
+        await producer.Received(1).RequestAsync<DatabaseProtectionSetReadModel[], GetDatabaseProtectionSetsQuery>(
+            Arg.Is<ActorSubject>(subject => subject.Name == DatabaseBackupQueryRoute.Actor && subject.Verb == "GetProtectionSets"),
+            Arg.Is<GetDatabaseProtectionSetsQuery>(query => query.EntityId.Value == requestId),
+            Arg.Any<CancellationToken>());
+        var keys = typeof(GetDatabaseProtectionSetsQuery)
+            .GetProperties(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance)
+            .Select(property => (Key: property.GetCustomAttribute<KeyAttribute>()?.IntKey, property.Name))
+            .Where(item => item.Key.HasValue)
+            .OrderBy(item => item.Key)
+            .ToArray();
+        keys.Select(item => item.Key!.Value).Should().Equal(Enumerable.Range(0, 14));
+        keys[0].Name.Should().Be("Subject");
+        keys[1].Name.Should().Be("EntityId");
+        var query = new GetDatabaseProtectionSetsQuery { Request = ValidRequest(requestId) };
+        MessagePackSerializer.Deserialize<GetDatabaseProtectionSetsQuery>(
+            MessagePackSerializer.Serialize(query)).Request.RequestId.Should().Be(requestId);
     }
 
     [Fact]

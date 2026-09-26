@@ -10,9 +10,24 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Queries;
 
 /// <summary>Gets the terminal Regime Discovery projection for one workflow execution.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record GetRegimeDiscoveryQuery : IQuery<RegimeDiscoveryReadModel>
 {
+
+    /// <summary>Creates an empty query for serialization.</summary>
+    public GetRegimeDiscoveryQuery() { }
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="workflowId">The WorkflowId field.</param>
+    [SerializationConstructor]
+    public GetRegimeDiscoveryQuery(ActorSubject subject, IActorEntityId entityId, StrategyWorkflowId workflowId)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        WorkflowId = workflowId;
+    }
     /// <summary>Gets the Regime Discovery Query actor name.</summary>
     [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineQuery";
     /// <summary>Gets the query verb.</summary>
@@ -28,18 +43,5 @@ public sealed record GetRegimeDiscoveryQuery : IQuery<RegimeDiscoveryReadModel>
     /// <inheritdoc />
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     /// <inheritdoc />
-    [IgnoreMember] public string? QueryParams { get; init; }
-}
-
-/// <summary>Generates the current representative Regime Discovery decision reference without persistence.</summary>
-[MessagePackObject]
-public sealed record GetRegimeDiscoveryDecisionReferenceQuery : IQuery<RegimeDiscoveryDecisionReferenceDto[]>
-{
-    [IgnoreMember] public const string Actor = GetRegimeDiscoveryQuery.Actor;
-    [IgnoreMember] public const string Verb = "GetDecisionReference";
-    [IgnoreMember] public const int ErrorId = 23205;
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     [IgnoreMember] public string? QueryParams { get; init; }
 }

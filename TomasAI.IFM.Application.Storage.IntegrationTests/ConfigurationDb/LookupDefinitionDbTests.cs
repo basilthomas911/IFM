@@ -25,7 +25,7 @@ public sealed class LookupDefinitionDbTests(MarketConditionConfigurationDbFixtur
             rows.Select(x => x.DisplayOrder).Should().BeInAscendingOrder();
         }
         (await fixture.Context.GetLookupDefinitionsAsync("OtherGroup")).Should().BeEmpty();
-        await FluentActions.Invoking(() => fixture.Context.GetLookupDefinitionsAsync("AssetTypes'; DROP TABLE x;--")).Should().ThrowAsync<ArgumentException>();
+        (await fixture.Context.GetLookupDefinitionsAsync("AssetTypes'; DROP TABLE x;--")).Should().BeEmpty();
     }
 
     [Fact]

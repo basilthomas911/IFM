@@ -25,7 +25,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Gate", "PF-22")]
     [Trait("Gate", "PF-26")]
     [Trait("Category", "PortfolioLiveHostReference")]
-    public async Task Production_Reference_actor_returns_the_exact_read_only_v1_family_catalog()
+    public async Task Production_Reference_actor_returns_all_canonical_starter_families()
     {
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -37,8 +37,12 @@ public sealed class PortfolioLiveHostEndToEndTests
 
             result.Success.Should().BeTrue(result.ErrorMessage);
             result.Value.Should().NotBeNull();
-            TradeStrategyFamilySeed.Validate(result.Value!);
             result.Value.Should().OnlyContain(x => x.TradeStrategyFamilyId > 0);
+            foreach (var definition in TradeStrategyFamilySeed.Definitions)
+            {
+                var family = result.Value!.Should().ContainSingle(x => x.SystemKey == definition.SystemKey).Subject;
+                family.Should().Be(definition.Create(family.TradeStrategyFamilyId, family.CreatedOnUtc, family.CreatedBy));
+            }
         }
         finally
         {

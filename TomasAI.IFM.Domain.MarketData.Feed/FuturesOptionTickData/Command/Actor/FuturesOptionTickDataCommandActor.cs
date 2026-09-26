@@ -145,8 +145,8 @@ public class FuturesOptionTickDataCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateBaseContract(e.BaseContract, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName)
-                .ValidateMaturityDate(e.MaturityDate, e.CommandName)
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                .ValidateDateOnly(e.MaturityDate, e.CommandName, "MaturityDate")
                 .ValidateRiskFreeRate(e.RiskFreeRate, e.CommandName);
         },
         [typeof(StopFuturesOptionTickDataStreamingCommand)] = static cmd => {

@@ -166,19 +166,4 @@ DO $$ BEGIN
 END $$;
 """;
 
-    internal static string DefinitionJson => """
-jsonb_build_object('Key',jsonb_build_object('Kind',v.kind,'Id',v.id,'Version',v.version),
-'Code',i.code,'Name',v.name,'Description',v.description,'SchemaVersion',v.schema_version,
-'Parent',CASE WHEN v.parent_id IS NULL THEN NULL ELSE jsonb_build_object('Kind',v.parent_kind,'Id',v.parent_id,'Version',v.parent_version) END,
-'Horizon',v.horizon,'Side',v.side,'Bias',v.bias,'PremiumMode',v.premium_mode,'Settings',v.settings_json)
-""" + string.Concat(Children.Select(c => $" || jsonb_build_object('{c.Property}',COALESCE((SELECT jsonb_agg({c.ReadJson}) FROM {Prefix}{c.Name} c WHERE c.owner_kind=v.kind AND c.owner_id=v.id AND c.owner_version=v.version),'[]'::jsonb))"));
-
-    internal static string Exact => $"SELECT ({DefinitionJson})::text,v.content_sha256,v.status,v.created_utc,v.created_by,v.effective_from_utc,v.published_by,v.retired_at_utc,v.retired_by FROM {Prefix}strategy_catalog_version v JOIN {Prefix}strategy_catalog_identity i USING(kind,id) WHERE v.kind=$1 AND v.id=$2 AND v.version=$3";
-
-    internal static string InsertChildren(CatalogChildTable c) => $"""
-WITH input AS (SELECT $1::jsonb AS d)
-INSERT INTO {Prefix}{c.Name}(owner_kind,owner_id,owner_version,{c.InsertColumns})
-SELECT (d->'Key'->>'Kind')::smallint,(d->'Key'->>'Id')::uuid,(d->'Key'->>'Version')::integer,{c.InsertValues}
-FROM input CROSS JOIN LATERAL jsonb_array_elements(d->'{c.Property}') j;
-""";
 }

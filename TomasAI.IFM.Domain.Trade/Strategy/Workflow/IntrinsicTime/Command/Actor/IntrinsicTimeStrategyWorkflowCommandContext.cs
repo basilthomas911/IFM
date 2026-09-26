@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -63,6 +64,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext
         IDbContextFactory dbFactory,
         IBlackboardService blackboardService,
         RegimeDiscoveryExecutionOptions executionOptions,
+        IntrinsicTimeStrategyWorkflowOptions workflowOptions,
         ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
     {
@@ -70,6 +72,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext
         BlackboardService = IsArgumentNull.Set(blackboardService);
         TimeProvider = TimeProvider.System;
         ExecutionOptions = IsArgumentNull.Set(executionOptions);
+        WorkflowStartsEnabled = IsArgumentNull.Set(workflowOptions).Enabled;
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -87,6 +90,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext
     public TimeProvider TimeProvider { get; }
     /// <inheritdoc />
     public RegimeDiscoveryExecutionOptions ExecutionOptions { get; }
+    /// <summary>Gets whether this host admits new signal-triggered workflows.</summary>
+    public bool WorkflowStartsEnabled { get; }
     /// <inheritdoc />
     public ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger { get; }
     /// <inheritdoc />

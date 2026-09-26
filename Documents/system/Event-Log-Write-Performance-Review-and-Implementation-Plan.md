@@ -160,7 +160,7 @@ Paths are relative to the repository root.
 - TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceActorDbContext.cs: routing, snapshot/replay boundaries, atomic audit path.
 - TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceDbSql.cs: stream-ordered queries, snapshot selection, migration-compatible SQL.
 - TomasAI.IFM.Application.Storage/EventSourceDb/Schema/EventSourceSchemaSql.cs and EventSourceSchemaDb.cs: coordinated schema/bootstrap changes.
-- TomasAI.IFM.Application.Storage/CommandAudit/CommandAuditPostgres.cs: preserve atomic command reservations and hash conflict behavior.
+- TomasAI.IFM.Application.Storage/EventSourceDb/CommandAudit/CommandAuditPostgres.cs: preserve atomic command reservations and hash conflict behavior.
 - TomasAI.IFM.Application.Storage/PortfolioDb/PortfolioDbSql.cs: equivalent database financial fence.
 - Storage integration tests, event-log benchmarks, and TomasAI.IFM.Domain.Portfolio.IntegrationTests/Persistence/LegacyFinancialWriterFenceIntegrationTests.cs: expanded qualification.
 

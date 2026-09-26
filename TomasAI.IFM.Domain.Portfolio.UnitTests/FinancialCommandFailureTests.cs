@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 

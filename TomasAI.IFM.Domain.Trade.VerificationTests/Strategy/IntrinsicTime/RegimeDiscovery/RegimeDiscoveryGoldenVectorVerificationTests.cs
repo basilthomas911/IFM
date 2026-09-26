@@ -16,6 +16,7 @@ public sealed class RegimeDiscoveryGoldenVectorVerificationTests
         TimeFrameType.Monthly
     };
 
+    /// <summary>Verifies exact golden scores with analytics freshness and authoritative trigger evidence.</summary>
     [Theory]
     [MemberData(nameof(SupportedHorizons))]
     public async Task Trending_up_is_the_same_authoritative_result_for_every_supported_horizon(
@@ -27,8 +28,11 @@ public sealed class RegimeDiscoveryGoldenVectorVerificationTests
         result.MatchScenario(RegimeDiscoveryScenarioCatalog.TrendingUp);
         result.Trend.Confidence.Should().Be(0.982500m);
         result.Volatility.Confidence.Should().Be(0.959719m);
-        result.MarketStructure.Confidence.Should().Be(0.924900m);
-        result.Decision.Confidence.Should().Be(0.938330m);
+        // Trigger ITI freshness is 1.0, while cached analytics retain the fixture's 0.95.
+        // Structure confidence increases by 0.35 * 0.15 * (1.0 - 0.95) = 0.002625.
+        result.MarketStructure.Confidence.Should().Be(0.927525m);
+        // Fusion rounds the 40/30/30 specialist confidence mix, then applies directional alignment.
+        result.Decision.Confidence.Should().Be(0.939100m);
         result.OverallQuality.Should().Be(RegimeOverallQuality.High);
         result.SupportingEvidence.Select(value => value.TimeFrame).Distinct().Should()
             .BeSubsetOf(RegimeDiscoveryScenarioDataBuilder.CreateParameterSet(horizon)
@@ -81,6 +85,7 @@ public sealed class RegimeDiscoveryGoldenVectorVerificationTests
         result.OverallQuality.Should().Be(RegimeOverallQuality.Degraded);
     }
 
+    /// <summary>Requires complete golden results before comparing sequential and parallel serialization.</summary>
     [Fact]
     public async Task Sequential_and_parallel_golden_results_are_byte_equivalent()
     {
@@ -92,6 +97,8 @@ public sealed class RegimeDiscoveryGoldenVectorVerificationTests
         var sequential = await model.CalculateAsync(input, RegimeDiscoveryExecutionMode.Sequential);
         var parallel = await model.CalculateAsync(input, RegimeDiscoveryExecutionMode.ThreadPoolParallel);
 
+        sequential.MatchScenario(RegimeDiscoveryScenarioCatalog.TrendingUp);
+        parallel.MatchScenario(RegimeDiscoveryScenarioCatalog.TrendingUp);
         MessagePackSerializer.Serialize(parallel).Should().Equal(MessagePackSerializer.Serialize(sequential));
     }
 

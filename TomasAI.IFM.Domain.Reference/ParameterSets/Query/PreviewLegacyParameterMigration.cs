@@ -19,7 +19,7 @@ public static class PreviewLegacyParameterMigration
         if (query.SetId == Guid.Empty || query.Version <= 0)
             throw new ArgumentException("PARAM.LEGACY_IDENTITY_INVALID");
 
-        var row = (await context.ConfigurationDb.ReadLegacyParameterVersionsAsync(query.SetId, query.Version, token: token)).SingleOrDefault()
+        var row = (await context.ConfigurationDb.GetLegacyParameterVersionsAsync(query.SetId, query.Version, cancellationToken: token)).SingleOrDefault()
             ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
         var json = ParameterLegacyMigrationModel.Expand(row);
         using var doc = JsonDocument.Parse(json);

@@ -10,6 +10,21 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public sealed class GetTradeStrategySymbolsQuery : IQuery<TradeStrategySymbolReadModel[]>
 {
+
+    /// <summary>Creates an empty query for serialization.</summary>
+    public GetTradeStrategySymbolsQuery() { }
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="family">The Family field.</param>
+    [SerializationConstructor]
+    public GetTradeStrategySymbolsQuery(ActorSubject subject, IActorEntityId entityId, TradeStrategyFamilyType family)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        Family = family;
+    }
     [IgnoreMember] public const string Actor = "MarketDataQuery";
     [IgnoreMember] public const string Verb = "GetTradeStrategySymbols";
     [IgnoreMember] public const int ErrorId = 1062;

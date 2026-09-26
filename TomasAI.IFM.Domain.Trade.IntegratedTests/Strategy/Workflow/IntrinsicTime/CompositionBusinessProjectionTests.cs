@@ -181,7 +181,11 @@ public sealed partial class CompositionBusinessProjectionTests
             var f = new Fixture();
             var raw = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? throw new InvalidOperationException("Dedicated PostgreSQL test connection required.");
             var c = new NpgsqlConnectionStringBuilder(raw);
-            if (c.Host is not ("localhost" or "127.0.0.1") || c.Port != 5432 || c.Database != "event-source-test-db")
+            var conventional = c.Host is "localhost" or "127.0.0.1" &&
+                c.Port == 5432 && c.Database == "event-source-test-db";
+            var isolated = c.Host == "127.0.0.1" && c.Port == 25432 &&
+                System.Text.RegularExpressions.Regex.IsMatch(c.Database ?? string.Empty, "^ifm_trade_integration_[0-9]{8}$");
+            if (!conventional && !isolated)
                 throw new InvalidOperationException("Refusing a non-test database.");
             c.SearchPath = f.schema + ",public";
             f.db = new TomasAI.IFM.Framework.Storage.Postgres.PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(c.ConnectionString);

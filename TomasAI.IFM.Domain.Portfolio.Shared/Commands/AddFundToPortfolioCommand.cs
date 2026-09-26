@@ -13,6 +13,34 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record AddFundToPortfolioCommand : ICommand<PortfolioId>, ICommandRetryIdentity
 {
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="fundId">The FundId field.</param>
+    /// <param name="expectedPortfolioVersion">The ExpectedPortfolioVersion field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
+    /// <param name="access">The Access field.</param>
+    [SerializationConstructor]
+    public AddFundToPortfolioCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioId entityId, int errorCode, BoundedContextName routeTo, PortfolioFundId fundId, long expectedPortfolioVersion, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        FundId = fundId;
+        ExpectedPortfolioVersion = expectedPortfolioVersion;
+        CorrelationId = correlationId;
+        RequestedOnUtc = requestedOnUtc;
+        Access = access;
+    }
     public const string Actor = "PortfolioCommand";
     public const string Verb = "AddFundToPortfolio";
     public const int ErrorId = 34000;

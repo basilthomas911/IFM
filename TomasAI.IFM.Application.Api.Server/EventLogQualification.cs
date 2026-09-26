@@ -13,7 +13,7 @@ public sealed class EventLogQualification
     public static EventLogQualification? Active { get; private set; }
     public string RunId { get; }
     public IReadOnlyDictionary<string, string?> Settings { get; }
-    public EventLogQualification(string runId, string environment, string artifactRoot)
+    public EventLogQualification(string runId, string environment, string artifactRoot, bool useExistingScylla = false)
     {
         if (environment != "Test" || !Regex.IsMatch(runId, "\\A[a-f0-9]{12}\\z"))
             throw new InvalidOperationException("Qualification requires environment Test and a 12-digit lowercase hexadecimal run ID.");
@@ -46,9 +46,12 @@ public sealed class EventLogQualification
         };
         foreach (var key in new[] { "EventSourceActor", "MarketDataService", "Configuration", "SystemAdmin", "Portfolio", "Log", "SequenceId" })
             settings[$"ConnectionStrings:{key}DbConnection"] = pg;
+        // A separately approved AIO-constrained run may use uniquely named keyspaces
+        // on the existing local Scylla listener; all other qualification routing stays fixed.
+        var scyllaPort = useExistingScylla ? 9042 : 29042;
         foreach (var key in new[] { "Trade", "Fund", "Reference", "OptionPricer", "MarketData", "Securities" })
             settings[$"ConnectionStrings:{key}DbConnection"] =
-                $"Contact Points=127.0.0.1;Port=29042;Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
+                $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
         foreach (var key in new[] { "CommandServerBaseUri", "QueryServerBaseUri", "TelemetryServerBaseUri", "PredictiveModelServerBaseUri" })
             settings[$"AppSettings:{key}"] = HttpUrl;
         Settings = settings;
@@ -79,8 +82,9 @@ public sealed class EventLogQualification
             || a.StartsWith("--publish-", StringComparison.Ordinal) || a.StartsWith("--retain-", StringComparison.Ordinal)))
             throw new InvalidOperationException("Qualification cannot combine with maintenance modes.");
         var run = flags[0][Flag.Length..];
+        var useExistingScylla = Environment.GetEnvironmentVariable("IFM_QUALIFICATION_EXISTING_SCYLLA") == "1";
         var qualification = new EventLogQualification(run, builder.Environment.EnvironmentName,
-            Path.Combine(AppContext.BaseDirectory, "qualification", run));
+            Path.Combine(AppContext.BaseDirectory, "qualification", run), useExistingScylla);
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DATABENTO_API_KEY")))
             throw new InvalidOperationException("Remove live Databento credentials from the qualification child environment.");
         builder.Configuration.AddInMemoryCollection(qualification.Settings);

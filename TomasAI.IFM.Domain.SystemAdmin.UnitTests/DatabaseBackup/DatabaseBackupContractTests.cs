@@ -114,10 +114,10 @@ public sealed class DatabaseBackupContractTests
         var assembly = typeof(DatabaseRecoveryOperationId).Assembly;
         var actorContracts = assembly.GetTypes()
             .Where(type => !type.IsAbstract && type.Namespace?.Contains(".DatabaseBackup.", StringComparison.Ordinal) == true)
-            .Where(type => typeof(DatabaseBackupCommand).IsAssignableFrom(type)
+            .Where(type => typeof(IDatabaseBackupCommand).IsAssignableFrom(type)
                 || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type)
                 || typeof(DatabaseBackupEventContract).IsAssignableFrom(type)
-                || typeof(DatabaseBackupQuery).IsAssignableFrom(type))
+                || typeof(IDatabaseBackupQuery).IsAssignableFrom(type))
             .OrderBy(type => type.FullName)
             .ToArray();
 
@@ -148,14 +148,14 @@ public sealed class DatabaseBackupContractTests
 
     static void PopulateCommonContract(object instance)
     {
-        Set(instance, nameof(DatabaseBackupCommand.CommandId), Request.RequestId);
-        Set(instance, nameof(DatabaseBackupCommand.EntityId), OperationId);
-        Set(instance, nameof(DatabaseBackupCommand.Request), Request);
+        Set(instance, nameof(RequestDatabaseBackupCommand.CommandId), Request.RequestId);
+        Set(instance, nameof(RequestDatabaseBackupCommand.EntityId), OperationId);
+        Set(instance, nameof(RequestDatabaseBackupCommand.Request), Request);
         Set(instance, nameof(DatabaseBackupInternalCommand.Source), Source);
         Set(instance, nameof(DatabaseBackupEventContract.Id), Source.SourceEventId);
         Set(instance, nameof(DatabaseBackupEventContract.Source), Source);
-        Set(instance, nameof(DatabaseBackupQuery.Request), Request);
-        Set(instance, nameof(DatabaseBackupQuery.EntityId), OperationId);
+        Set(instance, nameof(GetDatabaseBackupOperationQuery.Request), Request);
+        Set(instance, nameof(GetDatabaseBackupOperationQuery.EntityId), OperationId);
         Set(instance, "Subject", new ActorSubject(ActorType.Command, "DatabaseBackup", "ContractTest", OperationId.Format()));
     }
 

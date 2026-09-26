@@ -3,7 +3,7 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
 **Created:** 2026-08-14  
-**Last updated:** 2026-09-21
+**Last updated:** 2026-09-24
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -1489,7 +1489,7 @@ For example, `Fund/Command/Model` may contain computation used only while handli
 
 The concrete message pattern established by `Domain.OptionPricer.Shared` is the standard for actor messages. A command, query, or event has its own named, non-generic CLR message type. A local alias for a closed generic envelope is not a message contract, and a generic transport envelope must not be used to manufacture semantic command or query identities.
 
-Shared message source is organized by owner and message role. The domain root uses `Commands`, `Queries`, and `Events`; a subdomain mirrors those folders beneath its owning Shared folder. Each command and query resides in its own source file. Each domain-event family resides in its own source file; that file may also contain the corresponding complete and failure event variants when those variants form one lifecycle contract.
+Shared message source is organized by owner and message role. The domain root uses `Commands`, `Queries`, and `Events`; a subdomain mirrors those folders beneath its owning Shared folder. Each concrete command and query resides in its own source file. Each concrete domain event resides in its own source file, which may additionally contain only that event's matching complete and failure variants. Do not combine independent message families or mix commands, queries, and events in one file. Shared abstract bases and non-message support types are not message families.
 
 Every concrete message:
 
@@ -1504,11 +1504,29 @@ Command keys `0..5` retain the standard actor-command envelope in this order: `C
 
 Query keys `0` and `1` retain `Subject` and `EntityId`. Query-specific properties begin at key `2`. `ErrorCode` and `QueryParams` remain ignored derived members unless a separately approved query contract explicitly makes them wire state. A query-parameter value object may implement entity identity or formatting behavior, but the concrete query still declares its own serialized request fields.
 
-Domain-event keys `0..7` retain the standard event metadata in this order: `Subject`, `Id`, `EntityId`, `EventId`, `CommandId`, `AggregateId`, `EventSource`, and `ReceivedOn`. Event-specific properties begin at key `8`. Complete and failure variants likewise declare their entire wire schema directly; they do not inherit serialized keys from the domain event.
+Domain-event keys `0..7` retain the standard event metadata in this order: `Subject`, `Id`, `EntityId`, `EventId`, `CommandId`, `AggregateId`, `EventSource`, and `ReceivedOn`. Event-specific properties begin at key `8`. Complete and failure variants have their own distinct, permanent lifecycle wire layouts. They likewise declare their entire schema directly and do not inherit serialized keys from the domain event; the domain-event key order is not imposed on these variants.
 
 Each concrete message provides a public parameterless constructor for serializers. Where callers construct the message from domain input, it also provides a focused public application constructor that establishes its required identifiers, routing defaults, and error defaults. A public `[SerializationConstructor]` lists every serialized value in numeric key order. Published keys are permanent: an existing property or key is never removed, renumbered, repurposed, or reordered, and additions append new keys.
 
 All public message constructors and public message methods require XML documentation. Documentation includes every parameter, type parameter, return value, and declared exception where applicable. This requirement is stricter than legacy examples that contain undocumented event conversion methods or serialization constructors; those omissions are not copied into new or migrated contracts.
+
+## 13.5 Development-only canonical contract migration (2026-09-24)
+
+This repository has no production producers or production wire-compatibility requirement.
+Each actor operation has one unsuffixed concrete command, query, or event and one canonical
+actor verb. Do not retain parallel V2 message types, V2 verbs, inherited legacy wire
+contracts, or ingress adapters solely to preserve development history.
+
+When changing a development MessagePack layout, migrate all in-repository producers,
+actor maps, handlers, storage calls, and tests together. Pin the new direct numeric-key
+schema and round-trip it. Development messages encoded with an abandoned layout must
+be drained or regenerated before the new route is used; never silently reinterpret
+old bytes as a different schema.
+
+Portfolio root queries remain on `PortfolioQuery`; Fund and Financial Policy queries
+use their owning child actors. Capacity Reservation and General Ledger queries likewise
+use their dedicated routes. Each actor has matching parse, receive, and exception maps
+and one handler per concrete query.
 
 ## 14. Related documents
 
@@ -1528,6 +1546,7 @@ All public message constructors and public message methods require XML documenta
 
 | Date | Revision |
 | --- | --- |
+| 2026-09-24 | Approved versioned replacements for incompatible published MessagePack layouts and split Fund/FinancialPolicy Query actor routes with caller migration. |
 | 2026-09-21 | Defined cohesive actor groups per domain and subdomain, required mirrored ownership in each `*.Shared` project, and made `Model` an optional actor-role-specific folder for pure internal computation only. |
 | 2026-09-21 | Adopted the OptionPricer-style concrete Shared message convention: one named non-generic command/query type per file, one event family per file, full direct MessagePack schemas without serialized inheritance or payload envelopes, permanent keys, explicit constructors, and complete XML documentation for public constructors and methods. |
 | 2026-09-15 | Defined the system-wide bar-publishing Command actor rule: acknowledge only a durably proven interval repeat, publish valid older or overlapping distinct intervals, distinguish latest appended from newest market interval, and qualify each bar actor's separate lifecycle. |

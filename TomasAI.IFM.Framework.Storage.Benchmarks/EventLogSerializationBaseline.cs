@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Newtonsoft.Json.Linq;
-using TomasAI.IFM.Application.Storage.CommandLogBenchmark;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandLogBenchmark;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventSourcing;

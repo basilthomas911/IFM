@@ -32,8 +32,26 @@ public static class CompositionSnapshotAdapter
         { Selection = x.Selection is null ? null : To(x.Selection) };
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionInstrumentSnapshot From(TomasAI.IFM.Application.MarketData.Pricing.CompositionInstrumentSnapshot x) => new(From(x.Instrument), x.Valuation is null ? null : From(x.Valuation));
     public static TomasAI.IFM.Application.MarketData.Pricing.CompositionInstrumentSnapshot To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionInstrumentSnapshot x) => new(To(x.Instrument), x.Valuation is null ? null : To(x.Valuation));
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.MarketCompositionSnapshot From(TomasAI.IFM.Application.MarketData.Pricing.MarketCompositionSnapshot x) => new(x.SchemaVersion, x.SnapshotId, x.ScopeId, x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc, x.Instruments.Select(From).ToImmutableArray(), x.Digest);
-    public static TomasAI.IFM.Application.MarketData.Pricing.MarketCompositionSnapshot To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.MarketCompositionSnapshot x) => new(x.SchemaVersion, x.SnapshotId, x.ScopeId, x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc, x.Instruments.Select(To).ToImmutableArray(), x.Digest);
+    /// <summary>Converts an application snapshot and seals the digest for its domain pricing representation.</summary>
+    /// <param name="x">The application pricing snapshot to convert.</param>
+    /// <returns>The converted domain snapshot with its representation-specific semantic digest.</returns>
+    public static DomainPricing.MarketCompositionSnapshot From(AppPricing.MarketCompositionSnapshot x)
+    {
+        var converted = new DomainPricing.MarketCompositionSnapshot(x.SchemaVersion, x.SnapshotId, x.ScopeId,
+            x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc,
+            x.Instruments.Select(From).ToImmutableArray(), "");
+        return converted with { Digest = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.CompositionSemanticHash.Compute(converted) };
+    }
+    /// <summary>Converts a domain snapshot and seals the digest for its application pricing representation.</summary>
+    /// <param name="x">The domain pricing snapshot to convert.</param>
+    /// <returns>The converted application snapshot with its representation-specific semantic digest.</returns>
+    public static AppPricing.MarketCompositionSnapshot To(DomainPricing.MarketCompositionSnapshot x)
+    {
+        var converted = new AppPricing.MarketCompositionSnapshot(x.SchemaVersion, x.SnapshotId, x.ScopeId,
+            x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc,
+            x.Instruments.Select(To).ToImmutableArray(), "");
+        return converted with { Digest = AppPricing.PricingSemanticHash.Compute(converted) };
+    }
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention x) => new()
     {
         SchemaVersion = x.SchemaVersion,

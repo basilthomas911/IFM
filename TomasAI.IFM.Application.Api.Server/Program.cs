@@ -108,12 +108,13 @@ try
         await app.Services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
         await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>().EnsureAsync();
         var workflowOptions = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>();
         if (app.Environment.IsDevelopment() && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
         {
             var defaults = await app.Services
-                .GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.MarketConditionAssessmentDefaultProvisioner>()
+                .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>()
                 .EnsureAsync(workflowOptions.MarketConditionAssessmentProfileId, DateTime.UtcNow, "IFM Development startup");
             Log.Information(
                 "Development Market Condition Assessment defaults ready for {MarketProfileId}: {ExistingProfiles} existing, {PublishedProfiles} published, {ReplacedProfiles} replaced",

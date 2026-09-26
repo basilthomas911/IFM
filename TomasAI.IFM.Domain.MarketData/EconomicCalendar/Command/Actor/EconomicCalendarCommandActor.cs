@@ -116,7 +116,7 @@ public class EconomicCalendarCommandActor(
         [typeof(AddEconomicCalendarCommand)] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
         [typeof(ChangeEconomicCalendarCommand)] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),
         [typeof(RemoveEconomicCalendarCommand)] = (cmd, context, state) => (cmd as RemoveEconomicCalendarCommand)!.Execute(state),
-        [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => (cmd as ImportEconomicCalendarsCommand)!.Execute(state)
+        [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => ((ImportEconomicCalendarsCommand)cmd).Execute(state)
     };
 
     /// <summary>
@@ -177,9 +177,8 @@ public class EconomicCalendarCommandActor(
             var e = (ImportEconomicCalendarsCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEconomicCalendarId(e.EntityId)
-                .ValidateImportDate(e.ImportedDate, e.CommandName)
+                .ValidateDateTime(e.ImportedDate, e.CommandName, "ImportDate")
                 .ValidateImportCountryCodes(e.CountryCodes, e.CommandName);
         }
             

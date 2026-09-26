@@ -157,15 +157,18 @@ public static class PortfolioDbSql
         public static class FinancialHistoryProjection
         {
             public const string Create01 = """
-        CREATE TABLE IF NOT EXISTS financial_operation_by_portfolio_month(
-          portfolioId int, month int, financialRevision bigint, operationId uuid, sourceEventId bigint,
-          eventType text, committedAtUtc timestamp, payloadJson text,
-          PRIMARY KEY((portfolioId,month),financialRevision,operationId))
-          WITH CLUSTERING ORDER BY(financialRevision DESC,operationId ASC);
+        CREATE TABLE IF NOT EXISTS portfolio.financial_operation_by_portfolio_month(
+          portfolio_id int NOT NULL, month int NOT NULL, financial_revision bigint NOT NULL,
+          operation_id uuid NOT NULL, source_event_id bigint NOT NULL,
+          event_type text NOT NULL, committed_at_utc timestamptz NOT NULL,
+          payload_json jsonb NOT NULL,
+          PRIMARY KEY(portfolio_id,month,financial_revision,operation_id));
         """;
             public const string Insert01 = """
-        INSERT INTO financial_operation_by_portfolio_month(portfolioId,month,financialRevision,operationId,sourceEventId,eventType,committedAtUtc,payloadJson)
-        VALUES(?,?,?,?,?,?,?,?) USING TIMESTAMP ?;
+        INSERT INTO portfolio.financial_operation_by_portfolio_month(
+          portfolio_id,month,financial_revision,operation_id,source_event_id,event_type,committed_at_utc,payload_json)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT(portfolio_id,month,financial_revision,operation_id) DO NOTHING;
         """;
         }
 
@@ -819,7 +822,7 @@ public static class PortfolioDbSql
               target_position_id text NOT NULL UNIQUE,target_order_id int NOT NULL,target_trade_id int NOT NULL,
               close_order_id int NOT NULL UNIQUE REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,
               accepted_at_utc timestamptz NOT NULL);
-            """;
+            """ + Financial.FinancialHistoryProjection.Create01;
         public const string Drop="DROP SCHEMA IF EXISTS portfolio CASCADE;";
     }
 

@@ -10,9 +10,54 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record ExecuteTradeSelectionPipelineCommand : ICommand<TradeSelectionExecutionId>
 {
+
+    /// <summary>Creates an empty command for serialization and existing callers.</summary>
+    public ExecuteTradeSelectionPipelineCommand() { }
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="schemaVersion">The SchemaVersion field.</param>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="inputWorkflowRevision">The InputWorkflowRevision field.</param>
+    /// <param name="workflowView">The WorkflowView field.</param>
+    /// <param name="triggerEvent">The TriggerEvent field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="causationId">The CausationId field.</param>
+    /// <param name="requestedAtUtc">The RequestedAtUtc field.</param>
+    /// <param name="expiresAtUtc">The ExpiresAtUtc field.</param>
+    /// <param name="selectionBinding">The SelectionBinding field.</param>
+    /// <param name="evaluatedAtUtc">The EvaluatedAtUtc field.</param>
+    /// <param name="regimeResultEnvelope">The RegimeResultEnvelope field.</param>
+    /// <param name="assessmentResultEnvelope">The AssessmentResultEnvelope field.</param>
+    [SerializationConstructor]
+    public ExecuteTradeSelectionPipelineCommand(short schemaVersion, Guid commandId, ActorSubject subject, bool postEvents, TradeSelectionExecutionId entityId, int errorCode, BoundedContextName routeTo, long inputWorkflowRevision, IntrinsicTimeStrategyWorkflowView workflowView, FuturesItiSignalGeneratedEvent triggerEvent, Guid correlationId, Guid causationId, DateTime requestedAtUtc, DateTime expiresAtUtc, TradeSelection.TradeSelectionBinding selectionBinding, DateTime evaluatedAtUtc, StrategyStageResultEnvelope regimeResultEnvelope, StrategyStageResultEnvelope assessmentResultEnvelope)
+    {
+        SchemaVersion = schemaVersion;
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        InputWorkflowRevision = inputWorkflowRevision;
+        WorkflowView = workflowView;
+        TriggerEvent = triggerEvent;
+        CorrelationId = correlationId;
+        CausationId = causationId;
+        RequestedAtUtc = requestedAtUtc;
+        ExpiresAtUtc = expiresAtUtc;
+        SelectionBinding = selectionBinding;
+        EvaluatedAtUtc = evaluatedAtUtc;
+        RegimeResultEnvelope = regimeResultEnvelope;
+        AssessmentResultEnvelope = assessmentResultEnvelope;
+    }
     public const string Actor = "TradeSelectionPipelineFunction";
     public const string Verb = "Execute";
     public const int ErrorId = 23023;

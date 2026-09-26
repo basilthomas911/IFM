@@ -76,7 +76,7 @@ public sealed class PortfolioNatsClientTests
 
         result.Success.Should().BeTrue();
         producer.Subject.Name.Should().Be(GetPortfolioQuery.Actor);
-        producer.Subject.Verb.Should().Be("GetPortfolio");
+        producer.Subject.Verb.Should().Be(GetPortfolioQuery.Verb);
         producer.Subject.EntityId.Should().Be("101");
         var query = producer.Query.Should().BeOfType<GetPortfolioQuery>().Subject;
         query.PortfolioId.Should().Be(101);
@@ -87,6 +87,113 @@ public sealed class PortfolioNatsClientTests
         var copy = MessagePackSerializer.Deserialize<GetPortfolioQuery>(MessagePackSerializer.Serialize(query));
         copy.PortfolioId.Should().Be(query.PortfolioId);
         copy.Version.Should().Be(query.Version);
+    }
+
+    [Fact]
+    public async Task Fund_queries_use_the_split_Fund_actor_route()
+    {
+        var producer = new CapturingProducer();
+        var api = new PortfolioQueryApi(producer);
+
+        await api.GetFundAsync(101, 202);
+
+        producer.Subject.Name.Should().Be(PortfolioQueryRoutes.Fund);
+        producer.Subject.Verb.Should().Be(GetFundQuery.Verb);
+        var query = producer.Query.Should().BeOfType<GetFundQuery>()
+            .Subject;
+        query.Subject.Name.Should().Be(PortfolioQueryRoutes.Fund);
+        var copy = MessagePackSerializer.Deserialize<GetFundQuery>(MessagePackSerializer.Serialize(query));
+        copy.PortfolioId.Should().Be(101);
+        copy.FundId.Should().Be(202);
+        copy.Subject.Name.Should().Be(PortfolioQueryRoutes.Fund);
+    }
+
+    [Fact]
+    public async Task Every_Fund_query_api_method_sends_a_canonical_contract_to_the_Fund_actor()
+    {
+        var producer = new CapturingProducer();
+        var api = new PortfolioQueryApi(producer);
+        var now = DateTime.UtcNow;
+        var workflowId = Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
+
+        async Task AssertRoute(Task request, Type contract)
+        {
+            await request;
+            producer.Subject.Name.Should().Be(PortfolioQueryRoutes.Fund);
+            producer.Query.Should().BeOfType(contract);
+            producer.Subject.Verb.Should().NotEndWith("V2");
+        }
+
+        await AssertRoute(api.GetFundAsync(101, 202), typeof(GetFundQuery));
+        await AssertRoute(api.GetFundRevisionAsync(101, 202), typeof(GetFundRevisionQuery));
+        await AssertRoute(api.GetFundsAsync(101, null, 20), typeof(GetFundsQuery));
+        await AssertRoute(api.GetFundAllocationAsync(101, 202), typeof(GetFundAllocationQuery));
+        await AssertRoute(api.GetFundRiskEnvelopeAsync(101, 202, now), typeof(GetFundRiskEnvelopeQuery));
+        await AssertRoute(api.GetAssignmentsAsync(101, 202, 1), typeof(GetFundTemplateAssignmentsQuery));
+        await AssertRoute(api.ResolveForSelectionAsync(101, 202, 2026, "Daily", "ES", now, workflowId, 1, correlationId), typeof(ResolveForSelectionQuery));
+        await AssertRoute(api.GetStrategySnapshotAsync(101, 2026, "Daily", "ES", "Futures", now, workflowId, 1, correlationId), typeof(GetPortfolioFundStrategySnapshotQuery));
+        await AssertRoute(api.GetOrderAsync(303), typeof(GetFundOrderByOrderIdQuery));
+        await AssertRoute(api.GetTradeAsync(404), typeof(GetFundOrderTradeByTradeIdQuery));
+        await AssertRoute(api.GetCompositionByWorkflowAsync(workflowId), typeof(GetFundCompositionByWorkflowQuery));
+        await AssertRoute(api.GetOrdersAsync(101, 202, new DateOnly(2026, 9, 1), 20), typeof(GetFundOrdersPageQuery));
+        await AssertRoute(api.GetOrderTradesAsync(303, 20), typeof(GetFundOrderTradesPageQuery));
+        await AssertRoute(api.GetStrategyReferenceCombinationsAsync(101, now), typeof(GetPortfolioFundStrategyReferenceCombinationsQuery));
+    }
+
+    [Fact]
+    public void GetFund_uses_the_canonical_Fund_route_and_direct_schema()
+    {
+        GetFundQuery.Actor.Should().Be(PortfolioQueryRoutes.Fund);
+        GetFundQuery.Verb.Should().Be("GetFund");
+        var keys = typeof(GetFundQuery).GetProperties()
+            .Select(property => property.GetCustomAttributes(typeof(KeyAttribute), false).Cast<KeyAttribute>().SingleOrDefault()?.IntKey)
+            .Where(key => key is not null).Select(key => key!.Value).Order().ToArray();
+        keys.Should().Equal(Enumerable.Range(0, 8));
+        var query = new GetFundQuery(101, 202, 3)
+        {
+            Subject = new(ActorType.Query, GetFundQuery.Actor, GetFundQuery.Verb, "101.202"),
+            EntityId = new("101.202")
+        };
+        var copy = MessagePackSerializer.Deserialize<GetFundQuery>(MessagePackSerializer.Serialize(query));
+        copy.Subject.Name.Should().Be(PortfolioQueryRoutes.Fund);
+        copy.Version.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Financial_policy_queries_use_the_split_policy_actor_route()
+    {
+        var producer = new CapturingProducer();
+        var api = new PortfolioQueryApi(producer);
+
+        await api.GetPolicyAsync(303);
+
+        producer.Subject.Name.Should().Be(PortfolioQueryRoutes.FinancialPolicy);
+        producer.Subject.Verb.Should().Be(GetPortfolioFinancialPolicyQuery.Verb);
+        producer.Query.Should().BeOfType<GetPortfolioFinancialPolicyQuery>()
+            .Subject.Subject.Name.Should().Be(PortfolioQueryRoutes.FinancialPolicy);
+        await api.GetPoliciesAsync(101, 20);
+        producer.Query.Should().BeOfType<GetPortfolioFinancialPoliciesQuery>();
+        producer.Subject.Name.Should().Be(PortfolioQueryRoutes.FinancialPolicy);
+        await api.GetActivePolicyAsync(101);
+        producer.Query.Should().BeOfType<GetActivePortfolioFinancialPolicyQuery>();
+        producer.Subject.Name.Should().Be(PortfolioQueryRoutes.FinancialPolicy);
+    }
+
+    [Fact]
+    public async Task Identity_allocation_uses_the_versioned_Portfolio_query_and_entity_key()
+    {
+        var producer = new CapturingProducer();
+        var api = new PortfolioIdentityApi(producer);
+
+        await api.AllocateFundIdAsync();
+
+        producer.Subject.Name.Should().Be(PortfolioQueryRoutes.Portfolio);
+        producer.Subject.Verb.Should().Be(AllocatePortfolioBusinessIdQuery.Verb);
+        producer.Subject.EntityId.Should().Be("Fund");
+        var query = producer.Query.Should().BeOfType<AllocatePortfolioBusinessIdQuery>().Subject;
+        query.EntityId.Should().Be(new ActorEntityId("Fund"));
+        query.Subject.Should().Be(producer.Subject);
     }
 
     [Fact]
@@ -133,7 +240,11 @@ public sealed class PortfolioNatsClientTests
         {
             Subject = subject;
             Query = query;
-            object result = typeof(TResult) == typeof(PortfolioReadModel) ? new PortfolioReadModel { PortfolioId = 101, PortfolioVersion = 2 } : Activator.CreateInstance<TResult>();
+            object result = typeof(TResult) == typeof(PortfolioReadModel)
+                ? new PortfolioReadModel { PortfolioId = 101, PortfolioVersion = 2 }
+                : typeof(TResult).IsArray
+                    ? Array.CreateInstance(typeof(TResult).GetElementType()!, 0)
+                    : Activator.CreateInstance<TResult>();
             return ValueTask.FromResult<ServiceResult<TResult>>(new ServiceOk<TResult>((TResult)result));
         }
         public ValueTask<ServiceResult<TResult>> RequestAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId) where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class => CaptureCommand<TCommand, TEntityId, TResult>(subject, command);

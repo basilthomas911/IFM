@@ -8,6 +8,29 @@ namespace TomasAI.IFM.Domain.Reference.Shared.Commands;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record ChangeTradeStrategyFamilyCommand : ICommand<ActorEntityId>
 {
+
+    /// <summary>Creates an empty command for serialization.</summary>
+    public ChangeTradeStrategyFamilyCommand() { }
+
+    /// <summary>Rehydrates the published command fields in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="request">The Request field.</param>
+    [SerializationConstructor]
+    public ChangeTradeStrategyFamilyCommand(Guid commandId, ActorSubject subject, bool postEvents, ActorEntityId entityId, int errorCode, BoundedContextName routeTo, ChangeTradeStrategyFamilyRequest request)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        Request = request;
+    }
     [IgnoreMember] public const string Actor = "TradeStrategyFamilyCommand";
     [IgnoreMember] public const string Verb = "Change";
     [IgnoreMember] public const int ErrorId = 8062;

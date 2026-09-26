@@ -86,11 +86,21 @@ The V-12 exit condition is not represented as fully green until:
 1. Reference BDD contains discoverable scenarios;
 2. the four skipped Feed transport tests and two skipped Trade Plan tests are enabled or explicitly retired;
 3. the Analytics integration test host completes deterministically; and
-4. the Market Data integration fixture no longer has an intermittent class-cleanup failure; and
-5. the remaining pre-existing domain-named primitive helpers in the global
-   `ValidationErrorsExtension` are either generalized as truly universal scalar rules or moved to
-   their owning domain validation folders.
+4. the Market Data integration fixture no longer has an intermittent class-cleanup failure.
 
 The exact-type validation-map conversion, map parity, compilation, and all runnable unit/BDD
-behavior are complete. The final validator-ownership cleanup and environment-backed qualification
-remain open V-12 exit items.
+behavior are complete. Environment-backed qualification remains open V-12 exit work.
+
+## Validator-ownership cleanup (2026-09-24)
+
+The global `ValidationErrorsExtension` now contains only universal command/entity-ID checks and
+field-parameterized `DateOnly`/`DateTime` checks. Unused domain-named helpers were removed.
+Futures-option contract-ID validation moved to the Market Data Securities contract validation
+folder; option-trade ID validation used by spread-distribution jobs moved to the Option Pricer
+job validation folder. The actor call sites retain their prior field-specific error text.
+
+The full solution builds with zero errors. Market Data, Feed, Securities, and Option Pricer unit
+suites pass (250, 519, 20, and 15 tests respectively). The Analytics suite passes 1,160 of 1,161;
+its existing `History_ReadsCompleteWindowAndReturnsRequestedPeriodChronologically` failure is
+unrelated to these validation paths. This cleanup closes the validator-ownership item above;
+it does not close the separately listed test-harness qualification gaps.

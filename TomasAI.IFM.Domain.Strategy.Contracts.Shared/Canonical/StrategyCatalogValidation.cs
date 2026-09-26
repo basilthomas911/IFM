@@ -30,7 +30,7 @@ public static class StrategyCatalogValidation
         ArgumentNullException.ThrowIfNull(source);
         var json = JsonSerializer.Serialize(source, JsonOptions);
         Require(Encoding.UTF8.GetByteCount(json) <= MaximumDefinitionBytes, "Catalog definition exceeds byte limit.");
-        var d = JsonSerializer.Deserialize<StrategyCatalogDefinition>(json, JsonOptions)!;
+        var d = Canonicalize(JsonSerializer.Deserialize<StrategyCatalogDefinition>(json, JsonOptions)!);
         ValidateKey(d.Key);
         Token(d.Code); Text(d.Name, 200); Text(d.Description, 4096, true);
         Require(d.SchemaVersion == 1, "Unsupported catalog schema version.");
@@ -109,6 +109,13 @@ public static class StrategyCatalogValidation
         Require(kind == StrategyCatalogKind.Deployment || (d.Products.Length == 0 && d.PipelineParameters.Length == 0 && d.Parameters.Length == 0 && d.LegacyFamilies.Length == 0), "Deployment relationships require a deployment.");
         if (kind == StrategyCatalogKind.ParameterSchema) ReadShape(d.Settings);
         if (kind == StrategyCatalogKind.Family) Require(!d.Settings.EnumerateObject().Any(), "Families contain grouping metadata only.");
+        return d;
+    }
+
+    /// <summary>Creates a defensive, deterministically ordered copy without validating caller input.</summary>
+    public static StrategyCatalogDefinition Canonicalize(StrategyCatalogDefinition source)
+    {
+        var d = JsonSerializer.Deserialize<StrategyCatalogDefinition>(JsonSerializer.Serialize(source, JsonOptions), JsonOptions)!;
         return d with
         {
             Families = Sort(d.Families), Structures = Sort(d.Structures), Variants = Sort(d.Variants),
@@ -123,7 +130,11 @@ public static class StrategyCatalogValidation
         };
     }
 
+    /// <summary>Validates, canonicalizes, and hashes a strategy catalog definition.</summary>
     public static string ContentHash(StrategyCatalogDefinition definition) => Sha(CanonicalJson(JsonSerializer.SerializeToElement(Freeze(definition), JsonOptions)));
+
+    /// <summary>Canonicalizes and hashes a strategy catalog definition whose validation is owned by the caller.</summary>
+    public static string CanonicalContentHash(StrategyCatalogDefinition definition) => Sha(CanonicalJson(JsonSerializer.SerializeToElement(Canonicalize(definition), JsonOptions)));
     internal static string Sha(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     internal static CatalogKey[] Dependencies(StrategyCatalogDefinition d) =>
         (d.Parent is null ? Enumerable.Empty<CatalogKey>() : [d.Parent]).Concat(d.Families).Concat(d.Structures)

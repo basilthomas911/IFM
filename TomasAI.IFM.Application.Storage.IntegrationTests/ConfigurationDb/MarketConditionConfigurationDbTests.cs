@@ -5,6 +5,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
@@ -92,9 +93,9 @@ public sealed class MarketConditionConfigurationDbTests(MarketConditionConfigura
         await fixture.Context.PublishAsync(StrategyParameterSetKind.MarketCondition,
             parameterSet.ParameterSetId, parameterSet.Version, effectiveFromUtc);
 
-        var before = await fixture.Context.ResolveEffectiveMarketConditionAsync(
+        var before = await fixture.Context.GetEffectiveMarketConditionAsync(
             effectiveFromUtc.AddTicks(-1), parameterSet.FundId, "ES", parameterSet.TargetHorizon);
-        var atBoundary = await fixture.Context.ResolveEffectiveMarketConditionAsync(
+        var atBoundary = await fixture.Context.GetEffectiveMarketConditionAsync(
             effectiveFromUtc, parameterSet.FundId, "ES", parameterSet.TargetHorizon);
 
         before.Should().BeNull();
@@ -115,7 +116,7 @@ public sealed class MarketConditionConfigurationDbTests(MarketConditionConfigura
         await fixture.Context.RetireAsync(StrategyParameterSetKind.MarketCondition,
             parameterSet.ParameterSetId, parameterSet.Version, retiredAtUtc);
 
-        var selected = await fixture.Context.ResolveEffectiveMarketConditionAsync(
+        var selected = await fixture.Context.GetEffectiveMarketConditionAsync(
             UtcNow(), parameterSet.FundId, "ES", parameterSet.TargetHorizon);
         var exact = await fixture.Context.GetMarketConditionAsync(parameterSet.ParameterSetId, parameterSet.Version);
 
@@ -137,7 +138,7 @@ public sealed class MarketConditionConfigurationDbTests(MarketConditionConfigura
         await fixture.Context.PublishAsync(StrategyParameterSetKind.MarketCondition,
             newer.ParameterSetId, newer.Version, UtcNow().AddMinutes(-1));
 
-        var action = () => fixture.Context.ResolveEffectiveMarketConditionAsync(
+        var action = () => fixture.Context.GetEffectiveMarketConditionAsync(
             UtcNow(), fundId, "ES", TimeFrameType.Daily);
 
         await action.Should().ThrowAsync<InvalidOperationException>()
@@ -236,9 +237,11 @@ public sealed class MarketConditionConfigurationDbTests(MarketConditionConfigura
     [Fact]
     public void Lifecycle_table_selection_is_closed_to_supported_typed_kinds()
     {
-        var action = () => ConfigurationDbSql.PublishFor(StrategyParameterSetKind.TradeSelection);
+        var action = () => ConfigurationDbSql.PublishFor((StrategyParameterSetKind)byte.MaxValue);
 
         action.Should().Throw<NotSupportedException>();
+        ConfigurationDbSql.PublishFor(StrategyParameterSetKind.TradeSelection)
+            .Should().Contain("reference_configuration.trade_selection_parameter_set");
         ConfigurationDbSql.PublishFor(StrategyParameterSetKind.MarketCondition)
             .Should().Contain("reference_configuration.market_condition_parameter_set");
     }

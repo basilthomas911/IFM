@@ -63,20 +63,3 @@ public abstract record DatabaseBackupInternalCommand : ICommand<DatabaseRecovery
         BackupLineage?.Validate(resolvedRequired: false);
     }
 }
-
-[MessagePackObject] public sealed record RecordDatabaseOperationAdmissionCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordAdmission"; }
-[MessagePackObject] public sealed record RecordDatabaseOperationStartedCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordStarted"; }
-[MessagePackObject] public sealed record RecordDatabaseOperationProgressCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordProgress"; }
-[MessagePackObject] public sealed record RecordDatabaseBackupBoundaryCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordBoundary"; }
-[MessagePackObject] public sealed record RecordDatabaseArtifactReplicaCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordArtifactReplica"; }
-[MessagePackObject] public sealed record RecordDatabaseOperationVerificationCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordVerification"; }
-[MessagePackObject] public sealed record RecordDatabaseOperationErrorCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordError"; }
-[MessagePackObject] public sealed record RecordDatabaseRestoreReadyForCutoverCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordReadyForCutover"; }
-[MessagePackObject] public sealed record CompleteDatabaseOperationCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "CompleteOperation"; }
-[MessagePackObject] public sealed record FailDatabaseOperationCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "FailOperation"; }
-[MessagePackObject] public sealed record RecordDatabaseOperationCancelledCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordCancelled"; }
-[MessagePackObject] public sealed record RecordDatabaseBackupPolicyStatusCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordPolicyStatus"; }
-[MessagePackObject] public sealed record RecordDatabaseRetentionResultCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordRetentionResult"; }
-[MessagePackObject] public sealed record ReconcileDatabaseBackupServiceStateCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "ReconcileServiceState"; }
-[MessagePackObject] public sealed record RecordDatabaseBackupServiceCapabilityCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordServiceCapability"; }
-[MessagePackObject] public sealed record RecordDatabaseRecoveryRunStatisticsCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordRunStatistics"; }

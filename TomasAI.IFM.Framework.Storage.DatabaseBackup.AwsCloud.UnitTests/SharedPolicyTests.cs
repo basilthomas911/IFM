@@ -18,10 +18,10 @@ public sealed class SharedPolicyTests
     {
         var contracts = typeof(DatabaseRecoveryOperationId).Assembly.GetTypes()
             .Where(type => !type.IsAbstract && type.Namespace?.Contains(".DatabaseBackup.", StringComparison.Ordinal) == true)
-            .Where(type => typeof(DatabaseBackupCommand).IsAssignableFrom(type)
+            .Where(type => typeof(IDatabaseBackupCommand).IsAssignableFrom(type)
                 || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type)
                 || typeof(DatabaseBackupEventContract).IsAssignableFrom(type)
-                || typeof(DatabaseBackupQuery).IsAssignableFrom(type))
+                || typeof(IDatabaseBackupQuery).IsAssignableFrom(type))
             .OrderBy(static type => type.FullName)
             .ToArray();
         contracts.Should().HaveCount(120);

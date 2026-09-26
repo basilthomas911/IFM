@@ -9,6 +9,25 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetDatabentoOptionChainQuery : IQuery<FuturesOptionContractReadModel[]>
 {
+
+    /// <summary>Creates an empty query for serialization.</summary>
+    public GetDatabentoOptionChainQuery() { }
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="underlyingSymbol">The UnderlyingSymbol field.</param>
+    /// <param name="providerRoot">The ProviderRoot field.</param>
+    /// <param name="maturityDate">The MaturityDate field.</param>
+    [SerializationConstructor]
+    public GetDatabentoOptionChainQuery(ActorSubject subject, IActorEntityId entityId, string underlyingSymbol, string providerRoot, DateOnly maturityDate)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        UnderlyingSymbol = underlyingSymbol;
+        ProviderRoot = providerRoot;
+        MaturityDate = maturityDate;
+    }
     [IgnoreMember] public const string Actor = "MarketDataQuery";
     [IgnoreMember] public const string Verb = "GetDatabentoOptionChain";
     [IgnoreMember] public const int ErrorId = 1064;

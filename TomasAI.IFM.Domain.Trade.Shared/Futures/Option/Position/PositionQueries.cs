@@ -6,19 +6,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 
-[MessagePackObject]
-public sealed record GetIronCondorOptionTradePositionQuery : StrategyPositionQueryBase<StrategyPositionSnapshot>
-{ public const string Verb = "GetIronCondorOptionTradePosition"; }
-[MessagePackObject]
-public sealed record GetVerticalSpreadOptionTradePositionQuery : StrategyPositionQueryBase<StrategyPositionSnapshot>
-{ public const string Verb = "GetVerticalSpreadOptionTradePosition"; }
-[MessagePackObject]
-public sealed record GetIronCondorOptionTradePositionHistoryQuery : PositionHistoryQuery
-{ public const string Verb = "GetIronCondorOptionTradePositionHistory"; }
-[MessagePackObject]
-public sealed record GetVerticalSpreadOptionTradePositionHistoryQuery : PositionHistoryQuery
-{ public const string Verb = "GetVerticalSpreadOptionTradePositionHistory"; }
-
 public abstract record StrategyPositionQueryBase<TResult> : IQuery<TResult>
 {
     public static string Actor => PositionActorNames.Query;

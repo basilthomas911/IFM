@@ -1,89 +1,64 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Concurrent;
-using Microsoft.Extensions.DependencyInjection;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
-using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.State;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.RegimeDiscovery;
 
-/// <summary>Observes the committed revision that is the sole authority for Market Condition Function dispatch.</summary>
-public sealed class MarketConditionPipelineCommandProbe(IServiceProvider services)
+/// <summary>Records actual assessment Function requests while preserving the real state repository.</summary>
+public sealed class MarketConditionPipelineCommandProbe :
+    IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>
 {
-    readonly ConcurrentDictionary<string, ExecuteMarketConditionAssessmentCommand> _commands = new();
+    readonly Func<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,
+        ExecuteMarketConditionAssessmentCommand>> resolveRepository;
+    readonly ConcurrentDictionary<string, ConcurrentQueue<ExecuteMarketConditionAssessmentCommand>> commands = new();
 
+    /// <summary>Wraps the real repository without changing state loading or completion persistence.</summary>
+    public MarketConditionPipelineCommandProbe(
+        Func<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,
+            ExecuteMarketConditionAssessmentCommand>> resolveRepository)
+    {
+        this.resolveRepository = resolveRepository;
+    }
+
+    /// <summary>Returns the actual number of assessment requests observed for a workflow entity.</summary>
     public int Count(IntrinsicTimeStrategyWorkflowEntityId entityId)
-        => _commands.ContainsKey(entityId.Format()) ? 1 : 0;
+        => commands.TryGetValue(entityId.Format(), out var received) ? received.Count : 0;
 
+    /// <summary>Waits for the real initialized request instead of reconstructing it from an earlier workflow revision.</summary>
     public async Task<ExecuteMarketConditionAssessmentCommand> WaitAsync(
-        IntrinsicTimeStrategyWorkflowEntityId entityId,
-        TimeSpan timeout)
+        IntrinsicTimeStrategyWorkflowEntityId entityId, TimeSpan timeout)
     {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
+        using var deadline = new CancellationTokenSource(timeout);
+        try
         {
-            if (_commands.TryGetValue(entityId.Format(), out var existing)) return existing;
-            var state = await LoadAsync(entityId);
-            if (state.CurrentView is { Status: WorkflowStrategyMachineStatus.Started,
-                    CurrentStage: StrategyWorkflowStage.MarketCondition } view)
+            while (true)
             {
-                var snapshot = new WorkflowStrategyStateUpdatedEvent
-                {
-                    Id = view.CausationId,
-                    EntityId = view.EntityId,
-                    WorkflowId = view.WorkflowId,
-                    WorkflowRevision = view.WorkflowRevision,
-                    State = view
-                };
-                var executionId = new MarketConditionAssessmentExecutionId(view.EntityId, view.WorkflowId);
-                var command = new ExecuteMarketConditionAssessmentCommand
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Function, ExecuteMarketConditionAssessmentCommand.Actor,
-                        ExecuteMarketConditionAssessmentCommand.Verb, executionId.Format()),
-                    EntityId = executionId,
-                    InputWorkflowRevision = view.WorkflowRevision,
-                    WorkflowView = view,
-                    TriggerEvent = view.TriggerEvent,
-                    CorrelationId = view.CorrelationId,
-                    CausationId = snapshot.Id,
-                    RequestedAtUtc = view.UpdatedAtUtc,
-                    ExpiresAtUtc = view.ExpiresAtUtc,
-                    ParameterSet = view.AssessmentBinding!.Parameters,
-                    ParameterPayloadSha256 = view.AssessmentBinding!.PayloadSha256,
-                    TargetHorizon = view.TriggerEvent.EntityId.TimePeriod,
-                    InstrumentRoot = view.AssessmentBinding!.Parameters.InstrumentRoot,
-                    MarketProfileId = view.AssessmentBinding.Parameters.MarketProfileId,
-                    RegimeResultEnvelope = view.RegimeDiscovery.Result!,
-                    RegimePayloadSha256 = view.RegimeDiscovery.Result!.PayloadSha256
-                };
-                return _commands.GetOrAdd(entityId.Format(), command);
+                if (commands.TryGetValue(entityId.Format(), out var received) && received.TryPeek(out var command))
+                    return command;
+                await Task.Delay(25, deadline.Token);
             }
-            await Task.Delay(25);
         }
-        throw new TimeoutException(
-            $"Market Condition Function dispatch for {entityId.Format()} was not observed within {timeout}.");
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Market Condition Function dispatch for {entityId.Format()} was not observed within {timeout}.");
+        }
     }
 
-    async ValueTask<IntrinsicTimeStrategyWorkflowCommandState> LoadAsync(
-        IntrinsicTimeStrategyWorkflowEntityId entityId)
+    /// <summary>Loads real persisted state and records the Function request, including its resolved binding.</summary>
+    public async ValueTask<MarketConditionAssessmentState> LoadStateAsync(
+        ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default)
     {
-        var replay = new ExecuteIntrinsicTimeStrategyWorkflowCommand
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
-                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-        var repository = services.GetRequiredService<IActorSupervisor>().Container.Resolve<
-            IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
-        return await repository.LoadStateAsync(replay);
+        var state = await resolveRepository().LoadStateAsync(request, cancellationToken);
+        commands.GetOrAdd(request.WorkflowEntityId.Format(), static _ => new()).Enqueue(request);
+        return state;
     }
+
+    /// <summary>Passes completed-state persistence through to the real repository unchanged.</summary>
+    public ValueTask SaveCompletedStateAsync(IFunctionActorContext context,
+        MarketConditionAssessmentState state, ExecuteMarketConditionAssessmentCommand request,
+        CancellationToken cancellationToken = default)
+        => resolveRepository().SaveCompletedStateAsync(context, state, request, cancellationToken);
 }

@@ -74,22 +74,3 @@ public abstract record CorrectPositionBasisCommand : PositionCommand
     [Key(5)] public decimal Price { get; init; }
     [Key(6)] public DateTime EffectiveAtUtc { get; init; }
 }
-
-[MessagePackObject] public sealed record OpenIronCondorPositionCommand : OpenPositionCommand { public const string Verb="OpenIronCondorPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
-[MessagePackObject] public sealed record UpdateIronCondorPositionLegMarketPriceCommand : UpdatePositionLegMarketPriceCommand { public const string Verb="UpdateIronCondorPositionLegMarketPrice"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
-[MessagePackObject] public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand { public const string Verb="EndOfDayIronCondorPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
-[MessagePackObject] public sealed record CloseIronCondorPositionCommand : TimedPositionCommand { public const string Verb="CloseIronCondorPosition"; private ExecutionFillEvidence[] closingFills=[]; [Key(5)] public ExecutionFillEvidence[] ClosingFills { get=>closingFills; init=>closingFills=value??[]; } [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
-[MessagePackObject] public sealed record CorrectIronCondorPositionBasisCommand : CorrectPositionBasisCommand { public const string Verb="CorrectIronCondorPositionBasis"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
-[MessagePackObject] public sealed record SnapshotIronCondorPositionCommand : PositionCommand { public const string Verb="SnapshotIronCondorPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
-
-[MessagePackObject] public sealed record OpenVerticalSpreadPositionCommand : OpenPositionCommand { public const string Verb="OpenVerticalSpreadPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
-[MessagePackObject] public sealed record UpdateVerticalSpreadPositionLegMarketPriceCommand : UpdatePositionLegMarketPriceCommand { public const string Verb="UpdateVerticalSpreadPositionLegMarketPrice"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
-[MessagePackObject] public sealed record EndOfDayVerticalSpreadPositionCommand : TimedPositionCommand { public const string Verb="EndOfDayVerticalSpreadPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
-[MessagePackObject] public sealed record CloseVerticalSpreadPositionCommand : TimedPositionCommand { public const string Verb="CloseVerticalSpreadPosition"; private ExecutionFillEvidence[] closingFills=[]; [Key(5)] public ExecutionFillEvidence[] ClosingFills { get=>closingFills; init=>closingFills=value??[]; } [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
-[MessagePackObject] public sealed record CorrectVerticalSpreadPositionBasisCommand : CorrectPositionBasisCommand { public const string Verb="CorrectVerticalSpreadPositionBasis"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
-[MessagePackObject] public sealed record SnapshotVerticalSpreadPositionCommand : PositionCommand { public const string Verb="SnapshotVerticalSpreadPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
-
-[MessagePackObject]
-public sealed record IronCondorPositionChangedEvent : PositionChangedEvent;
-[MessagePackObject]
-public sealed record VerticalSpreadPositionChangedEvent : PositionChangedEvent;

@@ -7,10 +7,27 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 
 /// <summary>Requests the latest projected VX term-structure signal for a stream.</summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record GetLatestFuturesVxTermStructureSignalQuery
     : IQuery<FuturesVxTermStructureSignalReadModel?>
 {
+
+    /// <summary>Creates an empty query for serialization.</summary>
+    public GetLatestFuturesVxTermStructureSignalQuery() { }
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="valueDate">The ValueDate field.</param>
+    /// <param name="configurationId">The ConfigurationId field.</param>
+    [SerializationConstructor]
+    public GetLatestFuturesVxTermStructureSignalQuery(ActorSubject subject, IActorEntityId entityId, DateOnly valueDate, string configurationId)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        ValueDate = valueDate;
+        ConfigurationId = configurationId;
+    }
     public const string Actor = "FuturesVxTermStructureSignalQuery";
     public const string Verb = "GetLatest";
     public const int ErrorId = 26310;

@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
+/// <summary>Sends canonical direct-key DatabaseBackup commands to the actor.</summary>
 public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDatabaseBackupCommandApi
 {
     readonly IActorProducer _actorProducer = actorProducer ?? throw new ArgumentNullException(nameof(actorProducer));
@@ -25,22 +26,16 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
     public ValueTask<ServiceResult<DatabaseOperationAcceptedResult>> ExecuteRetentionPlanAsync(ExecuteBackupRetentionPlanCommand command, CancellationToken cancellationToken = default) => SendAsync(command, ExecuteBackupRetentionPlanCommand.ErrorId, cancellationToken);
 
     async ValueTask<ServiceResult<DatabaseOperationAcceptedResult>> SendAsync<TCommand>(TCommand command, int errorCode, CancellationToken cancellationToken)
-        where TCommand : DatabaseBackupCommand
+        where TCommand : class, IDatabaseBackupCommand
     {
         ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
             var entityId = command.EntityId.Value == Guid.Empty
-                ? new DatabaseRecoveryOperationId(command.Request.RequestId)
-                : command.EntityId;
-            var normalized = (TCommand)(command with
-            {
-                CommandId = command.Request.RequestId,
-                EntityId = entityId,
-                ErrorCode = errorCode,
-                Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommand.Actor, command.Verb, entityId.Format())
-            });
+                ? new DatabaseRecoveryOperationId(command.Request.RequestId) : command.EntityId;
+            var subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, command.Verb, entityId.Format());
+            var normalized = (TCommand)Normalize(command, entityId, subject, errorCode);
             normalized.Validate();
             var actorResult = await _actorProducer.RequestAsync<TCommand, DatabaseRecoveryOperationId, GuidResult>(
                 normalized.Subject, normalized, entityId, cancellationToken);
@@ -56,9 +51,24 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
             });
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception)
-        {
-            return new ServiceFailed<DatabaseOperationAcceptedResult>(errorCode, exception.Message);
-        }
+        catch (Exception exception) { return new ServiceFailed<DatabaseOperationAcceptedResult>(errorCode, exception.Message); }
     }
+
+    static IDatabaseBackupCommand Normalize(IDatabaseBackupCommand command, DatabaseRecoveryOperationId id, ActorSubject subject, int errorCode)
+        => command switch
+        {
+            RequestDatabaseBackupCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            CancelDatabaseBackupCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            RequestDatabaseRestoreCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            ApproveDatabaseRestoreCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            CancelDatabaseRestoreCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            ApproveDatabaseCutoverCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            RequestDatabaseRestoreDrillCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            UpdateDatabaseBackupPolicyCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            PlaceBackupLegalHoldCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            ReleaseBackupLegalHoldCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            RequestBackupRetentionEvaluationCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            ExecuteBackupRetentionPlanCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            _ => throw new ArgumentException("Unsupported DatabaseBackup command.", nameof(command))
+        };
 }

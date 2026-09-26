@@ -8,6 +8,28 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId>
 {
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="outcome">The Outcome field.</param>
+    /// <param name="payloadSha256">The PayloadSha256 field.</param>
+    [SerializationConstructor]
+    public InsertMarketDataDownloadLogCommand(Guid commandId, ActorSubject subject, bool postEvents, DownloadLogId entityId, int errorCode, BoundedContextName routeTo, MarketDataDownloadOutcome outcome, string payloadSha256)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        Outcome = outcome;
+        PayloadSha256 = payloadSha256;
+    }
     public const string Actor = "DownloadLogCommand";
     public const string Verb = "InsertMarketDataDownloadLog";
     public const int ErrorId = 6050;

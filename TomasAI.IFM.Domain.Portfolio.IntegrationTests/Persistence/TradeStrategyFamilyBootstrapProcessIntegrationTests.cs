@@ -17,14 +17,18 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 [Collection(PortfolioPersistenceCollection.Name)]
 public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
 {
-    const string ReferenceConnection = "Contact Points=localhost;Port=9042;Default Keyspace=reference_test_db";
-    const string SequenceConnection = "Host=localhost;Port=5432;Database=sequence-id-test-db";
+    static string ReferenceConnection => Environment.GetEnvironmentVariable("IFM_BOOTSTRAP_TEST_REFERENCE_CONNECTION")
+        ?? throw new InvalidOperationException("An isolated bootstrap reference keyspace is required.");
+    static string SequenceConnection => Environment.GetEnvironmentVariable("IFM_BOOTSTRAP_TEST_SEQUENCE_CONNECTION")
+        ?? throw new InvalidOperationException("An isolated bootstrap sequence database is required.");
 
     [Fact]
     [Trait("Category", "Portfolio")]
     [Trait("Gate", "PF-22")]
     public async Task Simultaneous_processes_seed_exactly_one_row_per_stable_family_key()
     {
+        ReferenceConnection.Should().MatchRegex(@"^Contact Points=127\.0\.0\.1;Port=9042;Default Keyspace=ifm_bootstrap_[0-9]{8}_reference$");
+        SequenceConnection.Should().MatchRegex(@"^Host=127\.0\.0\.1;Port=25432;Database=ifm_bootstrap_[0-9]{8}$");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var settings = new DbConnectionSettings();
         settings.Add(ReferenceDbContext.ReferenceDbConnection, ReferenceConnection, "System.Data.ScyllaDb");
@@ -71,6 +75,8 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
         start.ArgumentList.Add("--bootstrap-trade-strategy-families-only");
         start.Environment["DOTNET_ENVIRONMENT"] = "Development";
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        start.Environment["ConnectionStrings__ReferenceDbConnection"] = ReferenceConnection;
+        start.Environment["ConnectionStrings__SequenceIdDbConnection"] = SequenceConnection;
 
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start bootstrap process.");
         var output = process.StandardOutput.ReadToEndAsync(cancellationToken);

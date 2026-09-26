@@ -19,7 +19,7 @@ public static class StartRegimeDiscoveryPipeline
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(context);
-        TomasAI.IFM.Application.Storage.ConfigurationDb.ResolvedRegimeDiscoveryParameterSet? resolved = null;
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.ResolvedRegimeDiscoveryParameterSet? resolved = null;
         try
         {
             if (context.TimeProvider.GetUtcNow().UtcDateTime >= command.ExpiresAtUtc)
@@ -33,8 +33,8 @@ public static class StartRegimeDiscoveryPipeline
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.ASSIGNMENT_DISABLED","ConfigurationUnavailable","The workflow/horizon parameter assignment was disabled for this startup generation.");
             var generic=selected?.Applied;
             resolved=generic is null
-                ?await context.ConfigurationDb.ResolveEffectiveRegimeDiscoveryAsync(command.RequestedAtUtc,command.TargetHorizon).ConfigureAwait(false)
-                :new TomasAI.IFM.Application.Storage.ConfigurationDb.ResolvedRegimeDiscoveryParameterSet(
+                ?await context.ConfigurationDb.GetEffectiveRegimeDiscoveryAsync(command.RequestedAtUtc,command.TargetHorizon).ConfigureAwait(false)
+                :new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.ResolvedRegimeDiscoveryParameterSet(
                     System.Text.Json.JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(generic.Version.PayloadJson)!,generic.Version.PayloadJson,generic.Version.Reference.PayloadSha256,generic.Version.PublishedAtUtc??generic.Version.CreatedAtUtc);
             if (resolved is null)
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.CONFIGURATION_MISSING", "ConfigurationUnavailable",
@@ -62,7 +62,21 @@ public static class StartRegimeDiscoveryPipeline
 
             var request = RegimeDiscoverySnapshotRequestFactory.Create(
                 MarketSeriesIdentity.ForContract(command.TriggerEvent.EntityId.ContractId), resolved.ParameterSet);
-            var captured = await context.RegimeDiscoverySnapshotProvider.CaptureAsync(request).ConfigureAwait(false);
+            var remaining = command.ExpiresAtUtc - context.TimeProvider.GetUtcNow().UtcDateTime;
+            if (remaining <= TimeSpan.Zero)
+                return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.DEADLINE", "InitializationTimeout",
+                    "Regime Discovery initialization reached the workflow deadline.");
+            using var deadline = new CancellationTokenSource(remaining);
+            RegimeDiscoveryMarketSignalSnapshotResult captured;
+            try
+            {
+                captured = await context.RegimeDiscoverySnapshotProvider.CaptureAsync(request, deadline.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.DEADLINE", "InitializationTimeout",
+                    "Regime Discovery initialization reached the workflow deadline.");
+            }
             if (!captured.IsSuccess || captured.Snapshot is null)
             {
                 var issues = captured.Issues.OrderBy(value => value.SignalKey.TimeFrame)

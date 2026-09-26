@@ -34,7 +34,8 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
+using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
+using TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
@@ -267,7 +268,6 @@ public static class Startup
             services.AddHttpClient();
             services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
             services.AddFinancialModelingPrepReferenceDataApi();
-            services.AddSingleton(new ExternalMarketDataCompatibilityOptions());
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
@@ -285,6 +285,8 @@ public static class Startup
                 PortfolioId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:PortfolioId", 1),
                 RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
             });
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>(
+                provider => provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>());
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
                 MaximumExecutionDuration = config.GetValue(
@@ -505,6 +507,7 @@ public static class Startup
             services.AddSingleton<ReferenceSchemaDb>();
             services.AddSingleton<SecuritiesSchemaDb>();
             services.AddSingleton<TradeSchemaDb>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb>();
             services.AddSingleton<ConfigurationSchemaDb>();
             services.AddSingleton<RegimeDiscoveryMarketSignalSnapshotProvider>();
             services.AddSingleton<IRegimeDiscoveryMarketSignalSnapshotProvider>(provider =>
@@ -680,9 +683,9 @@ public static class Startup
             ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
         siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
         var commandAuditPersistenceOptions = config
-            .GetSection(TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions.SectionName)
-            .Get<TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions>()
-            ?? new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions();
+            .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions();
         siContainer.RegisterInstance(commandAuditPersistenceOptions.Validate());
         var inMemoryEventSourceActorOptions = config
             .GetSection(TomasAI.IFM.Shared.EventModelActor.InMemoryEventSourceActorOptions.SectionName)
@@ -750,6 +753,10 @@ public static class Startup
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.FinancialAuthorityPreparation>(Lifestyle.Singleton);
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.CapacityReservationCommandServices>(Lifestyle.Singleton);
         }
+        // Trade actor hosts can activate the option-trade event context without loading
+        // the Portfolio actor assembly, so this cross-domain API is always available.
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeValuationApi,
+            TomasAI.IFM.Domain.Portfolio.GeneralLedger.PortfolioTradeValuationApi>(Lifestyle.Singleton);
         // Focused MarketData tests do not register Trade function actors or their context aliases.
         if (domainAssemblies.Contains(TradeActorAssembly.Current))
         {
@@ -780,6 +787,21 @@ public static class Startup
         }
         siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        // The integration host does not run option-chain composition. Construct this
+        // context with its required services so Simple Injector does not attempt to
+        // resolve production-only optional composition services during verification.
+        if (domainAssemblies.Contains(MarketDataActorAssembly.Current))
+        {
+            siContainer.Options.AllowOverridingRegistrations = true;
+            siContainer.Register<IQueryActorContext<TomasAI.IFM.Domain.MarketData.Query.Actor.MarketDataQueryActor>>(
+                () => new TomasAI.IFM.Domain.MarketData.Query.Actor.MarketDataQueryContext(
+                    siContainer.GetInstance<IActorSupervisor>(),
+                    siContainer.GetInstance<IDbContextFactory>(),
+                    siContainer.GetInstance<ILogger<TomasAI.IFM.Domain.MarketData.Query.Actor.MarketDataQueryActor>>(),
+                    siContainer.GetInstance<IFuturesMarketSessionAuthority>()),
+                Lifestyle.Singleton);
+            siContainer.Options.AllowOverridingRegistrations = false;
+        }
         siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IActorStateDenormalizer<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorStateRepository<>), domainAssemblies, Lifestyle.Singleton);

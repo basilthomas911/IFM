@@ -7,6 +7,48 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record SubmitEmulatorOrderCommand : ICommand<LedgerPortfolioId>, IFinancialRequest<SubmitEmulatorOrderRequest>
 {
+    /// <summary>Creates an empty published message for serialization and existing callers.</summary>
+    public SubmitEmulatorOrderCommand() { }
+
+    /// <summary>Rehydrates every published legacy command field in permanent numeric-key order.</summary>
+    /// <param name="schemaVersion">The SchemaVersion field.</param>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="operationId">The OperationId field.</param>
+    /// <param name="portfolioId">The PortfolioId field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="causationId">The CausationId field.</param>
+    /// <param name="requestedAtUtc">The RequestedAtUtc field.</param>
+    /// <param name="expiresAtUtc">The ExpiresAtUtc field.</param>
+    /// <param name="expectedFinancialRevision">The ExpectedFinancialRevision field.</param>
+    /// <param name="body">The Body field.</param>
+    /// <param name="inputSha256">The InputSha256 field.</param>
+    /// <param name="access">The Access field.</param>
+    [SerializationConstructor]
+    public SubmitEmulatorOrderCommand(int schemaVersion, Guid commandId, ActorSubject subject, bool postEvents, LedgerPortfolioId entityId, int errorCode, BoundedContextName routeTo, Guid operationId, int portfolioId, Guid correlationId, Guid causationId, DateTime requestedAtUtc, DateTime expiresAtUtc, long expectedFinancialRevision, SubmitEmulatorOrderRequest body, string inputSha256, FinancialAccess access)
+    {
+        SchemaVersion = schemaVersion;
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        OperationId = operationId;
+        PortfolioId = portfolioId;
+        CorrelationId = correlationId;
+        CausationId = causationId;
+        RequestedAtUtc = requestedAtUtc;
+        ExpiresAtUtc = expiresAtUtc;
+        ExpectedFinancialRevision = expectedFinancialRevision;
+        Body = body;
+        InputSha256 = inputSha256;
+        Access = access;
+    }
     public const string Actor = "EmulatorExecutionCommand";
     public const string Verb = "Submit";
     [Key(0)] public int SchemaVersion { get; init; } = 1;

@@ -1,17 +1,22 @@
 using TomasAI.IFM.Domain.Portfolio.Query.Actor;
-using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
-using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
-using TomasAI.IFM.Domain.Portfolio.Query.Model;
-using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
+using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using GetFundsQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundsQuery;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 
-/// <summary>Handles <see cref="GetFundsQuery"/>.</summary>
+/// <summary>Compatibility handler for the published PortfolioQuery route; Fund owns new traffic.</summary>
 public static class GetFunds
 {
-    /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
-    public static ValueTask ExecuteAsync(this GetFundsQuery query, IQueryActorContext<PortfolioQueryActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetFundsAsync(query.PortfolioId, query.State is null ? null : (FundOperatingState)query.State, query.PageSize, query.PageToken, cancellationToken));
+    /// <summary>Forwards the legacy query to the Fund-owned implementation.</summary>
+    /// <param name="query">The published legacy query message.</param>
+    /// <param name="context">The legacy Portfolio query actor context.</param>
+    /// <param name="parameters">The query services shared with the owning child actor.</param>
+    /// <param name="cancellationToken">Cancellation for the projection read.</param>
+    /// <returns>The asynchronous reply operation.</returns>
+    public static ValueTask ExecuteAsync(
+        this GetFundsQuery query,
+        IQueryActorContext<PortfolioQueryActor> context,
+        PortfolioQueryParameters parameters,
+        CancellationToken cancellationToken) =>
+        TomasAI.IFM.Domain.Portfolio.Fund.Query.GetFunds.ExecuteAsync(query, context, parameters, cancellationToken);
 }

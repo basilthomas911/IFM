@@ -15,6 +15,7 @@ using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -227,7 +228,11 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
             .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
             .ConfigureServices(services =>
-                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
+            {
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                services.RemoveAll<IMarketConditionAssessmentSnapshotProvider>();
+                services.AddSingleton<IMarketConditionAssessmentSnapshotProvider>(new AssessmentSourceFixture { Unavailable = true });
+            }));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
         supervisor.IsReady.Should().BeTrue();
@@ -347,7 +352,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
             .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
             .ConfigureServices(services =>
-                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = false })));
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
         supervisor.IsReady.Should().BeTrue();

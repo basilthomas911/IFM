@@ -35,11 +35,11 @@ public sealed class DatabaseBackupActorStateTests
     [Fact]
     public void Every_phase_3_contract_has_exactly_one_actor_route()
     {
-        var assembly = typeof(DatabaseBackupCommand).Assembly;
+        var assembly = typeof(DatabaseBackupCommandRoute).Assembly;
         var commandTypes = assembly.GetTypes().Where(type => !type.IsAbstract
-            && (typeof(DatabaseBackupCommand).IsAssignableFrom(type) || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type))).ToHashSet();
+            && (typeof(IDatabaseBackupCommand).IsAssignableFrom(type) || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type))).ToHashSet();
         var serviceEventTypes = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(DatabaseBackupServiceEventContract).IsAssignableFrom(type)).ToHashSet();
-        var queryTypes = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(DatabaseBackupQuery).IsAssignableFrom(type)).ToHashSet();
+        var queryTypes = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(IDatabaseBackupQuery).IsAssignableFrom(type)).ToHashSet();
 
         DatabaseBackupCommandActor.SupportedCommandTypes.Should().BeEquivalentTo(commandTypes);
         DatabaseBackupCommandActor.SupportedVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(commandTypes.Count);
@@ -68,7 +68,7 @@ public sealed class DatabaseBackupActorStateTests
 
             command.Source.Should().Be(source);
             command.EntityId.Should().Be(source.OperationId);
-            command.Subject.Name.Should().Be(DatabaseBackupCommand.Actor);
+            command.Subject.Name.Should().Be(DatabaseBackupCommandRoute.Actor);
         }
     }
 
@@ -327,7 +327,7 @@ public sealed class DatabaseBackupActorStateTests
         return (TCommand)(template with
         {
             CommandId = envelope.SourceEventId, EntityId = operationId, Source = envelope,
-            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommand.Actor, template.Verb, operationId.Format()),
+            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, template.Verb, operationId.Format()),
             Outcome = outcome, ProgressPercent = progress, ValidationRevision = validationRevision,
             BackupLineage = backupLineage
         });

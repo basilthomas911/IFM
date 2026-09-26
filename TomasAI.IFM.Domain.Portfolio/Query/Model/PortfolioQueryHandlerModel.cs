@@ -11,7 +11,14 @@ namespace TomasAI.IFM.Domain.Portfolio.Query.Model;
 internal static class PortfolioQueryHandlerModel
 {
     /// <summary>Awaits a typed service result and sends it to the query caller.</summary>
-    internal static async ValueTask ReplyAsync<TResult>(IQueryActorContext<PortfolioQueryActor> context, IQuery query, Task<ServiceResult<TResult>> resultTask)
+    /// <typeparam name="TActor">The owning Portfolio Query actor type.</typeparam>
+    /// <typeparam name="TResult">The projection result type.</typeparam>
+    /// <param name="context">The actor reply context.</param>
+    /// <param name="query">The concrete query to reply to.</param>
+    /// <param name="resultTask">The pending projection result.</param>
+    /// <returns>The asynchronous reply operation.</returns>
+    internal static async ValueTask ReplyAsync<TActor, TResult>(IQueryActorContext<TActor> context, IQuery query, Task<ServiceResult<TResult>> resultTask)
+        where TActor : IActor
         where TResult : class
     {
         var result = await resultTask.ConfigureAwait(false);

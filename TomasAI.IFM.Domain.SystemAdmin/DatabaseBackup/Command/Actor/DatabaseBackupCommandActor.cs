@@ -24,7 +24,7 @@ public class DatabaseBackupCommandActor(
     protected IDatabaseBackupCommandContext ActorContext =>
         IsArgumentNull.Set(Context as IDatabaseBackupCommandContext, nameof(Context))!;
 
-    public const string Actor = DatabaseBackupCommand.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.Actor;
     IEventSourceActorStateRepository<DatabaseBackupCommandState> _repository = default!;
     readonly IEventProjector<DatabaseBackupCommandActor> _eventProjector = actorContext.EventProjector;
 

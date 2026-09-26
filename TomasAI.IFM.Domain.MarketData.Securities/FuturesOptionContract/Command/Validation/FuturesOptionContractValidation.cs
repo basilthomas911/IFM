@@ -5,11 +5,26 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Validation;
 
 internal static class FuturesOptionContractValidation
 {
+    /// <summary>Validates a futures option contract identifier using its domain value object.</summary>
+    public static List<ValidationError> ValidateFuturesOptionContractId(this List<ValidationError> validationErrors, string contractId)
+    {
+        try
+        {
+            _ = new FuturesOptionContractId(contractId);
+        }
+        catch (Exception exception)
+        {
+            validationErrors.Add(new(exception.Message));
+        }
+        return validationErrors;
+    }
+
     /// <summary>
     /// Validates a futures option contract and appends any validation errors to the provided list.
     /// </summary>

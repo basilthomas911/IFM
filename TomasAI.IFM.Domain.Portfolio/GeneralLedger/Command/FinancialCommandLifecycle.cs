@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 

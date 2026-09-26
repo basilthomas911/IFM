@@ -34,6 +34,8 @@ public sealed class PortfolioCommandActorTests
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioCommandActor.ActorName));
         var events = Substitute.For<IPortfolioEventStore>();
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(new PortfolioAggregate());
+        events.FindCommittedPortfolioCommandAsync(id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IPortfolioDomainEvent?>(null));
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var now = DateTime.UtcNow;
@@ -84,6 +86,8 @@ public sealed class PortfolioCommandActorTests
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioCommandActor.ActorName));
         var events = Substitute.For<IPortfolioEventStore>();
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(new PortfolioAggregate());
+        events.FindCommittedPortfolioCommandAsync(id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IPortfolioDomainEvent?>(null));
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var now = DateTime.UtcNow;
@@ -105,8 +109,15 @@ public sealed class PortfolioCommandActorTests
         var result = await typed.ReceiveAsync(context, state, command);
 
         result.Success.Should().BeTrue();
-        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<IPortfolioDomainEvent>(x => x is PortfolioCreatedEvent), 0,
-            Arg.Is<PortfolioEventMetadata>(x => x.CorrelationId == command.CommandId && x.CausationId == command.CommandId), Arg.Any<CancellationToken>());
+        var append = Assert.Single(events.ReceivedCalls(), call =>
+            call.GetMethodInfo().Name == nameof(IPortfolioEventStore.AppendPortfolioAsync));
+        var arguments = append.GetArguments();
+        Assert.Equal(id, arguments[0]);
+        Assert.IsType<PortfolioCreatedEvent>(arguments[1]);
+        Assert.Equal(0L, arguments[2]);
+        var metadata = Assert.IsType<PortfolioEventMetadata>(arguments[3]);
+        Assert.Equal(command.CommandId, metadata.CorrelationId);
+        Assert.Equal(command.CommandId, metadata.CausationId);
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Count == 1 && x.Single() is PortfolioCreatedEvent));
     }
 
@@ -128,6 +139,8 @@ public sealed class PortfolioCommandActorTests
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioCommandActor.ActorName));
         var events = Substitute.For<IPortfolioEventStore>();
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(aggregate);
+        events.FindCommittedPortfolioCommandAsync(id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IPortfolioDomainEvent?>(null));
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var command = new DeleteDraftPortfolioCommand

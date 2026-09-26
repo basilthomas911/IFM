@@ -13,7 +13,7 @@ public sealed class TradeSelectionBindingResolver(IConfigurationDbContext config
     {
         Require(common is {Kind:CatalogPipelineParameterKind.TradeSelection,Role:""},"TS.CONFIG.PROFILE_MISMATCH","Activation must pin an exact common selection policy.");
         var at=authority.ResolvedAtUtc;
-        var resolved=await configuration.ResolveTradeSelectionVersionAsync(common.Id,common.Version,common.PayloadSha256,at,cancellationToken).ConfigureAwait(false);
+        var resolved=await configuration.GetEffectiveTradeSelectionVersionAsync(common.Id,common.Version,common.PayloadSha256,at,cancellationToken).ConfigureAwait(false);
         var policy=resolved.ParameterSet;
         Require(authority.Assignments.Length<=policy.MaximumAssignments,"TS.CONFIG.CANDIDATE_LIMIT","Too many assignments.");
         Dictionary<CatalogKey,SelectionCatalogDefinitionSnapshot> nodes=[];

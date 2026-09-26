@@ -31,7 +31,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using Xunit;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Framework.Storage.Extensions;
-using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
+using TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;

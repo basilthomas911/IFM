@@ -36,6 +36,16 @@ public sealed class FinancialCommitUncertaintyTests(PortfolioEventStoreFixture f
         balance.FinancialRevision.Should().Be(1); balance.Value!.AvailableCash.Should().Be(1000);
     }
 
-    internal static PostgresEventTransaction ProxiedTransactions(int port)=>new(new DbConnectionSettings().Add(
-        EventSourceActorDbContext.EventSourceActorDbConnection,$"Host=127.0.0.1;Port={port};Database=event-source-test-db;SSL Mode=Disable;Timeout=2","System.Data.Postgres"));
+    internal static PostgresEventTransaction ProxiedTransactions(int port)
+    {
+        var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+            ?? "Host=127.0.0.1;Port=5432;Database=event-source-test-db";
+        var proxyConnection = new Npgsql.NpgsqlConnectionStringBuilder(connection)
+        {
+            Host = "127.0.0.1", Port = port, SslMode = Npgsql.SslMode.Disable, Timeout = 2
+        };
+        return new(new DbConnectionSettings().Add(
+            EventSourceActorDbContext.EventSourceActorDbConnection,
+            proxyConnection.ConnectionString, "System.Data.Postgres"));
+    }
 }

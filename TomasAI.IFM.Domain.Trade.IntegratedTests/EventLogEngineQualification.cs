@@ -19,7 +19,10 @@ internal static class EventLogEngineQualification
             || read("DOTNET_ENVIRONMENT") != "Test")
             throw new InvalidOperationException("Engine qualification requires a Test environment and twelve-character run ID.");
         var postgres = $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{run}_synthetic_host";
-        var trade = $"Contact Points=127.0.0.1;Port=29042;Default Keyspace=ifm_synthetic_{run}_trade";
+        // The approved AIO-constrained qualification uses only run-scoped keyspaces on
+        // the existing Scylla listener; the default still requires the dedicated port.
+        var scyllaPort = read("IFM_QUALIFICATION_EXISTING_SCYLLA") == "1" ? 9042 : 29042;
+        var trade = $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{run}_trade";
         foreach (var (name, expected) in new[] {
             ("IFM_TEST_POSTGRES_CONNECTION", postgres),
             ("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION", postgres),
@@ -36,6 +39,7 @@ internal static class EventLogEngineQualification
         var run = Validate();
         if (run is null) return builder;
         var postgres = $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{run}_synthetic_host";
+        var scyllaPort = Environment.GetEnvironmentVariable("IFM_QUALIFICATION_EXISTING_SCYLLA") == "1" ? 9042 : 29042;
         return builder.ConfigureAppConfiguration((_, config) =>
         {
             var values = new Dictionary<string, string?>
@@ -52,7 +56,7 @@ internal static class EventLogEngineQualification
                 ("Trade", "trade"), ("Fund", "fund"), ("Reference", "reference"),
                 ("OptionPricer", "optionpricer"), ("MarketData", "marketdata"), ("Securities", "securities") })
                 values[$"ConnectionStrings:{name}DbConnection"] =
-                    $"Contact Points=127.0.0.1;Port=29042;Default Keyspace=ifm_synthetic_{run}_{suffix}";
+                    $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{run}_{suffix}";
             values["IFM_TEST_MARKET_DATA_CONNECTION"] = values["ConnectionStrings:MarketDataDbConnection"];
             config.AddInMemoryCollection(values);
         }).ConfigureServices(services =>

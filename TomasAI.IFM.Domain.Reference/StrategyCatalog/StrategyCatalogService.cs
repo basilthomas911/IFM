@@ -12,7 +12,7 @@ public sealed class StrategyCatalogService(IDbContextFactory factory)
         var db = factory.ConfigurationDb;
         return request.Operation switch
         {
-            CatalogQueryOperation.List => StrategyCatalogJson.Write(await db.ListStrategyCatalogAsync(request.Kind, request.Limit, request.AfterCode, ct)),
+            CatalogQueryOperation.List => StrategyCatalogJson.Write(await db.GetStrategyCatalogsAsync(request.Kind, request.Limit, request.AfterCode, ct)),
             CatalogQueryOperation.Exact when request.Key is not null => StrategyCatalogJson.Write(await db.GetStrategyCatalogAsync(request.Key, ct)),
             CatalogQueryOperation.DeploymentChoices => StrategyCatalogJson.Write(await DeploymentChoices(request, ct)),
             CatalogQueryOperation.ValidatePublishedDeployment when request.Key is not null =>
@@ -24,7 +24,7 @@ public sealed class StrategyCatalogService(IDbContextFactory factory)
     async Task<StrategyDeploymentPage> DeploymentChoices(CatalogQueryRequest request, CancellationToken ct)
     {
         var db = factory.ConfigurationDb;
-        var rows = await db.ListStrategyCatalogAsync(StrategyCatalogKind.Deployment, Math.Min(64, request.Limit), request.AfterCode, ct);
+        var rows = await db.GetStrategyCatalogsAsync(StrategyCatalogKind.Deployment, Math.Min(64, request.Limit), request.AfterCode, ct);
         var result = new List<StrategyDeploymentChoice>();
         string? next = null;
         foreach (var row in rows)

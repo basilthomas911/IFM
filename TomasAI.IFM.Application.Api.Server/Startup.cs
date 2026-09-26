@@ -28,7 +28,8 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Application.MarketData.Worker;
-using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
+using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
+using TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -261,9 +262,9 @@ public static class Startup
                 ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
             services.AddSingleton(eventLogPersistence.Validate());
             var commandAuditPersistence = config
-                .GetSection(TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions.SectionName)
-                .Get<TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions>()
-                ?? new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions();
+                .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions.SectionName)
+                .Get<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()
+                ?? new TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions();
             services.AddSingleton(commandAuditPersistence.Validate());
             var inMemoryEventSourceActor = config
                 .GetSection(InMemoryEventSourceActorOptions.SectionName)
@@ -311,10 +312,6 @@ public static class Startup
             if (EventLogQualification.Active is null) services.AddHostedService<UsTreasuryRefreshHostedService>();
             services.AddFmpMarketDataImport(options =>
                 options.MaximumRangeDays = config.GetValue("AppSettings:Fmp:MaximumImportRangeDays", 366));
-            services.AddSingleton(new ExternalMarketDataCompatibilityOptions
-            {
-                TreasuryLookbackDays = config.GetValue("AppSettings:Fmp:CompatibilityTreasuryLookbackDays", 14)
-            }.Validate());
             services.AddSingleton(new MarketDataImportPolicyOptions
             {
                 Treasury = ParseImportPolicy(config, "AppSettings:Fmp:TreasuryDuplicatePolicy"),
@@ -359,12 +356,14 @@ public static class Startup
                 PortfolioId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:PortfolioId", 1),
                 RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
             });
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>(
+                provider => provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>());
             var developmentPortfolio = config.GetSection(DevelopmentTradingPortfolioOptions.SectionName)
                 .Get<DevelopmentTradingPortfolioOptions>() ?? new DevelopmentTradingPortfolioOptions();
             services.AddSingleton(developmentPortfolio.Validate());
             services.AddSingleton<DevelopmentTradingPortfolioProvisioner>();
             services.AddSingleton<DevelopmentTradingPortfolioIdentityRecovery>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.ConfigurationDb.MarketConditionAssessmentDefaultProvisioner>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>();
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
                 MaximumExecutionDuration = config.GetValue(
@@ -1001,9 +1000,9 @@ public static class Startup
             ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
         _siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
         var commandAuditPersistenceOptions = config
-            .GetSection(TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions.SectionName)
-            .Get<TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions>()
-            ?? new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPersistenceOptions();
+            .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions();
         _siContainer.RegisterInstance(commandAuditPersistenceOptions.Validate());
         var inMemoryEventSourceActorOptions = config
             .GetSection(InMemoryEventSourceActorOptions.SectionName)

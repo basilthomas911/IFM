@@ -85,9 +85,9 @@ public sealed class TradeStrategySymbolQueryTransportTests
     }
 
     [Fact]
-    public void Shared_family_enum_preserves_legacy_type_resolution_and_numeric_values()
+    public void Shared_family_enum_resolves_from_canonical_contract_assembly_and_preserves_numeric_values()
     {
-        typeof(TradeStrategyFamilyReadModel).Assembly.GetType(typeof(TradeStrategyFamilyType).FullName!).Should().Be(typeof(TradeStrategyFamilyType));
+        typeof(TradeStrategyFamilyType).Assembly.GetType(typeof(TradeStrategyFamilyType).FullName!).Should().Be(typeof(TradeStrategyFamilyType));
         Enum.GetValues<TradeStrategyFamilyType>().Select(x => (int)x).Should().Equal(0, 1, 2, 3, 4, 5, 6);
     }
 

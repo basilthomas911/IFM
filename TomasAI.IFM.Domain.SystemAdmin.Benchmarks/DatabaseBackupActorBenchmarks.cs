@@ -34,7 +34,7 @@ public class DatabaseBackupActorBenchmarks
         _duplicate = new RecordDatabaseOperationAdmissionCommand
         {
             CommandId = source.SourceEventId, EntityId = operationId, Source = source,
-            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommand.Actor, "RecordAdmission", operationId.Format())
+            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, "RecordAdmission", operationId.Format())
         };
         _state.Execute(_duplicate);
         var progressSource = Source(operationId, 2, DatabaseRecoveryPhase.Capturing);

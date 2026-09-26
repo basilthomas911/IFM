@@ -15,9 +15,22 @@ public sealed record MarketConditionAssessmentReferenceRow
     [Key(4)] public bool IsAuthoritative { get; init; }
     [Key(5)] public MarketConditionAssessmentResult Result { get; init; }=new();
 }
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record GetMarketConditionAssessmentReferenceQuery:IQuery<MarketConditionAssessmentReferenceRow[]>
 {
+
+    /// <summary>Creates an empty query for serialization and existing callers.</summary>
+    public GetMarketConditionAssessmentReferenceQuery() { }
+
+    /// <summary>Rehydrates every published query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    [SerializationConstructor]
+    public GetMarketConditionAssessmentReferenceQuery(ActorSubject subject, IActorEntityId entityId)
+    {
+        Subject = subject;
+        EntityId = entityId;
+    }
     public const string Actor=GetMarketConditionAssessmentQuery.Actor;
     public const string Verb="GetAssessmentReference";
     [Key(0)] public ActorSubject Subject { get; init; }

@@ -149,14 +149,14 @@ public class FuturesBarDataCommandActor(
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesContracts(e.Contracts, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName);
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
         },
         [typeof(StopFuturesBarDataStreamingCommand)] = cmd => {
             var e = (StopFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName);
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
         }
     };
 

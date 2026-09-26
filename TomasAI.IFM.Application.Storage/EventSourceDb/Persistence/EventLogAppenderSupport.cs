@@ -3,7 +3,7 @@ using Npgsql;
 using NpgsqlTypes;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 

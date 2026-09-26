@@ -21,7 +21,7 @@ public class DatabaseBackupQueryActor(
     protected IDatabaseBackupQueryContext ActorContext =>
         IsArgumentNull.Set(Context as IDatabaseBackupQueryContext, nameof(Context))!;
 
-    public const string Actor = DatabaseBackupQuery.Actor;
+    public const string Actor = DatabaseBackupQueryRoute.Actor;
     readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
@@ -57,7 +57,7 @@ public class DatabaseBackupQueryActor(
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
-        ((DatabaseBackupQuery)query).Validate();
+        ((IDatabaseBackupQuery)query).Validate();
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }

@@ -24,7 +24,7 @@ public static class StartMarketConditionPipeline
             }
             if (context.TimeProvider.GetUtcNow().UtcDateTime >= view.ExpiresAtUtc)
                 return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.DEADLINE", "InitializationTimeout", "Market Condition initialization reached the workflow deadline.");
-            var resolved = await context.ConfigurationDb.ResolveEffectiveMarketConditionAssessmentAsync(
+            var resolved = await context.ConfigurationDb.GetEffectiveMarketConditionAssessmentAsync(
                 view.StartedAtUtc, context.Options.MarketConditionAssessmentProfileId, "ES",
                 view.TriggerEvent.EntityId.TimePeriod).ConfigureAwait(false);
             if (resolved is null)

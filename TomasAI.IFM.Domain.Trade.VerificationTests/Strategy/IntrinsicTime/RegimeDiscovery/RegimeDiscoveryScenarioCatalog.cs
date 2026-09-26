@@ -108,8 +108,10 @@ public static class RegimeDiscoveryScenarioCatalog
         (RegimeDiscoverySignalMetric.Ema20Interaction, 0m),
         (RegimeDiscoverySignalMetric.AtrNormalizedRange, 0.5m),
         (RegimeDiscoverySignalMetric.BreakoutDistanceAtr, 0m),
-        (RegimeDiscoverySignalMetric.ItiDirection, 0m),
-        (RegimeDiscoverySignalMetric.ItiBandLevel, 0.5m),
+        // ITI triggers carry UpTrend or DownTrend, never a neutral enum value.
+        // A zero-strength band gives this range-bound scenario zero directional contribution.
+        (RegimeDiscoverySignalMetric.ItiDirection, 1m),
+        (RegimeDiscoverySignalMetric.ItiBandLevel, 0m),
         (RegimeDiscoverySignalMetric.Tdi, 0m)) with
     {
         TrendDirection = RegimeDirection.Neutral,

@@ -14,7 +14,11 @@ var isolatedQuoteSoak = Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK"
 if (isolatedQuoteSoak)
     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb>().CreateAllAsync();
 else
+{
     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
+    await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb>().CreateAllAsync();
+}
+await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb>().CreateAllAsync();
 var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
 bool actorsStarted = false;
 try

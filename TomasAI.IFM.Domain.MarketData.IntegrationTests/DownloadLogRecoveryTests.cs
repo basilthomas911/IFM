@@ -37,8 +37,9 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
         var e = new InvalidProjectionEvent();
         await Assert.ThrowsAsync<ArgumentException>(() => fixture.ActorEventSourceDb.SaveEventsAsync(
             "DownloadLogAtomicVerification." + Guid.NewGuid().ToString("N"), e.CommandId, new DomainEventCollection([e]), 0, CancellationToken.None));
-        Assert.True(e.EventId > 0);
-        Assert.Null(await fixture.ActorEventSourceDb.GetEventLogByEventIdAsync(e.EventId));
+        // Event identities are assigned only after the atomic append commits.
+        Assert.Equal(0, e.EventId);
+        Assert.False(await fixture.ActorEventSourceDb.HasEventForCommandAsync(e.CommandId));
     }
 
     public sealed class InvalidProjectionEvent : IEvent, IRequireDurableProjection

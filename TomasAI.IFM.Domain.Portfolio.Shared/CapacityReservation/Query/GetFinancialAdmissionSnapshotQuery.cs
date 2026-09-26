@@ -9,12 +9,32 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetFinancialAdmissionSnapshotQuery : IFinancialQueryMessage<GetFinancialAdmissionSnapshotRequest, FinancialAdmissionSnapshot>
 {
-    public const string Actor = "PortfolioFinancialQuery";
+
+    /// <summary>Rehydrates every query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="deploymentKey">The DeploymentKey field.</param>
+    /// <param name="underlyingId">The UnderlyingId field.</param>
+    /// <param name="scope">The Scope field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="requestedAtUtc">The RequestedAtUtc field.</param>
+    [SerializationConstructor]
+    public GetFinancialAdmissionSnapshotQuery(ActorSubject subject, LedgerPortfolioId entityId, TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey deploymentKey, string underlyingId, FinancialReadScope scope, Guid correlationId, DateTime requestedAtUtc)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        DeploymentKey = deploymentKey;
+        UnderlyingId = underlyingId;
+        Scope = scope;
+        CorrelationId = correlationId;
+        RequestedAtUtc = requestedAtUtc;
+    }
+    public const string Actor = "CapacityReservationQuery";
     public const string Verb = "GetFinancialAdmissionSnapshot";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
 
     [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public LedgerPortfolioId QueryEntityId { get; init; } = new(0);
+    [Key(1)] public LedgerPortfolioId EntityId { get; init; } = new(0);
     [Key(2)] public TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey DeploymentKey { get; init; } = default!;
     [Key(3)] public string UnderlyingId { get; init; } = default!;
     [Key(4)] public FinancialReadScope Scope { get; init; } = new();
@@ -31,10 +51,11 @@ public sealed record GetFinancialAdmissionSnapshotQuery : IFinancialQueryMessage
             UnderlyingId = value.UnderlyingId;
         }
     }
-    [IgnoreMember] public int SchemaVersion => 1;
+    [IgnoreMember] public int SchemaVersion => 2;
+    [IgnoreMember] public LedgerPortfolioId QueryEntityId => EntityId;
     [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string? QueryParams => QueryEntityId.Format();
-    [IgnoreMember] IActorEntityId IQuery.EntityId => QueryEntityId;
+    [IgnoreMember] public string? QueryParams => EntityId.Format();
+    [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
 
     /// <summary>Initializes an empty query for serialization.</summary>
     public GetFinancialAdmissionSnapshotQuery() { }

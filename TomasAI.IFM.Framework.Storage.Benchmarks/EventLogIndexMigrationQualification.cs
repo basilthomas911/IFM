@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Diagnostics;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;

@@ -1,4 +1,6 @@
 using FluentAssertions;
+using System.Diagnostics;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -10,6 +12,51 @@ public sealed class NatsJSDurableReplayQueueTests
     static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(3);
     static readonly Task<EventProjectorDeliveryResult> CompletedDelivery =
         Task.FromResult(EventProjectorDeliveryResult.Completed);
+
+    [Fact]
+    public async Task Process_and_replay_continue_delivery_trace_without_inheriting_worker_startup_context()
+    {
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == ActorTrace.SourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
+        };
+        ActivitySource.AddActivityListener(listener);
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        var observed = new System.Collections.Concurrent.ConcurrentQueue<ActivityContext>();
+        var calls = 0;
+        await queue.DequeueAsync("traced", _ =>
+        {
+            observed.Enqueue(Activity.Current?.Context ?? default);
+            if (Interlocked.Increment(ref calls) == 1)
+                throw new InvalidOperationException("Replay the traced delivery.");
+            return CompletedDelivery;
+        });
+        using (new Activity("worker.start").SetIdFormat(ActivityIdFormat.W3C).Start())
+            await queue.StartAsync("traced", TimeSpan.FromSeconds(30));
+
+        ActivityContext parent;
+        using (var root = new Activity("delivery.root").SetIdFormat(ActivityIdFormat.W3C).Start())
+        {
+            parent = root.Context;
+            await queue.EnqueueAsync("traced", SampleData.Event("traced"));
+        }
+        await EventuallyAsync(() => transport.Queues["traced"].LastReplayMessage?.AckCount == 1);
+        observed.Should().HaveCount(2);
+        observed.Should().OnlyContain(context => context.TraceId == parent.TraceId);
+        observed.Should().OnlyContain(context => context.SpanId != parent.SpanId);
+
+        var previous = Activity.Current;
+        Activity.Current = null;
+        try
+        {
+            await queue.EnqueueAsync("traced", SampleData.Event("untraced"));
+            await EventuallyAsync(() => transport.Queues["traced"].LastProcessMessage?.AckCount == 1);
+        }
+        finally { Activity.Current = previous; }
+        observed.Last().Should().Be(default(ActivityContext));
+    }
 
     [Fact]
     public async Task PrepareAsync_creates_deterministic_configuration_without_starting_workers()

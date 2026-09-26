@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using TomasAI.IFM.Framework.Messaging.Nats;
@@ -138,6 +139,7 @@ internal sealed class FakeNatsJSDurableQueueTransport : INatsJSDurableQueueTrans
         : INatsJSDurableMessage
     {
         public byte[] Data { get; } = data;
+        public ActivityContext TraceContext { get; } = Activity.Current?.Context ?? default;
         public ulong DeliveryCount { get; private set; } = 1;
         public int AckAttempts { get; private set; }
         public int AckCount { get; private set; }

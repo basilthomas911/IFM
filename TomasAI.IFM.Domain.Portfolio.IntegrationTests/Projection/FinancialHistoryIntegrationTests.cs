@@ -17,7 +17,7 @@ public sealed class FinancialHistoryIntegrationTests(PortfolioEventStoreFixture 
     :IClassFixture<PortfolioEventStoreFixture>,IClassFixture<PortfolioDbFixture>
 {
     [Fact]
-    public async Task Real_scylla_history_replays_idempotently_without_reposting_postgres_money()
+    public async Task Real_postgres_history_replays_idempotently_without_reposting_postgres_money()
     {
         var book=await CreateBook(); var request=Request(book,LedgerTransactionKind.DepositConfirmed,1000,0);
         var completed=await Post(request);
@@ -27,8 +27,9 @@ public sealed class FinancialHistoryIntegrationTests(PortfolioEventStoreFixture 
         var receipt=(await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId,request.OperationId))!;
         await projection.ApplyAsync(receipt);
         var rows=await factory.PortfolioDb.Use("FinancialHistory.IntegrationRead","""
-            SELECT sourceEventId,payloadJson FROM financial_operation_by_portfolio_month WHERE portfolioId=? AND month=?;
-            """).SetParameters(new Values([book.PortfolioId,completed.CommittedAtUtc.Year*100+completed.CommittedAtUtc.Month]))
+            SELECT source_event_id,payload_json::text FROM portfolio.financial_operation_by_portfolio_month WHERE portfolio_id=$1 AND month=$2;
+            """).SetParameters(new Values([new Npgsql.NpgsqlParameter { Value = book.PortfolioId },
+                new Npgsql.NpgsqlParameter { Value = completed.CommittedAtUtc.Year*100+completed.CommittedAtUtc.Month }]))
             .ExecuteQueryAsync(row=>(EventId:row.GetLong(0),Json:row.GetString(1)),CancellationToken.None);
         rows.Should().ContainSingle(); rows.Single().EventId.Should().Be(completed.EventId);
         rows.Single().Json.Should().Contain(completed.Id.ToString());
@@ -71,5 +72,5 @@ public sealed class FinancialHistoryIntegrationTests(PortfolioEventStoreFixture 
         public Task<T> ExecuteAsync<T>(Func<EnlistedEventTransaction,CancellationToken,Task<T>> operation,CancellationToken token=default)
             =>inner.ExecuteAsync(async(db,ct)=> { var result=await operation(db,ct); Prepared.TrySetResult(); await Release.Task.WaitAsync(TimeSpan.FromSeconds(5),ct); return result; },token);
     }
-    readonly record struct Values(object?[] Items):IBindValue { public object Bind()=>Items; }
+    readonly record struct Values(Npgsql.NpgsqlParameter[] Items):IBindValue { public object Bind()=>Items; }
 }

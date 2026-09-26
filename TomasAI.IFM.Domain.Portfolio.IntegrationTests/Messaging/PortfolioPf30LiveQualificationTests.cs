@@ -24,21 +24,49 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
     [Trait("Category", "PortfolioLiveHostBucketedList")]
     public async Task Production_bucketed_list_returns_the_expected_projected_portfolio()
     {
-        var expectedId = int.Parse(Environment.GetEnvironmentVariable("IFM_PORTFOLIO_BUCKETED_ID")
-            ?? throw new InvalidOperationException("IFM_PORTFOLIO_BUCKETED_ID must identify a projected Portfolio outside bucket zero."));
-        expectedId.Should().BeGreaterThan(1000);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        var producer = await ProducerAsync(ActorType.Query, timeout.Token);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var producer = await ProducerAsync(ActorType.Command, timeout.Token);
         try
         {
             var queries = new PortfolioQueryApi(producer);
+            var configured = Environment.GetEnvironmentVariable("IFM_PORTFOLIO_BUCKETED_ID");
+            int expectedId;
+            if (configured is not null) expectedId = int.Parse(configured);
+            else
+            {
+                var identities = new PortfolioIdentityApi(producer);
+                do
+                {
+                    var allocated = await identities.AllocatePortfolioIdAsync(timeout.Token);
+                    allocated.Success.Should().BeTrue(allocated.ErrorMessage);
+                    expectedId = allocated.Value!.Value;
+                } while (expectedId <= 1000);
+                var now = DateTime.UtcNow;
+                var created = await new PortfolioCommandApi(producer).CreatePortfolioAsync(new()
+                {
+                    PortfolioId = expectedId, PortfolioVersion = 1, Name = "PF-30 bucketed list",
+                    OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
+                    CreatedOnUtc = now, CreatedBy = "pf30-bucketed-list"
+                }, Guid.NewGuid(), timeout.Token);
+                created.Success.Should().BeTrue(created.ErrorMessage);
+                await WaitForPortfolioAsync(queries, expectedId, timeout.Token);
+            }
+            expectedId.Should().BeGreaterThan(1000);
             var point = await queries.GetPortfolioAsync(expectedId, cancellationToken: timeout.Token);
             point.Success.Should().BeTrue(point.ErrorMessage);
 
-            var page = await queries.GetPortfoliosAsync(point.Value!.OperatingState, 200, cancellationToken: timeout.Token);
-
-            page.Success.Should().BeTrue(page.ErrorMessage);
-            page.Value!.Items.Should().Contain(x => x.PortfolioId == expectedId);
+            string? pageToken = null;
+            var found = false;
+            for (var pageNumber = 0; pageNumber < 100; pageNumber++)
+            {
+                var page = await queries.GetPortfoliosAsync(point.Value!.OperatingState, 200, pageToken, timeout.Token);
+                page.Success.Should().BeTrue(page.ErrorMessage);
+                if (page.Value!.Items.Any(x => x.PortfolioId == expectedId)) { found = true; break; }
+                if (page.Value.NextPageToken is null) break;
+                page.Value.NextPageToken.Should().NotBe(pageToken, "pagination must advance");
+                pageToken = page.Value.NextPageToken;
+            }
+            found.Should().BeTrue("the projected Portfolio must appear in its paginated state list");
         }
         finally { await producer.StopAsync(CancellationToken.None); }
     }

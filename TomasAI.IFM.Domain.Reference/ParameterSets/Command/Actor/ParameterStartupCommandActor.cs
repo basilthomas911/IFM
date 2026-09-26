@@ -43,10 +43,10 @@ public sealed class ParameterStartupCommandActor(ICommandActorContext<ParameterS
    ??throw new InvalidOperationException("PARAM.OPERATION_RESERVATION_NOT_READY");
   if(previous.CommandPayloadSha256 is { Length: > 0 })
   {
-   var codec=new TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditMessagePackCodec();
+   var codec=new TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditMessagePackCodec();
    if(previous.CommandName!=cmd.CommandName||previous.StreamId!=cmd.StreamId||
-      previous.CommandPayloadFormat!=(short)TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditPayloadFormat.MessagePack||
-      previous.CommandPayloadVersion!=TomasAI.IFM.Application.Storage.CommandAudit.CommandAuditMessagePackCodec.CurrentVersion||
+      previous.CommandPayloadFormat!=(short)TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPayloadFormat.MessagePack||
+      previous.CommandPayloadVersion!=TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditMessagePackCodec.CurrentVersion||
       !codec.Matches(cmd,previous.CommandPayloadSha256))
     throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
   }

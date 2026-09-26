@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -46,49 +46,4 @@ public record MarketDataFeedResetCompleteApiEvent : CompleteEvent
 
 public record MarketDataFeedResetFailApiEvent : ErrorEvent
 {
-}
-
-[MessagePackObject(AllowPrivate = true)]
-public record MarketDataFeedResetStreamingApiEvent : IEvent
-{
-    [IgnoreMember] public const string Actor = "MarketDataFeedResetStreamingApiEvent";
-    [IgnoreMember] public const string Verb = "Unknown";
-    [IgnoreMember] public const int ErrorCode = 0;
-    [IgnoreMember] static readonly string CachedUserName = $"{Environment.UserDomainName}\\{Environment.UserName}";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public Guid Id { get; init; }
-    [Key(2)] public string EntityId { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-
-    [IgnoreMember] public string UserName => CachedUserName;
-    [IgnoreMember] public string EventName => nameof(MarketDataFeedResetStreamingApiEvent);
-    [IgnoreMember] public EventType EventType => EventType.DomainEvent;
-
-    public MarketDataFeedResetStreamingApiEvent() { }
-
-    [SerializationConstructor]
-    public MarketDataFeedResetStreamingApiEvent(
-        ActorSubject subject,
-        Guid id,
-        string entityId,
-        long eventId,
-        Guid commandId,
-        string aggregateId,
-        string eventSource,
-        DateTime receivedOn)
-    {
-        Subject = subject;
-        Id = id;
-        EntityId = entityId;
-        EventId = eventId;
-        CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
-        ReceivedOn = receivedOn;
-    }
 }

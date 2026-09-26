@@ -26,40 +26,6 @@ public static class StrategyCatalogJson
     }
 }
 
-// Explicit JSON transport keeps JsonElement settings out of MessagePack's dynamic object formatter.
-[MessagePackObject]
-public sealed class StrategyCatalogQuery : IQuery<string>
-{
-    [IgnoreMember] public const string Actor = "ReferenceQuery";
-    [IgnoreMember] public const string Verb = "StrategyCatalog";
-    [IgnoreMember] public const int ErrorId = 1063;
-    [Key(0)] public ActorSubject Subject { get; set; }
-    [Key(1)] public IActorEntityId EntityId { get; set; } = ActorEntityId.Default;
-    [Key(2)] public string RequestJson { get; set; } = "";
-    [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string? QueryParams => null;
-}
-
-[MessagePackObject]
-public sealed record StrategyCatalogCommand : ICommand<ActorEntityId>
-{
-    [IgnoreMember] public const string Actor = "TradeStrategyFamilyCommand";
-    [IgnoreMember] public const string Verb = "Catalog";
-    [IgnoreMember] public const int ErrorId = 8064;
-    [Key(0)] public Guid CommandId { get; init; }
-    [Key(1)] public ActorSubject Subject { get; init; }
-    [Key(2)] public bool PostEvents { get; init; }
-    [Key(3)] public ActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [Key(4)] public int ErrorCode { get; init; } = ErrorId;
-    [Key(5)] public BoundedContextName RouteTo { get; init; } = BoundedContextName.TradeStrategyFamilyBoundedContext;
-    [Key(6)] public string RequestJson { get; init; } = "";
-    [IgnoreMember] public string CommandName => nameof(StrategyCatalogCommand);
-    [IgnoreMember] public string StreamId => Subject.StreamId;
-    [IgnoreMember] public string EventSource => Actor;
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
-    [IgnoreMember] public string OriginatedBy => Environment.UserName;
-}
-
 public sealed record CatalogQueryParameter(CatalogQueryRequest Request) : IQueryParameter
 {
     public string? QueryParams => null;

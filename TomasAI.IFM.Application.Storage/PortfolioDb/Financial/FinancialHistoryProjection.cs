@@ -3,6 +3,8 @@ using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
 
@@ -32,9 +34,14 @@ public sealed class FinancialHistoryProjection(IDbContextFactory factory) : IFin
         };
         if(completed.EventId<=0 || revision<=0 || completed.CommittedAtUtc.Kind!=DateTimeKind.Utc)
             throw new InvalidOperationException("Only committed financial events can enter history.");
-        return factory.PortfolioDb.Use("PortfolioFinancial.ProjectHistory",Insert).SetParameters(new HistoryValues(
-            [completed.PortfolioId,completed.CommittedAtUtc.Year*100+completed.CommittedAtUtc.Month,revision,completed.OperationId,
-             completed.EventId,completed.GetType().FullName,completed.CommittedAtUtc,completed.ToEventData(),completed.EventId])).ExecuteCommandAsync(token);
+        return factory.PortfolioDb.Use("PortfolioFinancial.ProjectHistory",Insert).SetParameters(new PortfolioParameters(
+            [new() { Value = completed.PortfolioId },
+             new() { Value = completed.CommittedAtUtc.Year * 100 + completed.CommittedAtUtc.Month },
+             new() { Value = revision },
+             new() { Value = completed.OperationId },
+             new() { Value = completed.EventId },
+             new() { Value = completed.GetType().FullName ?? completed.GetType().Name },
+             new() { Value = completed.CommittedAtUtc },
+             new() { NpgsqlDbType = NpgsqlDbType.Jsonb, Value = completed.ToEventData() }])).ExecuteCommandAsync(token);
     }
-    readonly record struct HistoryValues(object?[] Values) : IBindValue { public object Bind()=>Values; }
 }

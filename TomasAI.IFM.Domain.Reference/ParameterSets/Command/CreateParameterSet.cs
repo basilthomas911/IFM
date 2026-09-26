@@ -23,7 +23,7 @@ public static class CreateParameterSet
   if(command.LegacySource is {} source)
   {
    if(source.Kind!=ParameterLegacyMigrationModel.RegimeKind||command.EntityId.SetId!=ParameterLegacyMigrationModel.TargetId(source))throw new ArgumentException("PARAM.LEGACY_IDENTITY_MISMATCH");
-   var stored=(await context.ConfigurationDb.ReadLegacyParameterVersionsAsync(source.SetId,source.Version)).SingleOrDefault()??throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
+   var stored=(await context.ConfigurationDb.GetLegacyParameterVersionsAsync(source.SetId,source.Version)).SingleOrDefault()??throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
    if(stored.Reference!=source||ParameterLegacyMigrationModel.Expand(stored)!=ParameterCanonicalPayloadModel.Canonicalize(command.PayloadJson))throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
   }
   var version=ParameterMutationModel.Decide(command,state.CatalogRevision,state.Versions,DateTime.UtcNow);

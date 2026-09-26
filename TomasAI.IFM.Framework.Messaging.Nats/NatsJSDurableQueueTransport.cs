@@ -2,6 +2,8 @@ using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
+using System.Diagnostics;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
@@ -45,6 +47,9 @@ internal interface INatsJSDurableMessage
 {
     /// <summary>Gets the serialized durable event envelope.</summary>
     byte[] Data { get; }
+
+    /// <summary>Gets the W3C trace context carried by this delivery's transport headers.</summary>
+    ActivityContext TraceContext { get; }
 
     /// <summary>Gets the number of times the message has been delivered, including the current delivery.</summary>
     ulong DeliveryCount { get; }
@@ -293,10 +298,12 @@ internal sealed class NatsJSDurableQueueTransport(
             ? queue
             : throw new InvalidOperationException($"The durable queue for projector '{eventProjectorName}' has not been initialized.");
 
-    static NatsHeaders CreateMessageHeaders(string messageId) => new()
+    static NatsHeaders CreateMessageHeaders(string messageId)
     {
-        ["Nats-Msg-Id"] = messageId
-    };
+        var headers = ActorTrace.Headers() ?? new NatsHeaders();
+        headers["Nats-Msg-Id"] = messageId;
+        return headers;
+    }
 
     static void EnsurePublishAccepted(PubAckResponse acknowledgement)
     {
@@ -329,6 +336,7 @@ internal sealed class NatsJSDurableQueueTransport(
     sealed class NatsJSDurableMessage(INatsJSMsg<byte[]> message) : INatsJSDurableMessage
     {
         public byte[] Data => message.Data ?? [];
+        public ActivityContext TraceContext => ActorTrace.Extract(message.Headers);
         public ulong DeliveryCount => message.Metadata?.NumDelivered ?? 1;
         public ValueTask AckAsync(CancellationToken cancellationToken) =>
             message.AckAsync(cancellationToken: cancellationToken);

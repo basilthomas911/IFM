@@ -1,7 +1,9 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
@@ -13,6 +15,7 @@ public static class RegimeDiscoveryScenarioDataBuilder
     public static readonly DateTime MarketDataAsOfUtc = new(2026, 8, 28, 15, 59, 0, DateTimeKind.Utc);
     public static readonly DateTime ProducedAtUtc = new(2026, 8, 28, 16, 0, 0, DateTimeKind.Utc);
 
+    /// <summary>Builds frozen analytics and the authoritative ITI trigger used by the live calculation path.</summary>
     public static RegimeDiscoveryCalculationInput CreateInput(
         RegimeDiscoveryScenario scenario,
         TimeFrameType horizon,
@@ -56,6 +59,31 @@ public static class RegimeDiscoveryScenarioDataBuilder
             WorkflowId = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-00000000A002")),
             EntityId = entityId,
             TriggerEventId = Guid.Parse("0198E212-3C00-7000-8000-00000000A003"),
+            TriggerEvent = new FuturesItiSignalGeneratedEvent
+            {
+                Id = Guid.Parse("0198E212-3C00-7000-8000-00000000A003"),
+                EntityId = entityId.ItiSignalEntityId,
+                CreatedOn = ProducedAtUtc,
+                ReceivedOn = ProducedAtUtc,
+                FuturesItiSignal = new FuturesItiSignalV2ReadModel
+                {
+                    ContractId = contractId,
+                    ValueDate = entityId.ItiSignalEntityId.ValueDate,
+                    TimeFrameStartValueDate = entityId.ItiSignalEntityId.ValueDate,
+                    TimePeriod = horizon,
+                    IntrinsicTime = MarketDataAsOfUtc,
+                    IntrinsicPrice = (double)scenario.Value(RegimeDiscoverySignalMetric.CurrentPrice),
+                    IntrinsicTimeTrend = scenario.Value(RegimeDiscoverySignalMetric.ItiDirection) switch
+                    {
+                        > 0m => IntrinsicTimeTrendType.UpTrend,
+                        < 0m => IntrinsicTimeTrendType.DownTrend,
+                        _ => default
+                    },
+                    BandLevel = (double)scenario.Value(RegimeDiscoverySignalMetric.ItiBandLevel),
+                    ReversalLevel = (double)scenario.Value(RegimeDiscoverySignalMetric.ItiReversalLevel)
+                },
+                VixFuturesPrice = (double)scenario.Value(RegimeDiscoverySignalMetric.VxFrontLevel)
+            },
             ParameterSet = parameterSet,
             Snapshot = new RegimeDiscoveryMarketSignalSnapshot
             {

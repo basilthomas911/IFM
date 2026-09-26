@@ -10,9 +10,60 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record ExecuteMarketConditionAssessmentCommand : ICommand<MarketConditionAssessmentExecutionId>
 {
+
+    /// <summary>Creates an empty command for serialization and existing callers.</summary>
+    public ExecuteMarketConditionAssessmentCommand() { }
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="schemaVersion">The SchemaVersion field.</param>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="errorCode">The ErrorCode field.</param>
+    /// <param name="routeTo">The RouteTo field.</param>
+    /// <param name="inputWorkflowRevision">The InputWorkflowRevision field.</param>
+    /// <param name="workflowView">The WorkflowView field.</param>
+    /// <param name="triggerEvent">The TriggerEvent field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="causationId">The CausationId field.</param>
+    /// <param name="requestedAtUtc">The RequestedAtUtc field.</param>
+    /// <param name="expiresAtUtc">The ExpiresAtUtc field.</param>
+    /// <param name="parameterSet">The ParameterSet field.</param>
+    /// <param name="parameterPayloadSha256">The ParameterPayloadSha256 field.</param>
+    /// <param name="regimeResultEnvelope">The RegimeResultEnvelope field.</param>
+    /// <param name="regimePayloadSha256">The RegimePayloadSha256 field.</param>
+    /// <param name="marketProfileId">The MarketProfileId field.</param>
+    /// <param name="instrumentRoot">The InstrumentRoot field.</param>
+    /// <param name="targetHorizon">The TargetHorizon field.</param>
+    [SerializationConstructor]
+    public ExecuteMarketConditionAssessmentCommand(short schemaVersion, Guid commandId, ActorSubject subject, bool postEvents, MarketConditionAssessmentExecutionId entityId, int errorCode, BoundedContextName routeTo, long inputWorkflowRevision, IntrinsicTimeStrategyWorkflowView workflowView, FuturesItiSignalGeneratedEvent triggerEvent, Guid correlationId, Guid causationId, DateTime requestedAtUtc, DateTime expiresAtUtc, MarketConditionAssessmentParameterSet parameterSet, string parameterPayloadSha256, StrategyStageResultEnvelope regimeResultEnvelope, string regimePayloadSha256, string marketProfileId, string instrumentRoot, TimeFrameType targetHorizon)
+    {
+        SchemaVersion = schemaVersion;
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        ErrorCode = errorCode;
+        RouteTo = routeTo;
+        InputWorkflowRevision = inputWorkflowRevision;
+        WorkflowView = workflowView;
+        TriggerEvent = triggerEvent;
+        CorrelationId = correlationId;
+        CausationId = causationId;
+        RequestedAtUtc = requestedAtUtc;
+        ExpiresAtUtc = expiresAtUtc;
+        ParameterSet = parameterSet;
+        ParameterPayloadSha256 = parameterPayloadSha256;
+        RegimeResultEnvelope = regimeResultEnvelope;
+        RegimePayloadSha256 = regimePayloadSha256;
+        MarketProfileId = marketProfileId;
+        InstrumentRoot = instrumentRoot;
+        TargetHorizon = targetHorizon;
+    }
     public const string Actor = "MarketConditionPipelineFunction";
     public const string Verb = "Assess";
     public const int ErrorId = 23022;

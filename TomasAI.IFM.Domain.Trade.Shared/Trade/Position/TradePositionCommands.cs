@@ -9,9 +9,40 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 /// Broker-neutral market-price change sent by a realtime ContractId router to the
 /// concrete strategy-position actor that owns the selected trade leg.
 /// </summary>
-[MessagePackObject]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record ChangeTradeLegDataCommand : ICommand<StrategyPositionId>
 {
+
+    /// <summary>Creates an empty command for serialization and existing callers.</summary>
+    public ChangeTradeLegDataCommand() { }
+
+    /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
+    /// <param name="commandId">The CommandId field.</param>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="postEvents">The PostEvents field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="tradeLegId">The TradeLegId field.</param>
+    /// <param name="contractId">The ContractId field.</param>
+    /// <param name="price">The Price field.</param>
+    /// <param name="sourceSequence">The SourceSequence field.</param>
+    /// <param name="routeGeneration">The RouteGeneration field.</param>
+    /// <param name="effectiveAtUtc">The EffectiveAtUtc field.</param>
+    /// <param name="tradeType">The TradeType field.</param>
+    [SerializationConstructor]
+    public ChangeTradeLegDataCommand(Guid commandId, ActorSubject subject, bool postEvents, StrategyPositionId entityId, Guid tradeLegId, string contractId, decimal price, long sourceSequence, long routeGeneration, DateTime effectiveAtUtc, TradeStrategyKind tradeType)
+    {
+        CommandId = commandId;
+        Subject = subject;
+        PostEvents = postEvents;
+        EntityId = entityId;
+        TradeLegId = tradeLegId;
+        ContractId = contractId;
+        Price = price;
+        SourceSequence = sourceSequence;
+        RouteGeneration = routeGeneration;
+        EffectiveAtUtc = effectiveAtUtc;
+        TradeType = tradeType;
+    }
     public const string Verb = "ChangeTradeLegData";
 
     [Key(0)] public Guid CommandId { get; init; }

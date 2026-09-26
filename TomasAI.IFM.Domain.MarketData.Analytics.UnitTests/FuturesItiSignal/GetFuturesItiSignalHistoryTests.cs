@@ -24,7 +24,7 @@ public sealed class GetFuturesItiSignalHistoryTests
         factory.MarketDataDb.Returns(database);
         database.GetFuturesItiSignalsAsync(
                 Symbol,
-                new DateOnly(2026, 9, 7),
+                new DateOnly(2026, 9, 2),
                 new DateOnly(2026, 9, 8))
             .Returns(Task.FromResult<ICollection<FuturesItiSignalV2ReadModel>>(
             [
@@ -45,7 +45,7 @@ public sealed class GetFuturesItiSignalHistoryTests
         result.Should().OnlyContain(signal => signal.TimePeriod == TimeFrameType.Weekly);
         await database.Received(1).GetFuturesItiSignalsAsync(
             Symbol,
-            new DateOnly(2026, 9, 7),
+            new DateOnly(2026, 9, 2),
             new DateOnly(2026, 9, 8));
     }
 

@@ -36,7 +36,8 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
             : base(new FuturesItiSignalEventContext(
                 supervisor,
                 statusConsoleWriter,
-                logger))
+                logger,
+                NSubstitute.Substitute.For<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>()))
         {
         }
 

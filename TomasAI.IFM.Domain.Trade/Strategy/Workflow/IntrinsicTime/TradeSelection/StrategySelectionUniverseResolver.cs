@@ -26,7 +26,7 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
             "TS.CONTRACT.IDENTITY", "Invalid strategy-universe execution identity or validity interval.");
 
         var common = activation.SelectionPolicyReference;
-        var resolved = await configuration.ResolveTradeSelectionVersionAsync(
+        var resolved = await configuration.GetEffectiveTradeSelectionVersionAsync(
             common.Id, common.Version, common.PayloadSha256, frozenAtUtc, cancellationToken).ConfigureAwait(false);
         var selectionPolicy = resolved.ParameterSet;
         var deploymentKeys = activation.DeploymentKeys.OrderBy(KeyText, StringComparer.Ordinal).ToArray();

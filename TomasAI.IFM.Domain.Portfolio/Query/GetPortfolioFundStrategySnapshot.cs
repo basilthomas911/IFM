@@ -1,15 +1,22 @@
 using TomasAI.IFM.Domain.Portfolio.Query.Actor;
-using TomasAI.IFM.Domain.Portfolio.Query.Model;
-using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
+using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using GetPortfolioFundStrategySnapshotQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfolioFundStrategySnapshotQuery;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 
-/// <summary>Handles <see cref="GetPortfolioFundStrategySnapshotQuery"/>.</summary>
+/// <summary>Compatibility handler for the published PortfolioQuery route; Fund owns new traffic.</summary>
 public static class GetPortfolioFundStrategySnapshot
 {
-    /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
-    public static ValueTask ExecuteAsync(this GetPortfolioFundStrategySnapshotQuery query, IQueryActorContext<PortfolioQueryActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetStrategySnapshotAsync(query.PortfolioId, query.TradingYear, query.DecisionHorizon, query.UnderlyingRoot, query.AssetType, query.AsOfUtc, query.WorkflowId, query.WorkflowRevision, query.CorrelationId, cancellationToken));
+    /// <summary>Forwards the legacy query to the Fund-owned implementation.</summary>
+    /// <param name="query">The published legacy query message.</param>
+    /// <param name="context">The legacy Portfolio query actor context.</param>
+    /// <param name="parameters">The query services shared with the owning child actor.</param>
+    /// <param name="cancellationToken">Cancellation for the projection read.</param>
+    /// <returns>The asynchronous reply operation.</returns>
+    public static ValueTask ExecuteAsync(
+        this GetPortfolioFundStrategySnapshotQuery query,
+        IQueryActorContext<PortfolioQueryActor> context,
+        PortfolioQueryParameters parameters,
+        CancellationToken cancellationToken) =>
+        TomasAI.IFM.Domain.Portfolio.Fund.Query.GetPortfolioFundStrategySnapshot.ExecuteAsync(query, context, parameters, cancellationToken);
 }

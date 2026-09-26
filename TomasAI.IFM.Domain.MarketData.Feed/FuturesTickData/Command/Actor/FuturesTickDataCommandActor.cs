@@ -141,7 +141,7 @@ public class FuturesTickDataCommandActor(
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContract(e.Contract, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName);
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
         },
         [typeof(StopFuturesTickDataStreamingCommand)] = cmd => {
             var e = (StopFuturesTickDataStreamingCommand)cmd; return new List<ValidationError>()

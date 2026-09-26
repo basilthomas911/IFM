@@ -9,12 +9,32 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetFundTransactionsPageQuery : IFinancialQueryMessage<GetFundTransactionsPageRequest, FinancialPage<FinancialTransactionRow>>
 {
-    public const string Actor = "PortfolioFinancialQuery";
+
+    /// <summary>Rehydrates every query field in permanent numeric-key order.</summary>
+    /// <param name="subject">The Subject field.</param>
+    /// <param name="entityId">The EntityId field.</param>
+    /// <param name="pageSize">The PageSize field.</param>
+    /// <param name="cursor">The Cursor field.</param>
+    /// <param name="scope">The Scope field.</param>
+    /// <param name="correlationId">The CorrelationId field.</param>
+    /// <param name="requestedAtUtc">The RequestedAtUtc field.</param>
+    [SerializationConstructor]
+    public GetFundTransactionsPageQuery(ActorSubject subject, LedgerPortfolioId entityId, int pageSize, FinancialPageCursor? cursor, FinancialReadScope scope, Guid correlationId, DateTime requestedAtUtc)
+    {
+        Subject = subject;
+        EntityId = entityId;
+        PageSize = pageSize;
+        Cursor = cursor;
+        Scope = scope;
+        CorrelationId = correlationId;
+        RequestedAtUtc = requestedAtUtc;
+    }
+    public const string Actor = "GeneralLedgerQuery";
     public const string Verb = "GetFundTransactionsPage";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
 
     [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public LedgerPortfolioId QueryEntityId { get; init; } = new(0);
+    [Key(1)] public LedgerPortfolioId EntityId { get; init; } = new(0);
     [Key(2)] public int PageSize { get; init; } = default!;
     [Key(3)] public FinancialPageCursor? Cursor { get; init; } = default!;
     [Key(4)] public FinancialReadScope Scope { get; init; } = new();
@@ -31,10 +51,11 @@ public sealed record GetFundTransactionsPageQuery : IFinancialQueryMessage<GetFu
             Cursor = value.Cursor;
         }
     }
-    [IgnoreMember] public int SchemaVersion => 1;
+    [IgnoreMember] public int SchemaVersion => 2;
+    [IgnoreMember] public LedgerPortfolioId QueryEntityId => EntityId;
     [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string? QueryParams => QueryEntityId.Format();
-    [IgnoreMember] IActorEntityId IQuery.EntityId => QueryEntityId;
+    [IgnoreMember] public string? QueryParams => EntityId.Format();
+    [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
 
     /// <summary>Initializes an empty query for serialization.</summary>
     public GetFundTransactionsPageQuery() { }

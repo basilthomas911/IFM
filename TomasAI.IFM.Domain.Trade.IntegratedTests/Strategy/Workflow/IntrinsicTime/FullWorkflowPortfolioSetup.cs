@@ -65,6 +65,14 @@ public sealed partial class TradeSelectionRuntimeTests
         posting=posting with { InputSha256=FinancialCanonicalHash.Request(posting) };
         var funded = await services.GetRequiredService<IPortfolioFinancialApi>().PostAsync(posting);
         funded.Success.Should().BeTrue(funded.ErrorMessage);
+        var selected = binding.Candidates[0];
+        var admission = await services.GetRequiredService<IPortfolioFinancialApi>()
+            .GetFinancialAdmissionSnapshotAsync(new()
+                { PortfolioId = id, FundId = source.Fund.FundId,
+                    Access = new("FullWorkflowFixture", ["LedgerRead"], [id]) },
+                new(selected.DeploymentKey,
+                    FinancialScopeKeys.Underlying(selected.Product.Symbol, selected.Product.Exchange, selected.Product.Currency)));
+        admission.Success.Should().BeTrue(admission.ErrorMessage);
     }
 
     static async Task AssertWorkflowReservationCountAsync(TradeSelectionBinding binding, int expected)

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using Npgsql;
-using TomasAI.IFM.Application.Storage.CommandAudit;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using TomasAI.IFM.Shared.Exceptions;
 using static TomasAI.IFM.Framework.Storage.Benchmarks.EventLogMarkerQualification;

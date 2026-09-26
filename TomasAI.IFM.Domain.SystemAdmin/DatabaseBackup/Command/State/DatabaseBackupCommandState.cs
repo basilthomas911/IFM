@@ -22,7 +22,7 @@ public sealed class DatabaseBackupCommandState
     public DatabaseBackupServiceState Service { get; private set; } = new();
     public DatabaseRetentionState Retention { get; private set; } = new();
 
-    public DatabaseRecoveryOperationId Execute(DatabaseBackupCommand command)
+    public DatabaseRecoveryOperationId Execute(IDatabaseBackupCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
         EnsureExpectedRevision(command.ExpectedStateRevision);
@@ -135,7 +135,7 @@ public sealed class DatabaseBackupCommandState
         return Operation.OperationId;
     }
 
-    DatabaseRecoveryOperationId Cancel(DatabaseBackupCommand command)
+    DatabaseRecoveryOperationId Cancel(IDatabaseBackupCommand command)
     {
         if (!Operation.Exists || Operation.IsTerminal) throw new InvalidOperationException("Only an active operation can be cancelled.");
         var source = Source(command, Operation.Kind, DatabaseRecoveryPhase.Cancelled);
@@ -291,7 +291,7 @@ public sealed class DatabaseBackupCommandState
             throw new InvalidOperationException("Only production restore can become ready for cutover.");
     }
 
-    DatabaseSourceEnvelope Source(DatabaseBackupCommand command, DatabaseRecoveryOperationKind kind, DatabaseRecoveryPhase phase)
+    DatabaseSourceEnvelope Source(IDatabaseBackupCommand command, DatabaseRecoveryOperationKind kind, DatabaseRecoveryPhase phase)
         => new()
         {
             SourceEventId = Guid.NewGuid(), OperationId = command.EntityId, BackupSetId = command.BackupSetId,
@@ -306,7 +306,7 @@ public sealed class DatabaseBackupCommandState
     static DatabaseSourceEnvelope NextSource(DatabaseSourceEnvelope source, DatabaseRecoveryPhase phase)
         => source with { SourceEventId = Guid.NewGuid(), Phase = phase };
 
-    static TEvent Create<TEvent>(DatabaseBackupCommand command, DatabaseSourceEnvelope source, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
+    static TEvent Create<TEvent>(IDatabaseBackupCommand command, DatabaseSourceEnvelope source, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
         where TEvent : DatabaseBackupEventContract, new()
     {
         var template = new TEvent();
@@ -314,7 +314,7 @@ public sealed class DatabaseBackupCommandState
         {
             Subject = new ActorSubject(ActorType.Event, "DatabaseBackupEvent", template.Verb, source.OperationId.Format()),
             Id = source.SourceEventId, EntityId = source.OperationId, CommandId = command.CommandId,
-            AggregateId = source.OperationId.Format(), EventSource = DatabaseBackupCommand.Actor,
+            AggregateId = source.OperationId.Format(), EventSource = DatabaseBackupCommandRoute.Actor,
             ReceivedOn = source.ObservedUtc.UtcDateTime, Source = source, Request = command.Request,
             Outcome = outcome, RestorePointId = command.RestorePointId, FreshTarget = command.FreshTarget,
             Policy = command.Policy, RequiredDestinations = command.RequiredDestinations,

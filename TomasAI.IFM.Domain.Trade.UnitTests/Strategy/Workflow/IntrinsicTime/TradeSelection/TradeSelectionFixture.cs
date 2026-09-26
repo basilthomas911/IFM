@@ -2,6 +2,7 @@ using System.Text.Json;
 using MessagePack;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
@@ -79,7 +80,7 @@ internal static class TradeSelectionFixture
         var source=definitions.Select(x=>new StoredStrategyCatalogDefinition(StrategyCatalogValidation.Freeze(x),StrategyCatalogValidation.ContentHash(x),CatalogLifecycleStatus.Published,at.AddDays(-2),"fixture",at.AddDays(-1),"fixture",null,null)).ToArray();
         var graph=new StrategyCatalogSnapshot(deployment.Key,at,source,SelectionCatalogTransport.GraphHash(deployment.Key,source));
         var config=Substitute.For<IConfigurationDbContext>();
-        config.ResolveTradeSelectionVersionAsync(common.ParameterSetId,1,selectionRef.PayloadSha256,at,Arg.Any<CancellationToken>()).Returns(new ResolvedTradeSelectionParameterSet(common,selectionRef.PayloadSha256,ConfigurationParameterSetStatus.Published,at.AddDays(-1),null));
+        config.GetEffectiveTradeSelectionVersionAsync(common.ParameterSetId,1,selectionRef.PayloadSha256,at,Arg.Any<CancellationToken>()).Returns(new ResolvedTradeSelectionParameterSet(common,selectionRef.PayloadSha256,ConfigurationParameterSetStatus.Published,at.AddDays(-1),null));
         config.GetPublishedStrategyDeploymentAsync(deployment.Key,at,Arg.Any<CancellationToken>()).Returns(graph);
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.TradeSelection,common.ParameterSetId,1,Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot{Kind=CatalogPipelineParameterKind.TradeSelection,Id=common.ParameterSetId,Version=1,SchemaVersion=1,PayloadJson=TradeSelectionPolicy.Serialize(common),PayloadSha256=selectionRef.PayloadSha256,Status=CatalogLifecycleStatus.Published,EffectiveFromUtc=at.AddDays(-1)});
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.OrderComposition,composition.ParameterSetId,1,Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot{Kind=CatalogPipelineParameterKind.OrderComposition,Id=composition.ParameterSetId,Version=1,SchemaVersion=1,PayloadJson=composition.Serialize(),PayloadSha256=composition.Hash(),Status=CatalogLifecycleStatus.Published,EffectiveFromUtc=at.AddDays(-1)});

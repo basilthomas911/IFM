@@ -1,4 +1,5 @@
 using StackExchange.Redis;
+using CommandStatus = TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandStatus;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

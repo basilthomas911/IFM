@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
@@ -75,7 +76,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         {
             [StrategyWorkflowStage.RegimeDiscovery] = ExecuteRegimeDiscoveryAsync,
             [StrategyWorkflowStage.MarketCondition] = ExecuteMarketConditionAsync,
-            [StrategyWorkflowStage.TradeSelection] = ExecuteSelectionAsync,
+            [StrategyWorkflowStage.TradeSelection] = static (context, snapshot) =>
+                snapshot.State.CompositionHandoff?.Status == CompositionHandoffStatus.ReservationPending
+                    ? ReserveSelectionAsync(context, snapshot)
+                    : ExecuteSelectionAsync(context, snapshot),
             [StrategyWorkflowStage.OrderComposition] = static (context, snapshot) =>
                 OrderComposer.Realtime.ExecuteOrderComposition.ExecuteAsync(snapshot, RequireEventContext(context)),
             [StrategyWorkflowStage.RiskManagement] = static (context, snapshot) =>

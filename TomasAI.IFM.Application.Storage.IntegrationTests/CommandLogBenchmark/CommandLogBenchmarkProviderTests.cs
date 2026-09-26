@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.Storage.CommandLogBenchmark;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandLogBenchmark;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;

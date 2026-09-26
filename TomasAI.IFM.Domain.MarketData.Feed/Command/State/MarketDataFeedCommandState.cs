@@ -34,6 +34,7 @@ public class MarketDataFeedCommandState
         TradeLiveFeedHaltedEvent e => On(e),
         TradeLiveFeedTurnedOnEvent e => On(e),
         TradeLiveFeedTurnedOffEvent e => On(e),
+        StreamingRequestIdDeletedEvent => true,
         _ => false
     };
 

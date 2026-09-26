@@ -142,8 +142,8 @@ public class FuturesItiSignalCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName)
-                .ValidateValueDate(e.TimeFrameStartValueDate, e.CommandName)
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                .ValidateDateOnly(e.TimeFrameStartValueDate, e.CommandName, "ValueDate")
                 .ValidateTimePeriod(e.TimePeriod, e.CommandName)
                 .ValidateTimestamp(e.Timestamp, e.CommandName)
                 .ValidateFuturesPrice(e.FuturesPrice, e.CommandName)
@@ -154,7 +154,7 @@ public class FuturesItiSignalCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName)
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
                 .ValidateTimePeriod(e.TimePeriod, e.CommandName)
                 .ValidateTimestamp(e.Timestamp, e.CommandName);
         },
@@ -163,7 +163,7 @@ public class FuturesItiSignalCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName)
+                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
                 .ValidateTimePeriod(e.TimePeriod, e.CommandName)
                 .ValidateTimestamp(e.Timestamp, e.CommandName);
         }

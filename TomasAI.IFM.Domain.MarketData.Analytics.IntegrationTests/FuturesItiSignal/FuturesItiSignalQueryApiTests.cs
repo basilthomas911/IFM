@@ -112,7 +112,10 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
     [Fact]
     public async Task GetFuturesItiSignalHistory_ReturnsCompleteWeeklyWindowInOrder()
     {
-        const string contractId = SampleData.ContractId;
+        // Isolate the symbol-wide history query from durable ES observations left by
+        // other integration runs; this test owns only its two weekly rows.
+        const string symbol = "ITIHISTORYTEST";
+        const string contractId = symbol + "20261218";
         var monday = new DateOnly(2026, 9, 7);
         var wednesday = monday.AddDays(2);
         var seeded = new[]
@@ -135,7 +138,7 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
 
             var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
             var response = await analyticsApi.GetFuturesItiSignalHistoryAsync(
-                "ES",
+                symbol,
                 wednesday,
                 TimeFrameType.Weekly);
 

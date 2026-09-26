@@ -9,7 +9,7 @@ public static class GetParameterSchema
  {
   ArgumentNullException.ThrowIfNull(context);ArgumentNullException.ThrowIfNull(logger);
   context.AccessPolicy.Demand(ParameterCapability.Read);
-  var result=await context.ConfigurationDb.ReadParameterSchemaAsync(query.ComponentCode,query.SchemaVersion,token)
+  var result=await context.ConfigurationDb.GetParameterSchemaAsync(query.ComponentCode,query.SchemaVersion,token)
    ??throw new KeyNotFoundException("PARAM.SCHEMA_UNSUPPORTED");
   await context.ReplyAsync(query.Subject.ThreadId,query.Subject.Verb,new ServiceOk<ParameterSchemaDefinition>(result));
  }

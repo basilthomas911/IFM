@@ -20,14 +20,15 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
-public sealed class ConfigurationStrategyCatalogActorTests
+[Collection(ReferenceIntegrationInfrastructureCollection.Name)]
+public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
     [Fact]
     [Trait("Category", "Integration")]
     public async Task Serialized_catalog_commands_persist_publish_and_retire_exact_versions_in_postgres()
     {
         var settings = new DbConnectionSettings().Add(ConfigurationDbContext.ConfigurationDbConnection,
-            Environment.GetEnvironmentVariable("IFM_POSTGRES_CONFIGURATION_TEST_CONNECTION") ?? "Host=localhost;Port=5432;Database=ifm-configuration-integration-tests", "System.Data.Postgres");
+            infrastructure.PostgresConnectionString, "System.Data.Postgres");
         var factory = Substitute.For<IDbContextFactory>(); var logger = Substitute.For<ILogger<DbProvider>>();
         var context = new ConfigurationDbContext(settings, factory, logger); factory.ConfigurationDb.Returns(context);
         await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
