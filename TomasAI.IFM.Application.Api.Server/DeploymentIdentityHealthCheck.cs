@@ -8,7 +8,7 @@ public sealed class DeploymentIdentityHealthCheck(DeploymentIdentityMonitor moni
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var validation = monitor.Validate();
+        var validation = monitor.Current;
         var data = new Dictionary<string, object>
         {
             ["enforced"] = validation.Enforced,

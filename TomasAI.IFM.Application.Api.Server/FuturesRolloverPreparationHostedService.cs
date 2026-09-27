@@ -22,7 +22,8 @@ public sealed class FuturesRolloverPreparationHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        using var timer = new PeriodicTimer(PollInterval, timeProvider);
+        while (true)
         {
             try
             {
@@ -41,9 +42,15 @@ public sealed class FuturesRolloverPreparationHostedService(
                     errorCode: 10031).ConfigureAwait(false);
             }
 
-            if (!await HostedServiceLifecycle.DelayAsync(
-                    PollInterval, timeProvider, stoppingToken).ConfigureAwait(false))
+            try
+            {
+                if (!await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+                    return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
                 return;
+            }
         }
     }
 

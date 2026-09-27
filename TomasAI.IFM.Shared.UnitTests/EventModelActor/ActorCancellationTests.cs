@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -340,6 +341,97 @@ public sealed class ActorCancellationTests
     }
 
     [Fact]
+    public async Task RuntimeStartup_BoundsConcurrentActorInitialization()
+    {
+        const int actorCount = 12;
+        const int maximumConcurrency = 3;
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new Mock<IActorSupervisor>();
+        var registry = new Mock<IActorRegistry>();
+        var factory = new Mock<IActorFactory>();
+        var registrations = Enumerable.Repeat(typeof(FirstRegistrationMarker), actorCount).ToArray();
+        var actors = Enumerable.Range(0, actorCount)
+            .Select(index => CreateActor(ActorType.Command, $"Bounded-{index}"))
+            .ToArray();
+        var sequence = factory.SetupSequence(instance =>
+            instance.GetActor(typeof(FirstRegistrationMarker)));
+        foreach (var actor in actors)
+            sequence.Returns(actor.Object);
+
+        var concurrent = 0;
+        var observedMaximum = 0;
+        supervisor.Setup(instance => instance.StartAsync(
+                It.IsAny<ActorMailboxId>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((ActorMailboxId _, CancellationToken token) =>
+                new ValueTask(TrackStartupAsync(token)));
+        supervisor.Setup(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+        registry.SetupGet(instance => instance.ActorTypes).Returns(registrations);
+        container.Setup(instance => instance.Resolve<IActorRegistry>()).Returns(registry.Object);
+        container.Setup(instance => instance.Resolve<IActorFactory>()).Returns(factory.Object);
+        container.Setup(instance => instance.Resolve<IActorProducer>()).Returns(Mock.Of<IActorProducer>());
+        container.Setup(instance => instance.Resolve<IActorConsumer>()).Returns(Mock.Of<IActorConsumer>());
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+
+        await ActorRuntimeStartup.StartAsync(
+            supervisor.Object,
+            NullLogger.Instance,
+            new ActorRuntimeStartupOptions { MaximumConcurrency = maximumConcurrency });
+
+        observedMaximum.Should().Be(maximumConcurrency);
+        supervisor.Verify(instance => instance.StartAsync(
+            It.IsAny<ActorMailboxId>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(actorCount));
+
+        async Task TrackStartupAsync(CancellationToken token)
+        {
+            var active = Interlocked.Increment(ref concurrent);
+            UpdateMaximum(ref observedMaximum, active);
+            try
+            {
+                await Task.Delay(20, token);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref concurrent);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Supervisor_starts_independent_consumers_concurrently()
+    {
+        var container = new Mock<IContainerInstance>();
+        await using var supervisor = new ActorSupervisor(
+            container.Object,
+            NullLogger<ActorSupervisor>.Instance);
+        var command = new Mock<IActorConsumer>();
+        var query = new Mock<IActorConsumer>();
+        var entered = new CountdownEvent(2);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        command.Setup(instance => instance.StartAsync(
+                supervisor, ActorType.Command, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() => new ValueTask(EnterAndWaitAsync()));
+        query.Setup(instance => instance.StartAsync(
+                supervisor, ActorType.Query, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() => new ValueTask(EnterAndWaitAsync()));
+        supervisor.AddConsumer(ActorType.Command, command.Object);
+        supervisor.AddConsumer(ActorType.Query, query.Object);
+
+        var startup = supervisor.StartConsumersAsync().AsTask();
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(1)));
+        release.TrySetResult();
+        await startup.WaitAsync(TimeSpan.FromSeconds(1));
+
+        async Task EnterAndWaitAsync()
+        {
+            entered.Signal();
+            await release.Task;
+        }
+    }
+
+    [Fact]
     public async Task RuntimeStartup_RegistersOneConsumerForEachRegisteredActorType()
     {
         var container = new Mock<IContainerInstance>();
@@ -471,6 +563,18 @@ public sealed class ActorCancellationTests
                 It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask);
         return actor;
+    }
+
+    static void UpdateMaximum(ref int maximum, int candidate)
+    {
+        var current = Volatile.Read(ref maximum);
+        while (candidate > current)
+        {
+            var observed = Interlocked.CompareExchange(ref maximum, candidate, current);
+            if (observed == current)
+                return;
+            current = observed;
+        }
     }
 
     sealed class QueryRegistrationMarker;

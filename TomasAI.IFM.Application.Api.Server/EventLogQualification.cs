@@ -52,7 +52,7 @@ public sealed class EventLogQualification
         foreach (var key in new[] { "Trade", "Fund", "Reference", "OptionPricer", "MarketData", "Securities" })
             settings[$"ConnectionStrings:{key}DbConnection"] =
                 $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
-        foreach (var key in new[] { "CommandServerBaseUri", "QueryServerBaseUri", "TelemetryServerBaseUri", "PredictiveModelServerBaseUri" })
+        foreach (var key in new[] { "TelemetryServerBaseUri", "PredictiveModelServerBaseUri" })
             settings[$"AppSettings:{key}"] = HttpUrl;
         Settings = settings;
     }
@@ -79,6 +79,7 @@ public sealed class EventLogQualification
         if (flags.Length == 0) return;
         if (flags.Length != 1 || args.Any(a => a.StartsWith("--bootstrap-", StringComparison.Ordinal)
             || a.StartsWith("--migrate-", StringComparison.Ordinal) || a.StartsWith("--refresh-", StringComparison.Ordinal)
+            || a.StartsWith("--initialize-", StringComparison.Ordinal)
             || a.StartsWith("--publish-", StringComparison.Ordinal) || a.StartsWith("--retain-", StringComparison.Ordinal)))
             throw new InvalidOperationException("Qualification cannot combine with maintenance modes.");
         var run = flags[0][Flag.Length..];

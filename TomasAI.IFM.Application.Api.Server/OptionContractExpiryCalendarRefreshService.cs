@@ -13,7 +13,45 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed record OptionContractExpiryCalendarOptions
 {
     public string[] Symbols { get; init; } = ["ES"];
-    public TimeSpan StartupPollInterval { get; init; } = TimeSpan.FromMilliseconds(250);
+    public int MaximumProviderConcurrency { get; init; } = 2;
+    public int MaximumVerificationConcurrency { get; init; } = 4;
+    public bool EnableDiagnosticWindowBenchmark { get; init; }
+
+    public OptionContractExpiryCalendarOptions Validate()
+    {
+        if (MaximumProviderConcurrency is < 1 or > 16)
+            throw new InvalidOperationException(
+                $"{nameof(MaximumProviderConcurrency)} must be between 1 and 16.");
+        if (MaximumVerificationConcurrency is < 1 or > 16)
+            throw new InvalidOperationException(
+                $"{nameof(MaximumVerificationConcurrency)} must be between 1 and 16.");
+        return this;
+    }
+}
+
+internal static class OptionRefreshAlgorithms
+{
+    internal static string FindUnderlyingContractId(
+        IReadOnlyList<FuturesContractV3ReadModel> orderedFutures,
+        DateOnly expiry)
+    {
+        ArgumentNullException.ThrowIfNull(orderedFutures);
+        if (orderedFutures.Count == 0)
+            throw new ArgumentException("At least one futures contract is required.", nameof(orderedFutures));
+        var low = 0;
+        var high = orderedFutures.Count - 1;
+        while (low < high)
+        {
+            var middle = low + ((high - low) >> 1);
+            if (orderedFutures[middle].LastTradeDate < expiry)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+        return orderedFutures[low].LastTradeDate >= expiry
+            ? orderedFutures[low].ContractId
+            : orderedFutures[^1].ContractId;
+    }
 }
 
 public sealed class OptionContractExpiryCalendarRefreshService(
@@ -21,17 +59,32 @@ public sealed class OptionContractExpiryCalendarRefreshService(
     ISecuritiesDbContext securities,
     IDbContextFactory dbFactory,
     IFuturesMarketSessionAuthority marketSession,
+    OptionContractExpiryCalendarOptions options,
+    TimeProvider timeProvider,
     ILogger<OptionContractExpiryCalendarRefreshService> logger)
 {
-    readonly SemaphoreSlim _refreshGate = new(1, 1);
+    readonly Lock _refreshGateLock = new();
+    readonly Dictionary<string, RefreshGate> _refreshGates = new(StringComparer.Ordinal);
 
     public async Task<int> RefreshAsync(string symbol, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         symbol = symbol.Trim().ToUpperInvariant();
-        await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        RefreshGate refreshGate;
+        lock (_refreshGateLock)
+        {
+            if (!_refreshGates.TryGetValue(symbol, out refreshGate!))
+            {
+                refreshGate = new RefreshGate();
+                _refreshGates.Add(symbol, refreshGate);
+            }
+            refreshGate.ReferenceCount++;
+        }
+        var enteredRefreshGate = false;
         try
         {
+            await refreshGate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            enteredRefreshGate = true;
             var totalTimer = Stopwatch.StartNew();
             var valueDate = marketSession.Current.OperationalValueDate;
             var futures = (await securities.GetFuturesContractsBySymbolAsync(symbol, cancellationToken)
@@ -47,36 +100,54 @@ public sealed class OptionContractExpiryCalendarRefreshService(
             var providerTimer = Stopwatch.StartNew();
             var expiryMappings = new HashSet<(DateOnly Expiry, string Root, string Underlying)>(
                 EqualityComparer<(DateOnly, string, string)>.Default);
+            var rootRequests = new List<(string Family, string Root)>();
             foreach (var (family, roots) in OptionExpiryCalendarPolicy.GetRoots(symbol))
             foreach (var root in roots)
+                rootRequests.Add((family, root));
+            var definitionsByRoot = new FuturesOptionContractReadModel[rootRequests.Count][];
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, rootRequests.Count),
+                new ParallelOptions
+                {
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = options.MaximumProviderConcurrency
+                },
+                async (index, token) =>
+                {
+                    var root = rootRequests[index].Root;
+                    try
+                    {
+                        definitionsByRoot[index] = await LoadRootAsync(
+                            symbol, root, valueDate, horizon, token).ConfigureAwait(false);
+                    }
+                    catch (DatabentoFeedException exception) when (
+                        exception.Message.Contains(
+                            "Could not resolve smart symbols",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogInformation(
+                            "Databento option root {Root}.OPT is not listed for the active horizon; skipping it.",
+                            root);
+                        definitionsByRoot[index] = [];
+                    }
+                }).ConfigureAwait(false);
+            var refreshedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+            for (var index = 0; index < rootRequests.Count; index++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                FuturesOptionContractReadModel[] definitions;
-                try
-                {
-                    definitions = await LoadRootAsync(symbol, root, valueDate, horizon, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (DatabentoFeedException exception) when (
-                    exception.Message.Contains("Could not resolve smart symbols", StringComparison.OrdinalIgnoreCase))
-                {
-                    logger.LogInformation("Databento option root {Root}.OPT is not listed for the active horizon; skipping it.", root);
-                    continue;
-                }
-                foreach (var definition in definitions)
+                var (family, root) = rootRequests[index];
+                foreach (var definition in definitionsByRoot[index])
                 {
                     var expiry = definition.ExpirationUtc is { } timestamp
                         ? DateOnly.FromDateTime(timestamp.UtcDateTime) : definition.ContractMonth;
                     var underlyingId = definition.UnderlyingContractId
-                        ?? futures.FirstOrDefault(contract => contract.LastTradeDate >= expiry)?.ContractId
-                        ?? futures[^1].ContractId;
+                        ?? OptionRefreshAlgorithms.FindUnderlyingContractId(futures, expiry);
                     expiryMappings.Add((expiry, root, underlyingId));
                     cached.Add(new()
                     {
                         Symbol = symbol, UnderlyingContractId = underlyingId,
                         ExpiryDate = expiry, ProviderRoot = root,
                         OptionFamily = family, Definition = definition,
-                        RefreshedAtUtc = DateTime.UtcNow
+                        RefreshedAtUtc = refreshedAtUtc
                     });
                 }
             }
@@ -95,23 +166,42 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                 "Option cache benchmark phases {Symbol}: Databento={ProviderMs:F1} ms; ScyllaSave={SaveMs:F1} ms; ReadBack={ReadMs:F1} ms.",
                 symbol, providerTimer.Elapsed.TotalMilliseconds, saveTimer.Elapsed.TotalMilliseconds,
                 verificationTimer.Elapsed.TotalMilliseconds);
-            var window = await BenchmarkWindowAsync(symbol, valueDate, cached, cancellationToken).ConfigureAwait(false);
             totalTimer.Stop();
+            if (options.EnableDiagnosticWindowBenchmark)
+            {
+                var window = await BenchmarkWindowAsync(symbol, valueDate, cached, cancellationToken)
+                    .ConfigureAwait(false);
+                logger.LogInformation(
+                    "Option cache diagnostic {Symbol}: WindowQuery={WindowMs:F1} ms; WindowContracts={WindowContracts}; WindowStrikes={WindowStrikes}; Underlying={Underlying}; StdDev={StdDev}.",
+                    symbol, window.Elapsed.TotalMilliseconds, window.ContractCount,
+                    window.StrikeCount, window.UnderlyingPrice, window.StandardDeviationAmount);
+            }
             logger.LogInformation(
-                "Option cache benchmark {Symbol}: Databento={ProviderMs:F1} ms; ScyllaSave={SaveMs:F1} ms; ReadBack={ReadMs:F1} ms; WindowQuery={WindowMs:F1} ms; Total={TotalMs:F1} ms; WindowContracts={WindowContracts}; WindowStrikes={WindowStrikes}; Underlying={Underlying}; StdDev={StdDev}.",
-                symbol, providerTimer.Elapsed.TotalMilliseconds, saveTimer.Elapsed.TotalMilliseconds,
-                verificationTimer.Elapsed.TotalMilliseconds, window.Elapsed.TotalMilliseconds,
-                totalTimer.Elapsed.TotalMilliseconds, window.ContractCount, window.StrikeCount,
-                window.UnderlyingPrice, window.StandardDeviationAmount);
-            logger.LogInformation(
-                "Published {DefinitionCount} option definitions across {ExpiryCount} expiry mappings for {Symbol}, coverage {From:yyyy-MM-dd} through {Through:yyyy-MM-dd}.",
-                cached.Count, expiryMappings.Count, symbol, valueDate, horizon);
+                "Published {DefinitionCount} option definitions across {ExpiryCount} expiry mappings for {Symbol}, coverage {From:yyyy-MM-dd} through {Through:yyyy-MM-dd}, in {TotalMs:F1} ms.",
+                cached.Count, expiryMappings.Count, symbol, valueDate, horizon,
+                totalTimer.Elapsed.TotalMilliseconds);
             return cached.Count;
         }
         finally
         {
-            _refreshGate.Release();
+            if (enteredRefreshGate)
+                refreshGate.Semaphore.Release();
+            lock (_refreshGateLock)
+            {
+                refreshGate.ReferenceCount--;
+                if (refreshGate.ReferenceCount == 0)
+                {
+                    _refreshGates.Remove(symbol);
+                    refreshGate.Semaphore.Dispose();
+                }
+            }
         }
+    }
+
+    sealed class RefreshGate
+    {
+        internal SemaphoreSlim Semaphore { get; } = new(1, 1);
+        internal int ReferenceCount { get; set; }
     }
 
     async Task<(TimeSpan Elapsed, int ContractCount, int StrikeCount, decimal UnderlyingPrice,
@@ -160,7 +250,10 @@ public sealed class OptionContractExpiryCalendarRefreshService(
             catch (DatabentoFeedTimeoutException) when (attempt < 3)
             {
                 logger.LogWarning("Databento option root {Root}.OPT timed out on attempt {Attempt}; retrying.", root, attempt);
-                await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(
+                    TimeSpan.FromMilliseconds(250 * attempt),
+                    timeProvider,
+                    cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -184,19 +277,30 @@ public sealed class OptionContractExpiryCalendarRefreshService(
             throw new InvalidDataException($"Published option cache is missing {missingMappings.Length} expiry mappings.");
 
         var readCount = 0;
-        foreach (var group in expectedGroups)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var rows = await securities.GetCachedOptionContractDefinitionsAsync(symbol,
-                    group.Key.UnderlyingContractId, group.Key.ExpiryDate, [group.Key.Root], cancellationToken)
-                .ConfigureAwait(false);
-            var expectedIds = group.Select(row => row.Definition.ContractId).ToHashSet(StringComparer.Ordinal);
-            var actualIds = rows.Select(row => row.Definition.ContractId).ToHashSet(StringComparer.Ordinal);
-            if (!expectedIds.SetEquals(actualIds))
-                throw new InvalidDataException(
-                    $"Published option cache read-back differs for {group.Key.Root} {group.Key.ExpiryDate:yyyy-MM-dd}: expected {expectedIds.Count}, read {actualIds.Count}.");
-            readCount += rows.Count;
-        }
+        await Parallel.ForEachAsync(
+            expectedGroups,
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = options.MaximumVerificationConcurrency
+            },
+            async (group, token) =>
+            {
+                var rows = await securities.GetCachedOptionContractDefinitionsAsync(
+                    symbol,
+                    group.Key.UnderlyingContractId,
+                    group.Key.ExpiryDate,
+                    [group.Key.Root],
+                    token).ConfigureAwait(false);
+                var expectedIds = group.Select(row => row.Definition.ContractId)
+                    .ToHashSet(StringComparer.Ordinal);
+                var actualIds = rows.Select(row => row.Definition.ContractId)
+                    .ToHashSet(StringComparer.Ordinal);
+                if (!expectedIds.SetEquals(actualIds))
+                    throw new InvalidDataException(
+                        $"Published option cache read-back differs for {group.Key.Root} {group.Key.ExpiryDate:yyyy-MM-dd}: expected {expectedIds.Count}, read {actualIds.Count}.");
+                Interlocked.Add(ref readCount, rows.Count);
+            }).ConfigureAwait(false);
         logger.LogInformation(
             "Verified {DefinitionCount} cached option definitions by deserializing {MappingCount} published expiry/root mappings for {Symbol}.",
             readCount, expectedGroups.Length, symbol);
@@ -211,12 +315,10 @@ public sealed class OptionContractExpiryCalendarStartupService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        var status = startupStatus.Current;
+        while (status.State is not (ApplicationLifecycleState.Running or ApplicationLifecycleState.Degraded))
         {
-            var state = startupStatus.Current.State;
-            if (state is ApplicationLifecycleState.Running or ApplicationLifecycleState.Degraded)
-                break;
-            await Task.Delay(options.StartupPollInterval, stoppingToken).ConfigureAwait(false);
+            status = await startupStatus.WaitForChangeAsync(status, stoppingToken).ConfigureAwait(false);
         }
 
         foreach (var symbol in options.Symbols.Where(symbol => !string.IsNullOrWhiteSpace(symbol)).Distinct(StringComparer.OrdinalIgnoreCase))

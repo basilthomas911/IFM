@@ -195,12 +195,12 @@ public sealed class ApplicationStartupCommandDispatcher(
         IReadOnlyDictionary<Guid, DateTime> acceptedCommands,
         CancellationToken stoppingToken)
     {
-        var started = timeProvider.GetTimestamp();
+        var deadline = timeProvider.GetUtcNow() + options.HandoffObservationTimeout;
         var earliestAcceptedAtUtc = acceptedCommands.Values.Min();
-        while (timeProvider.GetElapsedTime(started) < options.HandoffObservationTimeout)
+        var status = startupStatusStore.Current;
+        while (true)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            var status = startupStatusStore.Current;
             if (status.State != ApplicationLifecycleState.Bootstrapped
                 && status.ValueDate == valueDate
                 // A command durably accepted before a process failure can still be delivered after
@@ -209,11 +209,22 @@ public sealed class ApplicationStartupCommandDispatcher(
                 && (acceptedCommands.ContainsKey(status.CommandId)
                     || status.StartedAtUtc >= earliestAcceptedAtUtc))
                 return status;
-            if (!await HostedServiceLifecycle.DelayAsync(
-                    TimeSpan.FromMilliseconds(100), timeProvider, stoppingToken).ConfigureAwait(false))
+
+            var remaining = deadline - timeProvider.GetUtcNow();
+            if (remaining <= TimeSpan.Zero)
                 return null;
+            try
+            {
+                status = await startupStatusStore.WaitForChangeAsync(status, stoppingToken)
+                    .AsTask()
+                    .WaitAsync(remaining, timeProvider, stoppingToken)
+                    .ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                return null;
+            }
         }
-        return null;
     }
 
     async Task ReportAsync(string message, int? errorCode)

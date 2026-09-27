@@ -35,13 +35,9 @@ public sealed class FmpMarketDataImportHostedService(
             if (!options.Enabled)
                 return;
 
-            while (!stoppingToken.IsCancellationRequested)
+            using var timer = new PeriodicTimer(options.Interval, timeProvider);
+            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
-                if (!await HostedServiceLifecycle.DelayAsync(
-                        options.Interval, timeProvider, stoppingToken).ConfigureAwait(false))
-                {
-                    return;
-                }
                 var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
                 try
                 {

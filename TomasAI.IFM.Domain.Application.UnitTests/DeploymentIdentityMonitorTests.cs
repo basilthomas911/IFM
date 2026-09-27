@@ -84,13 +84,49 @@ public sealed class DeploymentIdentityMonitorTests : IDisposable
         var monitor = new DeploymentIdentityMonitor(_options, _directory, true);
         var lifetime = new RecordingLifetime();
         var service = new DeploymentIdentityEnforcementService(
-            monitor, lifetime, NullLogger<DeploymentIdentityEnforcementService>.Instance);
+            monitor, lifetime, TimeProvider.System,
+            NullLogger<DeploymentIdentityEnforcementService>.Instance);
 
         WriteArtifact("Trade.dll", "trade-v2");
         WriteManifest("build-v2");
 
         Assert.True(service.EnforceOnce());
         Assert.True(lifetime.StopRequested);
+    }
+
+    [Fact]
+    public async Task Request_health_reads_the_published_result_until_enforcement_refreshes_it()
+    {
+        WriteArtifact("Api.dll", "api-v1");
+        WriteArtifact("Trade.dll", "trade-v1");
+        WriteManifest("build-v1");
+        var monitor = new DeploymentIdentityMonitor(_options, _directory, true);
+        var lifetime = new RecordingLifetime();
+        var service = new DeploymentIdentityEnforcementService(
+            monitor, lifetime, TimeProvider.System,
+            NullLogger<DeploymentIdentityEnforcementService>.Instance);
+        monitor.EnsureStartupValid();
+
+        WriteArtifact("Api.dll", "api-v2");
+        WriteManifest("build-v2");
+        var beforeRefresh = await new DeploymentIdentityHealthCheck(monitor)
+            .CheckHealthAsync(new HealthCheckContext());
+
+        Assert.Equal(HealthStatus.Healthy, beforeRefresh.Status);
+        Assert.True(service.EnforceOnce());
+        var afterRefresh = await new DeploymentIdentityHealthCheck(monitor)
+            .CheckHealthAsync(new HealthCheckContext());
+        Assert.Equal(HealthStatus.Unhealthy, afterRefresh.Status);
+        Assert.True(lifetime.StopRequested);
+    }
+
+    [Fact]
+    public async Task Process_liveness_does_not_execute_dependency_checks()
+    {
+        var result = await new ProcessLivenessHealthCheck()
+            .CheckHealthAsync(new HealthCheckContext());
+
+        Assert.Equal(HealthStatus.Healthy, result.Status);
     }
 
     void WriteArtifact(string fileName, string content) =>

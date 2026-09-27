@@ -3,16 +3,23 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class DeploymentIdentityEnforcementService(
     DeploymentIdentityMonitor monitor,
     IHostApplicationLifetime lifetime,
+    TimeProvider timeProvider,
     ILogger<DeploymentIdentityEnforcementService> logger) : BackgroundService
 {
     static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(PollInterval);
-        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+        try
         {
-            if (EnforceOnce()) return;
+            using var timer = new PeriodicTimer(PollInterval, timeProvider);
+            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+            {
+                if (EnforceOnce()) return;
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
         }
     }
 

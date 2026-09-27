@@ -34,6 +34,7 @@ public sealed class DeploymentIdentityMonitor
     readonly bool _enforced;
     readonly DateTime _capturedAtUtc;
     readonly IReadOnlyDictionary<string, string> _processStartHashes;
+    DeploymentIdentityValidation? _current;
 
     public DeploymentIdentityMonitor(DeploymentIdentityOptions options)
         : this(options, AppContext.BaseDirectory,
@@ -62,11 +63,15 @@ public sealed class DeploymentIdentityMonitor
         _processStartHashes = CaptureArtifactHashes();
     }
 
+    /// <summary>Gets the most recently completed validation without reading or hashing deployment files.</summary>
+    public DeploymentIdentityValidation Current => Volatile.Read(ref _current) ?? Validate();
+
+    /// <summary>Revalidates the deployed artifacts and publishes the immutable result for request-time readers.</summary>
     public DeploymentIdentityValidation Validate()
     {
         if (!_enforced)
-            return new(false, true, "in-process-test-host", _manifestPath, _capturedAtUtc,
-                _processStartHashes, []);
+            return Publish(new(false, true, "in-process-test-host", _manifestPath, _capturedAtUtc,
+                _processStartHashes, []));
 
         var errors = new List<string>();
         var manifest = ReadManifest(errors);
@@ -94,8 +99,8 @@ public sealed class DeploymentIdentityMonitor
             }
         }
 
-        return new(true, errors.Count == 0, manifest?.BuildId ?? string.Empty, _manifestPath,
-            _capturedAtUtc, _processStartHashes, errors);
+        return Publish(new(true, errors.Count == 0, manifest?.BuildId ?? string.Empty, _manifestPath,
+            _capturedAtUtc, _processStartHashes, errors));
     }
 
     public DeploymentIdentityValidation EnsureStartupValid()
@@ -104,6 +109,12 @@ public sealed class DeploymentIdentityMonitor
         if (!validation.Valid)
             throw new InvalidOperationException(
                 "Deployment identity validation failed: " + string.Join(" ", validation.Errors));
+        return validation;
+    }
+
+    DeploymentIdentityValidation Publish(DeploymentIdentityValidation validation)
+    {
+        Volatile.Write(ref _current, validation);
         return validation;
     }
 

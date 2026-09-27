@@ -116,6 +116,9 @@ public interface IApplicationStartupStatusStore
 {
     ApplicationStartupStatus Current { get; }
     void Set(ApplicationStartupStatus status);
+    ValueTask<ApplicationStartupStatus> WaitForChangeAsync(
+        ApplicationStartupStatus observed,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>One immutable step in the authoritative sequential startup plan.</summary>

@@ -15,18 +15,15 @@ internal static class HostedServiceLifecycle
         if (stoppingToken.IsCancellationRequested)
             return false;
 
-        var completion = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        using var registration = stoppingToken.Register(
-            static state => ((TaskCompletionSource<bool>)state!).TrySetResult(false),
-            completion);
-        using var timer = timeProvider.CreateTimer(
-            static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
-            completion,
-            delay,
-            Timeout.InfiniteTimeSpan);
-        var elapsed = await completion.Task.ConfigureAwait(false);
-        return elapsed && !stoppingToken.IsCancellationRequested;
+        try
+        {
+            await Task.Delay(delay, timeProvider, stoppingToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     public static async Task<bool> WaitForSignalAsync(

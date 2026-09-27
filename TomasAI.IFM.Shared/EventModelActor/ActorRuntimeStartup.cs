@@ -20,9 +20,25 @@ public static class ActorRuntimeStartup
         IActorSupervisor supervisor,
         ILogger logger,
         CancellationToken cancellationToken = default)
+        => await StartAsync(
+            supervisor,
+            logger,
+            new ActorRuntimeStartupOptions(),
+            cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// Registers and starts the runtime with bounded actor initialization concurrency.
+    /// </summary>
+    public static async ValueTask StartAsync(
+        IActorSupervisor supervisor,
+        ILogger logger,
+        ActorRuntimeStartupOptions options,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(supervisor);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
         var startedTimestamp = Stopwatch.GetTimestamp();
 
         try
@@ -89,8 +105,21 @@ public static class ActorRuntimeStartup
                 }
             }
 
-            await Task.WhenAll(actors.Select((actor, index) =>
-                StartActorAsync(actor, index + 1, actors.Length))).ConfigureAwait(false);
+            var startupWork = actors
+                .Select(static (actor, index) => (Actor: actor, Number: index + 1))
+                .ToArray();
+            await Parallel.ForEachAsync(
+                startupWork,
+                new ParallelOptions
+                {
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = Math.Min(
+                        options.MaximumConcurrency,
+                        Math.Max(1, actors.Length))
+                },
+                async (work, token) =>
+                    await StartActorAsync(work.Actor, work.Number, actors.Length, token)
+                        .ConfigureAwait(false)).ConfigureAwait(false);
 
             // External Core and JetStream intake stays closed until every actor-owned dependency,
             // projector, and recovery operation has completed its startup contract.
@@ -103,9 +132,13 @@ public static class ActorRuntimeStartup
                 actors.Length);
             ActorLifecycleMetrics.StartupCompleted.Add(1);
 
-            async Task StartActorAsync(IActor actor, int actorNumber, int actorCount)
+            async ValueTask StartActorAsync(
+                IActor actor,
+                int actorNumber,
+                int actorCount,
+                CancellationToken token)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                token.ThrowIfCancellationRequested();
                 var actorType = actor.GetType().Name;
                 var actorStarted = Stopwatch.GetTimestamp();
                 logger.LogInformationEvent(
@@ -116,7 +149,7 @@ public static class ActorRuntimeStartup
                     actorCount);
                 try
                 {
-                    await supervisor.StartAsync(actor.Id, cancellationToken).ConfigureAwait(false);
+                    await supervisor.StartAsync(actor.Id, token).ConfigureAwait(false);
                     logger.LogInformationEvent(
                         ServiceId,
                         "Started {ActorType} actor ({ActorNumber}/{ActorCount}) in {ElapsedMilliseconds:F1} ms.",

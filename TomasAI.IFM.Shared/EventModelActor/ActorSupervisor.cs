@@ -237,16 +237,22 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
 
     public async ValueTask StartConsumersAsync(CancellationToken cancellationToken)
     {
+        var starts = new List<Task>(_consumers.Count + _jsConsumers.Count);
         foreach (var consumer in _consumers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await consumer.Value.StartAsync(this, consumer.Key, default!, cancellationToken).ConfigureAwait(false);
+            starts.Add(consumer.Value
+                .StartAsync(this, consumer.Key, default!, cancellationToken)
+                .AsTask());
         }
         foreach (var jsConsumer in _jsConsumers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await jsConsumer.Value.StartAsync(this, jsConsumer.Key, default!, cancellationToken).ConfigureAwait(false);
+            starts.Add(jsConsumer.Value
+                .StartAsync(this, jsConsumer.Key, default!, cancellationToken)
+                .AsTask());
         }
+        await Task.WhenAll(starts).ConfigureAwait(false);
     }
 
     /// <summary>

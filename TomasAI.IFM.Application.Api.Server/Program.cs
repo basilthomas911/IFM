@@ -12,6 +12,7 @@ using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
+using Microsoft.AspNetCore.OutputCaching;
 
 try
 {
@@ -19,6 +20,7 @@ try
         "--bootstrap-trade-strategy-families-only",
         StringComparer.OrdinalIgnoreCase);
     var migrateStrategyCatalogOnly = args.Contains("--migrate-strategy-catalog-only", StringComparer.OrdinalIgnoreCase);
+    var initializeSchemaOnly = args.Contains("--initialize-schema-only", StringComparer.OrdinalIgnoreCase);
     var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
     var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
@@ -47,24 +49,41 @@ try
     var app = builder.Build();
     var deploymentIdentity = app.Services.GetRequiredService<DeploymentIdentityMonitor>()
         .EnsureStartupValid();
+    var apiHost = app.Services.GetRequiredService<ApiHostOptions>();
     Log.Information("Deployment identity verified: {BuildId}", deploymentIdentity.BuildId);
     app.ConfigureRequestPipeline(logger);
-    app.MapApiCommands(logger);
-    app.MapApiQueries(logger);
-    app.MapGet("/api/market-data/operations-health",
-        (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)));
-    app.MapGet("/api/actor-health",
-        (IActorSupervisor supervisor, DateTime? fromUtc, DateTime? toUtc) =>
-            fromUtc > toUtc
-                ? Results.BadRequest(new { Error = "fromUtc must be before toUtc." })
-                : Results.Ok(supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc)));
-    app.MapLivePipelineHealth();
+    if (apiHost.HostsGateway)
+    {
+        app.MapApiCommands(logger);
+        app.MapApiQueries(logger);
+    }
+    if (apiHost.HostsRuntime)
+    {
+        app.MapGet("/api/market-data/operations-health",
+            (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)))
+            .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+        app.MapGet("/api/actor-health",
+            (IActorSupervisor supervisor, DateTime? fromUtc, DateTime? toUtc) =>
+                fromUtc > toUtc
+                    ? Results.BadRequest(new { Error = "fromUtc must be before toUtc." })
+                    : Results.Ok(supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc)))
+            .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+        app.MapLivePipelineHealth();
+    }
     if (verifyStartupOnly)
     {
         // Run the real composition root/container checks, then exit before any schema,
         // seed, HTTP listener, hosted service, actor or feed startup. This takes precedence
         // over bootstrap mode so a verification request cannot accidentally write data.
         Log.Information("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
+        await app.DisposeAsync();
+    }
+    else if (initializeSchemaOnly)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        await app.Services.GetRequiredService<ApplicationSchemaInitializer>()
+            .InitializeAsync(deadline.Token);
+        Log.Information("Canonical schemas and catalogs initialized; no HTTP listener or actor runtime started.");
         await app.DisposeAsync();
     }
     else if (args.Contains("--backfill-risk-history-only",StringComparer.OrdinalIgnoreCase))
@@ -95,24 +114,16 @@ try
     }
     else
     {
-        // Portfolio projections are rebuildable, but their idempotent schema must exist
-        // before command actors can start durable projector workers.
-        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<TradePlanSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb>().CreateAllAsync();
         if (EventLogQualification.Active is { } qualification)
+        {
+            await app.Services.GetRequiredService<ApplicationSchemaInitializer>()
+                .InitializeAsync(CancellationToken.None);
             await qualification.InitializeCandidateAsync(CancellationToken.None);
-        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>().InitializeAsync();
-        await app.Services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb>().CreateAllAsync();
-        await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
-        await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogMigration>().EnsureAsync();
+        }
         var workflowOptions = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>();
-        if (app.Environment.IsDevelopment() && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
+        if (apiHost.HostsRuntime
+            && app.Environment.IsDevelopment()
+            && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
         {
             var defaults = await app.Services
                 .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>()
@@ -130,37 +141,49 @@ try
         // duplicate API host owns the port), no actor can consume messages from
         // a service provider that is immediately torn down.
         await app.StartAsync();
-        var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
-        var actorStartupSignal = app.Services.GetRequiredService<ActorRuntimeStartupSignal>();
-        var actorsStarted = false;
-        try
+        if (!apiHost.HostsRuntime)
         {
-            try
-            {
-                await app.MapEventModelActorsAsync(logger);
-                actorStartupSignal.Complete();
-            }
-            catch (Exception exception)
-            {
-                actorStartupSignal.Fail(exception);
-                throw;
-            }
-            actorsStarted = true;
-            var developmentPortfolio = app.Services.GetRequiredService<DevelopmentTradingPortfolioOptions>();
-            if (app.Environment.IsDevelopment()
-                && developmentPortfolio.Enabled
-                && string.IsNullOrWhiteSpace(app.Configuration["IFM_TEST_ACTOR_DOMAIN"]))
-            {
-                using var provisioningDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-                await app.Services.GetRequiredService<DevelopmentTradingPortfolioProvisioner>()
-                    .EnsureAsync(provisioningDeadline.Token);
-            }
+            Log.Information("IFM API gateway started without embedded actors, feeds, projectors, or domain hosted services.");
             await app.WaitForShutdownAsync();
         }
-        finally
+        else
         {
-            if (actorsStarted)
-                await actorSupervisor.ShutdownAsync(CancellationToken.None);
+            var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+            var actorStartupSignal = app.Services.GetRequiredService<ActorRuntimeStartupSignal>();
+            var actorsStarted = false;
+            try
+            {
+                try
+                {
+                    var orchestration = app.Services.GetRequiredService<StartupOrchestrationOptions>();
+                    using var actorStartupDeadline = CancellationTokenSource.CreateLinkedTokenSource(
+                        app.Lifetime.ApplicationStopping);
+                    actorStartupDeadline.CancelAfter(orchestration.ActorStartupTimeout);
+                    await app.MapEventModelActorsAsync(logger, actorStartupDeadline.Token);
+                    actorStartupSignal.Complete();
+                }
+                catch (Exception exception)
+                {
+                    actorStartupSignal.Fail(exception);
+                    throw;
+                }
+                actorsStarted = true;
+                var developmentPortfolio = app.Services.GetRequiredService<DevelopmentTradingPortfolioOptions>();
+                if (app.Environment.IsDevelopment()
+                    && developmentPortfolio.Enabled
+                    && string.IsNullOrWhiteSpace(app.Configuration["IFM_TEST_ACTOR_DOMAIN"]))
+                {
+                    using var provisioningDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                    await app.Services.GetRequiredService<DevelopmentTradingPortfolioProvisioner>()
+                        .EnsureAsync(provisioningDeadline.Token);
+                }
+                await app.WaitForShutdownAsync();
+            }
+            finally
+            {
+                if (actorsStarted)
+                    await actorSupervisor.ShutdownAsync(CancellationToken.None);
+            }
         }
     }
 }

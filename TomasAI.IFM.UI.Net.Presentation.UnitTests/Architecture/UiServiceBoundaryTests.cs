@@ -29,7 +29,7 @@ public sealed class UiServiceBoundaryTests
         "Operations/FuturesItiSignalEventRow.cs", "Operations/StrategyWorkflowPresentation.cs",
         "Portfolio/PortfolioAdministrationViewModel.cs",
         "Trade/BrokerManualTradeOrderViewModel.cs", "Trade/EndOfDayProcessViewModel.cs",
-        "Trade/FundOrderEditorViewModel.cs", "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
+        "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
         "Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
         "Trade/IronCondor/IronCondorViewModel.cs", "Trade/TradeOrderConfirmationViewModel.cs",
         "Trade/TradeOrderEditorViewModel.cs"

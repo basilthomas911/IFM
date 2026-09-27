@@ -97,6 +97,7 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/SystemAdmin/SystemAdminForm.cs",
             "TomasAI.IFM.UI.Net.Views/SystemInfo/SystemWaitView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/BrokerManualTradeOrderView.cs",
+            "TomasAI.IFM.UI.Net.Views/Trade/BrokerTradeBlotterView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorTradeOrderView.cs",

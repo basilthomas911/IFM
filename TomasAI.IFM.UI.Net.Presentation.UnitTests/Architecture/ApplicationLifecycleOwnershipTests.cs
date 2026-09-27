@@ -61,7 +61,7 @@ public sealed class ApplicationLifecycleOwnershipTests
     }
 
     [Fact]
-    public void Actor_startup_is_concurrent_and_actor_health_gates_application_readiness()
+    public void Actor_startup_is_bounded_and_actor_health_gates_application_readiness()
     {
         var actorStartup = File.ReadAllText(Path.Combine(
             root,
@@ -73,7 +73,8 @@ public sealed class ApplicationLifecycleOwnershipTests
             "TomasAI.IFM.Application.Api.Server",
             "Startup.cs"));
 
-        Assert.Contains("Task.WhenAll(actors.Select((actor, index)", actorStartup, StringComparison.Ordinal);
+        Assert.Contains("Parallel.ForEachAsync(", actorStartup, StringComparison.Ordinal);
+        Assert.Contains("options.MaximumConcurrency", actorStartup, StringComparison.Ordinal);
         Assert.Contains(
             "AddCheck<ActorRuntimeHealthCheck>(\"actor_runtime\", tags: [\"actor\", \"bootstrap\", \"launch\", \"ready\"])",
             apiStartup,

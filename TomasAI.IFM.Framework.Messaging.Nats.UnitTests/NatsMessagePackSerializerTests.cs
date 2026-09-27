@@ -53,16 +53,21 @@ public sealed class NatsMessagePackSerializerTests
             serializer.Serialize(writer, payload);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 1_000; index++)
+        var allocated = long.MaxValue;
+        for (var sample = 0; sample < 5; sample++)
         {
-            writer.Reset();
-            serializer.Serialize(writer, payload);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var index = 0; index < 1_000; index++)
+            {
+                writer.Reset();
+                serializer.Serialize(writer, payload);
+            }
+            allocated = Math.Min(allocated, GC.GetAllocatedBytesForCurrentThread() - before);
         }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        // Runtime/Meter bookkeeping can contribute one fixed sub-128-byte allocation to
-        // the complete loop. A byte[] regression would add roughly 4 KB on every iteration.
+        // Tiered compilation and runtime/Meter bookkeeping can contribute a one-time fixed
+        // allocation to an individual window. A byte[] regression would add roughly 4 KB
+        // on every iteration in every window, so the best stable window remains a strict test.
         allocated.Should().BeLessThanOrEqualTo(128);
     }
 

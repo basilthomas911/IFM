@@ -43,7 +43,7 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         var checks = new List<LivePipelineCheck>();
         void Add(string name, string scope, bool ok, string reason, DateTime? progress = null)
             => checks.Add(new(name, scope, ok ? "Healthy" : "Degraded", reason, now, progress));
-        var identity = deploymentIdentity.Validate();
+        var identity = deploymentIdentity.Current;
         checks.Add(new("Deployment identity", "process", identity.Valid ? "Healthy" : "Unhealthy",
             identity.Valid
                 ? $"Running artifacts match deployment {identity.BuildId}."

@@ -31,8 +31,9 @@ public static class ActorMaps
         CancellationToken cancellationToken = default)
     {
         var supervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var options = app.Services.GetRequiredService<ActorRuntimeStartupOptions>();
         await ActorRuntimeStartup
-            .StartAsync(supervisor, logger, cancellationToken)
+            .StartAsync(supervisor, logger, options, cancellationToken)
             .ConfigureAwait(false);
 
         return app;

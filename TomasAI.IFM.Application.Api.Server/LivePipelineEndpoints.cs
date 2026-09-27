@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -29,11 +30,13 @@ public static class LivePipelineEndpoints
 
     public static void MapLivePipelineHealth(this WebApplication app)
     {
-        app.MapGet("/api/market-data/live-health", (LivePipelineMonitor health) => Results.Ok(health.Current));
+        app.MapGet("/api/market-data/live-health", (LivePipelineMonitor health) => Results.Ok(health.Current))
+            .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
         app.MapGet("/api/market-data/live-health/history", (int? limit, LivePipelineEvidence evidence) =>
             limit is < 1 or > 25
                 ? Results.BadRequest("The history limit must be between 1 and 25.")
-                : Results.Ok(evidence.GetAuditHistory(limit ?? 25)));
+                : Results.Ok(evidence.GetAuditHistory(limit ?? 25)))
+            .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
         app.MapPost("/api/market-data/live-health/ui", (LiveUiHealthReport report, LivePipelineEvidence evidence)
             => evidence.ReportUi(report) ? Results.Ok() : Results.BadRequest());
     }
