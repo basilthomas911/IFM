@@ -1243,7 +1243,6 @@ public static class Startup
         {
             app.UseHttpsRedirection();
         }
-        app.UseAuthorization();
         app.UseOutputCache();
         app.MapHealthChecks("/health/live", new HealthCheckOptions
         {
