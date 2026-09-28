@@ -24,9 +24,22 @@ public static class OptionChainStrikeWindow
             .DistinctBy(x => x.ContractId).ToArray();
         if (values.Length == 0) return new([], null, null, "Empty");
         var strikes = values.Select(x => (decimal)x.StrikePrice).Distinct().OrderBy(x => x).ToArray();
-        if (underlyingPrice is not > 0 || standardDeviationAmount is not > 0)
+        if (underlyingPrice is not > 0)
             return new([], null, null, "WindowInputsUnavailable");
         var centre = underlyingPrice.Value;
+        if (standardDeviationAmount is not > 0)
+        {
+            var nearestStrikes = strikes.OrderBy(strike => Math.Abs(strike - centre)).Take(40).ToArray();
+            var nearestSet = nearestStrikes.ToHashSet();
+            var requiredSet = (requiredContractIds ?? []).ToHashSet(StringComparer.Ordinal);
+            var nearest = values.Where(value => nearestSet.Contains((decimal)value.StrikePrice)
+                                                || requiredSet.Contains(value.ContractId))
+                .OrderBy(value => value.StrikePrice)
+                .ThenBy(value => value.OptionType, StringComparer.Ordinal)
+                .ThenBy(value => value.ContractId, StringComparer.Ordinal)
+                .ToArray();
+            return new(nearest, nearestStrikes.Min(), nearestStrikes.Max(), "Nearest40StrikesFallback");
+        }
         decimal? lower = null, upper = null;
         string method;
         decimal[] selectedStrikes;

@@ -58,7 +58,14 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             var qualified = await universe.QualifyAsync(definitions, request.ScopeComplete, now, linked.Token).ConfigureAwait(false);
             logger?.LogInformation("Composition discovery reference qualification: contracts={Count}, elapsedMs={ElapsedMs}",
                 definitions.Length, discoveryTimer.ElapsedMilliseconds);
-            if (qualified.Failure is not null) return new(null, qualified.Exclusions, false, qualified.Failure);
+            if (qualified.Failure is not null)
+            {
+                logger?.LogWarning(
+                    "Composition discovery reference qualification rejected: code={Code}, contract={ContractId}, detail={Detail}, elapsedMs={ElapsedMs}",
+                    qualified.Failure.Code, qualified.Failure.ContractId, qualified.Failure.Detail,
+                    discoveryTimer.ElapsedMilliseconds);
+                return new(null, qualified.Exclusions, false, qualified.Failure);
+            }
             if (qualified.Definitions.IsEmpty) return new(null, qualified.Exclusions, true, null);
             var options = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(qualified.Definitions.Length);
             foreach (var option in qualified.Definitions)

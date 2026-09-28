@@ -81,14 +81,31 @@ public sealed class OptionChainStrikeWindowTests
     }
 
     [Fact]
-    public void Select_requires_bollinger_sigma_when_iv_is_unavailable()
+    public void Select_uses_bounded_nearest_strikes_when_sigma_is_unavailable()
     {
         var definitions = Enumerable.Range(0, 9).Select(index => Contract("C", 4800 + index * 50));
 
         var result = OptionChainStrikeWindow.Select(definitions, 5010m, null, 2.5);
 
-        Assert.Empty(result.Contracts);
-        Assert.Equal("WindowInputsUnavailable", result.Method);
+        Assert.Equal(9, result.Contracts.Length);
+        Assert.Equal("Nearest40StrikesFallback", result.Method);
+        Assert.Equal(4800m, result.LowerBound);
+        Assert.Equal(5200m, result.UpperBound);
+    }
+
+    [Fact]
+    public void Select_limits_missing_sigma_fallback_to_forty_nearest_strikes()
+    {
+        var definitions = Enumerable.Range(0, 100).SelectMany(index => new[]
+        {
+            Contract("C", 4500 + index * 10), Contract("P", 4500 + index * 10)
+        });
+
+        var result = OptionChainStrikeWindow.Select(definitions, 5000m, null, 2.5);
+
+        Assert.Equal("Nearest40StrikesFallback", result.Method);
+        Assert.Equal(80, result.Contracts.Length);
+        Assert.Equal(40, result.Contracts.Select(contract => contract.StrikePrice).Distinct().Count());
     }
 
     [Fact]

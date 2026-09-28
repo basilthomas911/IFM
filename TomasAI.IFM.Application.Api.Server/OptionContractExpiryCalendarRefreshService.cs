@@ -56,6 +56,7 @@ internal static class OptionRefreshAlgorithms
 
 public sealed class OptionContractExpiryCalendarRefreshService(
     IMarketDataApi marketData,
+    IInstrumentDefinitionStore instrumentDefinitions,
     ISecuritiesDbContext securities,
     IDbContextFactory dbFactory,
     IFuturesMarketSessionAuthority marketSession,
@@ -87,13 +88,49 @@ public sealed class OptionContractExpiryCalendarRefreshService(
             enteredRefreshGate = true;
             var totalTimer = Stopwatch.StartNew();
             var valueDate = marketSession.Current.OperationalValueDate;
-            var futures = (await securities.GetFuturesContractsBySymbolAsync(symbol, cancellationToken)
+            var existingFutures = (await securities.GetFuturesContractsBySymbolAsync(symbol, cancellationToken)
                     .ConfigureAwait(false))
                 .Where(contract => contract.LastTradeDate >= valueDate)
                 .OrderBy(contract => contract.LastTradeDate)
                 .ToArray();
-            if (futures.Length == 0)
+            if (existingFutures.Length == 0)
                 throw new InvalidOperationException($"No current or future IFM futures contracts exist for '{symbol}'.");
+            var storedFutures = await StoredOptionDefinitionRangeLoader.LoadFuturesAsync(
+                instrumentDefinitions, symbol, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            var futuresByMaturity = existingFutures.ToDictionary(static future => future.LastTradeDate);
+            foreach (var storedFuture in storedFutures.Where(future => future.LastTradeDate >= valueDate))
+            {
+                if (futuresByMaturity.TryGetValue(storedFuture.LastTradeDate, out var existing))
+                {
+                    var enriched = existing with
+                    {
+                        Dataset = storedFuture.Dataset,
+                        PublisherId = storedFuture.PublisherId,
+                        InstrumentId = storedFuture.InstrumentId,
+                        RawSymbol = storedFuture.RawSymbol,
+                        DefinitionTimestampUtc = storedFuture.DefinitionTimestampUtc,
+                        DefinitionDigest = storedFuture.DefinitionDigest,
+                        RawDefinitionReference = storedFuture.RawDefinitionReference,
+                        ExpirationUtc = storedFuture.ExpirationUtc,
+                        LastTradingUtc = storedFuture.LastTradingUtc,
+                        MultiplierValue = storedFuture.MultiplierValue,
+                        PriceScale = storedFuture.PriceScale,
+                        TickSize = storedFuture.TickSize,
+                        MappingVersion = storedFuture.MappingVersion
+                    };
+                    futuresByMaturity[storedFuture.LastTradeDate] = enriched;
+                    if (!existing.OnTheRun && existing.Rollover)
+                        await securities.InsertFuturesContractAsync(enriched with { Rollover = false })
+                            .ConfigureAwait(false);
+                    continue;
+                }
+                await securities.InsertFuturesContractAsync(storedFuture).ConfigureAwait(false);
+                futuresByMaturity.Add(storedFuture.LastTradeDate, storedFuture);
+            }
+            var futures = futuresByMaturity.Values.OrderBy(static future => future.LastTradeDate).ToArray();
+            if (futures.Length < 2)
+                throw new InvalidOperationException(
+                    $"The authoritative stored definition snapshot contains fewer than two active '{symbol}' futures contracts.");
             var horizon = OptionExpiryCalendarPolicy.CalculateCoverageThrough(valueDate, futures);
 
             var cached = new List<CachedOptionContractDefinitionReadModel>();
@@ -118,7 +155,7 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                     try
                     {
                         definitionsByRoot[index] = await LoadRootAsync(
-                            symbol, root, valueDate, horizon, token).ConfigureAwait(false);
+                            symbol, root, valueDate, horizon, futures, token).ConfigureAwait(false);
                     }
                     catch (DatabentoFeedException exception) when (
                         exception.Message.Contains(
@@ -241,25 +278,11 @@ public sealed class OptionContractExpiryCalendarRefreshService(
     }
 
     async Task<FuturesOptionContractReadModel[]> LoadRootAsync(string symbol, string root,
-        DateOnly from, DateOnly through, CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                return await marketData.GetFuturesOptionChainContractsByRootAsync(
-                    symbol, root, from, through, cancellationToken).ConfigureAwait(false);
-            }
-            catch (DatabentoFeedTimeoutException) when (attempt < 3)
-            {
-                logger.LogWarning("Databento option root {Root}.OPT timed out on attempt {Attempt}; retrying.", root, attempt);
-                await Task.Delay(
-                    TimeSpan.FromMilliseconds(250 * attempt),
-                    timeProvider,
-                    cancellationToken).ConfigureAwait(false);
-            }
-        }
-    }
+        DateOnly from, DateOnly through, IReadOnlyList<FuturesContractV3ReadModel> futures,
+        CancellationToken cancellationToken) =>
+        await StoredOptionDefinitionRangeLoader.LoadAsync(
+            instrumentDefinitions, symbol, root, from, through, futures,
+            timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
 
     async Task VerifyPublishedCacheAsync(string symbol, DateOnly from, DateOnly through,
         IReadOnlyCollection<CachedOptionContractDefinitionReadModel> expected,

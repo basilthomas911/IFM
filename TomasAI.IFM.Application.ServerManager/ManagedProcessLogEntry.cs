@@ -7,7 +7,8 @@ public sealed record ManagedProcessLogEntry(
     string ProcessKey,
     string ProcessName,
     ManagedProcessLogStream Stream,
-    string Message);
+    string Message,
+    Exception? Exception = null);
 
 public enum ManagedProcessLogStream
 {

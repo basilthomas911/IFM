@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Serilog;
+using Serilog.Events;
 using WinForms = System.Windows.Forms;
 
 namespace TomasAI.IFM.Application.ServerManager;
@@ -40,7 +42,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         _supervisor = new ManagedProcessSupervisor(
             options.Processes,
             options.ShutdownTimeout,
-            viewModel.AddLog,
+            WriteLog,
             useDevelopmentKillOnCloseJob: enableDevelopmentProcessOwnership,
             runningProcessesChanged: _developmentSession is null
                 ? null
@@ -141,7 +143,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         {
             if (_developmentSession is not null)
             {
-                await _developmentSession.ReconcilePreviousSessionAsync(WriteManagerLog).ConfigureAwait(false);
+                await _developmentSession.ReconcilePreviousSessionAsync(message => WriteManagerLog(message)).ConfigureAwait(false);
                 _developmentSession.Record([]);
             }
 
@@ -149,7 +151,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            WriteManagerLog($"Process startup failed: {exception.Message}");
+            WriteManagerLog("Process startup failed.", exception);
         }
     }
 
@@ -162,7 +164,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            WriteManagerLog($"Reset failed: {exception.Message}");
+            WriteManagerLog("Reset failed.", exception);
         }
     }
 
@@ -198,11 +200,24 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
-    private void WriteManagerLog(string message)
-        => _viewModel.AddLog(new ManagedProcessLogEntry(
+    private void WriteManagerLog(string message, Exception? exception = null)
+        => WriteLog(new ManagedProcessLogEntry(
             DateTimeOffset.Now,
             "manager",
             "Server Manager",
             ManagedProcessLogStream.Manager,
-            message));
+            message,
+            exception));
+
+    private void WriteLog(ManagedProcessLogEntry entry)
+    {
+        _viewModel.AddLog(entry);
+        var level = entry.Stream == ManagedProcessLogStream.StandardError || entry.Exception is not null
+            ? LogEventLevel.Error
+            : LogEventLevel.Information;
+        Log.ForContext("ProcessKey", entry.ProcessKey)
+            .ForContext("ProcessName", entry.ProcessName)
+            .ForContext("ProcessLogStream", entry.Stream)
+            .Write(level, entry.Exception, "{ProcessMessage}", entry.Message);
+    }
 }

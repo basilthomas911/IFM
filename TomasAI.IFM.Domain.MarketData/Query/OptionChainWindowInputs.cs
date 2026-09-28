@@ -13,18 +13,22 @@ internal static class OptionChainWindowInputs
         var valueDate = context.MarketSessionAuthority.Current.OperationalValueDate;
         var price = context.MarketDataApi is null ? null
             : await context.MarketDataApi.GetFuturesPriceAsync(underlyingContractId).ConfigureAwait(false);
-        var eod = await context.DbFactory.MarketDataDb.GetFuturesEodDataAsync(
+        var currentEod = await context.DbFactory.MarketDataDb.GetFuturesEodDataAsync(
             underlyingContractId, valueDate).ConfigureAwait(false);
-        if (eod is not { DailyStdDevAmount: > 0 } || !double.IsFinite(eod.DailyStdDevAmount))
-            eod = await context.DbFactory.MarketDataDb.GetLastFuturesEodDataAsync(
+        var deviationEod = currentEod;
+        if (deviationEod is not { DailyStdDevAmount: > 0 } || !double.IsFinite(deviationEod.DailyStdDevAmount))
+            deviationEod = await context.DbFactory.MarketDataDb.GetLastFuturesEodDataAsync(
                 underlyingContractId, valueDate).ConfigureAwait(false);
         var series = MarketSeriesIdentity.ForFuturesSeries(
             new FuturesSeriesId(symbol, "calendar-front", "unadjusted", 1));
         var bollinger = await context.DbFactory.MarketDataDb.GetLatestFuturesBollingerBandSignalAsync(
             series, valueDate, cancellationToken).ConfigureAwait(false);
-        if (eod is { DailyStdDevAmount: > 0 } && double.IsFinite(eod.DailyStdDevAmount)
-            && eod.ValueDate == valueDate && (price ?? bollinger?.Price) is > 0)
-            return (price ?? bollinger!.Price, (decimal)eod.DailyStdDevAmount, valueDate);
+        var fallbackPrice = price ?? bollinger?.Price
+            ?? (currentEod is { ClosePrice: > 0 } ? (decimal?)currentEod.ClosePrice : null)
+            ?? (deviationEod is { ClosePrice: > 0 } ? (decimal?)deviationEod.ClosePrice : null);
+        if (deviationEod is { DailyStdDevAmount: > 0 } && double.IsFinite(deviationEod.DailyStdDevAmount)
+            && fallbackPrice is > 0)
+            return (fallbackPrice, (decimal)deviationEod.DailyStdDevAmount, deviationEod.ValueDate);
         // Strike selection is approximate and value-date scoped; a provisional intraday
         // band is sufficient here and does not qualify option pricing inputs.
         if (bollinger is { StandardDeviation20: > 0 }
@@ -35,6 +39,6 @@ internal static class OptionChainWindowInputs
         return intraday is { StandardDeviation20: > 0, Price: > 0 }
             && intraday.Metadata.IsValid && intraday.Metadata.ValueDate == valueDate
             ? (price ?? intraday.Price, intraday.StandardDeviation20, valueDate)
-            : (price, null, null);
+            : (fallbackPrice, null, currentEod?.ValueDate ?? deviationEod?.ValueDate);
     }
 }

@@ -379,6 +379,7 @@ public static class Startup
             services.AddSingleton<DevelopmentTradingPortfolioProvisioner>();
             services.AddSingleton<DevelopmentTradingPortfolioIdentityRecovery>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.RegimeDiscoveryDefaultProvisioner>();
             var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
             {
                 MaximumExecutionDuration = config.GetValue(

@@ -116,6 +116,13 @@ try
         if (app.Environment.IsDevelopment()
             && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
         {
+            var regimeDefaults = await app.Services
+                .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.RegimeDiscoveryDefaultProvisioner>()
+                .EnsureAsync(DateTime.UtcNow, "IFM Development startup");
+            Log.Information(
+                "Development Regime Discovery defaults ready: {ExistingProfiles} existing, {PublishedProfiles} published",
+                regimeDefaults.ExistingProfiles,
+                regimeDefaults.PublishedProfiles);
             var defaults = await app.Services
                 .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>()
                 .EnsureAsync(workflowOptions.MarketConditionAssessmentProfileId, DateTime.UtcNow, "IFM Development startup");

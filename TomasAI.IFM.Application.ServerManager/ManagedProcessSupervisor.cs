@@ -241,7 +241,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
             }
 
             process.Dispose();
-            WriteLifecycle(definition, $"Start failed: {exception.Message}");
+            WriteLifecycle(definition, $"Start failed: {exception.Message}", exception);
             lock (_sync)
             {
                 _lastCompletions[definition.Key] = Task.CompletedTask;
@@ -297,7 +297,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            WriteLifecycle(owned.Definition, $"Process monitoring failed: {exception.Message}");
+            WriteLifecycle(owned.Definition, "Process monitoring failed.", exception);
         }
         finally
         {
@@ -326,7 +326,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            WriteLifecycle(owned.Definition, $"{stream} capture failed: {exception.Message}");
+            WriteLifecycle(owned.Definition, $"{stream} capture failed.", exception);
         }
     }
 
@@ -484,7 +484,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            WriteLifecycle(owned.Definition, $"Graceful shutdown request failed: {exception.Message}");
+            WriteLifecycle(owned.Definition, "Graceful shutdown request failed.", exception);
             return false;
         }
     }
@@ -496,16 +496,24 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         return true;
     }
 
-    private void WriteLifecycle(ManagedProcessDefinition definition, string message)
-        => Write(definition, ManagedProcessLogStream.Lifecycle, message);
+    private void WriteLifecycle(
+        ManagedProcessDefinition definition,
+        string message,
+        Exception? exception = null)
+        => Write(definition, ManagedProcessLogStream.Lifecycle, message, exception);
 
-    private void Write(ManagedProcessDefinition definition, ManagedProcessLogStream stream, string message)
+    private void Write(
+        ManagedProcessDefinition definition,
+        ManagedProcessLogStream stream,
+        string message,
+        Exception? exception = null)
         => _writeLog(new ManagedProcessLogEntry(
             DateTimeOffset.Now,
             definition.Key,
             definition.DisplayName,
             stream,
-            message));
+            message,
+            exception));
 
     private void NotifyRunningProcessesChanged()
     {
@@ -527,7 +535,8 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
                     "manager",
                     "Server Manager",
                     ManagedProcessLogStream.Manager,
-                    $"Development process-session record update failed: {exception.Message}"));
+                    "Development process-session record update failed.",
+                    exception));
             }
         }
     }

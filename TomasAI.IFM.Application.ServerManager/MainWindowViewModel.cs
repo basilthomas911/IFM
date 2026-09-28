@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Serilog;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TomasAI.IFM.Application.ServerManager.Contracts;
@@ -202,6 +203,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowV
         }
         catch (Exception exception)
         {
+            Log.Error(exception, "Failed to refresh the scheduler dashboard.");
             _dispatcher.Post(() =>
             {
                 SchedulerState = "Offline";
@@ -372,6 +374,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowV
         }
         catch (Exception exception)
         {
+            Log.Error(exception, "Scheduler operation failed.");
             SchedulerOperationMessage = exception.Message;
         }
     }

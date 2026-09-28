@@ -614,6 +614,18 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             _underlyingSymbol,
             _tradeDate,
             _requestedMaturityDate);
+        for (var attempt = 1; result.Success && (result.Value is null || result.Value.Length == 0)
+                                  && attempt < 15; attempt++)
+        {
+            SetExpiryState("Waiting for startup expiry cache...");
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            if (IsDisposed)
+                return;
+            result = await appRoot.Services.MarketDataQueries.QueryDatabentoOptionChainRangeAsync(
+                _underlyingSymbol,
+                _tradeDate,
+                _requestedMaturityDate);
+        }
         if (!result.Success)
         {
             SetExpiryState("Databento expiry load failed");

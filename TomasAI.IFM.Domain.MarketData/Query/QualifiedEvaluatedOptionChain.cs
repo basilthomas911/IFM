@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.Storage;
@@ -18,6 +19,9 @@ static class QualifiedEvaluatedOptionChain
     static readonly ConcurrentDictionary<string, WorkerOptionChainRequest> Leases = new();
     static readonly ConcurrentDictionary<string, CachedWindowInputs> WindowInputs = new();
     static readonly ConcurrentDictionary<string, AtTheMoneyIv> ImpliedVolatility = new();
+    static readonly ConcurrentDictionary<string, SemaphoreSlim> ReferencePublicationGates = new();
+    static readonly ConcurrentDictionary<string, Lazy<Task<ServiceResult<EvaluatedOptionChainReadModel>>>> Acquisitions = new();
+    static readonly ConcurrentDictionary<(string ContractId, string MappingVersion), byte> PublishedReferences = new();
     sealed record CachedWindowInputs(Guid GenerationId, DateTimeOffset ExpiresAtUtc,
         string[] ProviderRoots, FuturesOptionContractReadModel[] Definitions, decimal? Price, decimal? Deviation);
     sealed record AtTheMoneyIv(Guid GenerationId, DateTimeOffset ObservedAtUtc, double Value);
@@ -36,7 +40,19 @@ static class QualifiedEvaluatedOptionChain
         if (query.ReleaseOnly) return await ReleaseAsync(key, query, discovery, token);
         if (!admissions.TryGet("GLBX.MDP3", out var admission))
             return new ServiceFailed<EvaluatedOptionChainReadModel>(503, "Market-data worker is not admitted.");
-        return await AcquireAsync(key, query, context, api, discovery, market, admission, token);
+        var acquisitionKey = $"{key}|{string.Join(',', query.ProviderRoots.Order(StringComparer.OrdinalIgnoreCase))}|{query.StandardDeviationMultiplier}";
+        var acquisition = Acquisitions.GetOrAdd(acquisitionKey, _ => new(() =>
+            AcquireAsync(key, query, context, api, discovery, market, admission, token),
+            LazyThreadSafetyMode.ExecutionAndPublication));
+        try
+        {
+            return await acquisition.Value.WaitAsync(token);
+        }
+        finally
+        {
+            if (acquisition.IsValueCreated && acquisition.Value.IsCompleted)
+                Acquisitions.TryRemove(new(acquisitionKey, acquisition));
+        }
     }
     static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ReleaseAsync(string key,
         GetEvaluatedOptionChainQuery query, QualifiedCompositionDiscovery discovery, CancellationToken token)
@@ -70,7 +86,7 @@ static class QualifiedEvaluatedOptionChain
             WindowInputs[key] = cached;
         }
         else livePrice = await api.GetFuturesPriceAsync(query.UnderlyingContractId).ConfigureAwait(false) ?? cached.Price;
-        var windowPrice = cached.Price ?? livePrice;
+        var windowPrice = livePrice ?? cached.Price;
         var expiry = cached.Definitions.Where(x => x.ExpirationUtc is not null)
             .Select(x => x.ExpirationUtc!.Value).DefaultIfEmpty().Min();
         var window = windowPrice is > 0 && expiry > now
@@ -83,8 +99,15 @@ static class QualifiedEvaluatedOptionChain
         if (window.Contracts.Length == 0) return Failed(window.Method == "WindowInputsUnavailable"
             ? "Neither a qualified expiry IV nor current Bollinger window inputs are available."
             : "No contracts are available in the selected strike window.");
+        await PublishSelectedReferencesAsync(key, context, window.Contracts, token);
         var lease = await EnsureLeaseAsync(key, query, context, discovery, admission, window.Contracts, token);
-        if (lease.Lease is null) return Failed($"The qualified option-chain lease could not be acquired: {lease.FailureCode}.");
+        if (lease.Lease is null)
+        {
+            context.Logger.LogWarning(
+                "Evaluated option chain lease rejected for {UnderlyingContractId} {ExpiryDate}: {FailureCode}",
+                query.UnderlyingContractId, query.ExpiryDate, lease.FailureCode);
+            return Failed($"The qualified option-chain lease could not be acquired: {lease.FailureCode}.");
+        }
         return await CaptureAsync(key, query, market, lease.Lease, window, livePrice ?? windowPrice, token);
     }
     static async Task<FuturesOptionContractReadModel[]> LoadDefinitionsAsync(
@@ -93,6 +116,50 @@ static class QualifiedEvaluatedOptionChain
         var cached = await context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(
             query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate, query.ProviderRoots, token);
         return cached.Select(row => row.Definition).DistinctBy(x => x.ContractId).ToArray();
+    }
+    static async Task PublishSelectedReferencesAsync(string key, IMarketDataQueryContext context,
+        FuturesOptionContractReadModel[] contracts, CancellationToken token)
+    {
+        var gate = ReferencePublicationGates.GetOrAdd(key, static _ => new(1, 1));
+        await gate.WaitAsync(token);
+        try
+        {
+            var securities = context.DbFactory.SecuritiesDb;
+            var selected = contracts.DistinctBy(static contract =>
+                (contract.ContractId, contract.MappingVersion)).ToArray();
+            await Parallel.ForEachAsync(selected, new ParallelOptions
+            {
+                CancellationToken = token,
+                MaxDegreeOfParallelism = Math.Min(8, selected.Length)
+            }, async (definition, cancellationToken) =>
+            {
+                if (definition.ReviewState != ReferenceReviewState.Reviewed
+                    || string.IsNullOrWhiteSpace(definition.MappingVersion))
+                    throw new InvalidDataException(
+                        $"Selected option definition '{definition.ContractId}' is not reviewed.");
+                var referenceKey = (definition.ContractId, definition.MappingVersion);
+                if (PublishedReferences.ContainsKey(referenceKey)) return;
+                if (await securities.GetReferenceVersionAsync(
+                        definition.ContractId, definition.MappingVersion, cancellationToken)
+                    .ConfigureAwait(false) is not null)
+                {
+                    PublishedReferences.TryAdd(referenceKey, 0);
+                    return;
+                }
+                var pending = await securities.StageReferenceVersionAsync(definition, cancellationToken)
+                    .ConfigureAwait(false);
+                await securities.CommitReferenceVersionAsync(pending, cancellationToken)
+                    .ConfigureAwait(false);
+                PublishedReferences.TryAdd(referenceKey, 0);
+            });
+            context.Logger.LogInformation(
+                "Published reviewed references for selected option window {WindowKey}: contracts={Count}.",
+                key, selected.Length);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
     static async Task<(WorkerOptionChainRequest? Lease, string? FailureCode)> EnsureLeaseAsync(string key,
         GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context,

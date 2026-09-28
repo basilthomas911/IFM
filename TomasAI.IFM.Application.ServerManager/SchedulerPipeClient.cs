@@ -52,11 +52,20 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
             return Offline("Scheduler dashboard access is disabled in Server Manager configuration.");
         }
 
-        var response = await SendAsync(new SchedulerPipeRequest(
-            SchedulerProtocol.Version,
-            Guid.NewGuid(),
-            SchedulerProtocol.GetDashboardOperation,
-            DateTimeOffset.UtcNow), cancellationToken);
+        SchedulerPipeResponse response;
+        try
+        {
+            response = await SendAsync(new SchedulerPipeRequest(
+                SchedulerProtocol.Version,
+                Guid.NewGuid(),
+                SchedulerProtocol.GetDashboardOperation,
+                DateTimeOffset.UtcNow), cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Offline(
+                $"Scheduler Host is offline or did not accept a connection within {options.ConnectTimeoutMilliseconds} ms.");
+        }
         return response.Dashboard
             ?? throw new InvalidOperationException("Scheduler dashboard response contained no dashboard.");
     }
