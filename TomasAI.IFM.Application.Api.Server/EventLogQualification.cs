@@ -14,14 +14,35 @@ public sealed class EventLogQualification
     public string RunId { get; }
     public IReadOnlyDictionary<string, string?> Settings { get; }
     public EventLogQualification(string runId, string environment, string artifactRoot, bool useExistingScylla = false)
+        : this(
+            runId,
+            environment,
+            artifactRoot,
+            RequiredLoopbackPostgres("IFM_QUALIFICATION_POSTGRES_CONNECTION", runId),
+            RequiredLoopbackUri("IFM_QUALIFICATION_NATS_URL", "nats"),
+            RequiredLoopbackEndpoint("IFM_QUALIFICATION_REDIS_URL"),
+            RequiredScyllaPort(),
+            useExistingScylla)
+    {
+    }
+
+    internal EventLogQualification(
+        string runId,
+        string environment,
+        string artifactRoot,
+        string postgresConnection,
+        string natsUrl,
+        string redisEndpoint,
+        int scyllaPort,
+        bool useExistingScylla = false)
     {
         if (environment != "Test" || !Regex.IsMatch(runId, "\\A[a-f0-9]{12}\\z"))
             throw new InvalidOperationException("Qualification requires environment Test and a 12-digit lowercase hexadecimal run ID.");
         RunId = runId;
         var root = Path.GetFullPath(artifactRoot);
-        var pg = RequiredLoopbackPostgres("IFM_QUALIFICATION_POSTGRES_CONNECTION", runId);
-        BrokerUrl = RequiredLoopbackUri("IFM_QUALIFICATION_NATS_URL", "nats");
-        var redis = RequiredLoopbackEndpoint("IFM_QUALIFICATION_REDIS_URL");
+        var pg = ValidateLoopbackPostgres(postgresConnection, runId);
+        BrokerUrl = ValidateLoopbackUri(natsUrl, "IFM_QUALIFICATION_NATS_URL", "nats");
+        var redis = ValidateLoopbackEndpoint(redisEndpoint, "IFM_QUALIFICATION_REDIS_URL");
         var settings = new Dictionary<string, string?>
         {
             ["urls"] = HttpUrl,
@@ -50,8 +71,8 @@ public sealed class EventLogQualification
             settings[$"ConnectionStrings:{key}DbConnection"] = pg;
         // A separately approved AIO-constrained run may use uniquely named keyspaces
         // on the existing local Scylla listener; all other qualification routing stays fixed.
-        var scyllaPort = int.Parse(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_SCYLLA_PORT")
-            ?? throw new InvalidOperationException("The isolated qualification CQL port is required."));
+        if (scyllaPort is <= 0 or > ushort.MaxValue)
+            throw new InvalidOperationException("The isolated qualification CQL port must be valid.");
         foreach (var key in new[] { "Trade", "Fund", "Reference", "OptionPricer", "MarketData", "Securities" })
             settings[$"ConnectionStrings:{key}DbConnection"] =
                 $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
@@ -64,6 +85,11 @@ public sealed class EventLogQualification
     {
         var value = Environment.GetEnvironmentVariable(name)
             ?? throw new InvalidOperationException($"{name} is required.");
+        return ValidateLoopbackPostgres(value, runId);
+    }
+
+    static string ValidateLoopbackPostgres(string value, string runId)
+    {
         var connection = new NpgsqlConnectionStringBuilder(value);
         if (connection.Host != "127.0.0.1" || connection.Port <= 0
             || connection.Database != $"ifm_eventlog_bench_{runId}_synthetic_host")
@@ -75,6 +101,11 @@ public sealed class EventLogQualification
     {
         var value = Environment.GetEnvironmentVariable(name)
             ?? throw new InvalidOperationException($"{name} is required.");
+        return ValidateLoopbackUri(value, name, scheme);
+    }
+
+    static string ValidateLoopbackUri(string value, string name, string scheme)
+    {
         var uri = new Uri(value);
         if (uri.Scheme != scheme || uri.Host != "127.0.0.1" || uri.Port <= 0)
             throw new InvalidOperationException($"{name} must be a loopback endpoint.");
@@ -85,11 +116,20 @@ public sealed class EventLogQualification
     {
         var value = Environment.GetEnvironmentVariable(name)
             ?? throw new InvalidOperationException($"{name} is required.");
+        return ValidateLoopbackEndpoint(value, name);
+    }
+
+    static string ValidateLoopbackEndpoint(string value, string name)
+    {
         if (!System.Net.IPEndPoint.TryParse(value.Split(',')[0], out var endpoint)
             || !System.Net.IPAddress.IsLoopback(endpoint.Address) || endpoint.Port <= 0)
             throw new InvalidOperationException($"{name} must be a loopback endpoint.");
         return value;
     }
+
+    static int RequiredScyllaPort() =>
+        int.Parse(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_SCYLLA_PORT")
+            ?? throw new InvalidOperationException("The isolated qualification CQL port is required."));
 
     public void Validate(IConfiguration config)
     {

@@ -5,7 +5,16 @@ namespace TomasAI.IFM.Domain.Application.UnitTests;
 
 public sealed class EventLogQualificationTests
 {
-    static EventLogQualification Profile() => new("0123456789ab", "Test", Path.GetTempPath());
+    const string RunId = "0123456789ab";
+
+    static EventLogQualification Profile() => new(
+        RunId,
+        "Test",
+        Path.GetTempPath(),
+        $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{RunId}_synthetic_host",
+        "nats://127.0.0.1:24222",
+        "127.0.0.1:26379,abortConnect=false",
+        29042);
 
     [Theory]
     [InlineData("Production", "0123456789ab")]
@@ -13,7 +22,14 @@ public sealed class EventLogQualificationTests
     [InlineData("Test", "../escape")]
     [InlineData("Test", "0123456789AB")]
     public void Rejects_non_test_or_invalid_run(string environment, string run) =>
-        Assert.Throws<InvalidOperationException>(() => new EventLogQualification(run, environment, Path.GetTempPath()));
+        Assert.Throws<InvalidOperationException>(() => new EventLogQualification(
+            run,
+            environment,
+            Path.GetTempPath(),
+            $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{run}_synthetic_host",
+            "nats://127.0.0.1:24222",
+            "127.0.0.1:26379,abortConnect=false",
+            29042));
 
     [Fact]
     public void Generated_profile_is_valid_and_synthetic()

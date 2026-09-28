@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
